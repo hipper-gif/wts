@@ -162,18 +162,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// ユーザー一覧取得
-$stmt = $pdo->prepare("SELECT * FROM users ORDER BY is_active DESC, role, name");
-$stmt->execute();
-$users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// ユーザー一覧取得 - エラー修正版
+try {
+    $stmt = $pdo->prepare("SELECT id, name, login_id, role, is_driver, is_caller, is_admin, is_active, created_at FROM users ORDER BY is_active DESC, role, name");
+    $stmt->execute();
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $error_message = 'ユーザー一覧の取得に失敗しました: ' . $e->getMessage();
+    $users = [];
+}
 
 // 権限表示用の関数
 function getUserPermissions($user) {
     $permissions = [];
-    if ($user['is_driver']) $permissions[] = '運転者';
-    if ($user['is_caller']) $permissions[] = '点呼者';
-    if ($user['is_admin']) $permissions[] = 'システム管理者';
+    if (isset($user['is_driver']) && $user['is_driver']) $permissions[] = '運転者';
+    if (isset($user['is_caller']) && $user['is_caller']) $permissions[] = '点呼者';
+    if (isset($user['is_admin']) && $user['is_admin']) $permissions[] = 'システム管理者';
     return implode(' + ', $permissions);
+}
+
+// 安全な値取得関数
+function safeGet($array, $key, $default = '') {
+    return isset($array[$key]) ? $array[$key] : $default;
 }
 ?>
 <!DOCTYPE html>
@@ -315,28 +325,28 @@ function getUserPermissions($user) {
                     <p class="text-muted text-center">ユーザーが登録されていません。</p>
                 <?php else: ?>
                     <?php foreach ($users as $user): ?>
-                    <div class="user-row <?= $user['is_active'] ? '' : 'inactive' ?>">
+                    <div class="user-row <?= safeGet($user, 'is_active', 1) ? '' : 'inactive' ?>">
                         <div class="row align-items-center">
                             <div class="col-md-4">
-                                <h6 class="mb-1"><?= htmlspecialchars($user['name']) ?></h6>
-                                <small class="text-muted">ID: <?= htmlspecialchars($user['login_id']) ?></small>
+                                <h6 class="mb-1"><?= htmlspecialchars(safeGet($user, 'name', '名前未設定')) ?></h6>
+                                <small class="text-muted">ID: <?= htmlspecialchars(safeGet($user, 'login_id', '未設定')) ?></small>
                             </div>
                             <div class="col-md-3">
                                 <div class="permissions-badges">
-                                    <?php if ($user['is_driver']): ?>
+                                    <?php if (safeGet($user, 'is_driver')): ?>
                                         <span class="badge bg-success me-1 mb-1">運転者</span>
                                     <?php endif; ?>
-                                    <?php if ($user['is_caller']): ?>
+                                    <?php if (safeGet($user, 'is_caller')): ?>
                                         <span class="badge bg-warning me-1 mb-1">点呼者</span>
                                     <?php endif; ?>
-                                    <?php if ($user['is_admin']): ?>
+                                    <?php if (safeGet($user, 'is_admin')): ?>
                                         <span class="badge bg-danger me-1 mb-1">システム管理者</span>
                                     <?php endif; ?>
                                 </div>
                             </div>
                             <div class="col-md-2">
-                                <span class="badge <?= $user['is_active'] ? 'bg-success' : 'bg-secondary' ?>">
-                                    <?= $user['is_active'] ? '有効' : '無効' ?>
+                                <span class="badge <?= safeGet($user, 'is_active', 1) ? 'bg-success' : 'bg-secondary' ?>">
+                                    <?= safeGet($user, 'is_active', 1) ? '有効' : '無効' ?>
                                 </span>
                             </div>
                             <div class="col-md-3 text-end">
@@ -346,12 +356,12 @@ function getUserPermissions($user) {
                                         <i class="fas fa-edit"></i>
                                     </button>
                                     <button type="button" class="btn btn-sm btn-outline-warning" 
-                                            onclick="changePassword(<?= $user['id'] ?>, '<?= htmlspecialchars($user['name']) ?>')">
+                                            onclick="changePassword(<?= safeGet($user, 'id') ?>, '<?= htmlspecialchars(safeGet($user, 'name', '名前未設定')) ?>')">
                                         <i class="fas fa-key"></i>
                                     </button>
-                                    <?php if ($user['id'] != $user_id): ?>
+                                    <?php if (safeGet($user, 'id') != $user_id): ?>
                                     <button type="button" class="btn btn-sm btn-outline-danger" 
-                                            onclick="deleteUser(<?= $user['id'] ?>, '<?= htmlspecialchars($user['name']) ?>')">
+                                            onclick="deleteUser(<?= safeGet($user, 'id') ?>, '<?= htmlspecialchars(safeGet($user, 'name', '名前未設定')) ?>')">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                     <?php endif; ?>
@@ -490,9 +500,9 @@ function getUserPermissions($user) {
         function editUser(user) {
             document.getElementById('userModalTitle').textContent = 'ユーザー編集';
             document.getElementById('modalAction').value = 'edit';
-            document.getElementById('modalUserId').value = user.id;
-            document.getElementById('modalName').value = user.name;
-            document.getElementById('modalLoginId').value = user.login_id;
+            document.getElementById('modalUserId').value = user.id || '';
+            document.getElementById('modalName').value = user.name || '';
+            document.getElementById('modalLoginId').value = user.login_id || '';
             document.getElementById('modalIsDriver').checked = user.is_driver == 1;
             document.getElementById('modalIsCaller').checked = user.is_caller == 1;
             document.getElementById('modalIsAdmin').checked = user.is_admin == 1;

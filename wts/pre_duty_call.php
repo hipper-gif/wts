@@ -17,12 +17,14 @@ $current_time = date('H:i');
 $success_message = '';
 $error_message = '';
 
-// ドライバーの取得
+// ドライバーと点呼者の取得
 try {
-    $stmt = $pdo->prepare("SELECT id, name, role FROM users WHERE role IN ('driver', 'manager', 'admin') AND is_active = TRUE ORDER BY name");
+    // 運転者のみ取得（実際に運転する人のみ）
+    $stmt = $pdo->prepare("SELECT id, name, role FROM users WHERE (role = 'driver' OR is_driver = 1) AND is_active = TRUE ORDER BY name");
     $stmt->execute();
     $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
+    // 点呼者取得（管理者・マネージャーのみ）
     $stmt = $pdo->prepare("SELECT id, name, role FROM users WHERE role IN ('manager', 'admin') AND is_active = TRUE ORDER BY name");
     $stmt->execute();
     $callers = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -257,9 +259,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-bottom: 1rem;
         }
         
+        /* スマートフォン用レイアウト修正 */
         @media (max-width: 768px) {
+            .form-card-header {
+                padding: 0.75rem 1rem;
+            }
+            
+            /* ヘッダーボタンのスマホ対応 - ヘッダー外に配置 */
+            .mobile-buttons {
+                display: flex;
+                gap: 0.5rem;
+                margin-bottom: 1rem;
+                justify-content: center;
+            }
+            
+            .mobile-buttons .btn {
+                font-size: 0.9rem;
+                padding: 0.6rem 1rem;
+                flex: 1;
+                max-width: 150px;
+            }
+            
+            /* デスクトップのボタンを非表示 */
+            .header-buttons {
+                display: none;
+            }
+            
+            /* タイトル部分はシンプルに */
+            .form-card-header-content {
+                display: block;
+            }
+            
+            .form-card-title {
+                margin-bottom: 0;
+                font-size: 1.1rem;
+            }
+            
             .form-card-body {
                 padding: 1rem;
+            }
+        }
+        
+        /* 極小画面（320px以下）対応 */
+        @media (max-width: 320px) {
+            .mobile-buttons .btn {
+                font-size: 0.8rem;
+                padding: 0.5rem 0.8rem;
             }
         }
     </style>
@@ -300,14 +345,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <?php endif; ?>
         
-        <!-- 車両情報は表示しない（バックエンドで自動処理） -->
-        
         <form method="POST" id="predutyForm">
             <!-- 基本情報 -->
             <div class="form-card">
-                <h5 class="form-card-header">
-                    <i class="fas fa-info-circle me-2"></i>基本情報
-                </h5>
+                <div class="form-card-header">
+                    <div class="form-card-header-content">
+                        <h5 class="form-card-title mb-0">
+                            <i class="fas fa-info-circle me-2"></i>基本情報
+                        </h5>
+                    </div>
+                </div>
                 <div class="form-card-body">
                     <div class="row">
                         <div class="col-md-6 mb-3">
@@ -348,18 +395,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- 確認事項 -->
             <div class="form-card">
-                <h5 class="form-card-header">
-                    <i class="fas fa-tasks me-2"></i>確認事項（15項目）
-                    <div class="float-end">
-                        <button type="button" class="btn btn-outline-light btn-sm me-2" id="checkAllBtn">
+                <div class="form-card-header">
+                    <div class="form-card-header-content">
+                        <h5 class="form-card-title mb-0">
+                            <i class="fas fa-tasks me-2"></i>確認事項（15項目）
+                        </h5>
+                        <div class="header-buttons d-none d-md-flex float-end">
+                            <button type="button" class="btn btn-outline-light btn-sm me-2" id="checkAllBtn">
+                                <i class="fas fa-check-double me-1"></i>全てチェック
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm" id="uncheckAllBtn">
+                                <i class="fas fa-times me-1"></i>全て解除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-card-body">
+                    <!-- スマホ用ボタン（ヘッダー外に配置） -->
+                    <div class="mobile-buttons d-md-none">
+                        <button type="button" class="btn btn-success" id="checkAllBtnMobile">
                             <i class="fas fa-check-double me-1"></i>全てチェック
                         </button>
-                        <button type="button" class="btn btn-outline-light btn-sm" id="uncheckAllBtn">
+                        <button type="button" class="btn btn-warning" id="uncheckAllBtnMobile">
                             <i class="fas fa-times me-1"></i>全て解除
                         </button>
                     </div>
-                </h5>
-                <div class="form-card-body">
+                    
                     <?php
                     $check_items = [
                         'health_check' => '健康状態',
@@ -401,9 +462,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- アルコールチェック -->
             <div class="form-card">
-                <h5 class="form-card-header">
-                    <i class="fas fa-wine-bottle me-2"></i>アルコールチェック
-                </h5>
+                <div class="form-card-header">
+                    <h5 class="form-card-title mb-0">
+                        <i class="fas fa-wine-bottle me-2"></i>アルコールチェック
+                    </h5>
+                </div>
                 <div class="form-card-body">
                     <div class="row align-items-center">
                         <div class="col-auto">
@@ -423,9 +486,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- 備考 -->
             <div class="form-card">
-                <h5 class="form-card-header">
-                    <i class="fas fa-comment me-2"></i>備考
-                </h5>
+                <div class="form-card-header">
+                    <h5 class="form-card-title mb-0">
+                        <i class="fas fa-comment me-2"></i>備考
+                    </h5>
+                </div>
                 <div class="form-card-body">
                     <textarea class="form-control" name="remarks" rows="3" 
                               placeholder="特記事項があれば記入してください"><?= $existing_call ? htmlspecialchars($existing_call['remarks']) : '' ?></textarea>
@@ -444,8 +509,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 車両関連の処理は削除（バックエンドで自動処理）
-        
         // 点呼者選択の表示切替
         function toggleCallerInput() {
             const callerSelect = document.querySelector('select[name="caller_name"]');
@@ -517,9 +580,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 toggleCallerInput(); // 初期表示
             }
             
-            // 一括チェックボタンのイベント設定
+            // 一括チェックボタンのイベント設定（デスクトップ・モバイル両対応）
             const checkAllBtn = document.getElementById('checkAllBtn');
             const uncheckAllBtn = document.getElementById('uncheckAllBtn');
+            const checkAllBtnMobile = document.getElementById('checkAllBtnMobile');
+            const uncheckAllBtnMobile = document.getElementById('uncheckAllBtnMobile');
             
             if (checkAllBtn) {
                 checkAllBtn.addEventListener('click', checkAll);
@@ -527,6 +592,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if (uncheckAllBtn) {
                 uncheckAllBtn.addEventListener('click', uncheckAll);
+            }
+            
+            if (checkAllBtnMobile) {
+                checkAllBtnMobile.addEventListener('click', checkAll);
+            }
+            
+            if (uncheckAllBtnMobile) {
+                uncheckAllBtnMobile.addEventListener('click', uncheckAll);
             }
         });
         

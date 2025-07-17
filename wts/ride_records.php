@@ -109,8 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 運転者一覧取得
-$drivers_sql = "SELECT id, name FROM users WHERE role IN ('driver', 'admin') ORDER BY name";
+// 運転者一覧取得（権限チェックを緩和）
+$drivers_sql = "SELECT id, name FROM users WHERE (role IN ('driver', 'admin') OR is_driver = 1) AND is_active = 1 ORDER BY name";
 $drivers_stmt = $pdo->prepare($drivers_sql);
 $drivers_stmt->execute();
 $drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -120,6 +120,44 @@ $vehicles_sql = "SELECT id, vehicle_number, vehicle_name FROM vehicles WHERE sta
 $vehicles_stmt = $pdo->prepare($vehicles_sql);
 $vehicles_stmt->execute();
 $vehicles = $vehicles_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// よく使う場所の取得（過去の記録から）
+$common_locations_sql = "
+    SELECT location, COUNT(*) as usage_count FROM (
+        SELECT pickup_location as location FROM ride_records 
+        WHERE pickup_location IS NOT NULL AND pickup_location != '' AND pickup_location NOT LIKE '%(%'
+        UNION ALL
+        SELECT dropoff_location as location FROM ride_records 
+        WHERE dropoff_location IS NOT NULL AND dropoff_location != '' AND dropoff_location NOT LIKE '%(%'
+    ) as all_locations 
+    GROUP BY location 
+    ORDER BY usage_count DESC, location ASC 
+    LIMIT 20
+";
+$common_locations_stmt = $pdo->prepare($common_locations_sql);
+$common_locations_stmt->execute();
+$common_locations_data = $common_locations_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// よく使う場所のリストを作成
+$common_locations = array_column($common_locations_data, 'location');
+
+// デフォルト場所も追加（よく使われる場所がない場合）
+$default_locations = [
+    '○○病院', '△△クリニック', '□□総合病院',
+    'スーパー○○', 'イオンモール', '駅前ショッピングセンター',
+    '○○介護施設', 'デイサービス△△',
+    '市役所', '郵便局', '銀行○○支店'
+];
+
+if (empty($common_locations)) {
+    $common_locations = $default_locations;
+} else {
+    // 既存の場所とデフォルト場所をマージ（重複除去）
+    $common_locations = array_unique(array_merge($common_locations, $default_locations));
+}
+
+// JavaScript用にJSONエンコード
+$locations_json = json_encode($common_locations, JSON_UNESCAPED_UNICODE);
 
 // 検索条件
 $search_date = $_GET['search_date'] ?? $today;
@@ -200,103 +238,298 @@ $payment_methods = ['現金', 'カード', 'その他'];
             background-color: #f8f9fa;
             font-family: 'Hiragino Kaku Gothic Pro', 'ヒラギノ角ゴ Pro', 'Yu Gothic Medium', '游ゴシック Medium', YuGothic, '游ゴシック体', 'Meiryo', sans-serif;
         }
-        .navbar-brand {
-            font-weight: bold;
-            color: #2c3e50 !important;
-        }
-        .card {
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            border: none;
-            border-radius: 10px;
-        }
-        .card-header {
-            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        
+        /* メインアクションエリア */
+        .main-actions {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            border-radius: 10px 10px 0 0 !important;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
-        .btn-primary {
-            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-            border: none;
-            border-radius: 25px;
-            padding: 8px 20px;
+        
+        .action-btn {
+            border: 2px solid white;
+            color: white;
+            background: transparent;
+            padding: 12px 25px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border-radius: 50px;
+            margin: 0 10px 10px 0;
+            transition: all 0.3s;
+            min-width: 180px;
         }
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
-            transform: translateY(-1px);
+        
+        .action-btn:hover {
+            background: white;
+            color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
-        .btn-success {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            border: none;
-            border-radius: 20px;
+        
+        .action-btn.primary {
+            background: white;
+            color: #667eea;
+            border-color: white;
         }
-        .btn-warning {
-            background: linear-gradient(135deg, #ffc107 0%, #ff8c00 100%);
-            border: none;
-            border-radius: 20px;
+        
+        .action-btn.primary:hover {
+            background: #f8f9fa;
+            transform: scale(1.05);
         }
-        .form-control, .form-select {
-            border-radius: 8px;
-            border: 1px solid #ddd;
-            padding: 8px 12px;
-        }
-        .form-control:focus, .form-select:focus {
-            border-color: #007bff;
-            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-        }
-        .ride-record {
+        
+        /* 検索フォーム - コンパクト化 */
+        .search-form {
             background: white;
             padding: 15px;
-            margin: 8px 0;
-            border-radius: 8px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .search-form .form-label {
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        
+        .search-form .form-control,
+        .search-form .form-select {
+            font-size: 0.9em;
+            padding: 6px 10px;
+        }
+        
+        /* 乗車記録カード */
+        .ride-record {
+            background: white;
+            padding: 18px;
+            margin: 10px 0;
+            border-radius: 12px;
             border-left: 4px solid #007bff;
             transition: all 0.3s;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
         }
+        
         .ride-record:hover {
             transform: translateX(5px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
+        
         .return-trip {
             border-left-color: #28a745;
-            background: #f8fff9;
+            background: linear-gradient(90deg, #f8fff9 0%, white 20%);
         }
+        
+        /* 復路作成ボタン強調 */
+        .return-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+        
+        .return-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+            color: white;
+        }
+        
+        /* よく使う場所のドロップダウン */
+        .location-dropdown {
+            position: relative;
+        }
+        
+        .location-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .location-suggestion {
+            padding: 12px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+        }
+        
+        .location-suggestion:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .location-suggestion:last-child {
+            border-bottom: none;
+        }
+        
+        .location-suggestion mark {
+            background-color: #fff3cd;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+        
+        .location-suggestion-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: bold;
+        }
+        
+        /* その他のスタイル */
+        .amount-display {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #28a745;
+        }
+        
+        .trip-type-badge {
+            font-size: 0.8em;
+            padding: 3px 10px;
+            border-radius: 15px;
+        }
+        
         .summary-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             text-align: center;
             padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 10px;
+            border-radius: 12px;
+            margin-bottom: 15px;
         }
+        
         .summary-value {
             font-size: 1.8em;
             font-weight: bold;
             display: block;
         }
-        .summary-label {
-            font-size: 0.9em;
-            opacity: 0.9;
-        }
-        .location-swap {
-            background: #fff3cd;
-            padding: 8px;
-            border-radius: 6px;
-            margin: 10px 0;
-        }
-        .amount-display {
-            font-size: 1.1em;
-            font-weight: bold;
-            color: #28a745;
-        }
-        .trip-type-badge {
-            font-size: 0.8em;
-            padding: 2px 8px;
-            border-radius: 12px;
-        }
-        .search-form {
-            background: #f8f9fa;
+        
+        .return-trip-info {
+            background: #e8f5e8;
             padding: 15px;
             border-radius: 8px;
-            margin-bottom: 20px;
+            margin: 15px 0;
+            border-left: 4px solid #28a745;
+        }
+        
+        /* スマートフォン対応 */
+        @media (max-width: 768px) {
+            .main-actions {
+                text-align: center;
+                padding: 15px;
+            }
+            
+            .action-btn {
+                display: block;
+                width: 100%;
+                margin: 0;
+                min-width: auto;
+            }
+            
+            .main-actions h3 {
+                font-size: 1.3em;
+                margin-bottom: 8px;
+            }
+            
+            .main-actions p {
+                font-size: 0.9em;
+                margin-bottom: 15px;
+            }
+            
+            /* 検索フォーム - スマホ最適化 */
+            .search-form {
+                padding: 12px;
+                margin-bottom: 15px;
+            }
+            
+            .search-form .row {
+                --bs-gutter-x: 0.75rem;
+            }
+            
+            .search-form .form-label {
+                font-size: 0.8em;
+                margin-bottom: 3px;
+            }
+            
+            .search-form .form-control,
+            .search-form .form-select {
+                font-size: 0.85em;
+                padding: 5px 8px;
+                height: auto;
+            }
+            
+            .search-form .btn {
+                font-size: 0.85em;
+                padding: 6px 12px;
+                margin-top: 10px;
+                width: 100%;
+            }
+            
+            /* 検索フォームの列幅調整 */
+            .search-form .col-md-3 {
+                margin-bottom: 8px;
+            }
+            
+            .ride-record {
+                padding: 15px;
+            }
+            
+            .btn-group {
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+            }
+            
+            .location-suggestions {
+                max-height: 250px;
+            }
+            
+            .location-suggestion {
+                padding: 15px;
+                font-size: 1.1em;
+            }
+        }
+        
+        /* より小さな画面向けの追加調整 */
+        @media (max-width: 576px) {
+            .search-form {
+                padding: 10px;
+            }
+            
+            .search-form .form-label {
+                font-size: 0.75em;
+            }
+            
+            .search-form .form-control,
+            .search-form .form-select {
+                font-size: 0.8em;
+                padding: 4px 6px;
+            }
+            
+            .ride-record {
+                padding: 12px;
+                margin: 6px 0;
+            }
+            
+            .ride-record .row {
+                --bs-gutter-x: 0.5rem;
+            }
+            
+            .amount-display {
+                font-size: 1.1em;
+            }
         }
     </style>
 </head>
@@ -336,15 +569,30 @@ $payment_methods = ['現金', 'カード', 'その他'];
     </nav>
 
     <div class="container-fluid mt-4">
-        <!-- 検索フォーム -->
+        <!-- メインアクションエリア -->
+        <div class="main-actions">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h3 class="mb-2"><i class="fas fa-clipboard-list me-2"></i>乗車記録管理</h3>
+                    <p class="mb-0">乗車記録の新規登録・編集・復路作成ができます</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <button type="button" class="action-btn primary" onclick="showAddModal()">
+                        <i class="fas fa-plus me-2"></i>新規登録
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 検索フォーム - コンパクト版 -->
         <div class="search-form">
-            <form method="GET" class="row g-3">
-                <div class="col-md-3">
+            <form method="GET" class="row g-2">
+                <div class="col-6 col-md-3">
                     <label for="search_date" class="form-label">日付</label>
                     <input type="date" class="form-control" id="search_date" name="search_date" 
                            value="<?php echo htmlspecialchars($search_date); ?>">
                 </div>
-                <div class="col-md-3">
+                <div class="col-6 col-md-3">
                     <label for="search_driver" class="form-label">運転者</label>
                     <select class="form-select" id="search_driver" name="search_driver">
                         <option value="">全て</option>
@@ -356,7 +604,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-6 col-md-3">
                     <label for="search_vehicle" class="form-label">車両</label>
                     <select class="form-select" id="search_vehicle" name="search_vehicle">
                         <option value="">全て</option>
@@ -368,12 +616,9 @@ $payment_methods = ['現金', 'カード', 'その他'];
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-3 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary me-2">
+                <div class="col-6 col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary">
                         <i class="fas fa-search me-1"></i>検索
-                    </button>
-                    <button type="button" class="btn btn-success" onclick="showAddModal()">
-                        <i class="fas fa-plus me-1"></i>新規登録
                     </button>
                 </div>
             </form>
@@ -397,7 +642,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
             <!-- 乗車記録一覧 -->
             <div class="col-lg-8">
                 <div class="card">
-                    <div class="card-header">
+                    <div class="card-header" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; border-radius: 10px 10px 0 0 !important;">
                         <h4 class="mb-0">
                             <i class="fas fa-list me-2"></i>乗車記録一覧
                             <small class="ms-2">(<?php echo htmlspecialchars($search_date); ?>)</small>
@@ -443,10 +688,10 @@ $payment_methods = ['現金', 'カード', 'その他'];
                                             </div>
                                             <div class="btn-group" role="group">
                                                 <?php if (!$ride['is_return_trip']): ?>
-                                                    <button type="button" class="btn btn-success btn-sm" 
+                                                    <button type="button" class="btn return-btn btn-sm" 
                                                             onclick="createReturnTrip(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
                                                             title="復路作成">
-                                                        <i class="fas fa-route"></i>
+                                                        <i class="fas fa-route me-1"></i>復路作成
                                                     </button>
                                                 <?php endif; ?>
                                                 <button type="button" class="btn btn-warning btn-sm" 
@@ -473,25 +718,25 @@ $payment_methods = ['現金', 'カード', 'その他'];
             <div class="col-lg-4">
                 <!-- 日次集計 -->
                 <div class="card mb-3">
-                    <div class="card-header">
+                    <div class="card-header" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white;">
                         <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>日次集計</h5>
                     </div>
                     <div class="card-body">
                         <div class="row">
                             <div class="col-6">
-                                <div class="summary-card bg-primary">
+                                <div class="summary-card">
                                     <span class="summary-value"><?php echo $summary['total_rides'] ?? 0; ?></span>
                                     <span class="summary-label">総回数</span>
                                 </div>
                             </div>
                             <div class="col-6">
-                                <div class="summary-card bg-success">
+                                <div class="summary-card">
                                     <span class="summary-value"><?php echo $summary['total_passengers'] ?? 0; ?></span>
                                     <span class="summary-label">総人数</span>
                                 </div>
                             </div>
                             <div class="col-12">
-                                <div class="summary-card bg-warning">
+                                <div class="summary-card">
                                     <span class="summary-value">¥<?php echo number_format($summary['total_revenue'] ?? 0); ?></span>
                                     <span class="summary-label">売上合計</span>
                                 </div>
@@ -517,7 +762,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
 
                 <!-- 輸送分類別集計 -->
                 <div class="card">
-                    <div class="card-header">
+                    <div class="card-header" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white;">
                         <h6 class="mb-0"><i class="fas fa-pie-chart me-2"></i>輸送分類別</h6>
                     </div>
                     <div class="card-body">
@@ -561,7 +806,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
                     
                     <div class="modal-body">
                         <!-- 復路情報表示 -->
-                        <div id="returnTripInfo" class="location-swap" style="display: none;">
+                        <div id="returnTripInfo" class="return-trip-info" style="display: none;">
                             <h6><i class="fas fa-route me-2"></i>復路作成</h6>
                             <p class="mb-0">乗車地と降車地を入れ替えて復路を作成します。</p>
                         </div>
@@ -628,14 +873,22 @@ $payment_methods = ['現金', 'カード', 'その他'];
                                 <label for="modalPickupLocation" class="form-label">
                                     <i class="fas fa-map-marker-alt text-success me-1"></i>乗車地 <span class="text-danger">*</span>
                                 </label>
-                                <input type="text" class="form-control" id="modalPickupLocation" name="pickup_location" required>
+                                <div class="location-dropdown">
+                                    <input type="text" class="form-control" id="modalPickupLocation" name="pickup_location" 
+                                           placeholder="乗車地を入力または選択" required>
+                                    <div id="pickupSuggestions" class="location-suggestions" style="display: none;"></div>
+                                </div>
                             </div>
 
                             <div class="col-md-6 mb-3">
                                 <label for="modalDropoffLocation" class="form-label">
                                     <i class="fas fa-map-marker-alt text-danger me-1"></i>降車地 <span class="text-danger">*</span>
                                 </label>
-                                <input type="text" class="form-control" id="modalDropoffLocation" name="dropoff_location" required>
+                                <div class="location-dropdown">
+                                    <input type="text" class="form-control" id="modalDropoffLocation" name="dropoff_location" 
+                                           placeholder="降車地を入力または選択" required>
+                                    <div id="dropoffSuggestions" class="location-suggestions" style="display: none;"></div>
+                                </div>
                             </div>
                         </div>
 
@@ -673,9 +926,10 @@ $payment_methods = ['現金', 'カード', 'その他'];
                                     <i class="fas fa-credit-card me-1"></i>支払方法 <span class="text-danger">*</span>
                                 </label>
                                 <select class="form-select" id="modalPaymentMethod" name="payment_method" required>
-                                    <option value="">支払方法を選択</option>
                                     <?php foreach ($payment_methods as $method): ?>
-                                        <option value="<?php echo $method; ?>"><?php echo $method; ?></option>
+                                        <option value="<?php echo $method; ?>" <?php echo ($method === '現金') ? 'selected' : ''; ?>>
+                                            <?php echo $method; ?>
+                                        </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -705,6 +959,9 @@ $payment_methods = ['現金', 'カード', 'その他'];
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // PHPから取得したよく使う場所データ
+        const commonLocations = <?php echo $locations_json; ?>;
+
         // 新規登録モーダル表示
         function showAddModal() {
             document.getElementById('rideModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>乗車記録登録';
@@ -717,9 +974,12 @@ $payment_methods = ['現金', 'カード', 'その他'];
             // フォームをリセット
             document.getElementById('rideForm').reset();
             document.getElementById('modalRideDate').value = '<?php echo $today; ?>';
-            document.getElementById('modalRideTime').value = '<?php echo $current_time; ?>';
+            document.getElementById('modalRideTime').value = getCurrentTime();
             document.getElementById('modalPassengerCount').value = '1';
             document.getElementById('modalCharge').value = '0';
+            
+            // デフォルトで現金を選択
+            document.getElementById('modalPaymentMethod').value = '現金';
             
             // 運転者を自動選択（運転者の場合）
             <?php if ($user_role === 'driver'): ?>
@@ -728,6 +988,12 @@ $payment_methods = ['現金', 'カード', 'その他'];
             
             new bootstrap.Modal(document.getElementById('rideModal')).show();
         }
+
+        // 復路作成ヘルパー表示（削除）
+        // function showReturnTripHelper() {
+        //     const helper = document.getElementById('returnTripHelper');
+        //     helper.style.display = helper.style.display === 'none' ? 'block' : 'none';
+        // }
 
         // 編集モーダル表示
         function editRecord(record) {
@@ -760,13 +1026,21 @@ $payment_methods = ['現金', 'カード', 'その他'];
             document.getElementById('modalRecordId').value = '';
             document.getElementById('modalIsReturnTrip').value = '1';
             document.getElementById('modalOriginalRideId').value = record.id;
-            document.getElementById('returnTripInfo').style.display = 'block';
+            
+            // 復路情報表示
+            const returnTripInfo = document.getElementById('returnTripInfo');
+            returnTripInfo.style.display = 'block';
+            returnTripInfo.innerHTML = `
+                <h6><i class="fas fa-route me-2"></i>復路作成</h6>
+                <p class="mb-0">「${record.pickup_location} → ${record.dropoff_location}」の復路を作成します。</p>
+                <p class="mb-0 text-muted">乗車地と降車地が自動で入れ替わります。</p>
+            `;
             
             // 基本情報をコピー（乗降地は入れ替え）
             document.getElementById('modalDriverId').value = record.driver_id;
             document.getElementById('modalVehicleId').value = record.vehicle_id;
             document.getElementById('modalRideDate').value = record.ride_date;
-            document.getElementById('modalRideTime').value = '<?php echo $current_time; ?>';
+            document.getElementById('modalRideTime').value = getCurrentTime();
             document.getElementById('modalPassengerCount').value = record.passenger_count;
             
             // 乗降地を入れ替え
@@ -795,6 +1069,106 @@ $payment_methods = ['現金', 'カード', 'その他'];
                 form.submit();
             }
         }
+
+        // 現在時刻を取得
+        function getCurrentTime() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+
+        // よく使う場所の候補表示
+        function showLocationSuggestions(input, type) {
+            const query = input.value.toLowerCase().trim();
+            const suggestionId = type === 'pickup' ? 'pickupSuggestions' : 'dropoffSuggestions';
+            const suggestionsDiv = document.getElementById(suggestionId);
+            
+            // 空文字またはフォーカス時はよく使う場所を表示
+            if (query.length === 0) {
+                const topLocations = commonLocations.slice(0, 8);
+                suggestionsDiv.innerHTML = '';
+                
+                if (topLocations.length > 0) {
+                    const header = document.createElement('div');
+                    header.className = 'location-suggestion-header';
+                    header.innerHTML = '<small class="text-muted px-3 py-2 d-block"><i class="fas fa-star me-1"></i>よく使う場所</small>';
+                    suggestionsDiv.appendChild(header);
+                    
+                    topLocations.forEach(location => {
+                        const div = document.createElement('div');
+                        div.className = 'location-suggestion';
+                        div.innerHTML = `<i class="fas fa-map-marker-alt me-2 text-muted"></i>${location}`;
+                        div.onclick = () => selectLocation(input, location, suggestionsDiv);
+                        suggestionsDiv.appendChild(div);
+                    });
+                    suggestionsDiv.style.display = 'block';
+                }
+                return;
+            }
+            
+            // 検索結果
+            const filteredLocations = commonLocations.filter(location =>
+                location.toLowerCase().includes(query)
+            );
+            
+            if (filteredLocations.length === 0) {
+                suggestionsDiv.style.display = 'none';
+                return;
+            }
+            
+            suggestionsDiv.innerHTML = '';
+            filteredLocations.slice(0, 10).forEach(location => {
+                const div = document.createElement('div');
+                div.className = 'location-suggestion';
+                
+                // 検索語をハイライト
+                const highlightedText = location.replace(
+                    new RegExp(query, 'gi'), 
+                    `<mark>                                <div class="summary-card">
+                                    <span class="summary-value"</mark>`
+                );
+                div.innerHTML = `<i class="fas fa-search me-2 text-muted"></i>${highlightedText}`;
+                div.onclick = () => selectLocation(input, location, suggestionsDiv);
+                suggestionsDiv.appendChild(div);
+            });
+            
+            suggestionsDiv.style.display = 'block';
+        }
+
+        // 場所選択処理
+        function selectLocation(input, location, suggestionsDiv) {
+            input.value = location;
+            suggestionsDiv.style.display = 'none';
+            input.classList.remove('is-invalid');
+        }
+
+        // イベントリスナー設定
+        document.addEventListener('DOMContentLoaded', function() {
+            // 場所入力フィールドのイベント設定
+            ['modalPickupLocation', 'modalDropoffLocation'].forEach(id => {
+                const input = document.getElementById(id);
+                if (input) {
+                    const type = id.includes('Pickup') ? 'pickup' : 'dropoff';
+                    
+                    input.addEventListener('keyup', function() {
+                        showLocationSuggestions(this, type);
+                    });
+                    
+                    input.addEventListener('focus', function() {
+                        showLocationSuggestions(this, type);
+                    });
+                }
+            });
+            
+            // 外部クリックで候補を閉じる
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.location-dropdown')) {
+                    document.getElementById('pickupSuggestions').style.display = 'none';
+                    document.getElementById('dropoffSuggestions').style.display = 'none';
+                }
+            });
+        });
 
         // フォーム送信前の確認
         document.getElementById('rideForm').addEventListener('submit', function(e) {

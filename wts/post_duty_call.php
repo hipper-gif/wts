@@ -17,12 +17,14 @@ $current_time = date('H:i');
 $success_message = '';
 $error_message = '';
 
-// ドライバーの取得
+// ドライバーと点呼者の取得
 try {
-    $stmt = $pdo->prepare("SELECT id, name, role FROM users WHERE role IN ('driver', 'manager', 'admin') AND is_active = TRUE ORDER BY name");
+    // 運転者のみ取得（実際に運転する人のみ）
+    $stmt = $pdo->prepare("SELECT id, name, role FROM users WHERE (role = 'driver' OR is_driver = 1) AND is_active = TRUE ORDER BY name");
     $stmt->execute();
     $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
+    // 点呼者取得（管理者・マネージャーのみ）
     $stmt = $pdo->prepare("SELECT id, name, role FROM users WHERE role IN ('manager', 'admin') AND is_active = TRUE ORDER BY name");
     $stmt->execute();
     $callers = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -37,8 +39,6 @@ try {
 $existing_call = null;
 if ($_GET['driver_id'] ?? null) {
     $driver_id = $_GET['driver_id'];
-    
-    // 既存の点呼記録をチェック（車両情報は使用しない）
     $stmt = $pdo->prepare("SELECT * FROM post_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
     $stmt->execute([$driver_id, $today]);
     $existing_call = $stmt->fetch();
@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         
         try {
-            // 対応する乗務前点呼の確認（車両IDは使わず、運転者と日付のみで検索）
+            // 対応する乗務前点呼の確認
             $stmt = $pdo->prepare("SELECT id FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
             $stmt->execute([$driver_id, $today]);
             $pre_duty_record = $stmt->fetch();
@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $pre_duty_call_id = $pre_duty_record['id'];
             
-            // 既存レコードの確認（車両IDは使わず、運転者と日付のみで検索）
+            // 既存レコードの確認
             $stmt = $pdo->prepare("SELECT id FROM post_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
             $stmt->execute([$driver_id, $today]);
             $existing = $stmt->fetch();
@@ -268,9 +268,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
         }
         
+        /* スマートフォン用レイアウト修正 */
         @media (max-width: 768px) {
+            .form-card-header {
+                padding: 0.75rem 1rem;
+            }
+            
+            /* ヘッダーボタンのスマホ対応 - ヘッダー外に配置 */
+            .mobile-buttons {
+                display: flex;
+                gap: 0.5rem;
+                margin-bottom: 1rem;
+                justify-content: center;
+            }
+            
+            .mobile-buttons .btn {
+                font-size: 0.9rem;
+                padding: 0.6rem 1rem;
+                flex: 1;
+                max-width: 150px;
+            }
+            
+            /* デスクトップのボタンを非表示 */
+            .header-buttons {
+                display: none;
+            }
+            
+            /* タイトル部分はシンプルに */
+            .form-card-header-content {
+                display: block;
+            }
+            
+            .form-card-title {
+                margin-bottom: 0;
+                font-size: 1.1rem;
+            }
+            
             .form-card-body {
                 padding: 1rem;
+            }
+        }
+        
+        /* 極小画面（320px以下）対応 */
+        @media (max-width: 320px) {
+            .mobile-buttons .btn {
+                font-size: 0.8rem;
+                padding: 0.5rem 0.8rem;
             }
         }
     </style>
@@ -310,8 +353,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
         <?php endif; ?>
-        
-        <!-- 車両情報は表示しない（バックエンドで自動処理） -->
         
         <!-- 乗務前点呼情報表示 -->
         <?php if ($pre_duty_call): ?>
@@ -380,18 +421,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- 確認事項 -->
             <div class="form-card">
-                <h5 class="form-card-header">
-                    <i class="fas fa-tasks me-2"></i>確認事項（7項目）
-                    <div class="float-end">
-                        <button type="button" class="btn btn-outline-light btn-sm me-2" id="checkAllBtn">
+                <div class="form-card-header">
+                    <div class="form-card-header-content">
+                        <h5 class="form-card-title mb-0">
+                            <i class="fas fa-tasks me-2"></i>確認事項（7項目）
+                        </h5>
+                        <div class="header-buttons d-none d-md-flex float-end">
+                            <button type="button" class="btn btn-outline-light btn-sm me-2" id="checkAllBtn">
+                                <i class="fas fa-check-double me-1"></i>全てチェック
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm" id="uncheckAllBtn">
+                                <i class="fas fa-times me-1"></i>全て解除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-card-body">
+                    <!-- スマホ用ボタン（ヘッダー外に配置） -->
+                    <div class="mobile-buttons d-md-none">
+                        <button type="button" class="btn btn-success" id="checkAllBtnMobile">
                             <i class="fas fa-check-double me-1"></i>全てチェック
                         </button>
-                        <button type="button" class="btn btn-outline-light btn-sm" id="uncheckAllBtn">
+                        <button type="button" class="btn btn-warning" id="uncheckAllBtnMobile">
                             <i class="fas fa-times me-1"></i>全て解除
                         </button>
                     </div>
-                </h5>
-                <div class="form-card-body">
                     <?php
                     $check_items_labels = [
                         'health_condition_check' => '健康状態に異常はないか',
@@ -467,8 +521,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 車両関連の処理は削除（バックエンドで自動処理）
-        
         // 点呼者選択の表示切替
         function toggleCallerInput() {
             const callerSelect = document.querySelector('select[name="caller_name"]');
@@ -540,9 +592,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 toggleCallerInput(); // 初期表示
             }
             
-            // 一括チェックボタンのイベント設定
+            // 一括チェックボタンのイベント設定（デスクトップ・モバイル両対応）
             const checkAllBtn = document.getElementById('checkAllBtn');
             const uncheckAllBtn = document.getElementById('uncheckAllBtn');
+            const checkAllBtnMobile = document.getElementById('checkAllBtnMobile');
+            const uncheckAllBtnMobile = document.getElementById('uncheckAllBtnMobile');
             
             if (checkAllBtn) {
                 checkAllBtn.addEventListener('click', checkAll);
@@ -550,6 +604,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if (uncheckAllBtn) {
                 uncheckAllBtn.addEventListener('click', uncheckAll);
+            }
+            
+            if (checkAllBtnMobile) {
+                checkAllBtnMobile.addEventListener('click', checkAll);
+            }
+            
+            if (uncheckAllBtnMobile) {
+                uncheckAllBtnMobile.addEventListener('click', uncheckAll);
             }
         });
         

@@ -93,8 +93,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 運転者一覧取得
-$drivers_sql = "SELECT id, name FROM users WHERE role IN ('driver', 'admin') ORDER BY name";
+// 運転者一覧取得（権限チェックを緩和）
+$drivers_sql = "SELECT id, name FROM users WHERE (role IN ('driver', 'admin') OR is_driver = 1) AND is_active = 1 ORDER BY name";
 $drivers_stmt = $pdo->prepare($drivers_sql);
 $drivers_stmt->execute();
 $drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
