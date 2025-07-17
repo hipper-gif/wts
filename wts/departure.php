@@ -37,23 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $weather = $_POST['weather'];
         $departure_mileage = $_POST['departure_mileage'];
         
-        // 前提条件チェック（乗務前点呼・日常点検完了）
-        $check_sql = "SELECT 
-            (SELECT COUNT(*) FROM pre_duty_calls WHERE driver_id = ? AND call_date = ?) as pre_duty_count,
-            (SELECT COUNT(*) FROM daily_inspections WHERE vehicle_id = ? AND inspection_date = ?) as inspection_count";
-        $check_stmt = $pdo->prepare($check_sql);
-        $check_stmt->execute([$driver_id, $departure_date, $vehicle_id, $departure_date]);
-        $check_result = $check_stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($check_result['pre_duty_count'] == 0) {
-            throw new Exception('乗務前点呼が完了していません。先に乗務前点呼を実施してください。');
-        }
-        
-        if ($check_result['inspection_count'] == 0) {
-            throw new Exception('日常点検が完了していません。先に日常点検を実施してください。');
-        }
-        
-        // 重複チェック（同日同車両の出庫記録）
+        // 重複チェック（同日同車両の出庫記録）のみ実施
         $duplicate_sql = "SELECT COUNT(*) FROM departure_records WHERE vehicle_id = ? AND departure_date = ?";
         $duplicate_stmt = $pdo->prepare($duplicate_sql);
         $duplicate_stmt->execute([$vehicle_id, $departure_date]);
@@ -69,6 +53,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $insert_stmt = $pdo->prepare($insert_sql);
         $insert_stmt->execute([$driver_id, $vehicle_id, $departure_date, $departure_time, $weather, $departure_mileage]);
         
+        // 車両の走行距離を更新
+        $update_sql = "UPDATE vehicles SET current_mileage = ?, updated_at = NOW() WHERE id = ?";
+        $update_stmt = $pdo->prepare($update_sql);
+        $update_stmt->execute([$departure_mileage, $vehicle_id]);
+        
         $success_message = '出庫処理が完了しました。';
         
     } catch (Exception $e) {
@@ -77,24 +66,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // 運転者一覧取得
-$drivers_sql = "SELECT id, name FROM users WHERE role IN ('driver', 'admin') ORDER BY name";
+$drivers_sql = "SELECT id, name FROM users WHERE (role IN ('driver', 'admin') OR is_driver = 1) AND is_active = 1 ORDER BY name";
 $drivers_stmt = $pdo->prepare($drivers_sql);
 $drivers_stmt->execute();
 $drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 車両一覧取得
-$vehicles_sql = "SELECT id, vehicle_number, vehicle_name FROM vehicles WHERE status = 'active' ORDER BY vehicle_number";
+$vehicles_sql = "SELECT id, vehicle_number, vehicle_name, current_mileage FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
 $vehicles_stmt = $pdo->prepare($vehicles_sql);
 $vehicles_stmt->execute();
 $vehicles = $vehicles_stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// 前日の入庫メーター取得用JavaScript関数で使用
-$previous_mileage_sql = "SELECT ar.arrival_mileage, ar.arrival_date 
-    FROM arrival_records ar 
-    WHERE ar.vehicle_id = ? 
-    ORDER BY ar.arrival_date DESC, ar.id DESC 
-    LIMIT 1";
-$previous_mileage_stmt = $pdo->prepare($previous_mileage_sql);
 
 // 本日の出庫記録一覧取得
 $today_departures_sql = "SELECT dr.*, u.name as driver_name, v.vehicle_number, v.vehicle_name 
@@ -142,16 +123,20 @@ $weather_options = ['晴', '曇', '雨', '雪', '霧'];
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border: none;
             border-radius: 25px;
-            padding: 10px 30px;
+            padding: 12px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
         }
         .btn-primary:hover {
             background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
         }
         .form-control, .form-select {
             border-radius: 8px;
             border: 2px solid #e9ecef;
             padding: 12px 15px;
+            font-size: 1rem;
         }
         .form-control:focus, .form-select:focus {
             border-color: #667eea;
@@ -164,6 +149,14 @@ $weather_options = ['晴', '曇', '雨', '雪', '霧'];
         .weather-option {
             margin: 5px;
         }
+        .weather-option .btn {
+            border-radius: 20px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .weather-option .btn:checked + label {
+            transform: scale(1.05);
+        }
         .time-display {
             font-size: 1.2em;
             font-weight: bold;
@@ -171,34 +164,57 @@ $weather_options = ['晴', '曇', '雨', '雪', '霧'];
         }
         .departure-record {
             background: #f8f9fa;
-            padding: 10px;
-            margin: 5px 0;
+            padding: 15px;
+            margin: 10px 0;
             border-radius: 8px;
             border-left: 4px solid #28a745;
+            transition: all 0.3s;
         }
-        .status-check {
+        .departure-record:hover {
             background: #e8f5e8;
+            transform: translateX(5px);
+        }
+        .vehicle-info {
+            background: #e3f2fd;
             padding: 15px;
             border-radius: 8px;
-            margin-bottom: 20px;
+            margin-top: 15px;
+            border-left: 4px solid #2196f3;
         }
-        .status-item {
+        .quick-buttons {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #dee2e6;
+            gap: 10px;
+            margin-top: 15px;
         }
-        .status-item:last-child {
-            border-bottom: none;
+        .quick-btn {
+            flex: 1;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            font-size: 0.9rem;
         }
-        .status-ok {
-            color: #28a745;
-            font-weight: bold;
+        .quick-btn:hover {
+            background: #e9ecef;
+            border-color: #667eea;
         }
-        .status-ng {
-            color: #dc3545;
-            font-weight: bold;
+        .form-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e9ecef;
         }
     </style>
 </head>
@@ -244,11 +260,20 @@ $weather_options = ['晴', '曇', '雨', '雪', '霧'];
                 <div class="card">
                     <div class="card-header">
                         <h4 class="mb-0"><i class="fas fa-sign-out-alt me-2"></i>出庫処理</h4>
+                        <small>素早く簡単に出庫登録</small>
                     </div>
                     <div class="card-body">
                         <?php if ($success_message): ?>
                             <div class="alert alert-success">
                                 <i class="fas fa-check-circle me-2"></i><?php echo $success_message; ?>
+                                <div class="quick-buttons">
+                                    <div class="quick-btn" onclick="window.location.href='ride_records.php'">
+                                        <i class="fas fa-users me-1"></i>乗車記録へ
+                                    </div>
+                                    <div class="quick-btn" onclick="window.location.href='dashboard.php'">
+                                        <i class="fas fa-tachometer-alt me-1"></i>ダッシュボードへ
+                                    </div>
+                                </div>
                             </div>
                         <?php endif; ?>
 
@@ -259,103 +284,105 @@ $weather_options = ['晴', '曇', '雨', '雪', '霧'];
                         <?php endif; ?>
 
                         <form method="POST" id="departureForm">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="driver_id" class="form-label">
-                                        <i class="fas fa-user me-1"></i>運転者 <span class="text-danger">*</span>
-                                    </label>
-                                    <select class="form-select" id="driver_id" name="driver_id" required>
-                                        <option value="">運転者を選択</option>
-                                        <?php foreach ($drivers as $driver): ?>
-                                            <option value="<?php echo $driver['id']; ?>" 
-                                                <?php echo ($user_role === 'driver' && $driver['id'] == $user_id) ? 'selected' : ''; ?>>
-                                                <?php echo htmlspecialchars($driver['name']); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
+                            <!-- 基本情報セクション -->
+                            <div class="form-section">
+                                <div class="section-title">
+                                    <i class="fas fa-info-circle me-2"></i>基本情報
                                 </div>
-
-                                <div class="col-md-6 mb-3">
-                                    <label for="vehicle_id" class="form-label">
-                                        <i class="fas fa-car me-1"></i>車両 <span class="text-danger">*</span>
-                                    </label>
-                                    <select class="form-select" id="vehicle_id" name="vehicle_id" required onchange="getPreviousMileage()">
-                                        <option value="">車両を選択</option>
-                                        <?php foreach ($vehicles as $vehicle): ?>
-                                            <option value="<?php echo $vehicle['id']; ?>">
-                                                <?php echo htmlspecialchars($vehicle['vehicle_number'] . ' - ' . $vehicle['vehicle_name']); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <!-- 前提条件チェック表示エリア -->
-                            <div id="statusCheck" class="status-check" style="display: none;">
-                                <h6><i class="fas fa-clipboard-check me-2"></i>前提条件チェック</h6>
-                                <div class="status-item">
-                                    <span>乗務前点呼</span>
-                                    <span id="preDutyStatus">確認中...</span>
-                                </div>
-                                <div class="status-item">
-                                    <span>日常点検</span>
-                                    <span id="inspectionStatus">確認中...</span>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="departure_date" class="form-label">
-                                        <i class="fas fa-calendar me-1"></i>出庫日 <span class="text-danger">*</span>
-                                    </label>
-                                    <input type="date" class="form-control" id="departure_date" name="departure_date" 
-                                           value="<?php echo $today; ?>" required>
-                                </div>
-
-                                <div class="col-md-6 mb-3">
-                                    <label for="departure_time" class="form-label">
-                                        <i class="fas fa-clock me-1"></i>出庫時刻 <span class="text-danger">*</span>
-                                    </label>
-                                    <input type="time" class="form-control" id="departure_time" name="departure_time" 
-                                           value="<?php echo $current_time; ?>" required>
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">
-                                    <i class="fas fa-cloud-sun me-1"></i>天候 <span class="text-danger">*</span>
-                                </label>
                                 <div class="row">
-                                    <?php foreach ($weather_options as $weather): ?>
-                                        <div class="col-md-2 weather-option">
-                                            <input type="radio" class="btn-check" name="weather" 
-                                                   id="weather_<?php echo $weather; ?>" value="<?php echo $weather; ?>" required>
-                                            <label class="btn btn-outline-primary w-100" for="weather_<?php echo $weather; ?>">
-                                                <?php echo $weather; ?>
-                                            </label>
-                                        </div>
-                                    <?php endforeach; ?>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="driver_id" class="form-label">
+                                            <i class="fas fa-user me-1"></i>運転者 <span class="text-danger">*</span>
+                                        </label>
+                                        <select class="form-select" id="driver_id" name="driver_id" required>
+                                            <option value="">運転者を選択</option>
+                                            <?php foreach ($drivers as $driver): ?>
+                                                <option value="<?php echo $driver['id']; ?>" 
+                                                    <?php echo ($user_role === 'driver' && $driver['id'] == $user_id) ? 'selected' : ''; ?>>
+                                                    <?php echo htmlspecialchars($driver['name']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label for="vehicle_id" class="form-label">
+                                            <i class="fas fa-car me-1"></i>車両 <span class="text-danger">*</span>
+                                        </label>
+                                        <select class="form-select" id="vehicle_id" name="vehicle_id" required onchange="getVehicleInfo()">
+                                            <option value="">車両を選択</option>
+                                            <?php foreach ($vehicles as $vehicle): ?>
+                                                <option value="<?php echo $vehicle['id']; ?>" data-mileage="<?php echo $vehicle['current_mileage']; ?>">
+                                                    <?php echo htmlspecialchars($vehicle['vehicle_number'] . ' - ' . $vehicle['vehicle_name']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- 車両情報表示 -->
+                                <div id="vehicleInfo" class="vehicle-info" style="display: none;">
+                                    <div id="vehicleDetails"></div>
                                 </div>
                             </div>
 
-                            <div class="mb-3">
-                                <label for="departure_mileage" class="form-label">
-                                    <i class="fas fa-tachometer-alt me-1"></i>出庫メーター <span class="text-danger">*</span>
-                                </label>
-                                <div class="input-group">
-                                    <input type="number" class="form-control" id="departure_mileage" 
-                                           name="departure_mileage" required min="0" step="1">
-                                    <span class="input-group-text">km</span>
+                            <!-- 出庫情報セクション -->
+                            <div class="form-section">
+                                <div class="section-title">
+                                    <i class="fas fa-clock me-2"></i>出庫情報
                                 </div>
-                                <div class="form-text" id="previousMileageInfo"></div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="departure_date" class="form-label">
+                                            <i class="fas fa-calendar me-1"></i>出庫日 <span class="text-danger">*</span>
+                                        </label>
+                                        <input type="date" class="form-control" id="departure_date" name="departure_date" 
+                                               value="<?php echo $today; ?>" required>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label for="departure_time" class="form-label">
+                                            <i class="fas fa-clock me-1"></i>出庫時刻 <span class="text-danger">*</span>
+                                        </label>
+                                        <input type="time" class="form-control" id="departure_time" name="departure_time" 
+                                               value="<?php echo $current_time; ?>" required>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">
+                                        <i class="fas fa-cloud-sun me-1"></i>天候 <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="row">
+                                        <?php foreach ($weather_options as $weather): ?>
+                                            <div class="col weather-option">
+                                                <input type="radio" class="btn-check" name="weather" 
+                                                       id="weather_<?php echo $weather; ?>" value="<?php echo $weather; ?>" required>
+                                                <label class="btn btn-outline-primary w-100" for="weather_<?php echo $weather; ?>">
+                                                    <?php echo $weather; ?>
+                                                </label>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="departure_mileage" class="form-label">
+                                        <i class="fas fa-tachometer-alt me-1"></i>出庫メーター <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="departure_mileage" 
+                                               name="departure_mileage" required min="0" step="1">
+                                        <span class="input-group-text">km</span>
+                                    </div>
+                                    <div class="form-text" id="mileageInfo"></div>
+                                </div>
                             </div>
 
-                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                                <button type="button" class="btn btn-secondary me-md-2" onclick="window.location.href='dashboard.php'">
-                                    <i class="fas fa-arrow-left me-1"></i>戻る
-                                </button>
-                                <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
-                                    <i class="fas fa-sign-out-alt me-1"></i>出庫登録
+                            <!-- 送信ボタン -->
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-sign-out-alt me-2"></i>出庫登録
                                 </button>
                             </div>
                         </form>
@@ -371,7 +398,10 @@ $weather_options = ['晴', '曇', '雨', '雪', '霧'];
                     </div>
                     <div class="card-body">
                         <?php if (empty($today_departures)): ?>
-                            <p class="text-muted">本日の出庫記録はありません。</p>
+                            <p class="text-muted text-center py-4">
+                                <i class="fas fa-info-circle fa-2x mb-2 d-block"></i>
+                                本日の出庫記録はありません。
+                            </p>
                         <?php else: ?>
                             <?php foreach ($today_departures as $departure): ?>
                                 <div class="departure-record">
@@ -404,26 +434,26 @@ $weather_options = ['晴', '曇', '雨', '雪', '霧'];
                     </div>
                 </div>
 
-                <!-- 使用方法ガイド -->
+                <!-- クイックアクション -->
                 <div class="card mt-3">
                     <div class="card-header">
-                        <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>使用方法</h6>
+                        <h6 class="mb-0"><i class="fas fa-bolt me-2"></i>関連業務</h6>
                     </div>
                     <div class="card-body">
-                        <small>
-                            <ol>
-                                <li>運転者と車両を選択</li>
-                                <li>前提条件（点呼・点検）の確認</li>
-                                <li>出庫時刻と天候を入力</li>
-                                <li>メーター値を確認・入力</li>
-                                <li>出庫登録ボタンで完了</li>
-                            </ol>
-                            <hr>
-                            <div class="text-warning">
-                                <i class="fas fa-exclamation-triangle me-1"></i>
-                                <strong>注意：</strong>乗務前点呼と日常点検の完了が必要です。
-                            </div>
-                        </small>
+                        <div class="d-grid gap-2">
+                            <a href="pre_duty_call.php" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-clipboard-check me-1"></i>乗務前点呼
+                            </a>
+                            <a href="daily_inspection.php" class="btn btn-outline-success btn-sm">
+                                <i class="fas fa-tools me-1"></i>日常点検
+                            </a>
+                            <a href="ride_records.php" class="btn btn-outline-info btn-sm">
+                                <i class="fas fa-users me-1"></i>乗車記録
+                            </a>
+                            <a href="arrival.php" class="btn btn-outline-warning btn-sm">
+                                <i class="fas fa-sign-in-alt me-1"></i>入庫処理
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -432,98 +462,86 @@ $weather_options = ['晴', '曇', '雨', '雪', '霧'];
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 前提条件チェック関数
-        function checkPrerequisites() {
-            const driverId = document.getElementById('driver_id').value;
+        // 車両情報取得関数（シンプル版）
+        function getVehicleInfo() {
             const vehicleId = document.getElementById('vehicle_id').value;
-            const departureDate = document.getElementById('departure_date').value;
+            const vehicleSelect = document.getElementById('vehicle_id');
             
-            if (!driverId || !vehicleId || !departureDate) {
-                document.getElementById('statusCheck').style.display = 'none';
-                document.getElementById('submitBtn').disabled = true;
+            if (!vehicleId) {
+                document.getElementById('vehicleInfo').style.display = 'none';
+                document.getElementById('mileageInfo').textContent = '';
+                document.getElementById('departure_mileage').value = '';
                 return;
             }
             
-            document.getElementById('statusCheck').style.display = 'block';
-            document.getElementById('preDutyStatus').innerHTML = '確認中...';
-            document.getElementById('inspectionStatus').innerHTML = '確認中...';
+            // 選択された車両の情報を取得
+            const selectedOption = vehicleSelect.options[vehicleSelect.selectedIndex];
+            const currentMileage = selectedOption.getAttribute('data-mileage');
             
-            // AJAX で前提条件をチェック
-            fetch('check_prerequisites_api.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    driver_id: driverId,
-                    vehicle_id: vehicleId,
-                    date: departureDate
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                // 乗務前点呼チェック結果
-                if (data.pre_duty_completed) {
-                    document.getElementById('preDutyStatus').innerHTML = '<span class="status-ok"><i class="fas fa-check-circle"></i> 完了</span>';
-                } else {
-                    document.getElementById('preDutyStatus').innerHTML = '<span class="status-ng"><i class="fas fa-times-circle"></i> 未完了</span>';
-                }
-                
-                // 日常点検チェック結果
-                if (data.inspection_completed) {
-                    document.getElementById('inspectionStatus').innerHTML = '<span class="status-ok"><i class="fas fa-check-circle"></i> 完了</span>';
-                } else {
-                    document.getElementById('inspectionStatus').innerHTML = '<span class="status-ng"><i class="fas fa-times-circle"></i> 未完了</span>';
-                }
-                
-                // 送信ボタンの有効/無効切り替え
-                document.getElementById('submitBtn').disabled = !(data.pre_duty_completed && data.inspection_completed);
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                document.getElementById('preDutyStatus').innerHTML = '<span class="status-ng">エラー</span>';
-                document.getElementById('inspectionStatus').innerHTML = '<span class="status-ng">エラー</span>';
-                document.getElementById('submitBtn').disabled = true;
-            });
+            // 車両情報表示
+            document.getElementById('vehicleInfo').style.display = 'block';
+            document.getElementById('vehicleDetails').innerHTML = `
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h6 class="mb-1">${selectedOption.textContent}</h6>
+                        <small class="text-muted">現在走行距離: ${parseInt(currentMileage).toLocaleString()}km</small>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="setCurrentMileage()">
+                            <i class="fas fa-sync-alt me-1"></i>自動設定
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // 出庫メーターに自動設定
+            if (currentMileage && currentMileage > 0) {
+                document.getElementById('departure_mileage').value = currentMileage;
+                document.getElementById('mileageInfo').innerHTML = 
+                    `<i class="fas fa-info-circle text-info"></i> 車両マスタから自動設定: ${parseInt(currentMileage).toLocaleString()}km`;
+            } else {
+                document.getElementById('mileageInfo').innerHTML = 
+                    '<i class="fas fa-exclamation-circle text-warning"></i> 走行距離情報がありません。手動で入力してください。';
+            }
         }
         
-        // 前日入庫メーター取得
-        function getPreviousMileage() {
-            const vehicleId = document.getElementById('vehicle_id').value;
-            if (!vehicleId) {
-                document.getElementById('previousMileageInfo').textContent = '';
-                return;
-            }
+        // 現在走行距離の設定
+        function setCurrentMileage() {
+            const vehicleSelect = document.getElementById('vehicle_id');
+            const selectedOption = vehicleSelect.options[vehicleSelect.selectedIndex];
+            const currentMileage = selectedOption.getAttribute('data-mileage');
             
-            fetch('get_previous_mileage_api.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    vehicle_id: vehicleId
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.previous_mileage) {
-                    document.getElementById('previousMileageInfo').innerHTML = 
-                        `<i class="fas fa-info-circle text-info"></i> 前回入庫メーター: ${data.previous_mileage.toLocaleString()}km (${data.date})`;
-                    // 前回の値+1を自動設定
-                    document.getElementById('departure_mileage').value = parseInt(data.previous_mileage);
-                } else {
-                    document.getElementById('previousMileageInfo').innerHTML = 
-                        '<i class="fas fa-info-circle text-warning"></i> 前回の入庫記録がありません';
-                }
-            });
+            if (currentMileage && currentMileage > 0) {
+                document.getElementById('departure_mileage').value = currentMileage;
+                document.getElementById('mileageInfo').innerHTML = 
+                    `<i class="fas fa-check-circle text-success"></i> 設定完了: ${parseInt(currentMileage).toLocaleString()}km`;
+            }
+        }
+        
+        // 時刻自動更新
+        function updateCurrentTime() {
+            const now = new Date();
+            const timeString = now.toTimeString().slice(0, 5);
+            document.getElementById('departure_time').value = timeString;
         }
         
         // イベントリスナー
-        document.getElementById('driver_id').addEventListener('change', checkPrerequisites);
-        document.getElementById('vehicle_id').addEventListener('change', checkPrerequisites);
-        document.getElementById('departure_date').addEventListener('change', checkPrerequisites);
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初期選択時の処理
+            if (document.getElementById('vehicle_id').value) {
+                getVehicleInfo();
+            }
+            
+            // 時刻更新ボタン（任意）
+            setInterval(function() {
+                if (document.activeElement !== document.getElementById('departure_time')) {
+                    // フォーカスされていない時のみ更新
+                    updateCurrentTime();
+                }
+            }, 60000); // 1分ごと
+        });
         
-        // フォーム送信前の最終確認
+        // フォーム送信前の確認
         document.getElementById('departureForm').addEventListener('submit', function(e) {
             const driverId = document.getElementById('driver_id').value;
             const vehicleId = document.getElementById('vehicle_id').value;
@@ -542,12 +560,22 @@ $weather_options = ['晴', '曇', '雨', '雪', '霧'];
             }
         });
         
-        // ページ読み込み時の初期化
-        document.addEventListener('DOMContentLoaded', function() {
-            if (document.getElementById('vehicle_id').value) {
-                getPreviousMileage();
-                checkPrerequisites();
+        // 天候クイック選択（本日の天候を記憶）
+        const savedWeather = localStorage.getItem('today_weather_' + '<?php echo $today; ?>');
+        if (savedWeather) {
+            const weatherInput = document.getElementById('weather_' + savedWeather);
+            if (weatherInput) {
+                weatherInput.checked = true;
             }
+        }
+        
+        // 天候選択時に保存
+        document.querySelectorAll('input[name="weather"]').forEach(function(input) {
+            input.addEventListener('change', function() {
+                if (this.checked) {
+                    localStorage.setItem('today_weather_' + '<?php echo $today; ?>', this.value);
+                }
+            });
         });
     </script>
 </body>

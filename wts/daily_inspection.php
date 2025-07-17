@@ -22,7 +22,8 @@ try {
     $stmt->execute();
     $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    $stmt = $pdo->prepare("SELECT id, name, role FROM users WHERE role IN ('driver', 'manager', 'admin') AND is_active = TRUE ORDER BY name");
+    // 運転手のみを取得（role = 'driver' または is_driver = 1）
+    $stmt = $pdo->prepare("SELECT id, name, role FROM users WHERE (role = 'driver' OR is_driver = 1) AND is_active = TRUE ORDER BY name");
     $stmt->execute();
     $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
@@ -46,94 +47,103 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $vehicle_id = $_POST['vehicle_id'];
     $mileage = $_POST['mileage'];
     
-    // 点検項目の結果
-    $inspection_items = [
-        // 運転室内
-        'foot_brake_result', 'parking_brake_result', 'engine_start_result', 
-        'engine_performance_result', 'wiper_result', 'washer_spray_result',
-        // エンジンルーム内
-        'brake_fluid_result', 'coolant_result', 'engine_oil_result', 
-        'battery_fluid_result', 'washer_fluid_result', 'fan_belt_result',
-        // 灯火類とタイヤ
-        'lights_result', 'lens_result', 'tire_pressure_result', 
-        'tire_damage_result', 'tire_tread_result'
-    ];
+    // 運転手かどうかの確認
+    $stmt = $pdo->prepare("SELECT role, is_driver FROM users WHERE id = ?");
+    $stmt->execute([$inspector_id]);
+    $inspector = $stmt->fetch();
     
-    try {
-        // 既存レコードの確認
-        $stmt = $pdo->prepare("SELECT id FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
-        $stmt->execute([$inspector_id, $vehicle_id, $today]);
-        $existing = $stmt->fetch();
+    if (!$inspector || ($inspector['role'] !== 'driver' && $inspector['is_driver'] != 1)) {
+        $error_message = 'エラー: 点検者は運転手のみ選択できます。';
+    } else {
+        // 点検項目の結果
+        $inspection_items = [
+            // 運転室内
+            'foot_brake_result', 'parking_brake_result', 'engine_start_result', 
+            'engine_performance_result', 'wiper_result', 'washer_spray_result',
+            // エンジンルーム内
+            'brake_fluid_result', 'coolant_result', 'engine_oil_result', 
+            'battery_fluid_result', 'washer_fluid_result', 'fan_belt_result',
+            // 灯火類とタイヤ
+            'lights_result', 'lens_result', 'tire_pressure_result', 
+            'tire_damage_result', 'tire_tread_result'
+        ];
         
-        if ($existing) {
-            // 更新
-            $sql = "UPDATE daily_inspections SET 
-                mileage = ?,";
+        try {
+            // 既存レコードの確認
+            $stmt = $pdo->prepare("SELECT id FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
+            $stmt->execute([$inspector_id, $vehicle_id, $today]);
+            $existing = $stmt->fetch();
             
-            foreach ($inspection_items as $item) {
-                $sql .= " $item = ?,";
+            if ($existing) {
+                // 更新
+                $sql = "UPDATE daily_inspections SET 
+                    mileage = ?,";
+                
+                foreach ($inspection_items as $item) {
+                    $sql .= " $item = ?,";
+                }
+                
+                $sql .= " defect_details = ?, remarks = ?, updated_at = NOW() 
+                    WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?";
+                
+                $stmt = $pdo->prepare($sql);
+                $params = [$mileage];
+                
+                foreach ($inspection_items as $item) {
+                    $params[] = $_POST[$item] ?? '省略';
+                }
+                
+                $params[] = $_POST['defect_details'] ?? '';
+                $params[] = $_POST['remarks'] ?? '';
+                $params[] = $inspector_id;
+                $params[] = $vehicle_id;
+                $params[] = $today;
+                
+                $stmt->execute($params);
+                $success_message = '日常点検記録を更新しました。';
+            } else {
+                // 新規挿入
+                $sql = "INSERT INTO daily_inspections (
+                    vehicle_id, driver_id, inspection_date, mileage,";
+                
+                foreach ($inspection_items as $item) {
+                    $sql .= " $item,";
+                }
+                
+                $sql .= " defect_details, remarks) VALUES (?, ?, ?, ?,";
+                
+                $sql .= str_repeat('?,', count($inspection_items));
+                $sql .= " ?, ?)";
+                
+                $stmt = $pdo->prepare($sql);
+                $params = [$vehicle_id, $inspector_id, $today, $mileage];
+                
+                foreach ($inspection_items as $item) {
+                    $params[] = $_POST[$item] ?? '省略';
+                }
+                
+                $params[] = $_POST['defect_details'] ?? '';
+                $params[] = $_POST['remarks'] ?? '';
+                
+                $stmt->execute($params);
+                $success_message = '日常点検記録を登録しました。';
             }
             
-            $sql .= " defect_details = ?, remarks = ?, updated_at = NOW() 
-                WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?";
+            // 記録を再取得
+            $stmt = $pdo->prepare("SELECT * FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
+            $stmt->execute([$inspector_id, $vehicle_id, $today]);
+            $existing_inspection = $stmt->fetch();
             
-            $stmt = $pdo->prepare($sql);
-            $params = [$mileage];
-            
-            foreach ($inspection_items as $item) {
-                $params[] = $_POST[$item] ?? '省略';
+            // 車両の走行距離を更新
+            if ($mileage) {
+                $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ?");
+                $stmt->execute([$mileage, $vehicle_id]);
             }
             
-            $params[] = $_POST['defect_details'] ?? '';
-            $params[] = $_POST['remarks'] ?? '';
-            $params[] = $inspector_id;
-            $params[] = $vehicle_id;
-            $params[] = $today;
-            
-            $stmt->execute($params);
-            $success_message = '日常点検記録を更新しました。';
-        } else {
-            // 新規挿入
-            $sql = "INSERT INTO daily_inspections (
-                vehicle_id, driver_id, inspection_date, mileage,";
-            
-            foreach ($inspection_items as $item) {
-                $sql .= " $item,";
-            }
-            
-            $sql .= " defect_details, remarks) VALUES (?, ?, ?, ?,";
-            
-            $sql .= str_repeat('?,', count($inspection_items));
-            $sql .= " ?, ?)";
-            
-            $stmt = $pdo->prepare($sql);
-            $params = [$vehicle_id, $inspector_id, $today, $mileage];
-            
-            foreach ($inspection_items as $item) {
-                $params[] = $_POST[$item] ?? '省略';
-            }
-            
-            $params[] = $_POST['defect_details'] ?? '';
-            $params[] = $_POST['remarks'] ?? '';
-            
-            $stmt->execute($params);
-            $success_message = '日常点検記録を登録しました。';
+        } catch (Exception $e) {
+            $error_message = '記録の保存中にエラーが発生しました: ' . $e->getMessage();
+            error_log("Daily inspection error: " . $e->getMessage());
         }
-        
-        // 記録を再取得
-        $stmt = $pdo->prepare("SELECT * FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
-        $stmt->execute([$inspector_id, $vehicle_id, $today]);
-        $existing_inspection = $stmt->fetch();
-        
-        // 車両の走行距離を更新
-        if ($mileage) {
-            $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ?");
-            $stmt->execute([$mileage, $vehicle_id]);
-        }
-        
-    } catch (Exception $e) {
-        $error_message = '記録の保存中にエラーが発生しました: ' . $e->getMessage();
-        error_log("Daily inspection error: " . $e->getMessage());
     }
 }
 ?>
@@ -305,20 +315,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="form-card-body">
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">点検者 <span class="required-mark">*</span></label>
+                            <label class="form-label">点検者（運転手） <span class="required-mark">*</span></label>
                             <select class="form-select" name="inspector_id" required>
-                                <option value="">選択してください</option>
+                                <option value="">運転手を選択してください</option>
                                 <?php foreach ($drivers as $driver): ?>
                                 <option value="<?= $driver['id'] ?>" <?= ($existing_inspection && $existing_inspection['driver_id'] == $driver['id']) ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($driver['name']) ?>
+                                    <span class="text-muted">(運転手)</span>
                                 </option>
                                 <?php endforeach; ?>
                             </select>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                日常点検は運転手が実施します
+                            </div>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">車両 <span class="required-mark">*</span></label>
                             <select class="form-select" name="vehicle_id" required onchange="updateMileage()">
-                                <option value="">選択してください</option>
+                                <option value="">車両を選択してください</option>
                                 <?php foreach ($vehicles as $vehicle): ?>
                                 <option value="<?= $vehicle['id'] ?>" 
                                         data-mileage="<?= $vehicle['current_mileage'] ?>"
@@ -664,7 +679,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (ngItems.length > 0) {
                 const defectDetails = document.querySelector('textarea[name="defect_details"]').value.trim();
                 if (!defectDetails) {
-                    if (!confirm('点検結果に「否」がありますが、不良個所の詳細が未記入です。このまで保存しますか？')) {
+                    if (!confirm('点検結果に「否」がありますが、不良個所の詳細が未記入です。このまま保存しますか？')) {
                         e.preventDefault();
                         return;
                     }

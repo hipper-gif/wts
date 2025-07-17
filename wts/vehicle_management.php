@@ -22,17 +22,75 @@ $user_role = $_SESSION['user_role'];
 $success_message = '';
 $error_message = '';
 
+// 現在のシステム名を取得
+$current_system_name = '福祉輸送管理システム'; // デフォルト値
+try {
+    $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'system_name'");
+    $stmt->execute();
+    $result = $stmt->fetch();
+    if ($result) {
+        $current_system_name = $result['setting_value'];
+    }
+} catch (Exception $e) {
+    // system_settingsテーブルが存在しない場合は作成
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS system_settings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            setting_key VARCHAR(100) NOT NULL UNIQUE,
+            setting_value TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )");
+        
+        // デフォルト値を挿入
+        $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('system_name', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+        $stmt->execute([$current_system_name]);
+    } catch (Exception $e2) {
+        error_log("System settings table creation error: " . $e2->getMessage());
+    }
+}
+
 // フォーム送信処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     
     try {
-        if ($action === 'add') {
+        if ($action === 'update_system_name') {
+            // システム名更新
+            $system_name = trim($_POST['system_name']);
+            
+            if (empty($system_name)) {
+                throw new Exception('システム名は必須です。');
+            }
+            
+            // system_settingsテーブルが存在しない場合は作成
+            try {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS system_settings (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    setting_key VARCHAR(100) NOT NULL UNIQUE,
+                    setting_value TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )");
+            } catch (Exception $e) {
+                // テーブルが既に存在する場合は無視
+            }
+            
+            $stmt = $pdo->prepare("
+                INSERT INTO system_settings (setting_key, setting_value, updated_at) 
+                VALUES ('system_name', ?, NOW())
+                ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()
+            ");
+            $stmt->execute([$system_name]);
+            
+            $current_system_name = $system_name; // 画面に即座に反映
+            $success_message = 'システム名を更新しました。';
+            
+        } elseif ($action === 'add') {
             // 新規追加
             $vehicle_number = trim($_POST['vehicle_number']);
             $vehicle_name = trim($_POST['vehicle_name']);
             $model = trim($_POST['model']);
-            $license_plate = trim($_POST['license_plate']);
             $current_mileage = intval($_POST['current_mileage']);
             $next_inspection_date = $_POST['next_inspection_date'] ?: null;
             $status = $_POST['status'];
@@ -49,9 +107,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('この車両番号は既に使用されています。');
             }
             
-            // 車両追加
-            $stmt = $pdo->prepare("INSERT INTO vehicles (vehicle_number, vehicle_name, model, license_plate, current_mileage, next_inspection_date, status, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, NOW())");
-            $stmt->execute([$vehicle_number, $vehicle_name, $model, $license_plate, $current_mileage, $next_inspection_date, $status]);
+            // 車両追加（license_plateカラムを除外）
+            $stmt = $pdo->prepare("INSERT INTO vehicles (vehicle_number, vehicle_name, model, current_mileage, next_inspection_date, status, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, TRUE, NOW())");
+            $stmt->execute([$vehicle_number, $vehicle_name, $model, $current_mileage, $next_inspection_date, $status]);
             
             $success_message = '車両を追加しました。';
             
@@ -61,7 +119,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $vehicle_number = trim($_POST['vehicle_number']);
             $vehicle_name = trim($_POST['vehicle_name']);
             $model = trim($_POST['model']);
-            $license_plate = trim($_POST['license_plate']);
             $current_mileage = intval($_POST['current_mileage']);
             $next_inspection_date = $_POST['next_inspection_date'] ?: null;
             $status = $_POST['status'];
@@ -79,9 +136,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('この車両番号は既に使用されています。');
             }
             
-            // 車両更新
-            $stmt = $pdo->prepare("UPDATE vehicles SET vehicle_number = ?, vehicle_name = ?, model = ?, license_plate = ?, current_mileage = ?, next_inspection_date = ?, status = ?, is_active = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->execute([$vehicle_number, $vehicle_name, $model, $license_plate, $current_mileage, $next_inspection_date, $status, $is_active, $vehicle_id]);
+            // 車両更新（license_plateカラムを除外）
+            $stmt = $pdo->prepare("UPDATE vehicles SET vehicle_number = ?, vehicle_name = ?, model = ?, current_mileage = ?, next_inspection_date = ?, status = ?, is_active = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$vehicle_number, $vehicle_name, $model, $current_mileage, $next_inspection_date, $status, $is_active, $vehicle_id]);
             
             $success_message = '車両情報を更新しました。';
             
@@ -147,7 +204,7 @@ $statuses = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>車両管理 - 福祉輸送管理システム</title>
+    <title>車両・システム管理 - <?= htmlspecialchars($current_system_name) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -253,6 +310,13 @@ $statuses = [
             border-radius: 6px;
             margin-top: 0.5rem;
         }
+        
+        .system-name-display {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #17a2b8;
+            margin-bottom: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -261,8 +325,11 @@ $statuses = [
         <div class="container">
             <div class="row align-items-center">
                 <div class="col">
-                    <h1><i class="fas fa-car me-2"></i>車両管理</h1>
-                    <small>管理者・システム管理者専用</small>
+                    <h1><i class="fas fa-car me-2"></i>車両・システム管理</h1>
+                    <small>車両情報とシステム基本設定の管理</small>
+                    <div class="system-name-display mt-1">
+                        <i class="fas fa-cog me-1"></i>現在のシステム名: <?= htmlspecialchars($current_system_name) ?>
+                    </div>
                 </div>
                 <div class="col-auto">
                     <a href="dashboard.php" class="btn btn-outline-light btn-sm">
@@ -290,6 +357,31 @@ $statuses = [
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
         <?php endif; ?>
+        
+        <!-- システム名設定 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-cog me-2"></i>システム基本設定</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="d-inline">
+                    <input type="hidden" name="action" value="update_system_name">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <label for="system_name" class="form-label">システム名</label>
+                            <input type="text" class="form-control" id="system_name" name="system_name" 
+                                   value="<?= htmlspecialchars($current_system_name) ?>" required>
+                            <small class="text-muted">ヘッダーやタイトルに表示されるシステム名</small>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>システム名を更新
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
         
         <!-- 点検期限アラート -->
         <?php 
@@ -352,9 +444,6 @@ $statuses = [
                                 <div class="mileage-display">
                                     <?= number_format($vehicle['current_mileage']) ?> km
                                 </div>
-                                <?php if ($vehicle['license_plate']): ?>
-                                    <small class="text-muted"><?= htmlspecialchars($vehicle['license_plate']) ?></small>
-                                <?php endif; ?>
                             </div>
                             <div class="col-md-2">
                                 <?php if ($vehicle['next_inspection_date']): ?>
@@ -433,13 +522,9 @@ $statuses = [
                                 <label for="modalVehicleName" class="form-label">車両名 <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" id="modalVehicleName" name="vehicle_name" required>
                             </div>
-                            <div class="col-md-6 mb-3">
+                            <div class="col-md-12 mb-3">
                                 <label for="modalModel" class="form-label">車種・型式</label>
                                 <input type="text" class="form-control" id="modalModel" name="model">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="modalLicensePlate" class="form-label">ナンバープレート</label>
-                                <input type="text" class="form-control" id="modalLicensePlate" name="license_plate">
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="modalCurrentMileage" class="form-label">現在走行距離</label>
@@ -504,7 +589,6 @@ $statuses = [
             document.getElementById('modalVehicleNumber').value = vehicle.vehicle_number;
             document.getElementById('modalVehicleName').value = vehicle.vehicle_name;
             document.getElementById('modalModel').value = vehicle.model || '';
-            document.getElementById('modalLicensePlate').value = vehicle.license_plate || '';
             document.getElementById('modalCurrentMileage').value = vehicle.current_mileage;
             document.getElementById('modalNextInspectionDate').value = vehicle.next_inspection_date || '';
             document.getElementById('modalStatus').value = vehicle.status;
