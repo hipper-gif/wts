@@ -19,7 +19,7 @@ jobs:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: ./
+        local-dir: ./wts/  # 🔥 ここを修正
         server-dir: /home/twinklemark/smiley/taxi/wts/
         exclude: |
           **/.git*
