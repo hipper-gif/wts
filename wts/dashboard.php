@@ -411,8 +411,6 @@ usort($alerts, function($a, $b) {
             background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
         }
         
-
-        
         .quick-action-icon {
             font-size: 1.8rem;
             margin-right: 1rem;
@@ -435,6 +433,7 @@ usort($alerts, function($a, $b) {
         
         .text-purple { color: #6f42c1; }
         .text-orange { color: #fd7e14; }
+        .text-coins { color: #ffc107; }
         
         /* 売上表示の改善 */
         .revenue-card {
@@ -660,6 +659,19 @@ usort($alerts, function($a, $b) {
                         </div>
                     </a>
                     
+                    <!-- 🆕 集金管理メニュー追加 -->
+                    <a href="cash_management.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-coins">
+                                <i class="fas fa-coins"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>集金管理</h6>
+                                <small>売上集計・入金確認</small>
+                            </div>
+                        </div>
+                    </a>
+                    
                     <a href="periodic_inspection.php" class="quick-action-btn">
                         <div class="quick-action-content">
                             <div class="quick-action-icon text-purple">
@@ -742,7 +754,7 @@ usort($alerts, function($a, $b) {
                                 <?php else: ?>
                                     <h6 class="text-success">業務完了</h6>
                                     <p class="mb-1">本日もお疲れ様でした！</p>
-                                    <small class="text-muted">明日もよろしくお願いします</small>
+                                    <small class="text-muted">集金管理もお忘れなく</small>
                                 <?php endif; ?>
                             </div>
                         </div>
