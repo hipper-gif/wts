@@ -849,5 +849,6 @@ usort($alerts, function($a, $b) {
             });
         });
     </script>
+    <!-- 強制更新: 2025-07-22 10:30 集金管理メニュー追加 -->
 </body>
 </html>
