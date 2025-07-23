@@ -1,5 +1,4 @@
 name: エックスサーバー自動デプロイ
-
 on:
   push:
     branches: [ main ]
@@ -19,9 +18,13 @@ jobs:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: ./wts/
-        server-dir: /public_html/Smiley/taxi/wts/  # 🔥 ここを修正
+        local-dir: ./wts/                                          # ✅ 正しい
+        server-dir: /tw1nkle.com/public_html/Smiley/taxi/wts/      # 🔥 修正: ドメイン名追加
         exclude: |
           **/.git*
+          **/.gitignore
           **/README.md
           **/.github/**
+          **/node_modules/**
+        dry-run: false
+        log-level: verbose
