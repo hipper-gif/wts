@@ -18,8 +18,8 @@ jobs:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: ./wts/                                          # ✅ 正しい
-        server-dir: /tw1nkle.com/public_html/Smiley/taxi/wts/      # 🔥 修正: ドメイン名追加
+        local-dir: ./wts/
+        server-dir: /tw1nkle.com/public_html/Smiley/taxi/wts/ # 🎯 正しいパス（確定版）
         exclude: |
           **/.git*
           **/.gitignore
