@@ -28,6 +28,29 @@ if (!$user) {
     exit();
 }
 
+// ride_recordsテーブルの構造を動的に確認
+function getTableColumns($pdo, $table_name) {
+    try {
+        $stmt = $pdo->query("DESCRIBE {$table_name}");
+        return array_column($stmt->fetchAll(), 'Field');
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+$ride_columns = getTableColumns($pdo, 'ride_records');
+
+// カラム名を動的に決定
+$fare_column = 'fare';
+$charge_column = 'charge';
+
+if (in_array('fare_amount', $ride_columns)) {
+    $fare_column = 'fare_amount';
+}
+if (in_array('charge_amount', $ride_columns)) {
+    $charge_column = 'charge_amount';
+}
+
 // 日付フィルター
 $selected_date = $_GET['date'] ?? date('Y-m-d');
 $selected_month = $_GET['month'] ?? date('Y-m');
@@ -44,7 +67,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // 現金確認処理
                     $date = $_POST['target_date'];
                     $confirmed_amount = (int)$_POST['confirmed_amount'];
-                    $difference = (int)$_POST['difference'];
+                    $calculated_amount = (int)$_POST['calculated_amount'];
+                    $difference = $confirmed_amount - $calculated_amount;
                     $memo = $_POST['memo'] ?? '';
                     
                     // 集金確認記録を保存
@@ -60,7 +84,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         updated_at = NOW()
                     ");
                     
-                    $calculated_amount = $confirmed_amount - $difference;
                     $stmt->execute([$date, $confirmed_amount, $calculated_amount, $difference, $memo, $_SESSION['user_id']]);
                     
                     $message = "現金確認を記録しました。";
@@ -79,31 +102,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 日次売上データ取得
-function getDailySales($pdo, $date) {
+// 日次売上データ取得（修正版）
+function getDailySales($pdo, $date, $fare_column, $charge_column) {
+    // 金額計算部分を動的に構築
+    $amount_sql = "COALESCE({$fare_column}, 0)";
+    if (in_array($charge_column, getTableColumns($pdo, 'ride_records'))) {
+        $amount_sql .= " + COALESCE({$charge_column}, 0)";
+    }
+    
     $stmt = $pdo->prepare("
         SELECT 
-            payment_method,
+            COALESCE(payment_method, '不明') as payment_method,
             COUNT(*) as count,
-            SUM(fare_amount) as total_amount,
-            AVG(fare_amount) as avg_amount
+            SUM({$amount_sql}) as total_amount,
+            AVG({$amount_sql}) as avg_amount
         FROM ride_records 
         WHERE DATE(ride_date) = ? 
         GROUP BY payment_method
+        ORDER BY total_amount DESC
     ");
     $stmt->execute([$date]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// 日次合計取得
-function getDailyTotal($pdo, $date) {
+// 日次合計取得（修正版）
+function getDailyTotal($pdo, $date, $fare_column, $charge_column) {
+    // 金額計算部分を動的に構築
+    $amount_sql = "COALESCE({$fare_column}, 0)";
+    if (in_array($charge_column, getTableColumns($pdo, 'ride_records'))) {
+        $amount_sql .= " + COALESCE({$charge_column}, 0)";
+    }
+    
     $stmt = $pdo->prepare("
         SELECT 
             COUNT(*) as total_rides,
-            SUM(fare_amount) as total_amount,
-            SUM(CASE WHEN payment_method = '現金' THEN fare_amount ELSE 0 END) as cash_amount,
-            SUM(CASE WHEN payment_method = 'カード' THEN fare_amount ELSE 0 END) as card_amount,
-            SUM(CASE WHEN payment_method = 'その他' THEN fare_amount ELSE 0 END) as other_amount
+            SUM({$amount_sql}) as total_amount,
+            SUM(CASE WHEN payment_method = '現金' THEN {$amount_sql} ELSE 0 END) as cash_amount,
+            SUM(CASE WHEN payment_method = 'カード' THEN {$amount_sql} ELSE 0 END) as card_amount,
+            SUM(CASE WHEN payment_method = 'その他' THEN {$amount_sql} ELSE 0 END) as other_amount,
+            SUM(CASE WHEN payment_method IS NULL OR payment_method = '' THEN {$amount_sql} ELSE 0 END) as unknown_amount
         FROM ride_records 
         WHERE DATE(ride_date) = ?
     ");
@@ -111,15 +148,22 @@ function getDailyTotal($pdo, $date) {
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
-// 月次集計データ取得
-function getMonthlySummary($pdo, $month) {
+// 月次集計データ取得（修正版）
+function getMonthlySummary($pdo, $month, $fare_column, $charge_column) {
+    // 金額計算部分を動的に構築
+    $amount_sql = "COALESCE({$fare_column}, 0)";
+    if (in_array($charge_column, getTableColumns($pdo, 'ride_records'))) {
+        $amount_sql .= " + COALESCE({$charge_column}, 0)";
+    }
+    
     $stmt = $pdo->prepare("
         SELECT 
             DATE(ride_date) as date,
             COUNT(*) as rides,
-            SUM(fare_amount) as total,
-            SUM(CASE WHEN payment_method = '現金' THEN fare_amount ELSE 0 END) as cash,
-            SUM(CASE WHEN payment_method = 'カード' THEN fare_amount ELSE 0 END) as card
+            SUM({$amount_sql}) as total,
+            SUM(CASE WHEN payment_method = '現金' THEN {$amount_sql} ELSE 0 END) as cash,
+            SUM(CASE WHEN payment_method = 'カード' THEN {$amount_sql} ELSE 0 END) as card,
+            SUM(CASE WHEN payment_method = 'その他' THEN {$amount_sql} ELSE 0 END) as other
         FROM ride_records 
         WHERE DATE_FORMAT(ride_date, '%Y-%m') = ?
         GROUP BY DATE(ride_date)
@@ -142,9 +186,9 @@ function getCashConfirmation($pdo, $date) {
 }
 
 // データ取得
-$daily_sales = getDailySales($pdo, $selected_date);
-$daily_total = getDailyTotal($pdo, $selected_date);
-$monthly_summary = getMonthlySummary($pdo, $selected_month);
+$daily_sales = getDailySales($pdo, $selected_date, $fare_column, $charge_column);
+$daily_total = getDailyTotal($pdo, $selected_date, $fare_column, $charge_column);
+$monthly_summary = getMonthlySummary($pdo, $selected_month, $fare_column, $charge_column);
 $cash_confirmation = getCashConfirmation($pdo, $selected_date);
 
 // 集金確認テーブルが存在しない場合は作成
@@ -166,6 +210,23 @@ try {
 } catch (PDOException $e) {
     // テーブル作成に失敗した場合は警告のみ表示
     $error = "集金確認テーブルの作成に失敗しました。システム管理者にお問い合わせください。";
+}
+
+// デバッグ情報（開発時のみ表示）
+$debug_info = [
+    'ride_columns' => $ride_columns,
+    'fare_column' => $fare_column,
+    'charge_column' => $charge_column,
+    'sample_data' => []
+];
+
+// サンプルデータ取得（最新5件）
+try {
+    $stmt = $pdo->prepare("SELECT * FROM ride_records WHERE DATE(ride_date) = ? ORDER BY id DESC LIMIT 5");
+    $stmt->execute([$selected_date]);
+    $debug_info['sample_data'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $debug_info['sample_data'] = ['error' => $e->getMessage()];
 }
 ?>
 
@@ -197,6 +258,11 @@ try {
             color: white;
             border-radius: 15px;
         }
+        .other-card {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            color: #333;
+            border-radius: 15px;
+        }
         .difference-positive {
             color: #dc3545;
             font-weight: bold;
@@ -222,6 +288,21 @@ try {
             background-color: #d1edff;
             border: 1px solid #b8daff;
             border-radius: 10px;
+        }
+        .debug-section {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 0.9rem;
+        }
+        .debug-toggle {
+            background: none;
+            border: none;
+            color: #6c757d;
+            text-decoration: underline;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -322,9 +403,9 @@ try {
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card bg-secondary text-white">
+                <div class="card other-card">
                     <div class="card-body text-center">
-                        <div class="amount-display">¥<?= number_format($daily_total['other_amount'] ?? 0) ?></div>
+                        <div class="amount-display">¥<?= number_format(($daily_total['other_amount'] ?? 0) + ($daily_total['unknown_amount'] ?? 0)) ?></div>
                         <div>その他</div>
                     </div>
                 </div>
@@ -343,7 +424,15 @@ try {
                                 <small class="text-muted">(<?= date('Y/m/d', strtotime($selected_date)) ?>)</small>
                             </h5>
                             <div class="row">
-                                <div class="col-md-3">
+                                <div class="col-md-2">
+                                    <strong>実現金額:</strong><br>
+                                    <span class="fs-5">¥<?= number_format($cash_confirmation['confirmed_amount']) ?></span>
+                                </div>
+                                <div class="col-md-2">
+                                    <strong>計算売上:</strong><br>
+                                    <span class="fs-5">¥<?= number_format($cash_confirmation['calculated_amount']) ?></span>
+                                </div>
+                                <div class="col-md-2">
                                     <strong>差額:</strong><br>
                                     <span class="fs-5 <?= $cash_confirmation['difference'] > 0 ? 'difference-positive' : ($cash_confirmation['difference'] < 0 ? 'difference-negative' : '') ?>">
                                         <?= $cash_confirmation['difference'] > 0 ? '+' : '' ?>¥<?= number_format($cash_confirmation['difference']) ?>
@@ -352,6 +441,10 @@ try {
                                 <div class="col-md-3">
                                     <strong>確認者:</strong><br>
                                     <?= htmlspecialchars($cash_confirmation['confirmed_by_name']) ?>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>確認日時:</strong><br>
+                                    <?= date('Y/m/d H:i', strtotime($cash_confirmation['created_at'])) ?>
                                 </div>
                             </div>
                             <?php if ($cash_confirmation['memo']): ?>
@@ -378,6 +471,7 @@ try {
                             <form method="POST" id="cashConfirmForm">
                                 <input type="hidden" name="action" value="confirm_cash">
                                 <input type="hidden" name="target_date" value="<?= htmlspecialchars($selected_date) ?>">
+                                <input type="hidden" name="calculated_amount" value="<?= $daily_total['cash_amount'] ?? 0 ?>">
                                 
                                 <div class="row">
                                     <div class="col-md-4">
@@ -392,7 +486,6 @@ try {
                                     <div class="col-md-4">
                                         <label class="form-label">差額</label>
                                         <div class="fs-4" id="difference_display">¥0</div>
-                                        <input type="hidden" id="difference" name="difference" value="0">
                                     </div>
                                 </div>
                                 
@@ -452,6 +545,191 @@ try {
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
+                                <tfoot class="table-dark">
+                                    <tr>
+                                        <th>月計</th>
+                                        <th class="text-end"><?= number_format($monthly_total_rides) ?>回</th>
+                                        <th class="text-end">¥<?= number_format($monthly_total_amount) ?></th>
+                                        <th class="text-end">¥<?= number_format($monthly_cash_amount) ?></th>
+                                        <th class="text-end">¥<?= number_format($monthly_card_amount) ?></th>
+                                        <th class="text-end">¥<?= number_format($monthly_other_amount) ?></th>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- デバッグ情報セクション -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <button type="button" class="debug-toggle" onclick="toggleDebug()">
+                    <i class="fas fa-bug me-1"></i>デバッグ情報を表示
+                </button>
+                <div id="debug-section" class="debug-section" style="display: none;">
+                    <h6><i class="fas fa-info-circle me-2"></i>システム診断情報</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>テーブル構造:</h6>
+                            <ul class="mb-3">
+                                <li>使用する金額カラム: <code><?= $fare_column ?></code> + <code><?= $charge_column ?></code></li>
+                                <li>検出されたカラム数: <?= count($ride_columns) ?>個</li>
+                            </ul>
+                            
+                            <h6>利用可能カラム:</h6>
+                            <div class="mb-3">
+                                <?php foreach ($ride_columns as $col): ?>
+                                    <span class="badge bg-secondary me-1"><?= htmlspecialchars($col) ?></span>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6>本日のサンプルデータ (最新5件):</h6>
+                            <?php if (!empty($debug_info['sample_data']) && !isset($debug_info['sample_data']['error'])): ?>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>支払方法</th>
+                                                <th>運賃</th>
+                                                <th>料金</th>
+                                                <th>合計</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($debug_info['sample_data'] as $record): ?>
+                                                <tr>
+                                                    <td><?= htmlspecialchars($record['id'] ?? 'N/A') ?></td>
+                                                    <td><?= htmlspecialchars($record['payment_method'] ?? '未設定') ?></td>
+                                                    <td>¥<?= number_format($record[$fare_column] ?? 0) ?></td>
+                                                    <td>
+                                                        <?php if (isset($record[$charge_column])): ?>
+                                                            ¥<?= number_format($record[$charge_column] ?? 0) ?>
+                                                        <?php else: ?>
+                                                            <span class="text-muted">-</span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                    <td>¥<?= number_format(($record[$fare_column] ?? 0) + ($record[$charge_column] ?? 0)) ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php elseif (isset($debug_info['sample_data']['error'])): ?>
+                                <div class="alert alert-warning">
+                                    データ取得エラー: <?= htmlspecialchars($debug_info['sample_data']['error']) ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="alert alert-info">本日のデータはありません</div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h6>集計値検証:</h6>
+                            <ul>
+                                <li>総売上: ¥<?= number_format($daily_total['total_amount'] ?? 0) ?> (<?= $daily_total['total_rides'] ?? 0 ?>回)</li>
+                                <li>現金売上: ¥<?= number_format($daily_total['cash_amount'] ?? 0) ?></li>
+                                <li>カード売上: ¥<?= number_format($daily_total['card_amount'] ?? 0) ?></li>
+                                <li>その他売上: ¥<?= number_format($daily_total['other_amount'] ?? 0) ?></li>
+                                <li>不明支払方法: ¥<?= number_format($daily_total['unknown_amount'] ?? 0) ?></li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <strong>データが合わない場合の対処法:</strong><br>
+                        1. テーブル構造が正しく検出されているか確認<br>
+                        2. 支払方法が正しく設定されているか確認<br>
+                        3. ride_recordsテーブルのデータ整合性をチェック<br>
+                        4. 必要に応じて<a href="fix_ride_records_table.php" target="_blank">テーブル修正ツール</a>を実行
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 戻るボタン -->
+        <div class="row">
+            <div class="col-12 text-center">
+                <a href="dashboard.php" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>ダッシュボードに戻る
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // 差額計算
+        document.getElementById('confirmed_amount').addEventListener('input', function() {
+            const confirmedAmount = parseInt(this.value) || 0;
+            const calculatedAmount = <?= $daily_total['cash_amount'] ?? 0 ?>;
+            const difference = confirmedAmount - calculatedAmount;
+            
+            const diffDisplay = document.getElementById('difference_display');
+            
+            if (difference > 0) {
+                diffDisplay.innerHTML = '+¥' + difference.toLocaleString();
+                diffDisplay.className = 'fs-4 difference-positive';
+            } else if (difference < 0) {
+                diffDisplay.innerHTML = '¥' + difference.toLocaleString();
+                diffDisplay.className = 'fs-4 difference-negative';
+            } else {
+                diffDisplay.innerHTML = '¥0';
+                diffDisplay.className = 'fs-4';
+            }
+        });
+        
+        // 確認修正
+        function editConfirmation() {
+            if (confirm('現金確認記録を修正しますか？')) {
+                location.reload();
+            }
+        }
+        
+        // フォーム送信確認
+        document.getElementById('cashConfirmForm')?.addEventListener('submit', function(e) {
+            const confirmedAmount = parseInt(document.getElementById('confirmed_amount').value);
+            const calculatedAmount = <?= $daily_total['cash_amount'] ?? 0 ?>;
+            const difference = confirmedAmount - calculatedAmount;
+            
+            if (Math.abs(difference) > 0) {
+                if (!confirm(`差額が${difference > 0 ? '+' : ''}¥${difference.toLocaleString()}あります。\n記録してよろしいですか？`)) {
+                    e.preventDefault();
+                }
+            }
+        });
+        
+        // デバッグ情報表示切り替え
+        function toggleDebug() {
+            const debugSection = document.getElementById('debug-section');
+            const toggleButton = document.querySelector('.debug-toggle');
+            
+            if (debugSection.style.display === 'none') {
+                debugSection.style.display = 'block';
+                toggleButton.innerHTML = '<i class="fas fa-bug me-1"></i>デバッグ情報を非表示';
+            } else {
+                debugSection.style.display = 'none';
+                toggleButton.innerHTML = '<i class="fas fa-bug me-1"></i>デバッグ情報を表示';
+            }
+        }
+        
+        // 自動リフレッシュ（開発時は無効化）
+        // setTimeout(function() {
+        //     location.reload();
+        // }, 300000);
+    </script>
+</body>
+</html>
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -485,6 +763,7 @@ try {
                                         <th class="text-end">総売上</th>
                                         <th class="text-end">現金</th>
                                         <th class="text-end">カード</th>
+                                        <th class="text-end">その他</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -493,12 +772,14 @@ try {
                                     $monthly_total_amount = 0;
                                     $monthly_cash_amount = 0;
                                     $monthly_card_amount = 0;
+                                    $monthly_other_amount = 0;
                                     
                                     foreach ($monthly_summary as $day): 
                                         $monthly_total_rides += $day['rides'];
                                         $monthly_total_amount += $day['total'];
                                         $monthly_cash_amount += $day['cash'];
                                         $monthly_card_amount += $day['card'];
+                                        $monthly_other_amount += $day['other'];
                                     ?>
                                         <tr>
                                             <td><?= date('m/d(D)', strtotime($day['date'])) ?></td>
@@ -506,84 +787,6 @@ try {
                                             <td class="text-end">¥<?= number_format($day['total']) ?></td>
                                             <td class="text-end">¥<?= number_format($day['cash']) ?></td>
                                             <td class="text-end">¥<?= number_format($day['card']) ?></td>
+                                            <td class="text-end">¥<?= number_format($day['other']) ?></td>
                                         </tr>
                                     <?php endforeach; ?>
-                                </tbody>
-                                <tfoot class="table-dark">
-                                    <tr>
-                                        <th>月計</th>
-                                        <th class="text-end"><?= number_format($monthly_total_rides) ?>回</th>
-                                        <th class="text-end">¥<?= number_format($monthly_total_amount) ?></th>
-                                        <th class="text-end">¥<?= number_format($monthly_cash_amount) ?></th>
-                                        <th class="text-end">¥<?= number_format($monthly_card_amount) ?></th>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <?php endif; ?>
-
-        <!-- 戻るボタン -->
-        <div class="row">
-            <div class="col-12 text-center">
-                <a href="dashboard.php" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left me-1"></i>ダッシュボードに戻る
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <script>
-        // 差額計算
-        document.getElementById('confirmed_amount').addEventListener('input', function() {
-            const confirmedAmount = parseInt(this.value) || 0;
-            const calculatedAmount = <?= $daily_total['cash_amount'] ?? 0 ?>;
-            const difference = confirmedAmount - calculatedAmount;
-            
-            document.getElementById('difference').value = difference;
-            const diffDisplay = document.getElementById('difference_display');
-            
-            if (difference > 0) {
-                diffDisplay.innerHTML = '+¥' + difference.toLocaleString();
-                diffDisplay.className = 'fs-4 difference-positive';
-            } else if (difference < 0) {
-                diffDisplay.innerHTML = '¥' + difference.toLocaleString();
-                diffDisplay.className = 'fs-4 difference-negative';
-            } else {
-                diffDisplay.innerHTML = '¥0';
-                diffDisplay.className = 'fs-4';
-            }
-        });
-        
-        // 確認修正
-        function editConfirmation() {
-            if (confirm('現金確認記録を修正しますか？')) {
-                location.reload();
-            }
-        }
-        
-        // フォーム送信確認
-        document.getElementById('cashConfirmForm')?.addEventListener('submit', function(e) {
-            const difference = parseInt(document.getElementById('difference').value);
-            if (Math.abs(difference) > 0) {
-                if (!confirm(`差額が${difference > 0 ? '+' : ''}¥${difference.toLocaleString()}あります。\n記録してよろしいですか？`)) {
-                    e.preventDefault();
-                }
-            }
-        });
-    </script>
-</body>
-</html>
-                                    <strong>実現金額:</strong><br>
-                                    <span class="fs-5">¥<?= number_format($cash_confirmation['confirmed_amount']) ?></span>
-                                </div>
-                                <div class="col-md-3">
-                                    <strong>計算売上:</strong><br>
-                                    <span class="fs-5">¥<?= number_format($daily_total['cash_amount'] ?? 0) ?></span>
-                                </div>
-                                <div class="col-md-3">
