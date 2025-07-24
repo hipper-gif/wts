@@ -361,12 +361,12 @@ if (empty($errors)) {
                         システム設定が見つかりませんでした。
                     </div>
                 <?php endif; ?>
-                <?php } catch (Exception $e): ?>
+                <?php } catch (Exception $e) { ?>
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle me-2"></i>
                         設定の取得中にエラーが発生しました: <?= htmlspecialchars($e->getMessage()) ?>
                     </div>
-                <?php endtry; ?>
+                <?php } ?>
             </div>
         </div>
 
