@@ -82,7 +82,8 @@ $result = [
         'completion_rate' => round(($completedFiles + $newFiles) / $totalFiles * 100, 1)
     ],
     'files_by_category' => [],
-    'actual_files' => []
+    'actual_files' => [],
+    'directories' => []
 ];
 
 // カテゴリ別ファイル情報
@@ -163,7 +164,7 @@ if (isset($_GET['format']) && $_GET['format'] === 'json') {
         <div class="card">
             <div class="card-header bg-primary text-white">
                 <h3><i class="fas fa-folder-open me-2"></i>福祉輸送管理システム - ファイル一覧</h3>
-                <p class="mb-0">最終更新: <?= $result['scan_date'] ?></p>
+                <p class="mb-0">最終更新: <?= htmlspecialchars($result['scan_date']) ?></p>
             </div>
             <div class="card-body">
                 <!-- 統計情報 -->
@@ -203,21 +204,22 @@ if (isset($_GET['format']) && $_GET['format'] === 'json') {
                 </div>
 
                 <!-- ファイル一覧 -->
-                <?php foreach ($result['files_by_category'] as $category => $files): ?>
+                <?php foreach ($result['files_by_category'] as $category => $files_in_category): ?>
                     <h5 class="mt-4 mb-3">
                         <i class="fas fa-folder me-2"></i><?= htmlspecialchars($category) ?>
-                        <span class="badge bg-secondary ms-2"><?= count($files) ?>個</span>
+                        <span class="badge bg-secondary ms-2"><?= count($files_in_category) ?>個</span>
                     </h5>
                     
-                    <?php foreach ($files as $file): ?>
+                    <?php foreach ($files_in_category as $file): ?>
                         <?php
                         $statusClass = 'status-' . $file['status'];
-                        $statusIcon = [
+                        $statusIcons = [
                             'completed' => '<i class="fas fa-check-circle text-success"></i>',
                             'new' => '<i class="fas fa-star text-primary"></i>',
                             'pending' => '<i class="fas fa-clock text-warning"></i>',
                             'backup' => '<i class="fas fa-archive text-secondary"></i>'
-                        ][$file['status']] ?? '<i class="fas fa-file text-muted"></i>';
+                        ];
+                        $statusIcon = isset($statusIcons[$file['status']]) ? $statusIcons[$file['status']] : '<i class="fas fa-file text-muted"></i>';
                         ?>
                         
                         <div class="file-item <?= $statusClass ?>">
@@ -237,4 +239,115 @@ if (isset($_GET['format']) && $_GET['format'] === 'json') {
                                         <small class="text-muted">Size: <?= number_format($file['size']) ?> bytes</small>
                                     <?php endif; ?>
                                 </div>
-                                <div class="col-md-
+                                <div class="col-md-4 text-end">
+                                    <?php if ($file['exists']): ?>
+                                        <div class="btn-group" role="group">
+                                            <a href="<?= htmlspecialchars($file['raw_url']) ?>" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-code me-1"></i>Raw
+                                            </a>
+                                            <a href="<?= htmlspecialchars($file['github_url']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                                <i class="fab fa-github me-1"></i>GitHub
+                                            </a>
+                                            <button class="btn btn-sm btn-outline-success" onclick="copyUrl('<?= htmlspecialchars($file['raw_url']) ?>')">
+                                                <i class="fas fa-copy me-1"></i>Copy
+                                            </button>
+                                        </div>
+                                    <?php else: ?>
+                                        <span class="text-muted">未作成</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
+
+                <!-- 実際のファイル一覧 -->
+                <h5 class="mt-5 mb-3">
+                    <i class="fas fa-server me-2"></i>実際のファイル一覧
+                    <span class="badge bg-info ms-2"><?= count($result['actual_files']) ?>個</span>
+                </h5>
+                <div class="row">
+                    <?php foreach ($result['actual_files'] as $file): ?>
+                        <div class="col-md-6 mb-2">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong><?= htmlspecialchars($file['filename']) ?></strong><br>
+                                            <small class="text-muted"><?= number_format($file['size']) ?> bytes | <?= htmlspecialchars($file['modified']) ?></small>
+                                        </div>
+                                        <div class="btn-group" role="group">
+                                            <a href="<?= htmlspecialchars($file['raw_url']) ?>" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-code"></i>
+                                            </a>
+                                            <a href="<?= htmlspecialchars($file['github_url']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                                <i class="fab fa-github"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <!-- ディレクトリ情報 -->
+                <?php if (!empty($result['directories'])): ?>
+                    <h5 class="mt-4 mb-3">
+                        <i class="fas fa-folder me-2"></i>ディレクトリ構造
+                    </h5>
+                    <?php foreach ($result['directories'] as $dir => $info): ?>
+                        <div class="card mb-2">
+                            <div class="card-header">
+                                <strong><?= htmlspecialchars($dir) ?>/</strong>
+                                <span class="badge bg-secondary ms-2"><?= $info['file_count'] ?>個</span>
+                            </div>
+                            <div class="card-body">
+                                <?php foreach ($info['files'] as $dirFile): ?>
+                                    <span class="badge bg-light text-dark me-2 mb-1"><?= htmlspecialchars($dirFile) ?></span>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+
+                <!-- API情報 -->
+                <div class="mt-4 p-3 bg-light rounded">
+                    <h6><i class="fas fa-api me-2"></i>API として使用</h6>
+                    <p class="mb-2">このページをAPIとして使用する場合：</p>
+                    <?php 
+                    $currentUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+                    $apiUrl = $currentUrl . (strpos($currentUrl, '?') !== false ? '&' : '?') . 'format=json';
+                    ?>
+                    <code><?= htmlspecialchars($apiUrl) ?></code>
+                    <button class="btn btn-sm btn-outline-primary ms-2" onclick="copyUrl('<?= htmlspecialchars($apiUrl) ?>')">
+                        <i class="fas fa-copy"></i> Copy API URL
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copyUrl(url) {
+            navigator.clipboard.writeText(url).then(() => {
+                alert('URL をクリップボードにコピーしました');
+            }).catch(() => {
+                // フォールバック
+                const textArea = document.createElement('textarea');
+                textArea.value = url;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('URL をクリップボードにコピーしました');
+            });
+        }
+
+        // 自動更新（5分ごと）
+        setTimeout(() => {
+            location.reload();
+        }, 5 * 60 * 1000);
+    </script>
+</body>
+</html>
