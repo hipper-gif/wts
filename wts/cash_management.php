@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-// ログイン確認
+// ログイン確認のみ（権限チェックなし）
 if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
     exit();
@@ -26,11 +26,6 @@ if (!$user) {
     session_destroy();
     header('Location: index.php');
     exit();
-}
-
-// 権限チェック
-if (!in_array($user['role'], ['管理者', 'システム管理者'])) {
-    die('アクセス権限がありません。管理者のみ利用可能です。');
 }
 
 // 日付フィルター
@@ -165,8 +160,7 @@ try {
             confirmed_by INT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_confirmation_date (confirmation_date),
-            FOREIGN KEY (confirmed_by) REFERENCES users(id)
+            INDEX idx_confirmation_date (confirmation_date)
         )
     ");
 } catch (PDOException $e) {
@@ -241,7 +235,7 @@ try {
             </a>
             <div class="navbar-nav ms-auto">
                 <span class="navbar-text me-3">
-                    <i class="fas fa-user me-1"></i><?= htmlspecialchars($user['name']) ?>さ
+                    <i class="fas fa-user me-1"></i><?= htmlspecialchars($user['name']) ?>さん
                 </span>
                 <a class="nav-link" href="dashboard.php">
                     <i class="fas fa-home me-1"></i>ダッシュボード
@@ -349,14 +343,6 @@ try {
                                 <small class="text-muted">(<?= date('Y/m/d', strtotime($selected_date)) ?>)</small>
                             </h5>
                             <div class="row">
-                                <div class="col-md-3">
-                                    <strong>実現金額:</strong><br>
-                                    <span class="fs-5">¥<?= number_format($cash_confirmation['confirmed_amount']) ?></span>
-                                </div>
-                                <div class="col-md-3">
-                                    <strong>計算売上:</strong><br>
-                                    <span class="fs-5">¥<?= number_format($daily_total['cash_amount'] ?? 0) ?></span>
-                                </div>
                                 <div class="col-md-3">
                                     <strong>差額:</strong><br>
                                     <span class="fs-5 <?= $cash_confirmation['difference'] > 0 ? 'difference-positive' : ($cash_confirmation['difference'] < 0 ? 'difference-negative' : '') ?>">
@@ -593,3 +579,11 @@ try {
     </script>
 </body>
 </html>
+                                    <strong>実現金額:</strong><br>
+                                    <span class="fs-5">¥<?= number_format($cash_confirmation['confirmed_amount']) ?></span>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>計算売上:</strong><br>
+                                    <span class="fs-5">¥<?= number_format($daily_total['cash_amount'] ?? 0) ?></span>
+                                </div>
+                                <div class="col-md-3">
