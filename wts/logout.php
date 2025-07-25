@@ -1,10 +1,16 @@
 <?php
 session_start();
 
-// セッションを破棄
+// ログアウト処理
+if (isset($_SESSION['user_id'])) {
+    $user_name = $_SESSION['user_name'] ?? 'Unknown User';
+    error_log("Logout: User {$user_name} logged out at " . date('Y-m-d H:i:s'));
+}
+
+// セッションの完全な破棄
 $_SESSION = array();
 
-// セッションクッキーも削除
+// セッションクッキーがある場合は削除
 if (ini_get("session.use_cookies")) {
     $params = session_get_cookie_params();
     setcookie(session_name(), '', time() - 42000,
@@ -13,9 +19,10 @@ if (ini_get("session.use_cookies")) {
     );
 }
 
-// セッションを完全に破棄
+// セッション破棄
 session_destroy();
 
-// ログイン画面にリダイレクト
-header('Location: index.php');
+// ログアウト完了メッセージ付きでログイン画面にリダイレクト
+header('Location: index.php?logout=1');
 exit;
+?>
