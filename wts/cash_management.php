@@ -104,9 +104,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // 日次売上データ取得（修正版）
 function getDailySales($pdo, $date, $fare_column, $charge_column) {
+    $ride_columns = getTableColumns($pdo, 'ride_records');
+    
     // 金額計算部分を動的に構築
     $amount_sql = "COALESCE({$fare_column}, 0)";
-    if (in_array($charge_column, getTableColumns($pdo, 'ride_records'))) {
+    if (in_array($charge_column, $ride_columns)) {
         $amount_sql .= " + COALESCE({$charge_column}, 0)";
     }
     
@@ -127,9 +129,11 @@ function getDailySales($pdo, $date, $fare_column, $charge_column) {
 
 // 日次合計取得（修正版）
 function getDailyTotal($pdo, $date, $fare_column, $charge_column) {
+    $ride_columns = getTableColumns($pdo, 'ride_records');
+    
     // 金額計算部分を動的に構築
     $amount_sql = "COALESCE({$fare_column}, 0)";
-    if (in_array($charge_column, getTableColumns($pdo, 'ride_records'))) {
+    if (in_array($charge_column, $ride_columns)) {
         $amount_sql .= " + COALESCE({$charge_column}, 0)";
     }
     
@@ -150,9 +154,11 @@ function getDailyTotal($pdo, $date, $fare_column, $charge_column) {
 
 // 月次集計データ取得（修正版）
 function getMonthlySummary($pdo, $month, $fare_column, $charge_column) {
+    $ride_columns = getTableColumns($pdo, 'ride_records');
+    
     // 金額計算部分を動的に構築
     $amount_sql = "COALESCE({$fare_column}, 0)";
-    if (in_array($charge_column, getTableColumns($pdo, 'ride_records'))) {
+    if (in_array($charge_column, $ride_columns)) {
         $amount_sql .= " + COALESCE({$charge_column}, 0)";
     }
     
@@ -545,6 +551,67 @@ try {
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- 月次サマリー -->
+        <?php if ($monthly_summary): ?>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5><i class="fas fa-chart-line me-2"></i>月次サマリー (<?= date('Y年m月', strtotime($selected_month . '-01')) ?>)</h5>
+                        <form method="POST" class="d-inline">
+                            <input type="hidden" name="action" value="export_daily_report">
+                            <input type="hidden" name="report_date" value="<?= htmlspecialchars($selected_month) ?>">
+                            <button type="submit" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-download me-1"></i>レポート出力
+                            </button>
+                        </form>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped summary-table">
+                                <thead>
+                                    <tr>
+                                        <th>日付</th>
+                                        <th class="text-end">乗車回数</th>
+                                        <th class="text-end">総売上</th>
+                                        <th class="text-end">現金</th>
+                                        <th class="text-end">カード</th>
+                                        <th class="text-end">その他</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php 
+                                    $monthly_total_rides = 0;
+                                    $monthly_total_amount = 0;
+                                    $monthly_cash_amount = 0;
+                                    $monthly_card_amount = 0;
+                                    $monthly_other_amount = 0;
+                                    
+                                    foreach ($monthly_summary as $day): 
+                                        $monthly_total_rides += $day['rides'];
+                                        $monthly_total_amount += $day['total'];
+                                        $monthly_cash_amount += $day['cash'];
+                                        $monthly_card_amount += $day['card'];
+                                        $monthly_other_amount += $day['other'];
+                                    ?>
+                                        <tr>
+                                            <td><?= date('m/d(D)', strtotime($day['date'])) ?></td>
+                                            <td class="text-end"><?= number_format($day['rides']) ?>回</td>
+                                            <td class="text-end">¥<?= number_format($day['total']) ?></td>
+                                            <td class="text-end">¥<?= number_format($day['cash']) ?></td>
+                                            <td class="text-end">¥<?= number_format($day['card']) ?></td>
+                                            <td class="text-end">¥<?= number_format($day['other']) ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
                                 <tfoot class="table-dark">
                                     <tr>
                                         <th>月計</th>
@@ -721,72 +788,6 @@ try {
                 toggleButton.innerHTML = '<i class="fas fa-bug me-1"></i>デバッグ情報を表示';
             }
         }
-        
-        // 自動リフレッシュ（開発時は無効化）
-        // setTimeout(function() {
-        //     location.reload();
-        // }, 300000);
     </script>
 </body>
 </html>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <?php endif; ?>
-
-        <!-- 月次サマリー -->
-        <?php if ($monthly_summary): ?>
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5><i class="fas fa-chart-line me-2"></i>月次サマリー (<?= date('Y年m月', strtotime($selected_month . '-01')) ?>)</h5>
-                        <form method="POST" class="d-inline">
-                            <input type="hidden" name="action" value="export_daily_report">
-                            <input type="hidden" name="report_date" value="<?= htmlspecialchars($selected_month) ?>">
-                            <button type="submit" class="btn btn-outline-primary btn-sm">
-                                <i class="fas fa-download me-1"></i>レポート出力
-                            </button>
-                        </form>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-striped summary-table">
-                                <thead>
-                                    <tr>
-                                        <th>日付</th>
-                                        <th class="text-end">乗車回数</th>
-                                        <th class="text-end">総売上</th>
-                                        <th class="text-end">現金</th>
-                                        <th class="text-end">カード</th>
-                                        <th class="text-end">その他</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php 
-                                    $monthly_total_rides = 0;
-                                    $monthly_total_amount = 0;
-                                    $monthly_cash_amount = 0;
-                                    $monthly_card_amount = 0;
-                                    $monthly_other_amount = 0;
-                                    
-                                    foreach ($monthly_summary as $day): 
-                                        $monthly_total_rides += $day['rides'];
-                                        $monthly_total_amount += $day['total'];
-                                        $monthly_cash_amount += $day['cash'];
-                                        $monthly_card_amount += $day['card'];
-                                        $monthly_other_amount += $day['other'];
-                                    ?>
-                                        <tr>
-                                            <td><?= date('m/d(D)', strtotime($day['date'])) ?></td>
-                                            <td class="text-end"><?= number_format($day['rides']) ?>回</td>
-                                            <td class="text-end">¥<?= number_format($day['total']) ?></td>
-                                            <td class="text-end">¥<?= number_format($day['cash']) ?></td>
-                                            <td class="text-end">¥<?= number_format($day['card']) ?></td>
-                                            <td class="text-end">¥<?= number_format($day['other']) ?></td>
-                                        </tr>
-                                    <?php endforeach; ?>
