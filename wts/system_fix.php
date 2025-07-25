@@ -332,8 +332,7 @@ echo "<p><strong>ログイン時の権限取得を改善する必要がありま
 echo "<p>以下のコードをindex.php（ログイン処理）に適用してください：</p>";
 
 echo "<pre style='background-color: #f8f9fa; padding: 15px; border-left: 4px solid #007bff; overflow-x: auto;'>";
-echo htmlspecialchars('
-// ログイン成功時のセッション設定改善版
+$sample_code = '// ログイン成功時のセッション設定改善版
 $_SESSION["user_id"] = $user["id"];
 $_SESSION["user_name"] = $user["name"];
 $_SESSION["login_id"] = $user["login_id"];
@@ -350,8 +349,8 @@ if ($user["is_admin"]) {
 // 個別権限も保存
 $_SESSION["is_driver"] = (bool)$user["is_driver"];
 $_SESSION["is_caller"] = (bool)$user["is_caller"];
-$_SESSION["is_admin"] = (bool)$user["is_admin"];
-');
+$_SESSION["is_admin"] = (bool)$user["is_admin"];';
+echo htmlspecialchars($sample_code);
 echo "</pre>";
 
 // 7. 最終チェック
