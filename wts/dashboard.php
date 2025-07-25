@@ -26,48 +26,8 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// 【修正】ユーザー情報と権限を最新状態で取得
-$user_id = $_SESSION['user_id'];
-try {
-    $stmt = $pdo->prepare("SELECT name, login_id, role, is_driver, is_caller, is_admin FROM users WHERE id = ? AND is_active = TRUE");
-    $stmt->execute([$user_id]);
-    $current_user = $stmt->fetch();
-    
-    if (!$current_user) {
-        // ユーザーが見つからない場合はログアウト
-        session_destroy();
-        header('Location: index.php?session_expired=1');
-        exit;
-    }
-    
-    // セッション情報を最新状態で更新
-    $user_name = $current_user['name'];
-    $_SESSION['user_name'] = $user_name;
-    
-    // 【重要】権限の統合判定（修正版）
-    if ($current_user['is_admin'] || $current_user['role'] === 'admin') {
-        $user_role = 'admin';
-        $_SESSION['user_role'] = 'admin';
-    } elseif ($current_user['role'] === 'manager' || $current_user['is_caller']) {
-        $user_role = 'manager';
-        $_SESSION['user_role'] = 'manager';
-    } else {
-        $user_role = 'driver';
-        $_SESSION['user_role'] = 'driver';
-    }
-    
-    // 個別権限も保存
-    $_SESSION['is_driver'] = (bool)$current_user['is_driver'];
-    $_SESSION['is_caller'] = (bool)$current_user['is_caller'];
-    $_SESSION['is_admin'] = (bool)$current_user['is_admin'];
-    
-} catch (Exception $e) {
-    error_log("User data fetch error: " . $e->getMessage());
-    // セッションからの情報をフォールバック
-    $user_name = $_SESSION['user_name'] ?? 'Unknown User';
-    $user_role = $_SESSION['user_role'] ?? 'driver';
-}
-
+$user_name = $_SESSION['user_name'];
+$user_role = $_SESSION['user_role'];
 $today = date('Y-m-d');
 $current_time = date('H:i');
 $current_hour = date('H');
@@ -86,20 +46,6 @@ try {
     }
 } catch (Exception $e) {
     // デフォルト値を使用
-}
-
-// 権限確認用のデバッグ情報（開発時のみ表示、本番では削除）
-if (isset($_GET['debug']) && $_GET['debug'] === '1') {
-    echo "<div style='background: #f0f0f0; padding: 10px; margin: 10px; border: 1px solid #ccc;'>";
-    echo "<h4>デバッグ情報（開発用）</h4>";
-    echo "<p><strong>ユーザーID:</strong> {$user_id}</p>";
-    echo "<p><strong>ユーザー名:</strong> {$user_name}</p>";
-    echo "<p><strong>権限:</strong> {$user_role}</p>";
-    echo "<p><strong>is_admin:</strong> " . (($_SESSION['is_admin'] ?? false) ? 'TRUE' : 'FALSE') . "</p>";
-    echo "<p><strong>is_caller:</strong> " . (($_SESSION['is_caller'] ?? false) ? 'TRUE' : 'FALSE') . "</p>";
-    echo "<p><strong>is_driver:</strong> " . (($_SESSION['is_driver'] ?? false) ? 'TRUE' : 'FALSE') . "</p>";
-    echo "<p><strong>マスタ管理表示:</strong> " . (in_array($user_role, ['admin', 'manager']) ? 'YES' : 'NO') . "</p>";
-    echo "</div>";
 }
 
 // 業務漏れチェック機能（改善版）
@@ -727,6 +673,19 @@ usort($alerts, function($a, $b) {
                     </a>
 
                     <?php if (in_array($user_role, ['admin', 'manager'])): ?>
+                    <!-- 🎯 修正：管理者向けメニューに集金管理を追加 -->
+                    <a href="cash_management.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-success">
+                                <i class="fas fa-calculator"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>集金管理</h6>
+                                <small>売上確認・現金管理</small>
+                            </div>
+                        </div>
+                    </a>
+                    
                     <a href="master_menu.php" class="quick-action-btn">
                         <div class="quick-action-content">
                             <div class="quick-action-icon text-orange">
@@ -869,7 +828,7 @@ usort($alerts, function($a, $b) {
         } else if (Notification.permission !== "denied") {
             Notification.requestPermission().then(function (permission) {
                 if (permission === "granted") {
-                    new Notification("重要な業務漏れがあります", {
+                    new Notification("重要な業務漣れがあります", {
                         body: "<?= isset($alerts[0]) ? htmlspecialchars($alerts[0]['message']) : '' ?>",
                         icon: "/favicon.ico"
                     });
