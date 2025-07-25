@@ -28,7 +28,7 @@ if (!$user) {
     exit();
 }
 
-// ride_recordsテーブルの構造を動的に確認
+// テーブル構造を動的に確認
 function getTableColumns($pdo, $table_name) {
     try {
         $stmt = $pdo->query("DESCRIBE {$table_name}");
@@ -38,17 +38,30 @@ function getTableColumns($pdo, $table_name) {
     }
 }
 
-$ride_columns = getTableColumns($pdo, 'ride_records');
-
-// カラム名を動的に決定
-$fare_column = 'fare';
-$charge_column = 'charge';
-
-if (in_array('fare_amount', $ride_columns)) {
-    $fare_column = 'fare_amount';
+// 存在するテーブルを確認
+function tableExists($pdo, $table_name) {
+    try {
+        $stmt = $pdo->query("SHOW TABLES LIKE '{$table_name}'");
+        return $stmt->rowCount() > 0;
+    } catch (PDOException $e) {
+        return false;
+    }
 }
-if (in_array('charge_amount', $ride_columns)) {
-    $charge_column = 'charge_amount';
+
+// 利用可能なテーブルを確認
+$available_tables = [
+    'ride_records' => tableExists($pdo, 'ride_records'),
+    'daily_operations' => tableExists($pdo, 'daily_operations'),
+    'departure_records' => tableExists($pdo, 'departure_records'),
+    'arrival_records' => tableExists($pdo, 'arrival_records')
+];
+
+// 各テーブルの構造を取得
+$table_structures = [];
+foreach ($available_tables as $table => $exists) {
+    if ($exists) {
+        $table_structures[$table] = getTableColumns($pdo, $table);
+    }
 }
 
 // 日付フィルター
@@ -102,81 +115,287 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 日次売上データ取得（修正版）
-function getDailySales($pdo, $date, $fare_column, $charge_column) {
-    $ride_columns = getTableColumns($pdo, 'ride_records');
+// 実際の乗務記録から売上データを取得
+function getRealRideData($pdo, $date, $table_structures) {
+    $ride_data = [];
     
-    // 金額計算部分を動的に構築
-    $amount_sql = "COALESCE({$fare_column}, 0)";
-    if (in_array($charge_column, $ride_columns)) {
-        $amount_sql .= " + COALESCE({$charge_column}, 0)";
+    // 1. ride_recordsテーブルから直接取得（分離型システム）
+    if (isset($table_structures['ride_records'])) {
+        $columns = $table_structures['ride_records'];
+        
+        // 金額カラムを特定
+        $fare_col = in_array('fare', $columns) ? 'fare' : (in_array('fare_amount', $columns) ? 'fare_amount' : null);
+        $charge_col = in_array('charge', $columns) ? 'charge' : (in_array('charge_amount', $columns) ? 'charge_amount' : null);
+        
+        if ($fare_col) {
+            $amount_sql = "COALESCE({$fare_col}, 0)";
+            if ($charge_col) {
+                $amount_sql .= " + COALESCE({$charge_col}, 0)";
+            }
+            
+            try {
+                $stmt = $pdo->prepare("
+                    SELECT 
+                        r.*,
+                        ({$amount_sql}) as total_amount,
+                        COALESCE(r.payment_method, '現金') as payment_method_clean
+                    FROM ride_records r
+                    WHERE DATE(r.ride_date) = ?
+                    ORDER BY r.id DESC
+                ");
+                $stmt->execute([$date]);
+                $ride_data['ride_records'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (PDOException $e) {
+                $ride_data['ride_records_error'] = $e->getMessage();
+            }
+        }
     }
     
-    $stmt = $pdo->prepare("
-        SELECT 
-            COALESCE(payment_method, '不明') as payment_method,
-            COUNT(*) as count,
-            SUM({$amount_sql}) as total_amount,
-            AVG({$amount_sql}) as avg_amount
-        FROM ride_records 
-        WHERE DATE(ride_date) = ? 
-        GROUP BY payment_method
-        ORDER BY total_amount DESC
-    ");
-    $stmt->execute([$date]);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // 2. daily_operationsテーブルから取得（従来システム）
+    if (isset($table_structures['daily_operations'])) {
+        try {
+            $stmt = $pdo->prepare("
+                SELECT 
+                    o.*,
+                    'daily_operations' as source_table
+                FROM daily_operations o
+                WHERE DATE(o.operation_date) = ?
+                ORDER BY o.id DESC
+            ");
+            $stmt->execute([$date]);
+            $ride_data['daily_operations'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            $ride_data['daily_operations_error'] = $e->getMessage();
+        }
+    }
+    
+    // 3. 分離型テーブルの連携データ
+    if (isset($table_structures['departure_records']) && isset($table_structures['arrival_records'])) {
+        try {
+            $stmt = $pdo->prepare("
+                SELECT 
+                    d.id as departure_id,
+                    d.driver_id,
+                    d.vehicle_id,
+                    d.departure_date,
+                    d.departure_time,
+                    a.arrival_time,
+                    a.total_distance,
+                    a.fuel_cost,
+                    u.name as driver_name,
+                    v.vehicle_number
+                FROM departure_records d
+                LEFT JOIN arrival_records a ON d.id = a.departure_record_id
+                LEFT JOIN users u ON d.driver_id = u.id
+                LEFT JOIN vehicles v ON d.vehicle_id = v.id
+                WHERE DATE(d.departure_date) = ?
+                ORDER BY d.departure_time DESC
+            ");
+            $stmt->execute([$date]);
+            $ride_data['operations'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            $ride_data['operations_error'] = $e->getMessage();
+        }
+    }
+    
+    return $ride_data;
 }
 
-// 日次合計取得（修正版）
-function getDailyTotal($pdo, $date, $fare_column, $charge_column) {
-    $ride_columns = getTableColumns($pdo, 'ride_records');
+// 日次売上集計（実データベース）
+function getDailySalesFromReal($pdo, $date, $table_structures) {
+    $sales_data = [];
     
-    // 金額計算部分を動的に構築
-    $amount_sql = "COALESCE({$fare_column}, 0)";
-    if (in_array($charge_column, $ride_columns)) {
-        $amount_sql .= " + COALESCE({$charge_column}, 0)";
+    // ride_recordsテーブルから集計
+    if (isset($table_structures['ride_records'])) {
+        $columns = $table_structures['ride_records'];
+        
+        $fare_col = in_array('fare', $columns) ? 'fare' : (in_array('fare_amount', $columns) ? 'fare_amount' : null);
+        $charge_col = in_array('charge', $columns) ? 'charge' : (in_array('charge_amount', $columns) ? 'charge_amount' : null);
+        
+        if ($fare_col) {
+            $amount_sql = "COALESCE({$fare_col}, 0)";
+            if ($charge_col) {
+                $amount_sql .= " + COALESCE({$charge_col}, 0)";
+            }
+            
+            try {
+                $stmt = $pdo->prepare("
+                    SELECT 
+                        COALESCE(payment_method, '現金') as payment_method,
+                        COUNT(*) as count,
+                        SUM({$amount_sql}) as total_amount,
+                        AVG({$amount_sql}) as avg_amount
+                    FROM ride_records 
+                    WHERE DATE(ride_date) = ? AND ({$amount_sql}) > 0
+                    GROUP BY payment_method
+                    ORDER BY total_amount DESC
+                ");
+                $stmt->execute([$date]);
+                $sales_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (PDOException $e) {
+                // エラーの場合は空配列
+                $sales_data = [];
+            }
+        }
     }
     
-    $stmt = $pdo->prepare("
-        SELECT 
-            COUNT(*) as total_rides,
-            SUM({$amount_sql}) as total_amount,
-            SUM(CASE WHEN payment_method = '現金' THEN {$amount_sql} ELSE 0 END) as cash_amount,
-            SUM(CASE WHEN payment_method = 'カード' THEN {$amount_sql} ELSE 0 END) as card_amount,
-            SUM(CASE WHEN payment_method = 'その他' THEN {$amount_sql} ELSE 0 END) as other_amount,
-            SUM(CASE WHEN payment_method IS NULL OR payment_method = '' THEN {$amount_sql} ELSE 0 END) as unknown_amount
-        FROM ride_records 
-        WHERE DATE(ride_date) = ?
-    ");
-    $stmt->execute([$date]);
-    return $stmt->fetch(PDO::FETCH_ASSOC);
+    // daily_operationsテーブルからも試行
+    if (empty($sales_data) && isset($table_structures['daily_operations'])) {
+        $columns = $table_structures['daily_operations'];
+        
+        // daily_operationsテーブルの構造を確認
+        $amount_columns = array_intersect(['total_fare', 'total_amount', 'sales', 'revenue'], $columns);
+        
+        if (!empty($amount_columns)) {
+            $amount_col = reset($amount_columns);
+            
+            try {
+                $stmt = $pdo->prepare("
+                    SELECT 
+                        '現金' as payment_method,
+                        COUNT(*) as count,
+                        SUM(COALESCE({$amount_col}, 0)) as total_amount,
+                        AVG(COALESCE({$amount_col}, 0)) as avg_amount
+                    FROM daily_operations 
+                    WHERE DATE(operation_date) = ? AND COALESCE({$amount_col}, 0) > 0
+                ");
+                $stmt->execute([$date]);
+                $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($result && $result['total_amount'] > 0) {
+                    $sales_data = [$result];
+                }
+            } catch (PDOException $e) {
+                // エラーログに記録（開発時）
+            }
+        }
+    }
+    
+    return $sales_data;
 }
 
-// 月次集計データ取得（修正版）
-function getMonthlySummary($pdo, $month, $fare_column, $charge_column) {
-    $ride_columns = getTableColumns($pdo, 'ride_records');
+// 日次合計取得（実データベース）
+function getDailyTotalFromReal($pdo, $date, $table_structures) {
+    $default_total = [
+        'total_rides' => 0,
+        'total_amount' => 0,
+        'cash_amount' => 0,
+        'card_amount' => 0,
+        'other_amount' => 0,
+        'unknown_amount' => 0
+    ];
     
-    // 金額計算部分を動的に構築
-    $amount_sql = "COALESCE({$fare_column}, 0)";
-    if (in_array($charge_column, $ride_columns)) {
-        $amount_sql .= " + COALESCE({$charge_column}, 0)";
+    // ride_recordsテーブルから集計
+    if (isset($table_structures['ride_records'])) {
+        $columns = $table_structures['ride_records'];
+        
+        $fare_col = in_array('fare', $columns) ? 'fare' : (in_array('fare_amount', $columns) ? 'fare_amount' : null);
+        $charge_col = in_array('charge', $columns) ? 'charge' : (in_array('charge_amount', $columns) ? 'charge_amount' : null);
+        
+        if ($fare_col) {
+            $amount_sql = "COALESCE({$fare_col}, 0)";
+            if ($charge_col) {
+                $amount_sql .= " + COALESCE({$charge_col}, 0)";
+            }
+            
+            try {
+                $stmt = $pdo->prepare("
+                    SELECT 
+                        COUNT(*) as total_rides,
+                        SUM({$amount_sql}) as total_amount,
+                        SUM(CASE WHEN payment_method = '現金' THEN {$amount_sql} ELSE 0 END) as cash_amount,
+                        SUM(CASE WHEN payment_method = 'カード' THEN {$amount_sql} ELSE 0 END) as card_amount,
+                        SUM(CASE WHEN payment_method = 'その他' THEN {$amount_sql} ELSE 0 END) as other_amount,
+                        SUM(CASE WHEN payment_method IS NULL OR payment_method = '' THEN {$amount_sql} ELSE 0 END) as unknown_amount
+                    FROM ride_records 
+                    WHERE DATE(ride_date) = ?
+                ");
+                $stmt->execute([$date]);
+                $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($result && $result['total_amount'] > 0) {
+                    return $result;
+                }
+            } catch (PDOException $e) {
+                // エラーの場合はデフォルト値を返す
+            }
+        }
     }
     
-    $stmt = $pdo->prepare("
-        SELECT 
-            DATE(ride_date) as date,
-            COUNT(*) as rides,
-            SUM({$amount_sql}) as total,
-            SUM(CASE WHEN payment_method = '現金' THEN {$amount_sql} ELSE 0 END) as cash,
-            SUM(CASE WHEN payment_method = 'カード' THEN {$amount_sql} ELSE 0 END) as card,
-            SUM(CASE WHEN payment_method = 'その他' THEN {$amount_sql} ELSE 0 END) as other
-        FROM ride_records 
-        WHERE DATE_FORMAT(ride_date, '%Y-%m') = ?
-        GROUP BY DATE(ride_date)
-        ORDER BY date
-    ");
-    $stmt->execute([$month]);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // daily_operationsテーブルからフォールバック
+    if (isset($table_structures['daily_operations'])) {
+        $columns = $table_structures['daily_operations'];
+        $amount_columns = array_intersect(['total_fare', 'total_amount', 'sales', 'revenue'], $columns);
+        
+        if (!empty($amount_columns)) {
+            $amount_col = reset($amount_columns);
+            
+            try {
+                $stmt = $pdo->prepare("
+                    SELECT 
+                        COUNT(*) as total_rides,
+                        SUM(COALESCE({$amount_col}, 0)) as total_amount,
+                        SUM(COALESCE({$amount_col}, 0)) as cash_amount,
+                        0 as card_amount,
+                        0 as other_amount,
+                        0 as unknown_amount
+                    FROM daily_operations 
+                    WHERE DATE(operation_date) = ?
+                ");
+                $stmt->execute([$date]);
+                $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($result && $result['total_amount'] > 0) {
+                    return $result;
+                }
+            } catch (PDOException $e) {
+                // エラーの場合はデフォルト値を返す
+            }
+        }
+    }
+    
+    return $default_total;
+}
+
+// 月次集計データ取得（実データベース）
+function getMonthlySummaryFromReal($pdo, $month, $table_structures) {
+    $monthly_data = [];
+    
+    // ride_recordsテーブルから集計
+    if (isset($table_structures['ride_records'])) {
+        $columns = $table_structures['ride_records'];
+        
+        $fare_col = in_array('fare', $columns) ? 'fare' : (in_array('fare_amount', $columns) ? 'fare_amount' : null);
+        $charge_col = in_array('charge', $columns) ? 'charge' : (in_array('charge_amount', $columns) ? 'charge_amount' : null);
+        
+        if ($fare_col) {
+            $amount_sql = "COALESCE({$fare_col}, 0)";
+            if ($charge_col) {
+                $amount_sql .= " + COALESCE({$charge_col}, 0)";
+            }
+            
+            try {
+                $stmt = $pdo->prepare("
+                    SELECT 
+                        DATE(ride_date) as date,
+                        COUNT(*) as rides,
+                        SUM({$amount_sql}) as total,
+                        SUM(CASE WHEN payment_method = '現金' THEN {$amount_sql} ELSE 0 END) as cash,
+                        SUM(CASE WHEN payment_method = 'カード' THEN {$amount_sql} ELSE 0 END) as card,
+                        SUM(CASE WHEN payment_method = 'その他' THEN {$amount_sql} ELSE 0 END) as other
+                    FROM ride_records 
+                    WHERE DATE_FORMAT(ride_date, '%Y-%m') = ?
+                    GROUP BY DATE(ride_date)
+                    ORDER BY date
+                ");
+                $stmt->execute([$month]);
+                $monthly_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (PDOException $e) {
+                // エラーの場合は空配列
+            }
+        }
+    }
+    
+    return $monthly_data;
 }
 
 // 集金確認記録取得
@@ -192,9 +411,10 @@ function getCashConfirmation($pdo, $date) {
 }
 
 // データ取得
-$daily_sales = getDailySales($pdo, $selected_date, $fare_column, $charge_column);
-$daily_total = getDailyTotal($pdo, $selected_date, $fare_column, $charge_column);
-$monthly_summary = getMonthlySummary($pdo, $selected_month, $fare_column, $charge_column);
+$real_ride_data = getRealRideData($pdo, $selected_date, $table_structures);
+$daily_sales = getDailySalesFromReal($pdo, $selected_date, $table_structures);
+$daily_total = getDailyTotalFromReal($pdo, $selected_date, $table_structures);
+$monthly_summary = getMonthlySummaryFromReal($pdo, $selected_month, $table_structures);
 $cash_confirmation = getCashConfirmation($pdo, $selected_date);
 
 // 集金確認テーブルが存在しない場合は作成
@@ -216,23 +436,6 @@ try {
 } catch (PDOException $e) {
     // テーブル作成に失敗した場合は警告のみ表示
     $error = "集金確認テーブルの作成に失敗しました。システム管理者にお問い合わせください。";
-}
-
-// デバッグ情報（開発時のみ表示）
-$debug_info = [
-    'ride_columns' => $ride_columns,
-    'fare_column' => $fare_column,
-    'charge_column' => $charge_column,
-    'sample_data' => []
-];
-
-// サンプルデータ取得（最新5件）
-try {
-    $stmt = $pdo->prepare("SELECT * FROM ride_records WHERE DATE(ride_date) = ? ORDER BY id DESC LIMIT 5");
-    $stmt->execute([$selected_date]);
-    $debug_info['sample_data'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    $debug_info['sample_data'] = ['error' => $e->getMessage()];
 }
 ?>
 
@@ -310,6 +513,12 @@ try {
             text-decoration: underline;
             cursor: pointer;
         }
+        .table-available {
+            background-color: #d1edff;
+        }
+        .table-missing {
+            background-color: #f8d7da;
+        }
     </style>
 </head>
 
@@ -318,7 +527,7 @@ try {
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
             <a class="navbar-brand" href="dashboard.php">
-                <i class="fas fa-calculator me-2"></i>集金管理
+                <i class="fas fa-calculator me-2"></i>集金管理（実データ）
             </a>
             <div class="navbar-nav ms-auto">
                 <span class="navbar-text me-3">
@@ -349,6 +558,28 @@ try {
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
+
+        <!-- データソース情報 -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-database me-2"></i>データソース情報</h6>
+                    <div class="row">
+                        <?php foreach ($available_tables as $table => $exists): ?>
+                            <div class="col-md-3">
+                                <span class="badge <?= $exists ? 'bg-success' : 'bg-danger' ?> me-1">
+                                    <?= $exists ? '✓' : '✗' ?>
+                                </span>
+                                <?= $table ?>
+                                <?php if ($exists && isset($table_structures[$table])): ?>
+                                    <small class="text-muted">(<?= count($table_structures[$table]) ?>列)</small>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- 日付選択 -->
         <div class="row mb-4">
@@ -557,6 +788,16 @@ try {
                 </div>
             </div>
         </div>
+        <?php else: ?>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <?= date('Y/m/d', strtotime($selected_date)) ?>の乗務記録データが見つかりません。
+                    <a href="ride_records.php" class="btn btn-sm btn-outline-primary ms-2">乗車記録を入力</a>
+                </div>
+            </div>
+        </div>
         <?php endif; ?>
 
         <!-- 月次サマリー -->
@@ -630,94 +871,89 @@ try {
         </div>
         <?php endif; ?>
 
-        <!-- デバッグ情報セクション -->
+        <!-- 実際の乗務記録セクション -->
         <div class="row mb-4">
             <div class="col-12">
-                <button type="button" class="debug-toggle" onclick="toggleDebug()">
-                    <i class="fas fa-bug me-1"></i>デバッグ情報を表示
+                <button type="button" class="debug-toggle" onclick="toggleRealData()">
+                    <i class="fas fa-database me-1"></i>実際の乗務記録データを表示
                 </button>
-                <div id="debug-section" class="debug-section" style="display: none;">
-                    <h6><i class="fas fa-info-circle me-2"></i>システム診断情報</h6>
+                <div id="real-data-section" class="debug-section" style="display: none;">
+                    <h6><i class="fas fa-clipboard-list me-2"></i>本日の実際の乗務記録 (<?= date('Y/m/d', strtotime($selected_date)) ?>)</h6>
                     
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>テーブル構造:</h6>
-                            <ul class="mb-3">
-                                <li>使用する金額カラム: <code><?= $fare_column ?></code> + <code><?= $charge_column ?></code></li>
-                                <li>検出されたカラム数: <?= count($ride_columns) ?>個</li>
-                            </ul>
-                            
-                            <h6>利用可能カラム:</h6>
-                            <div class="mb-3">
-                                <?php foreach ($ride_columns as $col): ?>
-                                    <span class="badge bg-secondary me-1"><?= htmlspecialchars($col) ?></span>
-                                <?php endforeach; ?>
-                            </div>
+                    <?php if (isset($real_ride_data['ride_records']) && !empty($real_ride_data['ride_records'])): ?>
+                        <h6 class="mt-3">乗車記録データ (ride_records):</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>時間</th>
+                                        <th>乗車地</th>
+                                        <th>降車地</th>
+                                        <th>人数</th>
+                                        <th>運賃</th>
+                                        <th>料金</th>
+                                        <th>支払方法</th>
+                                        <th>合計額</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach (array_slice($real_ride_data['ride_records'], 0, 10) as $record): ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($record['id'] ?? 'N/A') ?></td>
+                                            <td><?= htmlspecialchars($record['ride_time'] ?? 'N/A') ?></td>
+                                            <td><?= htmlspecialchars($record['pickup_location'] ?? 'N/A') ?></td>
+                                            <td><?= htmlspecialchars($record['dropoff_location'] ?? 'N/A') ?></td>
+                                            <td><?= htmlspecialchars($record['passenger_count'] ?? 'N/A') ?></td>
+                                            <td>¥<?= number_format($record['fare'] ?? 0) ?></td>
+                                            <td>¥<?= number_format($record['charge'] ?? 0) ?></td>
+                                            <td><?= htmlspecialchars($record['payment_method_clean'] ?? '未設定') ?></td>
+                                            <td><strong>¥<?= number_format($record['total_amount'] ?? 0) ?></strong></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
                         </div>
-                        
-                        <div class="col-md-6">
-                            <h6>本日のサンプルデータ (最新5件):</h6>
-                            <?php if (!empty($debug_info['sample_data']) && !isset($debug_info['sample_data']['error'])): ?>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-bordered">
-                                        <thead>
-                                            <tr>
-                                                <th>ID</th>
-                                                <th>支払方法</th>
-                                                <th>運賃</th>
-                                                <th>料金</th>
-                                                <th>合計</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($debug_info['sample_data'] as $record): ?>
-                                                <tr>
-                                                    <td><?= htmlspecialchars($record['id'] ?? 'N/A') ?></td>
-                                                    <td><?= htmlspecialchars($record['payment_method'] ?? '未設定') ?></td>
-                                                    <td>¥<?= number_format($record[$fare_column] ?? 0) ?></td>
-                                                    <td>
-                                                        <?php if (isset($record[$charge_column])): ?>
-                                                            ¥<?= number_format($record[$charge_column] ?? 0) ?>
-                                                        <?php else: ?>
-                                                            <span class="text-muted">-</span>
-                                                        <?php endif; ?>
-                                                    </td>
-                                                    <td>¥<?= number_format(($record[$fare_column] ?? 0) + ($record[$charge_column] ?? 0)) ?></td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            <?php elseif (isset($debug_info['sample_data']['error'])): ?>
-                                <div class="alert alert-warning">
-                                    データ取得エラー: <?= htmlspecialchars($debug_info['sample_data']['error']) ?>
-                                </div>
-                            <?php else: ?>
-                                <div class="alert alert-info">本日のデータはありません</div>
-                            <?php endif; ?>
+                        <?php if (count($real_ride_data['ride_records']) > 10): ?>
+                            <p class="text-muted">※ 最新10件を表示（全<?= count($real_ride_data['ride_records']) ?>件）</p>
+                        <?php endif; ?>
+                    <?php elseif (isset($real_ride_data['ride_records_error'])): ?>
+                        <div class="alert alert-warning">
+                            乗車記録取得エラー: <?= htmlspecialchars($real_ride_data['ride_records_error']) ?>
                         </div>
-                    </div>
-                    
-                    <div class="row mt-3">
-                        <div class="col-12">
-                            <h6>集計値検証:</h6>
-                            <ul>
-                                <li>総売上: ¥<?= number_format($daily_total['total_amount'] ?? 0) ?> (<?= $daily_total['total_rides'] ?? 0 ?>回)</li>
-                                <li>現金売上: ¥<?= number_format($daily_total['cash_amount'] ?? 0) ?></li>
-                                <li>カード売上: ¥<?= number_format($daily_total['card_amount'] ?? 0) ?></li>
-                                <li>その他売上: ¥<?= number_format($daily_total['other_amount'] ?? 0) ?></li>
-                                <li>不明支払方法: ¥<?= number_format($daily_total['unknown_amount'] ?? 0) ?></li>
-                            </ul>
+                    <?php else: ?>
+                        <div class="alert alert-info">本日の乗車記録はありません</div>
+                    <?php endif; ?>
+
+                    <?php if (isset($real_ride_data['operations']) && !empty($real_ride_data['operations'])): ?>
+                        <h6 class="mt-4">運行記録（出庫・入庫）:</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>運転者</th>
+                                        <th>車両</th>
+                                        <th>出庫時刻</th>
+                                        <th>入庫時刻</th>
+                                        <th>走行距離</th>
+                                        <th>燃料代</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($real_ride_data['operations'] as $operation): ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($operation['driver_name'] ?? 'N/A') ?></td>
+                                            <td><?= htmlspecialchars($operation['vehicle_number'] ?? 'N/A') ?></td>
+                                            <td><?= htmlspecialchars($operation['departure_time'] ?? 'N/A') ?></td>
+                                            <td><?= htmlspecialchars($operation['arrival_time'] ?? '未入庫') ?></td>
+                                            <td><?= $operation['total_distance'] ?? 0 ?>km</td>
+                                            <td>¥<?= number_format($operation['fuel_cost'] ?? 0) ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
                         </div>
-                    </div>
-                    
-                    <div class="alert alert-info mt-3">
-                        <strong>データが合わない場合の対処法:</strong><br>
-                        1. テーブル構造が正しく検出されているか確認<br>
-                        2. 支払方法が正しく設定されているか確認<br>
-                        3. ride_recordsテーブルのデータ整合性をチェック<br>
-                        4. 必要に応じて<a href="fix_ride_records_table.php" target="_blank">テーブル修正ツール</a>を実行
-                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -736,7 +972,7 @@ try {
     
     <script>
         // 差額計算
-        document.getElementById('confirmed_amount').addEventListener('input', function() {
+        document.getElementById('confirmed_amount')?.addEventListener('input', function() {
             const confirmedAmount = parseInt(this.value) || 0;
             const calculatedAmount = <?= $daily_total['cash_amount'] ?? 0 ?>;
             const difference = confirmedAmount - calculatedAmount;
@@ -775,17 +1011,17 @@ try {
             }
         });
         
-        // デバッグ情報表示切り替え
-        function toggleDebug() {
-            const debugSection = document.getElementById('debug-section');
+        // 実データ表示切り替え
+        function toggleRealData() {
+            const realDataSection = document.getElementById('real-data-section');
             const toggleButton = document.querySelector('.debug-toggle');
             
-            if (debugSection.style.display === 'none') {
-                debugSection.style.display = 'block';
-                toggleButton.innerHTML = '<i class="fas fa-bug me-1"></i>デバッグ情報を非表示';
+            if (realDataSection.style.display === 'none') {
+                realDataSection.style.display = 'block';
+                toggleButton.innerHTML = '<i class="fas fa-database me-1"></i>実際の乗務記録データを非表示';
             } else {
-                debugSection.style.display = 'none';
-                toggleButton.innerHTML = '<i class="fas fa-bug me-1"></i>デバッグ情報を表示';
+                realDataSection.style.display = 'none';
+                toggleButton.innerHTML = '<i class="fas fa-database me-1"></i>実際の乗務記録データを表示';
             }
         }
     </script>
