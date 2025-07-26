@@ -1,212 +1,223 @@
 <?php
 /**
- * データベース不整合診断ツール
- * 現在のDB接続状況とテーブル構造を完全診断
+ * テーブル重複・統合診断ツール
+ * 23個のテーブルを分析し、重複・統合すべきテーブルを特定
  */
 
-// エラー表示を有効化
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-echo "<h1>🔍 データベース不整合診断ツール</h1>";
-echo "<div style='font-family: Arial; background: #f5f5f5; padding: 20px;'>";
+echo "<h1>🔍 テーブル重複・統合診断ツール</h1>";
+echo "<div style='font-family: Arial; background: #f8f9fa; padding: 20px;'>";
 
-// 1. 設定ファイルの確認
-echo "<h2>1. 📄 設定ファイル確認</h2>";
-$config_files = [
-    'config/database.php',
-    'database.php',
-    'config.php',
-    'db_config.php'
-];
-
-foreach ($config_files as $file) {
-    if (file_exists($file)) {
-        echo "<div style='background: #d4edda; padding: 10px; margin: 5px;'>";
-        echo "<strong>✅ 存在: {$file}</strong><br>";
-        
-        $content = file_get_contents($file);
-        if (strpos($content, 'twinklemark_wts') !== false) {
-            echo "DB名: twinklemark_wts を確認<br>";
-        }
-        if (strpos($content, 'twinklemark_taxi') !== false) {
-            echo "ユーザー: twinklemark_taxi を確認<br>";
-        }
-        echo "</div>";
-    } else {
-        echo "<div style='background: #f8d7da; padding: 10px; margin: 5px;'>";
-        echo "<strong>❌ 不存在: {$file}</strong>";
-        echo "</div>";
-    }
+// DB接続
+try {
+    $pdo = new PDO(
+        "mysql:host=localhost;dbname=twinklemark_wts;charset=utf8mb4",
+        "twinklemark_taxi",
+        "Smiley2525",
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+} catch (PDOException $e) {
+    die("DB接続エラー: " . $e->getMessage());
 }
 
-// 2. 現在の接続テスト
-echo "<h2>2. 🔌 現在のDB接続テスト</h2>";
+// 1. 全テーブル一覧と詳細
+echo "<h2>1. 📊 全テーブル分析（23個）</h2>";
 
-// 標準的な接続情報
-$connections = [
-    [
-        'name' => '標準接続(twinklemark_wts)',
-        'host' => 'localhost',
-        'dbname' => 'twinklemark_wts',
-        'username' => 'twinklemark_taxi',
-        'password' => 'Smiley2525'
-    ],
-    [
-        'name' => '代替接続(smiley)',
-        'host' => 'localhost',
-        'dbname' => 'smiley',
-        'username' => 'twinklemark_taxi',
-        'password' => 'Smiley2525'
-    ],
-    [
-        'name' => '代替接続2(twinklemark)',
-        'host' => 'localhost',
-        'dbname' => 'twinklemark',
-        'username' => 'twinklemark_taxi',
-        'password' => 'Smiley2525'
-    ]
+$stmt = $pdo->query("SHOW TABLES");
+$all_tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+// 基本設計との比較
+$original_tables = [
+    'users' => 'ユーザーマスタ',
+    'vehicles' => '車両マスタ', 
+    'pre_duty_calls' => '乗務前点呼',
+    'post_duty_calls' => '乗務後点呼',
+    'daily_inspections' => '日常点検',
+    'periodic_inspections' => '定期点検',
+    'daily_operations' => '運行記録（旧）',
+    'departure_records' => '出庫記録（新）',
+    'arrival_records' => '入庫記録（新）',
+    'ride_records' => '乗車記録',
+    'accidents' => '事故記録',
+    'fiscal_years' => '年度マスタ',
+    'system_settings' => 'システム設定'
 ];
 
-$successful_connection = null;
+echo "<div style='display: flex; gap: 20px;'>";
 
-foreach ($connections as $conn) {
+// 元々の設計テーブル
+echo "<div style='flex: 1; background: #e7f1ff; padding: 15px; border-radius: 5px;'>";
+echo "<h3>📋 元々の設計（13個）</h3>";
+foreach ($original_tables as $table => $desc) {
+    $exists = in_array($table, $all_tables);
+    $status = $exists ? "✅" : "❌";
+    $color = $exists ? "#d4edda" : "#f8d7da";
+    echo "<div style='background: {$color}; padding: 5px; margin: 2px; border-radius: 3px;'>";
+    echo "{$status} {$table} - {$desc}";
+    echo "</div>";
+}
+echo "</div>";
+
+// 追加されたテーブル
+$additional_tables = array_diff($all_tables, array_keys($original_tables));
+echo "<div style='flex: 1; background: #fff3cd; padding: 15px; border-radius: 5px;'>";
+echo "<h3>⚠️ 追加テーブル（" . count($additional_tables) . "個）</h3>";
+foreach ($additional_tables as $table) {
+    echo "<div style='background: #f8d7da; padding: 5px; margin: 2px; border-radius: 3px;'>";
+    echo "🔍 {$table}";
+    echo "</div>";
+}
+echo "</div>";
+
+echo "</div>";
+
+// 2. テーブル詳細分析
+echo "<h2>2. 🔍 テーブル詳細分析</h2>";
+
+foreach ($all_tables as $table) {
     try {
-        $pdo = new PDO(
-            "mysql:host={$conn['host']};dbname={$conn['dbname']};charset=utf8mb4",
-            $conn['username'],
-            $conn['password'],
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-        );
+        // テーブル構造取得
+        $stmt = $pdo->query("DESCRIBE {$table}");
+        $columns = $stmt->fetchAll();
         
-        echo "<div style='background: #d4edda; padding: 10px; margin: 5px;'>";
-        echo "<strong>✅ 接続成功: {$conn['name']}</strong><br>";
+        // レコード数取得
+        $stmt = $pdo->query("SELECT COUNT(*) FROM {$table}");
+        $count = $stmt->fetchColumn();
         
-        // テーブル数確認
-        $stmt = $pdo->query("SHOW TABLES");
-        $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        echo "テーブル数: " . count($tables) . "<br>";
-        echo "テーブル: " . implode(', ', array_slice($tables, 0, 10));
-        if (count($tables) > 10) echo "...";
-        echo "</div>";
+        // 最終更新日取得
+        $stmt = $pdo->query("SHOW TABLE STATUS LIKE '{$table}'");
+        $status = $stmt->fetch();
         
-        if (!$successful_connection) {
-            $successful_connection = $pdo;
-            $successful_db = $conn['dbname'];
-        }
+        $is_original = isset($original_tables[$table]);
+        $bg_color = $is_original ? "#e7f1ff" : "#fff3cd";
         
-    } catch (PDOException $e) {
-        echo "<div style='background: #f8d7da; padding: 10px; margin: 5px;'>";
-        echo "<strong>❌ 接続失敗: {$conn['name']}</strong><br>";
-        echo "エラー: " . $e->getMessage();
-        echo "</div>";
-    }
-}
-
-// 3. 重要テーブルの存在確認
-if ($successful_connection) {
-    echo "<h2>3. 🗃️ 重要テーブル存在確認 (DB: {$successful_db})</h2>";
-    
-    $required_tables = [
-        'users' => 'ユーザー管理',
-        'vehicles' => '車両管理',
-        'pre_duty_calls' => '乗務前点呼',
-        'post_duty_calls' => '乗務後点呼',
-        'daily_inspections' => '日常点検',
-        'periodic_inspections' => '定期点検',
-        'departure_records' => '出庫記録',
-        'arrival_records' => '入庫記録',
-        'ride_records' => '乗車記録',
-        'system_settings' => 'システム設定'
-    ];
-    
-    foreach ($required_tables as $table => $description) {
-        try {
-            $stmt = $successful_connection->query("SELECT COUNT(*) FROM {$table}");
-            $count = $stmt->fetchColumn();
-            echo "<div style='background: #d4edda; padding: 5px; margin: 2px;'>";
-            echo "✅ {$table} ({$description}): {$count}件";
-            echo "</div>";
-        } catch (PDOException $e) {
-            echo "<div style='background: #f8d7da; padding: 5px; margin: 2px;'>";
-            echo "❌ {$table} ({$description}): 存在しない";
-            echo "</div>";
-        }
-    }
-    
-    // 4. セッション確認
-    echo "<h2>4. 🔐 セッション状況確認</h2>";
-    session_start();
-    
-    if (isset($_SESSION['user_id'])) {
-        echo "<div style='background: #d4edda; padding: 10px;'>";
-        echo "✅ セッション有効<br>";
-        echo "ユーザーID: " . $_SESSION['user_id'] . "<br>";
-        
-        if (isset($_SESSION['role'])) {
-            echo "権限: " . $_SESSION['role'] . "<br>";
+        echo "<div style='background: {$bg_color}; padding: 10px; margin: 5px; border-radius: 5px;'>";
+        echo "<h4>{$table} ";
+        if ($is_original) {
+            echo "<span style='background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 12px;'>元設計</span>";
         } else {
-            echo "⚠️ 権限情報なし<br>";
+            echo "<span style='background: #ffc107; color: black; padding: 2px 6px; border-radius: 3px; font-size: 12px;'>追加</span>";
         }
+        echo "</h4>";
         
-        // ユーザー情報を確認
-        try {
-            $stmt = $successful_connection->prepare("SELECT name, role FROM users WHERE id = ?");
-            $stmt->execute([$_SESSION['user_id']]);
-            $user = $stmt->fetch();
-            
-            if ($user) {
-                echo "DB上の名前: " . $user['name'] . "<br>";
-                echo "DB上の権限: " . $user['role'] . "<br>";
-                
-                if (isset($_SESSION['role']) && $_SESSION['role'] !== $user['role']) {
-                    echo "<strong style='color: red;'>⚠️ セッション権限とDB権限が不一致！</strong><br>";
-                }
-            }
-        } catch (Exception $e) {
-            echo "ユーザー情報取得エラー: " . $e->getMessage();
-        }
-        echo "</div>";
-    } else {
-        echo "<div style='background: #fff3cd; padding: 10px;'>";
-        echo "⚠️ セッションなし（未ログイン）";
-        echo "</div>";
-    }
-    
-    // 5. 最近のデータ確認
-    echo "<h2>5. 📊 最近のデータ確認</h2>";
-    
-    try {
-        // 最新の乗車記録
-        $stmt = $successful_connection->query("SELECT COUNT(*) FROM ride_records WHERE DATE(created_at) = CURDATE()");
-        $today_rides = $stmt->fetchColumn();
-        echo "<div style='background: #e7f1ff; padding: 5px; margin: 2px;'>";
-        echo "今日の乗車記録: {$today_rides}件";
+        echo "<div style='display: flex; gap: 15px; margin: 10px 0;'>";
+        echo "<div><strong>レコード数:</strong> {$count}</div>";
+        echo "<div><strong>カラム数:</strong> " . count($columns) . "</div>";
+        echo "<div><strong>作成日:</strong> " . $status['Create_time'] . "</div>";
         echo "</div>";
         
-        // 最新の出庫記録
-        $stmt = $successful_connection->query("SELECT COUNT(*) FROM departure_records WHERE departure_date = CURDATE()");
-        $today_departures = $stmt->fetchColumn();
-        echo "<div style='background: #e7f1ff; padding: 5px; margin: 2px;'>";
-        echo "今日の出庫記録: {$today_departures}件";
+        echo "<div><strong>カラム:</strong> ";
+        $column_names = array_column($columns, 'Field');
+        echo implode(', ', array_slice($column_names, 0, 8));
+        if (count($column_names) > 8) echo "...";
+        echo "</div>";
+        
         echo "</div>";
         
     } catch (Exception $e) {
-        echo "<div style='background: #f8d7da; padding: 5px;'>";
-        echo "データ確認エラー: " . $e->getMessage();
-        echo "</div>";
+        echo "<div style='background: #f8d7da; padding: 5px;'>エラー: {$table} - " . $e->getMessage() . "</div>";
     }
 }
 
-// 6. 推奨アクション
-echo "<h2>6. 🛠️ 推奨アクション</h2>";
-echo "<div style='background: #fff3cd; padding: 15px;'>";
-echo "<h3>即座に実行すべき修正:</h3>";
+// 3. 重複・統合候補の特定
+echo "<h2>3. 🔄 重複・統合候補の特定</h2>";
+
+$redundancy_analysis = [
+    'cash関連' => [
+        'tables' => ['cash_confirmations', 'detailed_cash_confirmations', 'driver_change_stocks'],
+        'issue' => '集金管理で複数テーブルが作られ、データが分散',
+        'solution' => '1つの統合テーブルに集約'
+    ],
+    'reports関連' => [
+        'tables' => ['annual_reports'],
+        'issue' => '年次報告用に新規作成',
+        'solution' => '既存のfiscal_yearsとの統合検討'
+    ],
+    'company_info' => [
+        'tables' => ['company_info'],
+        'issue' => 'システム設定と重複する可能性',
+        'solution' => 'system_settingsとの統合検討'
+    ]
+];
+
+foreach ($redundancy_analysis as $category => $info) {
+    echo "<div style='background: #f8d7da; padding: 15px; margin: 10px 0; border-radius: 5px;'>";
+    echo "<h4>⚠️ {$category}</h4>";
+    echo "<div><strong>対象テーブル:</strong> " . implode(', ', $info['tables']) . "</div>";
+    echo "<div><strong>問題:</strong> {$info['issue']}</div>";
+    echo "<div><strong>解決策:</strong> {$info['solution']}</div>";
+    echo "</div>";
+}
+
+// 4. データ分散状況確認
+echo "<h2>4. 📊 データ分散状況確認</h2>";
+
+try {
+    // 今日のデータがどのテーブルに入っているか確認
+    $data_distribution = [];
+    
+    // 運行関連
+    if (in_array('daily_operations', $all_tables)) {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM daily_operations WHERE DATE(created_at) = CURDATE()");
+        $data_distribution['daily_operations（旧運行）'] = $stmt->fetchColumn();
+    }
+    
+    if (in_array('departure_records', $all_tables)) {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM departure_records WHERE departure_date = CURDATE()");
+        $data_distribution['departure_records（新出庫）'] = $stmt->fetchColumn();
+    }
+    
+    if (in_array('arrival_records', $all_tables)) {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM arrival_records WHERE arrival_date = CURDATE()");
+        $data_distribution['arrival_records（新入庫）'] = $stmt->fetchColumn();
+    }
+    
+    if (in_array('ride_records', $all_tables)) {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM ride_records WHERE DATE(created_at) = CURDATE()");
+        $data_distribution['ride_records（乗車記録）'] = $stmt->fetchColumn();
+    }
+    
+    // 集金関連
+    foreach (['cash_confirmations', 'detailed_cash_confirmations', 'driver_change_stocks'] as $table) {
+        if (in_array($table, $all_tables)) {
+            $stmt = $pdo->query("SELECT COUNT(*) FROM {$table}");
+            $data_distribution[$table] = $stmt->fetchColumn();
+        }
+    }
+    
+    echo "<div style='background: #e7f1ff; padding: 15px; border-radius: 5px;'>";
+    echo "<h4>今日のデータ分散状況</h4>";
+    foreach ($data_distribution as $table => $count) {
+        $color = $count > 0 ? "#d4edda" : "#f8d7da";
+        echo "<div style='background: {$color}; padding: 5px; margin: 2px; border-radius: 3px;'>";
+        echo "{$table}: {$count}件";
+        echo "</div>";
+    }
+    echo "</div>";
+    
+} catch (Exception $e) {
+    echo "<div style='background: #f8d7da; padding: 10px;'>データ分散確認エラー: " . $e->getMessage() . "</div>";
+}
+
+// 5. 統合推奨アクション
+echo "<h2>5. 🛠️ 統合推奨アクション</h2>";
+
+echo "<div style='background: #d1ecf1; padding: 20px; border-radius: 5px;'>";
+echo "<h4>緊急対応（今すぐ実行）:</h4>";
 echo "<ol>";
-echo "<li><strong>統一DB設定ファイル作成</strong> - 全ファイルが同じDB設定を使用</li>";
-echo "<li><strong>セッション権限修正</strong> - ログアウト→再ログインでセッションリセット</li>";
-echo "<li><strong>cash_management.php の設定確認</strong> - 他ファイルと同じDB接続を使用</li>";
-echo "<li><strong>ダッシュボード修正</strong> - 正しいDB接続とテーブル参照</li>";
+echo "<li><strong>ダッシュボード修正</strong> - 正しいテーブルを参照するよう修正</li>";
+echo "<li><strong>cash_management修正</strong> - 使用テーブルを標準化</li>";
+echo "<li><strong>重複テーブルのバックアップ</strong> - データ移行前の安全確保</li>";
+echo "</ol>";
+
+echo "<h4>根本解決（段階的実行）:</h4>";
+echo "<ol>";
+echo "<li><strong>テーブル統合計画作成</strong> - どのテーブルを残し、どれを統合するか</li>";
+echo "<li><strong>データ移行スクリプト作成</strong> - 重複データの統合</li>";
+echo "<li><strong>不要テーブル削除</strong> - 23個→13個に削減</li>";
+echo "<li><strong>アプリケーション修正</strong> - 統合後のテーブル構造に対応</li>";
 echo "</ol>";
 echo "</div>";
 
@@ -215,5 +226,5 @@ echo "</div>";
 
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; }
-h1, h2, h3 { color: #333; }
+h1, h2, h3, h4 { color: #333; }
 </style>
