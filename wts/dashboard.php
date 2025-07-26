@@ -1,6 +1,19 @@
 <?php
 session_start();
-require_once 'config/database.php';
+
+// データベース接続（直接定義）
+try {
+    $host = 'localhost';
+    $dbname = 'twinklemark_wts';
+    $username = 'twinklemark_taxi';
+    $password = 'Smiley2525';
+    
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+} catch (PDOException $e) {
+    die("データベース接続エラー: " . htmlspecialchars($e->getMessage()));
+}
 
 // 認証チェック
 if (!isset($_SESSION['user_id'])) {
