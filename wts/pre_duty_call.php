@@ -25,18 +25,9 @@ try {
     $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // 点呼者取得（管理者・マネージャーのみ）
-$stmt = $pdo->query("
-    SELECT DISTINCT caller_name as name
-    FROM (
-        SELECT caller_name FROM pre_duty_calls 
-        WHERE caller_name IS NOT NULL AND caller_name != ''
-        UNION
-        SELECT caller_name FROM post_duty_calls 
-        WHERE caller_name IS NOT NULL AND caller_name != ''
-    ) AS all_callers
-    ORDER BY name
-");
-$callers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_caller = 1 AND is_active = TRUE ORDER BY name");
+    $stmt->execute();
+    $callers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
 } catch (Exception $e) {
     error_log("Data fetch error: " . $e->getMessage());
