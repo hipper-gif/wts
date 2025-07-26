@@ -14,8 +14,15 @@ $user_id = $_SESSION['user_id'];
 
 // 権限チェック - 統一版
 try {
+    // テーブル構造確認・is_managerカラム追加
+    try {
+        $pdo->exec("ALTER TABLE users ADD COLUMN is_manager BOOLEAN DEFAULT FALSE");
+    } catch (PDOException $e) {
+        // カラムが既に存在する場合は無視
+    }
+    
     // 現在のユーザーの権限を再取得
-    $stmt = $pdo->prepare("SELECT role, is_driver, is_caller, is_admin FROM users WHERE id = ? AND is_active = TRUE");
+    $stmt = $pdo->prepare("SELECT role, is_driver, is_caller, is_manager, is_admin FROM users WHERE id = ? AND is_active = TRUE");
     $stmt->execute([$user_id]);
     $current_user = $stmt->fetch(PDO::FETCH_ASSOC);
     
@@ -53,6 +60,7 @@ try {
     $_SESSION['is_admin'] = $current_user['is_admin'];
     $_SESSION['is_caller'] = $current_user['is_caller'];
     $_SESSION['is_driver'] = $current_user['is_driver'];
+    $_SESSION['is_manager'] = $current_user['is_manager'] ?? 0;
     
 } catch (Exception $e) {
     header('Location: dashboard.php?error=system_error');
@@ -75,24 +83,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $login_id = trim($_POST['login_id']);
             $password = $_POST['password'];
             
-            // 権限の処理
-            $permissions = [];
-            if (isset($_POST['is_driver'])) $permissions[] = 'driver';
-            if (isset($_POST['is_caller'])) $permissions[] = 'caller';
-            if (isset($_POST['is_admin'])) $permissions[] = 'admin';
+            // 権限の処理（4種類対応）
+            $role = $_POST['role'] ?? '';
             
-            if (empty($permissions)) {
-                throw new Exception('少なくとも1つの権限を選択してください。');
+            if (empty($role)) {
+                throw new Exception('権限を選択してください。');
             }
             
-            // メイン権限の決定（優先度: admin > caller > driver）
-            if (in_array('admin', $permissions)) {
-                $main_role = 'system_admin';  // 統一
-            } elseif (in_array('caller', $permissions)) {
-                $main_role = 'manager';
-            } else {
-                $main_role = 'driver';
-            }
+            // 権限フラグの設定
+            $is_driver = ($role === 'driver') ? 1 : 0;
+            $is_caller = ($role === 'caller') ? 1 : 0;
+            $is_manager = ($role === 'manager') ? 1 : 0;
+            $is_admin = ($role === 'system_admin') ? 1 : 0;
             
             // バリデーション
             if (empty($name) || empty($login_id) || empty($password)) {
@@ -109,14 +111,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // パスワードハッシュ化
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
             
-            // ユーザー追加
-            $stmt = $pdo->prepare("INSERT INTO users (name, login_id, password, role, is_driver, is_caller, is_admin, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, NOW())");
-            $stmt->execute([
-                $name, $login_id, $hashed_password, $main_role, 
-                in_array('driver', $permissions) ? 1 : 0,
-                in_array('caller', $permissions) ? 1 : 0,
-                in_array('admin', $permissions) ? 1 : 0
-            ]);
+            // テーブル構造確認・is_managerカラム追加
+            try {
+                $pdo->exec("ALTER TABLE users ADD COLUMN is_manager BOOLEAN DEFAULT FALSE");
+            } catch (PDOException $e) {
+                // カラムが既に存在する場合は無視
+            }
+            
+            // ユーザー追加（is_managerカラム対応）
+            try {
+                $stmt = $pdo->prepare("INSERT INTO users (name, login_id, password, role, is_driver, is_caller, is_manager, is_admin, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE, NOW())");
+                $stmt->execute([
+                    $name, $login_id, $hashed_password, $role, 
+                    $is_driver, $is_caller, $is_manager, $is_admin
+                ]);
+            } catch (PDOException $e) {
+                // is_managerカラムが存在しない場合のフォールバック
+                $stmt = $pdo->prepare("INSERT INTO users (name, login_id, password, role, is_driver, is_caller, is_admin, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, NOW())");
+                $stmt->execute([
+                    $name, $login_id, $hashed_password, $role, 
+                    $is_driver, $is_caller, $is_admin
+                ]);
+            }
             
             $success_message = 'ユーザーを追加しました。';
             
@@ -127,24 +143,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $login_id = trim($_POST['login_id']);
             $is_active = isset($_POST['is_active']) ? 1 : 0;
             
-            // 権限の処理
-            $permissions = [];
-            if (isset($_POST['is_driver'])) $permissions[] = 'driver';
-            if (isset($_POST['is_caller'])) $permissions[] = 'caller';
-            if (isset($_POST['is_admin'])) $permissions[] = 'admin';
+            // 権限の処理（4種類対応）
+            $role = $_POST['role'] ?? '';
             
-            if (empty($permissions)) {
-                throw new Exception('少なくとも1つの権限を選択してください。');
+            if (empty($role)) {
+                throw new Exception('権限を選択してください。');
             }
             
-            // メイン権限の決定
-            if (in_array('admin', $permissions)) {
-                $main_role = 'system_admin';  // 統一
-            } elseif (in_array('caller', $permissions)) {
-                $main_role = 'manager';
-            } else {
-                $main_role = 'driver';
-            }
+            // 権限フラグの設定
+            $is_driver = ($role === 'driver') ? 1 : 0;
+            $is_caller = ($role === 'caller') ? 1 : 0;
+            $is_manager = ($role === 'manager') ? 1 : 0;
+            $is_admin = ($role === 'system_admin') ? 1 : 0;
             
             // バリデーション
             if (empty($name) || empty($login_id)) {
@@ -158,15 +168,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('このログインIDは既に使用されています。');
             }
             
-            // ユーザー更新
-            $stmt = $pdo->prepare("UPDATE users SET name = ?, login_id = ?, role = ?, is_driver = ?, is_caller = ?, is_admin = ?, is_active = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->execute([
-                $name, $login_id, $main_role,
-                in_array('driver', $permissions) ? 1 : 0,
-                in_array('caller', $permissions) ? 1 : 0,
-                in_array('admin', $permissions) ? 1 : 0,
-                $is_active, $edit_user_id
-            ]);
+            // ユーザー更新（is_managerカラム対応）
+            try {
+                $stmt = $pdo->prepare("UPDATE users SET name = ?, login_id = ?, role = ?, is_driver = ?, is_caller = ?, is_manager = ?, is_admin = ?, is_active = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([
+                    $name, $login_id, $role,
+                    $is_driver, $is_caller, $is_manager, $is_admin,
+                    $is_active, $edit_user_id
+                ]);
+            } catch (PDOException $e) {
+                // is_managerカラムが存在しない場合のフォールバック
+                $stmt = $pdo->prepare("UPDATE users SET name = ?, login_id = ?, role = ?, is_driver = ?, is_caller = ?, is_admin = ?, is_active = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([
+                    $name, $login_id, $role,
+                    $is_driver, $is_caller, $is_admin,
+                    $is_active, $edit_user_id
+                ]);
+            }
             
             $success_message = 'ユーザー情報を更新しました。';
             
@@ -199,33 +217,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $success_message = 'ユーザーを削除しました。';
             
-        } elseif ($action === 'fix_permissions') {
-            // 権限統一修正処理
-            $stmt = $pdo->prepare("
-                UPDATE users SET 
-                role = CASE 
-                    WHEN is_admin = 1 THEN 'system_admin'
-                    WHEN is_caller = 1 AND is_admin = 0 THEN 'manager'
-                    ELSE 'driver'
-                END,
-                updated_at = NOW()
-                WHERE 1=1
-            ");
-            $stmt->execute();
-            
-            $success_message = '全ユーザーの権限を統一しました。';
-        }
+
         
     } catch (Exception $e) {
         $error_message = $e->getMessage();
     }
 }
 
-// ユーザー一覧取得 - エラー修正版
+// ユーザー一覧取得 - 4権限対応版
 try {
-    $stmt = $pdo->prepare("SELECT id, name, login_id, role, is_driver, is_caller, is_admin, is_active, created_at FROM users ORDER BY is_active DESC, role, name");
-    $stmt->execute();
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // まずis_managerカラムの存在確認
+    try {
+        $stmt = $pdo->prepare("SELECT id, name, login_id, role, is_driver, is_caller, is_manager, is_admin, is_active, created_at FROM users ORDER BY is_active DESC, role, name");
+        $stmt->execute();
+        $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        // is_managerカラムが存在しない場合のフォールバック
+        $stmt = $pdo->prepare("SELECT id, name, login_id, role, is_driver, is_caller, is_admin, is_active, created_at, 0 as is_manager FROM users ORDER BY is_active DESC, role, name");
+        $stmt->execute();
+        $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (Exception $e) {
     $error_message = 'ユーザー一覧の取得に失敗しました: ' . $e->getMessage();
     $users = [];
@@ -233,11 +244,50 @@ try {
 
 // 権限表示用の関数
 function getUserPermissions($user) {
-    $permissions = [];
-    if (isset($user['is_driver']) && $user['is_driver']) $permissions[] = '運転者';
-    if (isset($user['is_caller']) && $user['is_caller']) $permissions[] = '点呼者';
-    if (isset($user['is_admin']) && $user['is_admin']) $permissions[] = 'システム管理者';
-    return implode(' + ', $permissions);
+    $role = $user['role'] ?? '';
+    
+    // roleカラムが空の場合、フラグから推定
+    if (empty($role)) {
+        if (isset($user['is_admin']) && $user['is_admin']) {
+            $role = 'system_admin';
+        } elseif (isset($user['is_manager']) && $user['is_manager']) {
+            $role = 'manager';
+        } elseif (isset($user['is_caller']) && $user['is_caller']) {
+            $role = 'caller';
+        } else {
+            $role = 'driver';
+        }
+    }
+    
+    switch ($role) {
+        case 'driver':
+            return '運転者';
+        case 'caller':
+            return '点呼者';
+        case 'manager':
+            return '管理者';
+        case 'system_admin':
+            return 'システム管理者';
+        default:
+            return '不明';
+    }
+}
+
+// 権限表示用のバッジ色
+function getRoleBadgeClass($role) {
+    // roleカラムが空の場合のデフォルト処理は上の関数で対応
+    switch ($role) {
+        case 'driver':
+            return 'bg-success';
+        case 'caller':
+            return 'bg-info';
+        case 'manager':
+            return 'bg-warning';
+        case 'system_admin':
+            return 'bg-danger';
+        default:
+            return 'bg-secondary';
+    }
 }
 
 // 安全な値取得関数
@@ -245,20 +295,37 @@ function safeGet($array, $key, $default = '') {
     return isset($array[$key]) ? $array[$key] : $default;
 }
 
-// 権限統計取得
+// 権限統計取得 - 4権限対応
 try {
-    $stmt = $pdo->query("
-        SELECT 
-            COUNT(*) as total_users,
-            SUM(is_admin) as admin_count,
-            SUM(is_caller) as caller_count,
-            SUM(is_driver) as driver_count,
-            SUM(is_active) as active_count
-        FROM users
-    ");
-    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+    // まずis_managerカラムの存在確認
+    try {
+        $stmt = $pdo->query("
+            SELECT 
+                COUNT(*) as total_users,
+                SUM(CASE WHEN role = 'system_admin' THEN 1 ELSE 0 END) as admin_count,
+                SUM(CASE WHEN role = 'manager' THEN 1 ELSE 0 END) as manager_count,
+                SUM(CASE WHEN role = 'caller' THEN 1 ELSE 0 END) as caller_count,
+                SUM(CASE WHEN role = 'driver' THEN 1 ELSE 0 END) as driver_count,
+                SUM(is_active) as active_count
+            FROM users
+        ");
+        $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        // フォールバック版（既存カラムのみ使用）
+        $stmt = $pdo->query("
+            SELECT 
+                COUNT(*) as total_users,
+                SUM(is_admin) as admin_count,
+                0 as manager_count,
+                SUM(is_caller) as caller_count,
+                SUM(is_driver) as driver_count,
+                SUM(is_active) as active_count
+            FROM users
+        ");
+        $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
 } catch (Exception $e) {
-    $stats = ['total_users' => 0, 'admin_count' => 0, 'caller_count' => 0, 'driver_count' => 0, 'active_count' => 0];
+    $stats = ['total_users' => 0, 'admin_count' => 0, 'manager_count' => 0, 'caller_count' => 0, 'driver_count' => 0, 'active_count' => 0];
 }
 ?>
 <!DOCTYPE html>
@@ -360,12 +427,6 @@ try {
             font-weight: bold;
             color: #6f42c1;
         }
-        
-        .fix-permissions-alert {
-            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-            border: 1px solid #f0ad4e;
-            border-radius: 10px;
-        }
     </style>
 </head>
 <body>
@@ -404,46 +465,40 @@ try {
         </div>
         <?php endif; ?>
         
-        <!-- 権限修正アラート -->
-        <div class="alert fix-permissions-alert" role="alert">
-            <div class="row align-items-center">
-                <div class="col">
-                    <h6><i class="fas fa-tools me-2"></i>権限統一修正</h6>
-                    <p class="mb-0">権限の不整合がある場合、ワンクリックで統一できます</p>
-                </div>
-                <div class="col-auto">
-                    <form method="POST" style="display: inline;">
-                        <input type="hidden" name="action" value="fix_permissions">
-                        <button type="submit" class="btn btn-warning btn-sm" 
-                                onclick="return confirm('全ユーザーの権限を統一しますか？')">
-                            <i class="fas fa-magic"></i> 権限統一修正
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
         
         <!-- 統計情報 -->
         <div class="row mb-4">
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="stats-card">
                     <div class="stats-number"><?= $stats['total_users'] ?></div>
                     <div class="text-muted">総ユーザー数</div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="stats-card">
                     <div class="stats-number"><?= $stats['active_count'] ?></div>
                     <div class="text-muted">有効ユーザー</div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="stats-card">
                     <div class="stats-number"><?= $stats['admin_count'] ?></div>
+                    <div class="text-muted">システム管理者</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stats-card">
+                    <div class="stats-number"><?= $stats['manager_count'] ?></div>
                     <div class="text-muted">管理者</div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
+                <div class="stats-card">
+                    <div class="stats-number"><?= $stats['caller_count'] ?></div>
+                    <div class="text-muted">点呼者</div>
+                </div>
+            </div>
+            <div class="col-md-2">
                 <div class="stats-card">
                     <div class="stats-number"><?= $stats['driver_count'] ?></div>
                     <div class="text-muted">運転者</div>
@@ -484,15 +539,9 @@ try {
                             </div>
                             <div class="col-md-3">
                                 <div class="permissions-badges">
-                                    <?php if (safeGet($user, 'is_driver')): ?>
-                                        <span class="badge bg-success me-1 mb-1">運転者</span>
-                                    <?php endif; ?>
-                                    <?php if (safeGet($user, 'is_caller')): ?>
-                                        <span class="badge bg-warning me-1 mb-1">点呼者</span>
-                                    <?php endif; ?>
-                                    <?php if (safeGet($user, 'is_admin')): ?>
-                                        <span class="badge bg-danger me-1 mb-1">システム管理者</span>
-                                    <?php endif; ?>
+                                    <span class="badge <?= getRoleBadgeClass(safeGet($user, 'role')) ?>">
+                                        <?= getUserPermissions($user) ?>
+                                    </span>
                                 </div>
                             </div>
                             <div class="col-md-2">
@@ -556,30 +605,21 @@ try {
                         
                         <div class="mb-3">
                             <label class="form-label">権限 <span class="text-danger">*</span></label>
-                            <div class="border rounded p-3">
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="checkbox" id="modalIsDriver" name="is_driver">
-                                    <label class="form-check-label" for="modalIsDriver">
-                                        <span class="badge bg-success me-2">運転者</span>
-                                        車両の運転業務を行う
-                                    </label>
+                            <select class="form-select" name="role" id="modalRole" required>
+                                <option value="">権限を選択してください</option>
+                                <option value="driver">運転者 - 基本業務（点呼・点検・運行）</option>
+                                <option value="caller">点呼者 - 乗務前・乗務後点呼を実施する</option>
+                                <option value="manager">管理者 - マスタ管理・帳票出力・集金管理</option>
+                                <option value="system_admin">システム管理者 - システム全体の管理権限を持つ</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                <div class="mt-2">
+                                    <span class="badge bg-success me-2">運転者</span>点呼・点検・運行業務<br>
+                                    <span class="badge bg-info me-2">点呼者</span>点呼業務のみ<br>
+                                    <span class="badge bg-warning me-2">管理者</span>マスタ管理・帳票・集金<br>
+                                    <span class="badge bg-danger me-2">システム管理者</span>全機能アクセス可能
                                 </div>
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="checkbox" id="modalIsCaller" name="is_caller">
-                                    <label class="form-check-label" for="modalIsCaller">
-                                        <span class="badge bg-warning me-2">点呼者</span>
-                                        乗務前・乗務後点呼を実施する
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="modalIsAdmin" name="is_admin">
-                                    <label class="form-check-label" for="modalIsAdmin">
-                                        <span class="badge bg-danger me-2">システム管理者</span>
-                                        システム全体の管理権限を持つ
-                                    </label>
-                                </div>
-                            </div>
-                            <small class="form-text text-muted">複数の権限を同時に付与することができます。</small>
+                            </small>
                         </div>
                         
                         <div class="mb-3" id="activeField" style="display: none;">
@@ -654,9 +694,7 @@ try {
             document.getElementById('modalUserId').value = user.id || '';
             document.getElementById('modalName').value = user.name || '';
             document.getElementById('modalLoginId').value = user.login_id || '';
-            document.getElementById('modalIsDriver').checked = user.is_driver == 1;
-            document.getElementById('modalIsCaller').checked = user.is_caller == 1;
-            document.getElementById('modalIsAdmin').checked = user.is_admin == 1;
+            document.getElementById('modalRole').value = user.role || '';
             document.getElementById('modalIsActive').checked = user.is_active == 1;
             document.getElementById('passwordField').style.display = 'none';
             document.getElementById('activeField').style.display = 'block';
