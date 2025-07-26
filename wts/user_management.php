@@ -8,15 +8,58 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// システム管理者権限チェック
-if ($_SESSION['user_role'] !== 'admin') {
-    header('Location: dashboard.php');
+// データベース接続
+$pdo = getDBConnection();
+$user_id = $_SESSION['user_id'];
+
+// 権限チェック - 統一版
+try {
+    // 現在のユーザーの権限を再取得
+    $stmt = $pdo->prepare("SELECT role, is_driver, is_caller, is_admin FROM users WHERE id = ? AND is_active = TRUE");
+    $stmt->execute([$user_id]);
+    $current_user = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$current_user) {
+        header('Location: index.php');
+        exit;
+    }
+    
+    // システム管理者権限チェック（複数の方法で確認）
+    $is_system_admin = false;
+    
+    // 方法1: is_adminフラグ
+    if (isset($current_user['is_admin']) && $current_user['is_admin'] == 1) {
+        $is_system_admin = true;
+    }
+    
+    // 方法2: roleカラム
+    if (in_array($current_user['role'], ['admin', 'system_admin', 'システム管理者'])) {
+        $is_system_admin = true;
+    }
+    
+    // 方法3: セッション確認（後方互換）
+    if (isset($_SESSION['user_role']) && in_array($_SESSION['user_role'], ['admin', 'system_admin', 'システム管理者'])) {
+        $is_system_admin = true;
+    }
+    
+    // システム管理者でない場合はアクセス拒否
+    if (!$is_system_admin) {
+        header('Location: dashboard.php?error=permission_denied');
+        exit;
+    }
+    
+    // セッション情報の更新（統一化）
+    $_SESSION['user_role'] = $current_user['role'];
+    $_SESSION['is_admin'] = $current_user['is_admin'];
+    $_SESSION['is_caller'] = $current_user['is_caller'];
+    $_SESSION['is_driver'] = $current_user['is_driver'];
+    
+} catch (Exception $e) {
+    header('Location: dashboard.php?error=system_error');
     exit;
 }
 
-$pdo = getDBConnection();
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'];
+$user_name = $_SESSION['user_name'] ?? '管理者';
 
 $success_message = '';
 $error_message = '';
@@ -44,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // メイン権限の決定（優先度: admin > caller > driver）
             if (in_array('admin', $permissions)) {
-                $main_role = 'admin';
+                $main_role = 'system_admin';  // 統一
             } elseif (in_array('caller', $permissions)) {
                 $main_role = 'manager';
             } else {
@@ -96,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // メイン権限の決定
             if (in_array('admin', $permissions)) {
-                $main_role = 'admin';
+                $main_role = 'system_admin';  // 統一
             } elseif (in_array('caller', $permissions)) {
                 $main_role = 'manager';
             } else {
@@ -155,6 +198,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$delete_user_id]);
             
             $success_message = 'ユーザーを削除しました。';
+            
+        } elseif ($action === 'fix_permissions') {
+            // 権限統一修正処理
+            $stmt = $pdo->prepare("
+                UPDATE users SET 
+                role = CASE 
+                    WHEN is_admin = 1 THEN 'system_admin'
+                    WHEN is_caller = 1 AND is_admin = 0 THEN 'manager'
+                    ELSE 'driver'
+                END,
+                updated_at = NOW()
+                WHERE 1=1
+            ");
+            $stmt->execute();
+            
+            $success_message = '全ユーザーの権限を統一しました。';
         }
         
     } catch (Exception $e) {
@@ -184,6 +243,22 @@ function getUserPermissions($user) {
 // 安全な値取得関数
 function safeGet($array, $key, $default = '') {
     return isset($array[$key]) ? $array[$key] : $default;
+}
+
+// 権限統計取得
+try {
+    $stmt = $pdo->query("
+        SELECT 
+            COUNT(*) as total_users,
+            SUM(is_admin) as admin_count,
+            SUM(is_caller) as caller_count,
+            SUM(is_driver) as driver_count,
+            SUM(is_active) as active_count
+        FROM users
+    ");
+    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $stats = ['total_users' => 0, 'admin_count' => 0, 'caller_count' => 0, 'driver_count' => 0, 'active_count' => 0];
 }
 ?>
 <!DOCTYPE html>
@@ -270,6 +345,27 @@ function safeGet($array, $key, $default = '') {
             border-color: #6f42c1;
             box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
         }
+        
+        .stats-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 1rem;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        
+        .stats-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #6f42c1;
+        }
+        
+        .fix-permissions-alert {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            border: 1px solid #f0ad4e;
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body>
@@ -279,7 +375,7 @@ function safeGet($array, $key, $default = '') {
             <div class="row align-items-center">
                 <div class="col">
                     <h1><i class="fas fa-users-cog me-2"></i>ユーザー管理</h1>
-                    <small>システム管理者専用</small>
+                    <small>システム管理者専用 - 統一権限管理対応版</small>
                 </div>
                 <div class="col-auto">
                     <a href="dashboard.php" class="btn btn-outline-light btn-sm">
@@ -308,6 +404,53 @@ function safeGet($array, $key, $default = '') {
         </div>
         <?php endif; ?>
         
+        <!-- 権限修正アラート -->
+        <div class="alert fix-permissions-alert" role="alert">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h6><i class="fas fa-tools me-2"></i>権限統一修正</h6>
+                    <p class="mb-0">権限の不整合がある場合、ワンクリックで統一できます</p>
+                </div>
+                <div class="col-auto">
+                    <form method="POST" style="display: inline;">
+                        <input type="hidden" name="action" value="fix_permissions">
+                        <button type="submit" class="btn btn-warning btn-sm" 
+                                onclick="return confirm('全ユーザーの権限を統一しますか？')">
+                            <i class="fas fa-magic"></i> 権限統一修正
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 統計情報 -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="stats-number"><?= $stats['total_users'] ?></div>
+                    <div class="text-muted">総ユーザー数</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="stats-number"><?= $stats['active_count'] ?></div>
+                    <div class="text-muted">有効ユーザー</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="stats-number"><?= $stats['admin_count'] ?></div>
+                    <div class="text-muted">管理者</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="stats-number"><?= $stats['driver_count'] ?></div>
+                    <div class="text-muted">運転者</div>
+                </div>
+            </div>
+        </div>
+        
         <!-- 新規追加ボタン -->
         <div class="mb-4">
             <button type="button" class="btn btn-primary" onclick="showAddModal()">
@@ -318,7 +461,7 @@ function safeGet($array, $key, $default = '') {
         <!-- ユーザー一覧 -->
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-list me-2"></i>ユーザー一覧</h5>
+                <h5 class="mb-0"><i class="fas fa-list me-2"></i>ユーザー一覧 (<?= count($users) ?>名)</h5>
             </div>
             <div class="card-body">
                 <?php if (empty($users)): ?>
@@ -328,8 +471,16 @@ function safeGet($array, $key, $default = '') {
                     <div class="user-row <?= safeGet($user, 'is_active', 1) ? '' : 'inactive' ?>">
                         <div class="row align-items-center">
                             <div class="col-md-4">
-                                <h6 class="mb-1"><?= htmlspecialchars(safeGet($user, 'name', '名前未設定')) ?></h6>
-                                <small class="text-muted">ID: <?= htmlspecialchars(safeGet($user, 'login_id', '未設定')) ?></small>
+                                <h6 class="mb-1">
+                                    <?= htmlspecialchars(safeGet($user, 'name', '名前未設定')) ?>
+                                    <?php if (safeGet($user, 'id') == $user_id): ?>
+                                    <span class="badge bg-info ms-2">現在のユーザー</span>
+                                    <?php endif; ?>
+                                </h6>
+                                <small class="text-muted">
+                                    ID: <?= htmlspecialchars(safeGet($user, 'login_id', '未設定')) ?>
+                                    | Role: <?= htmlspecialchars(safeGet($user, 'role', '未設定')) ?>
+                                </small>
                             </div>
                             <div class="col-md-3">
                                 <div class="permissions-badges">
