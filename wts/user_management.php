@@ -8,69 +8,34 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// データベース接続
 $pdo = getDBConnection();
 $user_id = $_SESSION['user_id'];
 
-// 権限チェック - 統一版
-try {
-    // テーブル構造確認・is_managerカラム追加
-    try {
-        $pdo->exec("ALTER TABLE users ADD COLUMN is_manager BOOLEAN DEFAULT FALSE");
-    } catch (PDOException $e) {
-        // カラムが既に存在する場合は無視
-    }
-    
-    // 現在のユーザーの権限を再取得
-    $stmt = $pdo->prepare("SELECT role, is_driver, is_caller, is_manager, is_admin FROM users WHERE id = ? AND is_active = TRUE");
-    $stmt->execute([$user_id]);
-    $current_user = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if (!$current_user) {
-        header('Location: index.php');
-        exit;
-    }
-    
-    // システム管理者権限チェック（複数の方法で確認）
-    $is_system_admin = false;
-    
-    // 方法1: is_adminフラグ
-    if (isset($current_user['is_admin']) && $current_user['is_admin'] == 1) {
-        $is_system_admin = true;
-    }
-    
-    // 方法2: roleカラム
-    if (in_array($current_user['role'], ['admin', 'system_admin', 'システム管理者'])) {
-        $is_system_admin = true;
-    }
-    
-    // 方法3: セッション確認（後方互換）
-    if (isset($_SESSION['user_role']) && in_array($_SESSION['user_role'], ['admin', 'system_admin', 'システム管理者'])) {
-        $is_system_admin = true;
-    }
-    
-    // システム管理者でない場合はアクセス拒否
-    if (!$is_system_admin) {
-        header('Location: dashboard.php?error=permission_denied');
-        exit;
-    }
-    
-    // セッション情報の更新（統一化）
-    $_SESSION['user_role'] = $current_user['role'];
-    $_SESSION['is_admin'] = $current_user['is_admin'];
-    $_SESSION['is_caller'] = $current_user['is_caller'];
-    $_SESSION['is_driver'] = $current_user['is_driver'];
-    $_SESSION['is_manager'] = $current_user['is_manager'] ?? 0;
-    
-} catch (Exception $e) {
-    header('Location: dashboard.php?error=system_error');
+// 権限チェック - シンプル版
+$stmt = $pdo->prepare("SELECT role, is_admin FROM users WHERE id = ? AND is_active = TRUE");
+$stmt->execute([$user_id]);
+$current_user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$current_user) {
+    header('Location: index.php');
+    exit;
+}
+
+$is_system_admin = ($current_user['is_admin'] == 1) || 
+                   (in_array($current_user['role'], ['admin', 'system_admin', 'システム管理者'])) ||
+                   (isset($_SESSION['user_role']) && in_array($_SESSION['user_role'], ['admin', 'system_admin']));
+
+if (!$is_system_admin) {
+    header('Location: dashboard.php?error=permission_denied');
     exit;
 }
 
 $user_name = $_SESSION['user_name'] ?? '管理者';
-
 $success_message = '';
 $error_message = '';
+
+// is_managerカラムの確認・追加
+$pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_manager BOOLEAN DEFAULT FALSE");
 
 // フォーム送信処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -82,8 +47,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $name = trim($_POST['name']);
             $login_id = trim($_POST['login_id']);
             $password = $_POST['password'];
-            
-            // 権限の処理（4種類対応）
             $role = $_POST['role'] ?? '';
             
             if (empty($role)) {
@@ -111,28 +74,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // パスワードハッシュ化
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
             
-            // テーブル構造確認・is_managerカラム追加
-            try {
-                $pdo->exec("ALTER TABLE users ADD COLUMN is_manager BOOLEAN DEFAULT FALSE");
-            } catch (PDOException $e) {
-                // カラムが既に存在する場合は無視
-            }
-            
-            // ユーザー追加（is_managerカラム対応）
-            try {
-                $stmt = $pdo->prepare("INSERT INTO users (name, login_id, password, role, is_driver, is_caller, is_manager, is_admin, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE, NOW())");
-                $stmt->execute([
-                    $name, $login_id, $hashed_password, $role, 
-                    $is_driver, $is_caller, $is_manager, $is_admin
-                ]);
-            } catch (PDOException $e) {
-                // is_managerカラムが存在しない場合のフォールバック
-                $stmt = $pdo->prepare("INSERT INTO users (name, login_id, password, role, is_driver, is_caller, is_admin, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, NOW())");
-                $stmt->execute([
-                    $name, $login_id, $hashed_password, $role, 
-                    $is_driver, $is_caller, $is_admin
-                ]);
-            }
+            // ユーザー追加
+            $stmt = $pdo->prepare("INSERT INTO users (name, login_id, password, role, is_driver, is_caller, is_manager, is_admin, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE, NOW())");
+            $stmt->execute([
+                $name, $login_id, $hashed_password, $role, 
+                $is_driver, $is_caller, $is_manager, $is_admin
+            ]);
             
             $success_message = 'ユーザーを追加しました。';
             
@@ -142,8 +89,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $name = trim($_POST['name']);
             $login_id = trim($_POST['login_id']);
             $is_active = isset($_POST['is_active']) ? 1 : 0;
-            
-            // 権限の処理（4種類対応）
             $role = $_POST['role'] ?? '';
             
             if (empty($role)) {
@@ -168,23 +113,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('このログインIDは既に使用されています。');
             }
             
-            // ユーザー更新（is_managerカラム対応）
-            try {
-                $stmt = $pdo->prepare("UPDATE users SET name = ?, login_id = ?, role = ?, is_driver = ?, is_caller = ?, is_manager = ?, is_admin = ?, is_active = ?, updated_at = NOW() WHERE id = ?");
-                $stmt->execute([
-                    $name, $login_id, $role,
-                    $is_driver, $is_caller, $is_manager, $is_admin,
-                    $is_active, $edit_user_id
-                ]);
-            } catch (PDOException $e) {
-                // is_managerカラムが存在しない場合のフォールバック
-                $stmt = $pdo->prepare("UPDATE users SET name = ?, login_id = ?, role = ?, is_driver = ?, is_caller = ?, is_admin = ?, is_active = ?, updated_at = NOW() WHERE id = ?");
-                $stmt->execute([
-                    $name, $login_id, $role,
-                    $is_driver, $is_caller, $is_admin,
-                    $is_active, $edit_user_id
-                ]);
-            }
+            // ユーザー更新
+            $stmt = $pdo->prepare("UPDATE users SET name = ?, login_id = ?, role = ?, is_driver = ?, is_caller = ?, is_manager = ?, is_admin = ?, is_active = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([
+                $name, $login_id, $role,
+                $is_driver, $is_caller, $is_manager, $is_admin,
+                $is_active, $edit_user_id
+            ]);
             
             $success_message = 'ユーザー情報を更新しました。';
             
@@ -216,31 +151,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$delete_user_id]);
             
             $success_message = 'ユーザーを削除しました。';
-            
-
+        }
         
     } catch (Exception $e) {
         $error_message = $e->getMessage();
     }
 }
 
-// ユーザー一覧取得 - 4権限対応版
-try {
-    // まずis_managerカラムの存在確認
-    try {
-        $stmt = $pdo->prepare("SELECT id, name, login_id, role, is_driver, is_caller, is_manager, is_admin, is_active, created_at FROM users ORDER BY is_active DESC, role, name");
-        $stmt->execute();
-        $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        // is_managerカラムが存在しない場合のフォールバック
-        $stmt = $pdo->prepare("SELECT id, name, login_id, role, is_driver, is_caller, is_admin, is_active, created_at, 0 as is_manager FROM users ORDER BY is_active DESC, role, name");
-        $stmt->execute();
-        $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-} catch (Exception $e) {
-    $error_message = 'ユーザー一覧の取得に失敗しました: ' . $e->getMessage();
-    $users = [];
-}
+// ユーザー一覧取得
+$stmt = $pdo->prepare("SELECT id, name, login_id, role, is_driver, is_caller, is_manager, is_admin, is_active, created_at FROM users ORDER BY is_active DESC, role, name");
+$stmt->execute();
+$users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// 権限統計取得
+$stmt = $pdo->query("
+    SELECT 
+        COUNT(*) as total_users,
+        SUM(CASE WHEN role = 'system_admin' THEN 1 ELSE 0 END) as admin_count,
+        SUM(CASE WHEN role = 'manager' THEN 1 ELSE 0 END) as manager_count,
+        SUM(CASE WHEN role = 'caller' THEN 1 ELSE 0 END) as caller_count,
+        SUM(CASE WHEN role = 'driver' THEN 1 ELSE 0 END) as driver_count,
+        SUM(is_active) as active_count
+    FROM users
+");
+$stats = $stmt->fetch(PDO::FETCH_ASSOC);
 
 // 権限表示用の関数
 function getUserPermissions($user) {
@@ -275,7 +209,6 @@ function getUserPermissions($user) {
 
 // 権限表示用のバッジ色
 function getRoleBadgeClass($role) {
-    // roleカラムが空の場合のデフォルト処理は上の関数で対応
     switch ($role) {
         case 'driver':
             return 'bg-success';
@@ -293,39 +226,6 @@ function getRoleBadgeClass($role) {
 // 安全な値取得関数
 function safeGet($array, $key, $default = '') {
     return isset($array[$key]) ? $array[$key] : $default;
-}
-
-// 権限統計取得 - 4権限対応
-try {
-    // まずis_managerカラムの存在確認
-    try {
-        $stmt = $pdo->query("
-            SELECT 
-                COUNT(*) as total_users,
-                SUM(CASE WHEN role = 'system_admin' THEN 1 ELSE 0 END) as admin_count,
-                SUM(CASE WHEN role = 'manager' THEN 1 ELSE 0 END) as manager_count,
-                SUM(CASE WHEN role = 'caller' THEN 1 ELSE 0 END) as caller_count,
-                SUM(CASE WHEN role = 'driver' THEN 1 ELSE 0 END) as driver_count,
-                SUM(is_active) as active_count
-            FROM users
-        ");
-        $stats = $stmt->fetch(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        // フォールバック版（既存カラムのみ使用）
-        $stmt = $pdo->query("
-            SELECT 
-                COUNT(*) as total_users,
-                SUM(is_admin) as admin_count,
-                0 as manager_count,
-                SUM(is_caller) as caller_count,
-                SUM(is_driver) as driver_count,
-                SUM(is_active) as active_count
-            FROM users
-        ");
-        $stats = $stmt->fetch(PDO::FETCH_ASSOC);
-    }
-} catch (Exception $e) {
-    $stats = ['total_users' => 0, 'admin_count' => 0, 'manager_count' => 0, 'caller_count' => 0, 'driver_count' => 0, 'active_count' => 0];
 }
 ?>
 <!DOCTYPE html>
@@ -393,26 +293,6 @@ try {
             border-left-color: #6c757d;
         }
         
-        .role-badge {
-            font-size: 0.8em;
-            padding: 4px 12px;
-            border-radius: 20px;
-        }
-        
-        .role-admin { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); }
-        .role-manager { background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%); }
-        .role-driver { background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); }
-        
-        .form-control, .form-select {
-            border-radius: 8px;
-            border: 1px solid #ddd;
-        }
-        
-        .form-control:focus, .form-select:focus {
-            border-color: #6f42c1;
-            box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
-        }
-        
         .stats-card {
             background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
             border: 1px solid #e9ecef;
@@ -427,6 +307,16 @@ try {
             font-weight: bold;
             color: #6f42c1;
         }
+        
+        .form-control, .form-select {
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: #6f42c1;
+            box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
+        }
     </style>
 </head>
 <body>
@@ -436,7 +326,7 @@ try {
             <div class="row align-items-center">
                 <div class="col">
                     <h1><i class="fas fa-users-cog me-2"></i>ユーザー管理</h1>
-                    <small>システム管理者専用 - 統一権限管理対応版</small>
+                    <small>システム管理者専用 - 4権限対応版</small>
                 </div>
                 <div class="col-auto">
                     <a href="dashboard.php" class="btn btn-outline-light btn-sm">
@@ -464,7 +354,6 @@ try {
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
         <?php endif; ?>
-        
         
         <!-- 統計情報 -->
         <div class="row mb-4">
