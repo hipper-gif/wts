@@ -3,6 +3,7 @@ session_start();
 
 // データベース接続
 require_once 'config/database.php';
+require_once 'updated_user_functions.php';
 
 try {
     $pdo = getDBConnection();
