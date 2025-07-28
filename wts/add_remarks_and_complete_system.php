@@ -27,7 +27,7 @@ $current_time = date('H:i');
 $success_message = '';
 $error_message = '';
 
-// 🔧 動的テーブル構造確認機能
+// 🔧 厳密なテーブル構造確認機能
 function getTableColumns($pdo, $table_name) {
     try {
         $stmt = $pdo->query("DESCRIBE {$table_name}");
@@ -38,55 +38,103 @@ function getTableColumns($pdo, $table_name) {
     }
 }
 
+// より安全なカラム存在確認
+function columnExists($pdo, $table_name, $column_name) {
+    try {
+        $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?");
+        $stmt->execute([$table_name, $column_name]);
+        return $stmt->rowCount() > 0;
+    } catch (Exception $e) {
+        error_log("カラム存在確認エラー ({$table_name}.{$column_name}): " . $e->getMessage());
+        return false;
+    }
+}
+
 // ride_recordsテーブルの構造を動的確認
 $ride_columns = getTableColumns($pdo, 'ride_records');
 
-// デフォルトカラム定義
-$default_columns = [
+// 必須カラム定義（これらが存在しない場合はエラー）
+$required_columns = [
     'id', 'driver_id', 'vehicle_id', 'ride_date', 'ride_time', 
     'passenger_count', 'pickup_location', 'dropoff_location', 
-    'fare', 'charge', 'transport_category', 'payment_method', 
-    'notes', 'created_at', 'updated_at'
+    'fare', 'charge', 'transport_category', 'payment_method', 'notes'
 ];
 
-// 追加カラム（存在する場合のみ使用）
-$optional_columns = [
+// オプションカラム（存在確認してから使用）
+$optional_column_candidates = [
     'is_return_trip', 'original_ride_id', 'operation_id', 'total_trips', 
-    'distance', 'duration', 'status'
+    'distance', 'duration', 'status', 'created_at', 'updated_at'
 ];
 
-// 使用可能カラムを特定
-$available_columns = array_intersect($default_columns, $ride_columns);
-$available_optional_columns = array_intersect($optional_columns, $ride_columns);
+// 実際に存在するカラムのみを使用
+$available_columns = array_filter($required_columns, function($column) use ($pdo) {
+    return columnExists($pdo, 'ride_records', $column);
+});
 
-// 動的INSERT文生成
-function buildInsertSQL($available_columns, $optional_columns, $data) {
+$available_optional_columns = array_filter($optional_column_candidates, function($column) use ($pdo) {
+    return columnExists($pdo, 'ride_records', $column);
+});
+
+// 安全性チェック: 必須カラムが不足している場合は警告
+$missing_required = array_diff($required_columns, $available_columns);
+if (!empty($missing_required)) {
+    error_log("警告: 必須カラムが不足しています: " . implode(', ', $missing_required));
+}
+
+// 動的INSERT文生成（安全性強化版）
+function buildInsertSQL($pdo, $data) {
     $columns = [];
     $placeholders = [];
     $values = [];
     
-    // 基本カラムをチェック
-    foreach ($available_columns as $column) {
-        if (isset($data[$column]) && $column !== 'id') {
-            $columns[] = $column;
+    // 各カラムの存在を個別確認して追加
+    $column_mapping = [
+        'driver_id' => 'driver_id',
+        'vehicle_id' => 'vehicle_id', 
+        'ride_date' => 'ride_date',
+        'ride_time' => 'ride_time',
+        'passenger_count' => 'passenger_count',
+        'pickup_location' => 'pickup_location',
+        'dropoff_location' => 'dropoff_location',
+        'fare' => 'fare',
+        'charge' => 'charge',
+        'transport_category' => 'transport_category',
+        'payment_method' => 'payment_method',
+        'notes' => 'notes'
+    ];
+    
+    // オプションカラムも個別確認
+    $optional_mapping = [
+        'is_return_trip' => 'is_return_trip',
+        'original_ride_id' => 'original_ride_id'
+    ];
+    
+    // 必須カラムを処理
+    foreach ($column_mapping as $data_key => $column_name) {
+        if (isset($data[$data_key]) && columnExists($pdo, 'ride_records', $column_name)) {
+            $columns[] = $column_name;
             $placeholders[] = '?';
-            $values[] = $data[$column];
+            $values[] = $data[$data_key];
         }
     }
     
-    // オプションカラムをチェック
-    foreach ($optional_columns as $column) {
-        if (isset($data[$column])) {
-            $columns[] = $column;
+    // オプションカラムを処理
+    foreach ($optional_mapping as $data_key => $column_name) {
+        if (isset($data[$data_key]) && columnExists($pdo, 'ride_records', $column_name)) {
+            $columns[] = $column_name;
             $placeholders[] = '?';
-            $values[] = $data[$column];
+            $values[] = $data[$data_key];
         }
     }
     
-    // created_atを自動追加
-    if (in_array('created_at', $available_columns) && !in_array('created_at', $columns)) {
+    // created_atを安全に追加
+    if (columnExists($pdo, 'ride_records', 'created_at')) {
         $columns[] = 'created_at';
         $placeholders[] = 'NOW()';
+    }
+    
+    if (empty($columns)) {
+        throw new Exception('使用可能なカラムがありません');
     }
     
     $sql = "INSERT INTO ride_records (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $placeholders) . ")";
@@ -94,30 +142,38 @@ function buildInsertSQL($available_columns, $optional_columns, $data) {
     return ['sql' => $sql, 'values' => $values];
 }
 
-// 動的UPDATE文生成
-function buildUpdateSQL($available_columns, $optional_columns, $data, $record_id) {
+// 動的UPDATE文生成（安全性強化版）
+function buildUpdateSQL($pdo, $data, $record_id) {
     $set_clauses = [];
     $values = [];
     
-    // 基本カラムをチェック
-    foreach ($available_columns as $column) {
-        if (isset($data[$column]) && $column !== 'id' && $column !== 'created_at') {
-            $set_clauses[] = "{$column} = ?";
-            $values[] = $data[$column];
+    // 各カラムの存在を個別確認して追加
+    $column_mapping = [
+        'ride_time' => 'ride_time',
+        'passenger_count' => 'passenger_count',
+        'pickup_location' => 'pickup_location',
+        'dropoff_location' => 'dropoff_location',
+        'fare' => 'fare',
+        'charge' => 'charge',
+        'transport_category' => 'transport_category',
+        'payment_method' => 'payment_method',
+        'notes' => 'notes'
+    ];
+    
+    foreach ($column_mapping as $data_key => $column_name) {
+        if (isset($data[$data_key]) && columnExists($pdo, 'ride_records', $column_name)) {
+            $set_clauses[] = "{$column_name} = ?";
+            $values[] = $data[$data_key];
         }
     }
     
-    // オプションカラムをチェック
-    foreach ($optional_columns as $column) {
-        if (isset($data[$column])) {
-            $set_clauses[] = "{$column} = ?";
-            $values[] = $data[$column];
-        }
-    }
-    
-    // updated_atを自動追加
-    if (in_array('updated_at', $available_columns)) {
+    // updated_atを安全に追加
+    if (columnExists($pdo, 'ride_records', 'updated_at')) {
         $set_clauses[] = "updated_at = NOW()";
+    }
+    
+    if (empty($set_clauses)) {
+        throw new Exception('更新可能なカラムがありません');
     }
     
     $values[] = $record_id;
@@ -150,16 +206,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
             
             // オプションカラムがある場合のみ追加
-            if (in_array('is_return_trip', $available_optional_columns)) {
+            if (columnExists($pdo, 'ride_records', 'is_return_trip')) {
                 $data['is_return_trip'] = (isset($_POST['is_return_trip']) && $_POST['is_return_trip'] == '1') ? 1 : 0;
             }
             
-            if (in_array('original_ride_id', $available_optional_columns) && !empty($_POST['original_ride_id'])) {
+            if (columnExists($pdo, 'ride_records', 'original_ride_id') && !empty($_POST['original_ride_id'])) {
                 $data['original_ride_id'] = $_POST['original_ride_id'];
             }
             
             // 動的INSERT実行
-            $query_data = buildInsertSQL($available_columns, $available_optional_columns, $data);
+            $query_data = buildInsertSQL($pdo, $data);
             $insert_stmt = $pdo->prepare($query_data['sql']);
             $insert_stmt->execute($query_data['values']);
             
@@ -186,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
             
             // 動的UPDATE実行
-            $query_data = buildUpdateSQL($available_columns, $available_optional_columns, $data, $record_id);
+            $query_data = buildUpdateSQL($pdo, $data, $record_id);
             $update_stmt = $pdo->prepare($query_data['sql']);
             $update_stmt->execute($query_data['values']);
             
@@ -280,8 +336,8 @@ $select_columns = ['r.id', 'r.driver_id', 'r.vehicle_id', 'r.ride_date', 'r.ride
                    'r.passenger_count', 'r.pickup_location', 'r.dropoff_location', 
                    'r.fare', 'r.charge', 'r.transport_category', 'r.payment_method', 'r.notes'];
 
-// オプションカラムがある場合のみ追加
-if (in_array('is_return_trip', $ride_columns)) {
+// オプションカラムの安全な追加
+if (columnExists($pdo, 'ride_records', 'is_return_trip')) {
     $select_columns[] = 'r.is_return_trip';
     $select_columns[] = 'CASE WHEN r.is_return_trip = 1 THEN \'復路\' ELSE \'往路\' END as trip_type';
 } else {
@@ -376,8 +432,9 @@ $payment_methods = ['現金', 'カード', 'その他'];
 
 // テーブル構造確認結果をログ出力（デバッグ用）
 error_log("ride_records テーブル構造: " . implode(', ', $ride_columns));
-error_log("利用可能基本カラム: " . implode(', ', $available_columns));
-error_log("利用可能オプションカラム: " . implode(', ', $available_optional_columns));
+error_log("利用可能基本カラム: " . implode(', ', array_values($available_columns)));
+error_log("利用可能オプションカラム: " . implode(', ', array_values($available_optional_columns)));
+error_log("復路機能: " . (columnExists($pdo, 'ride_records', 'is_return_trip') ? '利用可能' : '利用不可'));
 ?>
 
 <!DOCTYPE html>
@@ -624,8 +681,9 @@ error_log("利用可能オプションカラム: " . implode(', ', $available_op
         <?php if (isset($_GET['debug'])): ?>
             <div class="debug-info">
                 <strong>🔧 テーブル構造情報:</strong><br>
-                利用可能カラム: <?php echo implode(', ', $available_columns); ?><br>
-                オプションカラム: <?php echo implode(', ', $available_optional_columns); ?><br>
+                利用可能カラム: <?php echo implode(', ', array_values($available_columns)); ?><br>
+                オプションカラム: <?php echo implode(', ', array_values($available_optional_columns)); ?><br>
+                復路機能: <?php echo columnExists($pdo, 'ride_records', 'is_return_trip') ? '利用可能' : '利用不可'; ?><br>
                 総カラム数: <?php echo count($ride_columns); ?>
             </div>
         <?php endif; ?>
@@ -1030,9 +1088,9 @@ error_log("利用可能オプションカラム: " . implode(', ', $available_op
         
         // テーブル構造情報（デバッグ用）
         const tableInfo = {
-            availableColumns: <?php echo json_encode($available_columns); ?>,
-            optionalColumns: <?php echo json_encode($available_optional_columns); ?>,
-            hasReturnTrip: <?php echo in_array('is_return_trip', $available_optional_columns) ? 'true' : 'false'; ?>
+            availableColumns: <?php echo json_encode(array_values($available_columns)); ?>,
+            optionalColumns: <?php echo json_encode(array_values($available_optional_columns)); ?>,
+            hasReturnTrip: <?php echo columnExists($pdo, 'ride_records', 'is_return_trip') ? 'true' : 'false'; ?>
         };
         
         console.log('テーブル構造情報:', tableInfo);
