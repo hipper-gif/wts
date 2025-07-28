@@ -1,92 +1,14 @@
 <?php
 session_start();
 
-// データベース接続設定
-$host = 'localhost';
-$dbname = 'twinklemark_wts';
-$username = 'twinklemark_taxi';
-$password = 'Smiley2525';
-
-$messages = [];
-$errors = [];
-$setup_complete = false;
-
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    
-    echo "<h1>🔧 remarks カラム追加 + 完全版乗車記録システム</h1>";
-    echo "<p><strong>実行日時:</strong> " . date('Y-m-d H:i:s') . "</p>";
-    
-    // Step 1: remarks カラムの存在確認
-    echo "<h3>🔍 Step 1: remarks カラム存在確認</h3>";
-    
-    $stmt = $pdo->query("DESCRIBE ride_records");
-    $existing_columns = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'Field');
-    
-    $has_remarks = in_array('remarks', $existing_columns);
-    
-    if ($has_remarks) {
-        $messages[] = "✅ remarks カラムは既に存在します";
-    } else {
-        $messages[] = "⚠️ remarks カラムが存在しません - 追加が必要";
-        
-        // Step 2: remarks カラムを追加
-        echo "<h3>🔧 Step 2: remarks カラム追加</h3>";
-        
-        try {
-            $pdo->exec("ALTER TABLE ride_records ADD COLUMN remarks TEXT COMMENT '備考・特記事項・安全管理情報'");
-            $messages[] = "✅ remarks カラムを正常に追加しました";
-            $has_remarks = true;
-        } catch (PDOException $e) {
-            $errors[] = "❌ remarks カラム追加エラー: " . $e->getMessage();
-        }
-    }
-    
-    // Step 3: 完全版システムの準備確認
-    if ($has_remarks) {
-        $setup_complete = true;
-        echo "<h3>✅ Step 3: 完全版システム準備完了</h3>";
-        $messages[] = "🎉 完全版乗車記録システムの準備が整いました";
-    }
-    
-} catch (PDOException $e) {
-    $errors[] = "❌ データベース接続エラー: " . $e->getMessage();
+// 認証チェック
+if (!isset($_SESSION['user_id'])) {
+    header('Location: index.php');
+    exit;
 }
 
-// 結果表示
-foreach ($messages as $message) {
-    echo "<div style='padding: 10px; margin: 10px 0; background-color: #d4edda; color: #155724; border-left: 4px solid #28a745; border-radius: 3px;'>";
-    echo $message;
-    echo "</div>";
-}
-
-foreach ($errors as $error) {
-    echo "<div style='padding: 10px; margin: 10px 0; background-color: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; border-radius: 3px;'>";
-    echo $error;
-    echo "</div>";
-}
-
-if ($setup_complete) {
-    echo "<div style='background-color: #d1ecf1; color: #0c5460; padding: 20px; border-radius: 10px; margin: 20px 0;'>";
-    echo "<h3>🚀 次のアクション</h3>";
-    echo "<p><strong>完全版乗車記録システム</strong>にアクセスして動作確認してください：</p>";
-    echo "<p><a href='#complete-system' style='background-color: #007cba; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>➤ 完全版システムを表示</a></p>";
-    echo "</div>";
-}
-?>
-
-<?php if ($setup_complete): ?>
-<div id="complete-system">
-<hr style="margin: 40px 0;">
-
-<?php
-// 完全版乗車記録システム開始
-// 認証チェック（セットアップ時はスキップ）
-// if (!isset($_SESSION['user_id'])) {
-//     header('Location: index.php');
-//     exit;
-// }
+// データベース接続
+require_once 'config/database.php';
 
 $errors = [];
 $success_message = '';
@@ -299,10 +221,6 @@ try {
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        .remarks-full {
-            max-width: none;
-            white-space: normal;
-        }
         .complete-system-header {
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
@@ -310,12 +228,30 @@ try {
             border-radius: 10px;
             margin: 20px 0;
         }
+        .safety-info {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #007cba;">
+        <div class="container">
+            <a class="navbar-brand" href="dashboard.php">
+                <i class="fas fa-taxi"></i> 福祉輸送管理システム
+            </a>
+            <span class="navbar-text">乗車記録管理（完全版）</span>
+        </div>
+    </nav>
+
     <div class="complete-system-header">
-        <h1><i class="fas fa-check-circle"></i> 乗車記録管理システム（完全版）</h1>
-        <p class="mb-0"><i class="fas fa-info-circle"></i> remarks カラム追加済み - 安全管理・法令遵守対応</p>
+        <div class="container">
+            <h1><i class="fas fa-check-circle"></i> 乗車記録管理システム（完全版）</h1>
+            <p class="mb-0"><i class="fas fa-shield-alt"></i> remarks カラム対応 - 安全管理・法令遵守完全対応</p>
+        </div>
     </div>
 
     <div class="container mt-4">
@@ -337,6 +273,13 @@ try {
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
+
+        <!-- 安全管理の重要性説明 -->
+        <div class="safety-info">
+            <h6><i class="fas fa-info-circle"></i> 備考欄の重要性について</h6>
+            <p class="mb-1"><strong>福祉輸送では乗客の安全管理情報の記録が重要です。</strong></p>
+            <p class="mb-0">車椅子利用、医療機器携帯、身体状況、注意事項などを記録し、安全なサービス提供と法令遵守を実現してください。</p>
+        </div>
 
         <!-- 統計カード -->
         <div class="row mb-4">
@@ -471,12 +414,15 @@ try {
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">備考・特記事項 <i class="fas fa-info-circle text-info" title="乗客の身体状況、安全上の注意事項、サービス向上のためのメモなど"></i></label>
+                        <label class="form-label">
+                            <i class="fas fa-shield-alt text-warning"></i> 備考・特記事項・安全管理情報 
+                            <i class="fas fa-info-circle text-info" title="乗客の身体状況、安全上の注意事項、サービス向上のためのメモなど"></i>
+                        </label>
                         <textarea name="remarks" class="form-control" rows="3" 
-                                  placeholder="例: 車椅子利用、歩行器使用、血圧薬服用中、酸素ボンベ携帯、転倒リスク高など"><?php echo htmlspecialchars($_POST['remarks'] ?? ''); ?></textarea>
+                                  placeholder="例: 車椅子利用、歩行器使用、血圧薬服用中、酸素ボンベ携帯、転倒リスク高、家族同伴希望、定期通院など"><?php echo htmlspecialchars($_POST['remarks'] ?? ''); ?></textarea>
                         <div class="form-text">
-                            <i class="fas fa-shield-alt text-warning"></i> 
-                            乗客の安全管理・身体状況・特記事項を記録してください（法令遵守・事故防止のため重要）
+                            <i class="fas fa-exclamation-triangle text-danger"></i> 
+                            <strong>重要:</strong> 乗客の安全管理・身体状況・医療情報・特記事項を記録してください（法令遵守・事故防止・サービス向上のため）
                         </div>
                     </div>
 
@@ -596,30 +542,3 @@ try {
     </script>
 </body>
 </html>
-
-</div>
-<?php endif; ?>
-
-<style>
-body {
-    font-family: Arial, sans-serif;
-    margin: 20px;
-    background-color: #f5f5f5;
-}
-
-h1, h3 {
-    color: #333;
-}
-
-pre {
-    background-color: #f8f9fa;
-    padding: 10px;
-    border-radius: 5px;
-    overflow-x: auto;
-}
-
-code {
-    font-family: monospace;
-    font-size: 14px;
-}
-</style>
