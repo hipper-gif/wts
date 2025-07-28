@@ -27,40 +27,199 @@ $current_time = date('H:i');
 $success_message = '';
 $error_message = '';
 
+// 🔧 厳密なテーブル構造確認機能
+function getTableColumns($pdo, $table_name) {
+    try {
+        $stmt = $pdo->query("DESCRIBE {$table_name}");
+        return array_column($stmt->fetchAll(), 'Field');
+    } catch (Exception $e) {
+        error_log("テーブル構造確認エラー ({$table_name}): " . $e->getMessage());
+        return [];
+    }
+}
+
+// より安全なカラム存在確認
+function columnExists($pdo, $table_name, $column_name) {
+    try {
+        $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?");
+        $stmt->execute([$table_name, $column_name]);
+        return $stmt->rowCount() > 0;
+    } catch (Exception $e) {
+        error_log("カラム存在確認エラー ({$table_name}.{$column_name}): " . $e->getMessage());
+        return false;
+    }
+}
+
+// ride_recordsテーブルの構造を動的確認
+$ride_columns = getTableColumns($pdo, 'ride_records');
+
+// 必須カラム定義（これらが存在しない場合はエラー）
+$required_columns = [
+    'id', 'driver_id', 'vehicle_id', 'ride_date', 'ride_time', 
+    'passenger_count', 'pickup_location', 'dropoff_location', 
+    'fare', 'charge', 'transport_category', 'payment_method', 'notes'
+];
+
+// オプションカラム（存在確認してから使用）
+$optional_column_candidates = [
+    'is_return_trip', 'original_ride_id', 'operation_id', 'total_trips', 
+    'distance', 'duration', 'status', 'created_at', 'updated_at'
+];
+
+// 実際に存在するカラムのみを使用
+$available_columns = array_filter($required_columns, function($column) use ($pdo) {
+    return columnExists($pdo, 'ride_records', $column);
+});
+
+$available_optional_columns = array_filter($optional_column_candidates, function($column) use ($pdo) {
+    return columnExists($pdo, 'ride_records', $column);
+});
+
+// 安全性チェック: 必須カラムが不足している場合は警告
+$missing_required = array_diff($required_columns, $available_columns);
+if (!empty($missing_required)) {
+    error_log("警告: 必須カラムが不足しています: " . implode(', ', $missing_required));
+}
+
+// 動的INSERT文生成（安全性強化版）
+function buildInsertSQL($pdo, $data) {
+    $columns = [];
+    $placeholders = [];
+    $values = [];
+    
+    // 各カラムの存在を個別確認して追加
+    $column_mapping = [
+        'driver_id' => 'driver_id',
+        'vehicle_id' => 'vehicle_id', 
+        'ride_date' => 'ride_date',
+        'ride_time' => 'ride_time',
+        'passenger_count' => 'passenger_count',
+        'pickup_location' => 'pickup_location',
+        'dropoff_location' => 'dropoff_location',
+        'fare' => 'fare',
+        'charge' => 'charge',
+        'transport_category' => 'transport_category',
+        'payment_method' => 'payment_method',
+        'notes' => 'notes'
+    ];
+    
+    // オプションカラムも個別確認
+    $optional_mapping = [
+        'is_return_trip' => 'is_return_trip',
+        'original_ride_id' => 'original_ride_id'
+    ];
+    
+    // 必須カラムを処理
+    foreach ($column_mapping as $data_key => $column_name) {
+        if (isset($data[$data_key]) && columnExists($pdo, 'ride_records', $column_name)) {
+            $columns[] = $column_name;
+            $placeholders[] = '?';
+            $values[] = $data[$data_key];
+        }
+    }
+    
+    // オプションカラムを処理
+    foreach ($optional_mapping as $data_key => $column_name) {
+        if (isset($data[$data_key]) && columnExists($pdo, 'ride_records', $column_name)) {
+            $columns[] = $column_name;
+            $placeholders[] = '?';
+            $values[] = $data[$data_key];
+        }
+    }
+    
+    // created_atを安全に追加
+    if (columnExists($pdo, 'ride_records', 'created_at')) {
+        $columns[] = 'created_at';
+        $placeholders[] = 'NOW()';
+    }
+    
+    if (empty($columns)) {
+        throw new Exception('使用可能なカラムがありません');
+    }
+    
+    $sql = "INSERT INTO ride_records (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $placeholders) . ")";
+    
+    return ['sql' => $sql, 'values' => $values];
+}
+
+// 動的UPDATE文生成（安全性強化版）
+function buildUpdateSQL($pdo, $data, $record_id) {
+    $set_clauses = [];
+    $values = [];
+    
+    // 各カラムの存在を個別確認して追加
+    $column_mapping = [
+        'ride_time' => 'ride_time',
+        'passenger_count' => 'passenger_count',
+        'pickup_location' => 'pickup_location',
+        'dropoff_location' => 'dropoff_location',
+        'fare' => 'fare',
+        'charge' => 'charge',
+        'transport_category' => 'transport_category',
+        'payment_method' => 'payment_method',
+        'notes' => 'notes'
+    ];
+    
+    foreach ($column_mapping as $data_key => $column_name) {
+        if (isset($data[$data_key]) && columnExists($pdo, 'ride_records', $column_name)) {
+            $set_clauses[] = "{$column_name} = ?";
+            $values[] = $data[$data_key];
+        }
+    }
+    
+    // updated_atを安全に追加
+    if (columnExists($pdo, 'ride_records', 'updated_at')) {
+        $set_clauses[] = "updated_at = NOW()";
+    }
+    
+    if (empty($set_clauses)) {
+        throw new Exception('更新可能なカラムがありません');
+    }
+    
+    $values[] = $record_id;
+    
+    $sql = "UPDATE ride_records SET " . implode(', ', $set_clauses) . " WHERE id = ?";
+    
+    return ['sql' => $sql, 'values' => $values];
+}
+
 // POSTデータ処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = $_POST['action'] ?? 'add';
         
         if ($action === 'add') {
-            // 新規追加
-            $driver_id = $_POST['driver_id'];
-            $vehicle_id = $_POST['vehicle_id'];
-            $ride_date = $_POST['ride_date'];
-            $ride_time = $_POST['ride_time'];
-            $passenger_count = $_POST['passenger_count'];
-            $pickup_location = $_POST['pickup_location'];
-            $dropoff_location = $_POST['dropoff_location'];
-            $fare = $_POST['fare'];
-            $charge = $_POST['charge'] ?? 0;
-            $transport_category = $_POST['transport_category'];
-            $payment_method = $_POST['payment_method'];
-            $notes = $_POST['notes'] ?? '';
-            $is_return_trip = (isset($_POST['is_return_trip']) && $_POST['is_return_trip'] == '1') ? 1 : 0;
-            $original_ride_id = !empty($_POST['original_ride_id']) ? $_POST['original_ride_id'] : null;
+            // 新規追加データ準備
+            $data = [
+                'driver_id' => $_POST['driver_id'],
+                'vehicle_id' => $_POST['vehicle_id'],
+                'ride_date' => $_POST['ride_date'],
+                'ride_time' => $_POST['ride_time'],
+                'passenger_count' => $_POST['passenger_count'],
+                'pickup_location' => $_POST['pickup_location'],
+                'dropoff_location' => $_POST['dropoff_location'],
+                'fare' => $_POST['fare'],
+                'charge' => $_POST['charge'] ?? 0,
+                'transport_category' => $_POST['transport_category'],
+                'payment_method' => $_POST['payment_method'],
+                'notes' => $_POST['notes'] ?? ''
+            ];
             
-            $insert_sql = "INSERT INTO ride_records 
-                (driver_id, vehicle_id, ride_date, ride_time, passenger_count, 
-                 pickup_location, dropoff_location, fare, charge, transport_category, 
-                 payment_method, notes, is_return_trip, original_ride_id, created_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-            $insert_stmt = $pdo->prepare($insert_sql);
-            $insert_stmt->execute([
-                $driver_id, $vehicle_id, $ride_date, $ride_time, $passenger_count,
-                $pickup_location, $dropoff_location, $fare, $charge, $transport_category,
-                $payment_method, $notes, $is_return_trip, $original_ride_id
-            ]);
+            // オプションカラムがある場合のみ追加
+            if (columnExists($pdo, 'ride_records', 'is_return_trip')) {
+                $data['is_return_trip'] = (isset($_POST['is_return_trip']) && $_POST['is_return_trip'] == '1') ? 1 : 0;
+            }
             
+            if (columnExists($pdo, 'ride_records', 'original_ride_id') && !empty($_POST['original_ride_id'])) {
+                $data['original_ride_id'] = $_POST['original_ride_id'];
+            }
+            
+            // 動的INSERT実行
+            $query_data = buildInsertSQL($pdo, $data);
+            $insert_stmt = $pdo->prepare($query_data['sql']);
+            $insert_stmt->execute($query_data['values']);
+            
+            $is_return_trip = isset($data['is_return_trip']) ? $data['is_return_trip'] : 0;
             if ($is_return_trip == 1) {
                 $success_message = '復路の乗車記録を登録しました。';
             } else {
@@ -68,28 +227,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
         } elseif ($action === 'edit') {
-            // 編集
+            // 編集データ準備
             $record_id = $_POST['record_id'];
-            $ride_time = $_POST['ride_time'];
-            $passenger_count = $_POST['passenger_count'];
-            $pickup_location = $_POST['pickup_location'];
-            $dropoff_location = $_POST['dropoff_location'];
-            $fare = $_POST['fare'];
-            $charge = $_POST['charge'] ?? 0;
-            $transport_category = $_POST['transport_category'];
-            $payment_method = $_POST['payment_method'];
-            $notes = $_POST['notes'] ?? '';
+            $data = [
+                'ride_time' => $_POST['ride_time'],
+                'passenger_count' => $_POST['passenger_count'],
+                'pickup_location' => $_POST['pickup_location'],
+                'dropoff_location' => $_POST['dropoff_location'],
+                'fare' => $_POST['fare'],
+                'charge' => $_POST['charge'] ?? 0,
+                'transport_category' => $_POST['transport_category'],
+                'payment_method' => $_POST['payment_method'],
+                'notes' => $_POST['notes'] ?? ''
+            ];
             
-            $update_sql = "UPDATE ride_records SET 
-                ride_time = ?, passenger_count = ?, pickup_location = ?, dropoff_location = ?, 
-                fare = ?, charge = ?, transport_category = ?, payment_method = ?, 
-                notes = ?, updated_at = NOW() 
-                WHERE id = ?";
-            $update_stmt = $pdo->prepare($update_sql);
-            $update_stmt->execute([
-                $ride_time, $passenger_count, $pickup_location, $dropoff_location,
-                $fare, $charge, $transport_category, $payment_method, $notes, $record_id
-            ]);
+            // 動的UPDATE実行
+            $query_data = buildUpdateSQL($pdo, $data, $record_id);
+            $update_stmt = $pdo->prepare($query_data['sql']);
+            $update_stmt->execute($query_data['values']);
             
             $success_message = '乗車記録を更新しました。';
             
@@ -105,43 +260,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
     } catch (Exception $e) {
-        $error_message = $e->getMessage();
+        error_log("乗車記録処理エラー: " . $e->getMessage());
+        $error_message = "処理中にエラーが発生しました: " . $e->getMessage();
     }
 }
 
 // 運転者一覧取得（権限チェックを緩和）
-$drivers_sql = "SELECT id, name FROM users WHERE (role IN ('driver', 'admin') OR is_driver = 1) AND is_active = 1 ORDER BY name";
-$drivers_stmt = $pdo->prepare($drivers_sql);
-$drivers_stmt->execute();
-$drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
+try {
+    $drivers_sql = "SELECT id, name FROM users WHERE (role IN ('driver', 'admin') OR is_driver = 1) AND is_active = 1 ORDER BY name";
+    $drivers_stmt = $pdo->prepare($drivers_sql);
+    $drivers_stmt->execute();
+    $drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("運転者取得エラー: " . $e->getMessage());
+    $drivers = [];
+}
 
 // 車両一覧取得
-$vehicles_sql = "SELECT id, vehicle_number, vehicle_name FROM vehicles WHERE status = 'active' ORDER BY vehicle_number";
-$vehicles_stmt = $pdo->prepare($vehicles_sql);
-$vehicles_stmt->execute();
-$vehicles = $vehicles_stmt->fetchAll(PDO::FETCH_ASSOC);
+try {
+    $vehicles_sql = "SELECT id, vehicle_number, vehicle_name FROM vehicles WHERE status = 'active' ORDER BY vehicle_number";
+    $vehicles_stmt = $pdo->prepare($vehicles_sql);
+    $vehicles_stmt->execute();
+    $vehicles = $vehicles_stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("車両取得エラー: " . $e->getMessage());
+    $vehicles = [];
+}
 
-// よく使う場所の取得（過去の記録から）
-$common_locations_sql = "
-    SELECT location, COUNT(*) as usage_count FROM (
-        SELECT pickup_location as location FROM ride_records 
-        WHERE pickup_location IS NOT NULL AND pickup_location != '' AND pickup_location NOT LIKE '%(%'
-        UNION ALL
-        SELECT dropoff_location as location FROM ride_records 
-        WHERE dropoff_location IS NOT NULL AND dropoff_location != '' AND dropoff_location NOT LIKE '%(%'
-    ) as all_locations 
-    GROUP BY location 
-    ORDER BY usage_count DESC, location ASC 
-    LIMIT 20
-";
-$common_locations_stmt = $pdo->prepare($common_locations_sql);
-$common_locations_stmt->execute();
-$common_locations_data = $common_locations_stmt->fetchAll(PDO::FETCH_ASSOC);
+// よく使う場所の取得（エラーハンドリング強化）
+try {
+    $common_locations_sql = "
+        SELECT location, COUNT(*) as usage_count FROM (
+            SELECT pickup_location as location FROM ride_records 
+            WHERE pickup_location IS NOT NULL AND pickup_location != '' AND pickup_location NOT LIKE '%(%'
+            UNION ALL
+            SELECT dropoff_location as location FROM ride_records 
+            WHERE dropoff_location IS NOT NULL AND dropoff_location != '' AND dropoff_location NOT LIKE '%(%'
+        ) as all_locations 
+        GROUP BY location 
+        ORDER BY usage_count DESC, location ASC 
+        LIMIT 20
+    ";
+    $common_locations_stmt = $pdo->prepare($common_locations_sql);
+    $common_locations_stmt->execute();
+    $common_locations_data = $common_locations_stmt->fetchAll(PDO::FETCH_ASSOC);
+    $common_locations = array_column($common_locations_data, 'location');
+} catch (Exception $e) {
+    error_log("よく使う場所取得エラー: " . $e->getMessage());
+    $common_locations = [];
+}
 
-// よく使う場所のリストを作成
-$common_locations = array_column($common_locations_data, 'location');
-
-// デフォルト場所も追加（よく使われる場所がない場合）
+// デフォルト場所も追加
 $default_locations = [
     '○○病院', '△△クリニック', '□□総合病院',
     'スーパー○○', 'イオンモール', '駅前ショッピングセンター',
@@ -152,11 +321,9 @@ $default_locations = [
 if (empty($common_locations)) {
     $common_locations = $default_locations;
 } else {
-    // 既存の場所とデフォルト場所をマージ（重複除去）
     $common_locations = array_unique(array_merge($common_locations, $default_locations));
 }
 
-// JavaScript用にJSONエンコード
 $locations_json = json_encode($common_locations, JSON_UNESCAPED_UNICODE);
 
 // 検索条件
@@ -164,7 +331,26 @@ $search_date = $_GET['search_date'] ?? $today;
 $search_driver = $_GET['search_driver'] ?? '';
 $search_vehicle = $_GET['search_vehicle'] ?? '';
 
-// 乗車記録一覧取得
+// 動的SELECT文生成（乗車記録一覧）
+$select_columns = ['r.id', 'r.driver_id', 'r.vehicle_id', 'r.ride_date', 'r.ride_time', 
+                   'r.passenger_count', 'r.pickup_location', 'r.dropoff_location', 
+                   'r.fare', 'r.charge', 'r.transport_category', 'r.payment_method', 'r.notes'];
+
+// オプションカラムの安全な追加
+if (columnExists($pdo, 'ride_records', 'is_return_trip')) {
+    $select_columns[] = 'r.is_return_trip';
+    $select_columns[] = 'CASE WHEN r.is_return_trip = 1 THEN \'復路\' ELSE \'往路\' END as trip_type';
+} else {
+    $select_columns[] = '0 as is_return_trip';
+    $select_columns[] = '\'往路\' as trip_type';
+}
+
+$select_columns[] = 'u.name as driver_name';
+$select_columns[] = 'v.vehicle_number';
+$select_columns[] = 'v.vehicle_name';
+$select_columns[] = '(r.fare + r.charge) as total_amount';
+
+// WHERE条件構築
 $where_conditions = ["r.ride_date = ?"];
 $params = [$search_date];
 
@@ -178,51 +364,77 @@ if ($search_vehicle) {
     $params[] = $search_vehicle;
 }
 
-$rides_sql = "SELECT r.*, u.name as driver_name, v.vehicle_number, v.vehicle_name,
-    (r.fare + r.charge) as total_amount,
-    CASE WHEN r.is_return_trip = 1 THEN '復路' ELSE '往路' END as trip_type
-    FROM ride_records r 
-    JOIN users u ON r.driver_id = u.id 
-    JOIN vehicles v ON r.vehicle_id = v.id 
-    WHERE " . implode(' AND ', $where_conditions) . "
-    ORDER BY r.ride_time DESC";
-$rides_stmt = $pdo->prepare($rides_sql);
-$rides_stmt->execute($params);
-$rides = $rides_stmt->fetchAll(PDO::FETCH_ASSOC);
+// 乗車記録一覧取得
+try {
+    $rides_sql = "SELECT " . implode(', ', $select_columns) . "
+        FROM ride_records r 
+        JOIN users u ON r.driver_id = u.id 
+        JOIN vehicles v ON r.vehicle_id = v.id 
+        WHERE " . implode(' AND ', $where_conditions) . "
+        ORDER BY r.ride_time DESC";
+    
+    $rides_stmt = $pdo->prepare($rides_sql);
+    $rides_stmt->execute($params);
+    $rides = $rides_stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("乗車記録取得エラー: " . $e->getMessage());
+    $rides = [];
+}
 
-// 日次集計
-$summary_sql = "SELECT 
-    COUNT(*) as total_rides,
-    SUM(r.passenger_count) as total_passengers,
-    SUM(r.fare + r.charge) as total_revenue,
-    AVG(r.fare + r.charge) as avg_fare,
-    COUNT(CASE WHEN r.payment_method = '現金' THEN 1 END) as cash_count,
-    COUNT(CASE WHEN r.payment_method = 'カード' THEN 1 END) as card_count,
-    SUM(CASE WHEN r.payment_method = '現金' THEN r.fare + r.charge ELSE 0 END) as cash_total,
-    SUM(CASE WHEN r.payment_method = 'カード' THEN r.fare + r.charge ELSE 0 END) as card_total
-    FROM ride_records r 
-    WHERE " . implode(' AND ', $where_conditions);
-$summary_stmt = $pdo->prepare($summary_sql);
-$summary_stmt->execute($params);
-$summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
+// 日次集計（エラーハンドリング強化）
+try {
+    $summary_sql = "SELECT 
+        COUNT(*) as total_rides,
+        SUM(r.passenger_count) as total_passengers,
+        SUM(r.fare + r.charge) as total_revenue,
+        AVG(r.fare + r.charge) as avg_fare,
+        COUNT(CASE WHEN r.payment_method = '現金' THEN 1 END) as cash_count,
+        COUNT(CASE WHEN r.payment_method = 'カード' THEN 1 END) as card_count,
+        SUM(CASE WHEN r.payment_method = '現金' THEN r.fare + r.charge ELSE 0 END) as cash_total,
+        SUM(CASE WHEN r.payment_method = 'カード' THEN r.fare + r.charge ELSE 0 END) as card_total
+        FROM ride_records r 
+        WHERE " . implode(' AND ', $where_conditions);
+    
+    $summary_stmt = $pdo->prepare($summary_sql);
+    $summary_stmt->execute($params);
+    $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("日次集計エラー: " . $e->getMessage());
+    $summary = [
+        'total_rides' => 0, 'total_passengers' => 0, 'total_revenue' => 0, 'avg_fare' => 0,
+        'cash_count' => 0, 'card_count' => 0, 'cash_total' => 0, 'card_total' => 0
+    ];
+}
 
-// 輸送分類別集計
-$category_sql = "SELECT 
-    r.transport_category,
-    COUNT(*) as count,
-    SUM(r.passenger_count) as passengers,
-    SUM(r.fare + r.charge) as revenue
-    FROM ride_records r 
-    WHERE " . implode(' AND ', $where_conditions) . "
-    GROUP BY r.transport_category 
-    ORDER BY count DESC";
-$category_stmt = $pdo->prepare($category_sql);
-$category_stmt->execute($params);
-$categories = $category_stmt->fetchAll(PDO::FETCH_ASSOC);
+// 輸送分類別集計（エラーハンドリング強化）
+try {
+    $category_sql = "SELECT 
+        r.transport_category,
+        COUNT(*) as count,
+        SUM(r.passenger_count) as passengers,
+        SUM(r.fare + r.charge) as revenue
+        FROM ride_records r 
+        WHERE " . implode(' AND ', $where_conditions) . "
+        GROUP BY r.transport_category 
+        ORDER BY count DESC";
+    
+    $category_stmt = $pdo->prepare($category_sql);
+    $category_stmt->execute($params);
+    $categories = $category_stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("輸送分類別集計エラー: " . $e->getMessage());
+    $categories = [];
+}
 
 // 輸送分類・支払方法の選択肢
 $transport_categories = ['通院', '外出等', '退院', '転院', '施設入所', 'その他'];
 $payment_methods = ['現金', 'カード', 'その他'];
+
+// テーブル構造確認結果をログ出力（デバッグ用）
+error_log("ride_records テーブル構造: " . implode(', ', $ride_columns));
+error_log("利用可能基本カラム: " . implode(', ', array_values($available_columns)));
+error_log("利用可能オプションカラム: " . implode(', ', array_values($available_optional_columns)));
+error_log("復路機能: " . (columnExists($pdo, 'ride_records', 'is_return_trip') ? '利用可能' : '利用不可'));
 ?>
 
 <!DOCTYPE html>
@@ -278,27 +490,6 @@ $payment_methods = ['現金', 'カード', 'その他'];
         .action-btn.primary:hover {
             background: #f8f9fa;
             transform: scale(1.05);
-        }
-        
-        /* 検索フォーム - コンパクト化 */
-        .search-form {
-            background: white;
-            padding: 15px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        
-        .search-form .form-label {
-            font-size: 0.9em;
-            margin-bottom: 5px;
-            font-weight: 600;
-        }
-        
-        .search-form .form-control,
-        .search-form .form-select {
-            font-size: 0.9em;
-            padding: 6px 10px;
         }
         
         /* 乗車記録カード */
@@ -372,20 +563,10 @@ $payment_methods = ['現金', 'カード', 'その他'];
             background-color: #f8f9fa;
         }
         
-        .location-suggestion:last-child {
-            border-bottom: none;
-        }
-        
         .location-suggestion mark {
             background-color: #fff3cd;
             padding: 0 2px;
             border-radius: 2px;
-        }
-        
-        .location-suggestion-header {
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
-            font-weight: bold;
         }
         
         /* その他のスタイル */
@@ -424,6 +605,16 @@ $payment_methods = ['現金', 'カード', 'その他'];
             border-left: 4px solid #28a745;
         }
         
+        .debug-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+        
         /* スマートフォン対応 */
         @media (max-width: 768px) {
             .main-actions {
@@ -434,52 +625,8 @@ $payment_methods = ['現金', 'カード', 'その他'];
             .action-btn {
                 display: block;
                 width: 100%;
-                margin: 0;
+                margin: 0 0 10px 0;
                 min-width: auto;
-            }
-            
-            .main-actions h3 {
-                font-size: 1.3em;
-                margin-bottom: 8px;
-            }
-            
-            .main-actions p {
-                font-size: 0.9em;
-                margin-bottom: 15px;
-            }
-            
-            /* 検索フォーム - スマホ最適化 */
-            .search-form {
-                padding: 12px;
-                margin-bottom: 15px;
-            }
-            
-            .search-form .row {
-                --bs-gutter-x: 0.75rem;
-            }
-            
-            .search-form .form-label {
-                font-size: 0.8em;
-                margin-bottom: 3px;
-            }
-            
-            .search-form .form-control,
-            .search-form .form-select {
-                font-size: 0.85em;
-                padding: 5px 8px;
-                height: auto;
-            }
-            
-            .search-form .btn {
-                font-size: 0.85em;
-                padding: 6px 12px;
-                margin-top: 10px;
-                width: 100%;
-            }
-            
-            /* 検索フォームの列幅調整 */
-            .search-form .col-md-3 {
-                margin-bottom: 8px;
             }
             
             .ride-record {
@@ -490,45 +637,6 @@ $payment_methods = ['現金', 'カード', 'その他'];
                 display: flex;
                 flex-direction: column;
                 gap: 5px;
-            }
-            
-            .location-suggestions {
-                max-height: 250px;
-            }
-            
-            .location-suggestion {
-                padding: 15px;
-                font-size: 1.1em;
-            }
-        }
-        
-        /* より小さな画面向けの追加調整 */
-        @media (max-width: 576px) {
-            .search-form {
-                padding: 10px;
-            }
-            
-            .search-form .form-label {
-                font-size: 0.75em;
-            }
-            
-            .search-form .form-control,
-            .search-form .form-select {
-                font-size: 0.8em;
-                padding: 4px 6px;
-            }
-            
-            .ride-record {
-                padding: 12px;
-                margin: 6px 0;
-            }
-            
-            .ride-record .row {
-                --bs-gutter-x: 0.5rem;
-            }
-            
-            .amount-display {
-                font-size: 1.1em;
             }
         }
     </style>
@@ -569,12 +677,23 @@ $payment_methods = ['現金', 'カード', 'その他'];
     </nav>
 
     <div class="container-fluid mt-4">
+        <!-- デバッグ情報（開発用） -->
+        <?php if (isset($_GET['debug'])): ?>
+            <div class="debug-info">
+                <strong>🔧 テーブル構造情報:</strong><br>
+                利用可能カラム: <?php echo implode(', ', array_values($available_columns)); ?><br>
+                オプションカラム: <?php echo implode(', ', array_values($available_optional_columns)); ?><br>
+                復路機能: <?php echo columnExists($pdo, 'ride_records', 'is_return_trip') ? '利用可能' : '利用不可'; ?><br>
+                総カラム数: <?php echo count($ride_columns); ?>
+            </div>
+        <?php endif; ?>
+
         <!-- メインアクションエリア -->
         <div class="main-actions">
             <div class="row align-items-center">
                 <div class="col-md-8">
                     <h3 class="mb-2"><i class="fas fa-clipboard-list me-2"></i>乗車記録管理</h3>
-                    <p class="mb-0">乗車記録の新規登録・編集・復路作成ができます</p>
+                    <p class="mb-0">乗車記録の新規登録・編集・復路作成ができます（動的対応版）</p>
                 </div>
                 <div class="col-md-4 text-end">
                     <button type="button" class="action-btn primary" onclick="showAddModal()">
@@ -584,44 +703,49 @@ $payment_methods = ['現金', 'カード', 'その他'];
             </div>
         </div>
 
-        <!-- 検索フォーム - コンパクト版 -->
-        <div class="search-form">
-            <form method="GET" class="row g-2">
-                <div class="col-6 col-md-3">
-                    <label for="search_date" class="form-label">日付</label>
-                    <input type="date" class="form-control" id="search_date" name="search_date" 
-                           value="<?php echo htmlspecialchars($search_date); ?>">
-                </div>
-                <div class="col-6 col-md-3">
-                    <label for="search_driver" class="form-label">運転者</label>
-                    <select class="form-select" id="search_driver" name="search_driver">
-                        <option value="">全て</option>
-                        <?php foreach ($drivers as $driver): ?>
-                            <option value="<?php echo $driver['id']; ?>" 
-                                <?php echo ($search_driver == $driver['id']) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($driver['name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-6 col-md-3">
-                    <label for="search_vehicle" class="form-label">車両</label>
-                    <select class="form-select" id="search_vehicle" name="search_vehicle">
-                        <option value="">全て</option>
-                        <?php foreach ($vehicles as $vehicle): ?>
-                            <option value="<?php echo $vehicle['id']; ?>" 
-                                <?php echo ($search_vehicle == $vehicle['id']) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($vehicle['vehicle_number']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-6 col-md-3 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-search me-1"></i>検索
-                    </button>
-                </div>
-            </form>
+        <!-- 検索フォーム -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-3">
+                        <label for="search_date" class="form-label">日付</label>
+                        <input type="date" class="form-control" id="search_date" name="search_date" 
+                               value="<?php echo htmlspecialchars($search_date); ?>">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="search_driver" class="form-label">運転者</label>
+                        <select class="form-select" id="search_driver" name="search_driver">
+                            <option value="">全て</option>
+                            <?php foreach ($drivers as $driver): ?>
+                                <option value="<?php echo $driver['id']; ?>" 
+                                    <?php echo ($search_driver == $driver['id']) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($driver['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="search_vehicle" class="form-label">車両</label>
+                        <select class="form-select" id="search_vehicle" name="search_vehicle">
+                            <option value="">全て</option>
+                            <?php foreach ($vehicles as $vehicle): ?>
+                                <option value="<?php echo $vehicle['id']; ?>" 
+                                    <?php echo ($search_vehicle == $vehicle['id']) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($vehicle['vehicle_number']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="fas fa-search me-1"></i>検索
+                        </button>
+                        <a href="?debug=1" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-bug me-1"></i>デバッグ
+                        </a>
+                    </div>
+                </form>
+            </div>
         </div>
 
         <?php if ($success_message): ?>
@@ -642,7 +766,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
             <!-- 乗車記録一覧 -->
             <div class="col-lg-8">
                 <div class="card">
-                    <div class="card-header" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; border-radius: 10px 10px 0 0 !important;">
+                    <div class="card-header" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white;">
                         <h4 class="mb-0">
                             <i class="fas fa-list me-2"></i>乗車記録一覧
                             <small class="ms-2">(<?php echo htmlspecialchars($search_date); ?>)</small>
@@ -656,12 +780,12 @@ $payment_methods = ['現金', 'カード', 'その他'];
                             </p>
                         <?php else: ?>
                             <?php foreach ($rides as $ride): ?>
-                                <div class="ride-record <?php echo $ride['is_return_trip'] ? 'return-trip' : ''; ?>">
+                                <div class="ride-record <?php echo ($ride['is_return_trip'] ?? 0) ? 'return-trip' : ''; ?>">
                                     <div class="row align-items-center">
                                         <div class="col-md-8">
                                             <div class="d-flex align-items-center mb-2">
                                                 <strong class="me-2"><?php echo substr($ride['ride_time'], 0, 5); ?></strong>
-                                                <span class="badge trip-type-badge <?php echo $ride['is_return_trip'] ? 'bg-success' : 'bg-primary'; ?>">
+                                                <span class="badge trip-type-badge <?php echo ($ride['is_return_trip'] ?? 0) ? 'bg-success' : 'bg-primary'; ?>">
                                                     <?php echo $ride['trip_type']; ?>
                                                 </span>
                                                 <small class="text-muted ms-2">
@@ -687,7 +811,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
                                                 ¥<?php echo number_format($ride['total_amount']); ?>
                                             </div>
                                             <div class="btn-group" role="group">
-                                                <?php if (!$ride['is_return_trip']): ?>
+                                                <?php if (!($ride['is_return_trip'] ?? 0)): ?>
                                                     <button type="button" class="btn return-btn btn-sm" 
                                                             onclick="createReturnTrip(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
                                                             title="復路作成">
@@ -961,6 +1085,15 @@ $payment_methods = ['現金', 'カード', 'その他'];
     <script>
         // PHPから取得したよく使う場所データ
         const commonLocations = <?php echo $locations_json; ?>;
+        
+        // テーブル構造情報（デバッグ用）
+        const tableInfo = {
+            availableColumns: <?php echo json_encode(array_values($available_columns)); ?>,
+            optionalColumns: <?php echo json_encode(array_values($available_optional_columns)); ?>,
+            hasReturnTrip: <?php echo columnExists($pdo, 'ride_records', 'is_return_trip') ? 'true' : 'false'; ?>
+        };
+        
+        console.log('テーブル構造情報:', tableInfo);
 
         // 新規登録モーダル表示
         function showAddModal() {
@@ -977,8 +1110,6 @@ $payment_methods = ['現金', 'カード', 'その他'];
             document.getElementById('modalRideTime').value = getCurrentTime();
             document.getElementById('modalPassengerCount').value = '1';
             document.getElementById('modalCharge').value = '0';
-            
-            // デフォルトで現金を選択
             document.getElementById('modalPaymentMethod').value = '現金';
             
             // 運転者を自動選択（運転者の場合）
@@ -988,12 +1119,6 @@ $payment_methods = ['現金', 'カード', 'その他'];
             
             new bootstrap.Modal(document.getElementById('rideModal')).show();
         }
-
-        // 復路作成ヘルパー表示（削除）
-        // function showReturnTripHelper() {
-        //     const helper = document.getElementById('returnTripHelper');
-        //     helper.style.display = helper.style.display === 'none' ? 'block' : 'none';
-        // }
 
         // 編集モーダル表示
         function editRecord(record) {
@@ -1021,6 +1146,11 @@ $payment_methods = ['現金', 'カード', 'その他'];
 
         // 復路作成モーダル表示
         function createReturnTrip(record) {
+            if (!tableInfo.hasReturnTrip) {
+                alert('このシステムでは復路機能が利用できません。テーブル構造を確認してください。');
+                return;
+            }
+            
             document.getElementById('rideModalTitle').innerHTML = '<i class="fas fa-route me-2"></i>復路作成';
             document.getElementById('modalAction').value = 'add';
             document.getElementById('modalRecordId').value = '';
@@ -1084,17 +1214,11 @@ $payment_methods = ['現金', 'カード', 'その他'];
             const suggestionId = type === 'pickup' ? 'pickupSuggestions' : 'dropoffSuggestions';
             const suggestionsDiv = document.getElementById(suggestionId);
             
-            // 空文字またはフォーカス時はよく使う場所を表示
             if (query.length === 0) {
                 const topLocations = commonLocations.slice(0, 8);
                 suggestionsDiv.innerHTML = '';
                 
                 if (topLocations.length > 0) {
-                    const header = document.createElement('div');
-                    header.className = 'location-suggestion-header';
-                    header.innerHTML = '<small class="text-muted px-3 py-2 d-block"><i class="fas fa-star me-1"></i>よく使う場所</small>';
-                    suggestionsDiv.appendChild(header);
-                    
                     topLocations.forEach(location => {
                         const div = document.createElement('div');
                         div.className = 'location-suggestion';
@@ -1122,11 +1246,9 @@ $payment_methods = ['現金', 'カード', 'その他'];
                 const div = document.createElement('div');
                 div.className = 'location-suggestion';
                 
-                // 検索語をハイライト
                 const highlightedText = location.replace(
                     new RegExp(query, 'gi'), 
-                    `<mark>                                <div class="summary-card">
-                                    <span class="summary-value"</mark>`
+                    `<mark>$&</mark>`
                 );
                 div.innerHTML = `<i class="fas fa-search me-2 text-muted"></i>${highlightedText}`;
                 div.onclick = () => selectLocation(input, location, suggestionsDiv);
