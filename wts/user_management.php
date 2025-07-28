@@ -1,70 +1,15 @@
 <?php
 /**
- * user_management.php デバッグ・修正版
- * 権限修正後の動作確認とトラブルシューティング
+ * user_management.php エラー修正版
+ * Undefined array key エラーの修正
  */
 
 session_start();
 require_once 'config/database.php';
-require_once 'updated_user_functions.php';
 
-// デバッグモード（問題調査用）
-$debug_mode = isset($_GET['debug']) ? true : false;
-
-if ($debug_mode) {
-    echo "<div style='background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; margin: 10px 0;'>";
-    echo "<h4>🔍 デバッグ情報</h4>";
-    
-    // セッション情報確認
-    echo "<strong>現在のセッション情報:</strong><br>";
-    if (isset($_SESSION['user_id'])) {
-        echo "ユーザーID: " . $_SESSION['user_id'] . "<br>";
-        echo "ユーザー名: " . ($_SESSION['user_name'] ?? '未設定') . "<br>";
-        echo "権限: " . ($_SESSION['role'] ?? '未設定') . "<br>";
-    } else {
-        echo "❌ セッション情報なし（ログインしていない）<br>";
-    }
-    
-    // データベース接続確認
-    try {
-        $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET, DB_USER, DB_PASS);
-        echo "✅ データベース接続成功<br>";
-        
-        // usersテーブル構造確認
-        $stmt = $pdo->query("DESCRIBE users");
-        $columns = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo "<strong>usersテーブル構造:</strong><br>";
-        foreach ($columns as $column) {
-            $highlight = in_array($column['Field'], ['role', 'is_driver', 'is_caller', 'is_inspector']) ? 
-                        ' style="background-color: #e8f5e8;"' : '';
-            echo "<span{$highlight}>{$column['Field']} ({$column['Type']})</span><br>";
-        }
-        
-        // 現在のユーザーデータ確認
-        $stmt = $pdo->query("SELECT * FROM users ORDER BY name");
-        $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo "<strong>現在のユーザーデータ:</strong><br>";
-        echo "<table border='1' style='border-collapse: collapse; font-size: 12px;'>";
-        echo "<tr><th>ID</th><th>名前</th><th>role</th><th>運転者</th><th>点呼者</th><th>点検者</th></tr>";
-        foreach ($users as $user) {
-            echo "<tr>";
-            echo "<td>{$user['id']}</td>";
-            echo "<td>{$user['name']}</td>";
-            echo "<td>{$user['role']}</td>";
-            echo "<td>" . (isset($user['is_driver']) ? ($user['is_driver'] ? 'Yes' : 'No') : '未設定') . "</td>";
-            echo "<td>" . (isset($user['is_caller']) ? ($user['is_caller'] ? 'Yes' : 'No') : '未設定') . "</td>";
-            echo "<td>" . (isset($user['is_inspector']) ? ($user['is_inspector'] ? 'Yes' : 'No') : '未設定') . "</td>";
-            echo "</tr>";
-        }
-        echo "</table>";
-        
-    } catch (PDOException $e) {
-        echo "❌ データベース接続エラー: " . $e->getMessage() . "<br>";
-    }
-    
-    echo "</div>";
-    echo "<hr>";
-}
+// エラー表示を一時的に有効化（デバッグ用）
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 // 権限チェック
 if (!isset($_SESSION['user_id'])) {
@@ -90,25 +35,9 @@ try {
     
     // POST処理（ユーザー更新）
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        echo "<div style='background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; margin: 10px 0;'>";
-        echo "<strong>🔄 更新処理実行中...</strong><br>";
-        
         if (isset($_POST['action'])) {
             switch ($_POST['action']) {
                 case 'update':
-                    echo "更新処理開始<br>";
-                    echo "受信データ: ";
-                    print_r($_POST);
-                    echo "<br>";
-                    
-                    // 業務属性のチェック状態確認
-                    $is_driver = isset($_POST['is_driver']) ? 1 : 0;
-                    $is_caller = isset($_POST['is_caller']) ? 1 : 0;
-                    $is_inspector = isset($_POST['is_inspector']) ? 1 : 0;
-                    
-                    echo "設定値: driver={$is_driver}, caller={$is_caller}, inspector={$is_inspector}<br>";
-                    
-                    // データベース更新
                     $stmt = $pdo->prepare("
                         UPDATE users SET 
                             name = ?, 
@@ -122,67 +51,82 @@ try {
                     ");
                     
                     $result = $stmt->execute([
-                        $_POST['name'],
-                        $_POST['login_id'],
-                        $_POST['role'],
-                        $is_driver,
-                        $is_caller,
-                        $is_inspector,
-                        $_POST['user_id']
+                        $_POST['name'] ?? '',
+                        $_POST['login_id'] ?? '',
+                        $_POST['role'] ?? 'user',
+                        isset($_POST['is_driver']) ? 1 : 0,
+                        isset($_POST['is_caller']) ? 1 : 0,
+                        isset($_POST['is_inspector']) ? 1 : 0,
+                        $_POST['user_id'] ?? 0
                     ]);
                     
                     if ($result) {
-                        echo "✅ 更新成功（影響行数: " . $stmt->rowCount() . "）<br>";
+                        $message = "ユーザー情報を更新しました。";
                     } else {
-                        echo "❌ 更新失敗<br>";
+                        $error = "更新に失敗しました。";
                     }
                     break;
                     
                 case 'add':
-                    echo "新規追加処理開始<br>";
                     $stmt = $pdo->prepare("
                         INSERT INTO users (name, login_id, password, role, is_driver, is_caller, is_inspector) 
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     ");
                     
                     $result = $stmt->execute([
-                        $_POST['name'],
-                        $_POST['login_id'],
+                        $_POST['name'] ?? '',
+                        $_POST['login_id'] ?? '',
                         password_hash($_POST['password'], PASSWORD_DEFAULT),
-                        $_POST['role'],
+                        $_POST['role'] ?? 'user',
                         isset($_POST['is_driver']) ? 1 : 0,
                         isset($_POST['is_caller']) ? 1 : 0,
                         isset($_POST['is_inspector']) ? 1 : 0
                     ]);
                     
                     if ($result) {
-                        echo "✅ 新規追加成功<br>";
+                        $message = "新規ユーザーを追加しました。";
                     } else {
-                        echo "❌ 新規追加失敗<br>";
+                        $error = "追加に失敗しました。";
                     }
                     break;
                     
                 case 'delete':
-                    echo "削除処理開始<br>";
                     $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
                     $result = $stmt->execute([$_POST['user_id']]);
                     
                     if ($result) {
-                        echo "✅ 削除成功（影響行数: " . $stmt->rowCount() . "）<br>";
+                        $message = "ユーザーを削除しました。";
                     } else {
-                        echo "❌ 削除失敗<br>";
+                        $error = "削除に失敗しました。";
                     }
                     break;
             }
         }
-        echo "</div>";
     }
     
-    // ユーザー一覧取得
-    $users = getAllUsers($pdo);
+    // ユーザー一覧取得（エラー回避版）
+    $stmt = $pdo->query("
+        SELECT 
+            id,
+            COALESCE(name, '') as name,
+            COALESCE(login_id, '') as login_id,
+            COALESCE(role, 'user') as role,
+            COALESCE(is_driver, 0) as is_driver,
+            COALESCE(is_caller, 0) as is_caller,
+            COALESCE(is_inspector, 0) as is_inspector,
+            CASE WHEN role = 'admin' THEN '管理者' ELSE 'ユーザー' END as role_display,
+            CONCAT(
+                CASE WHEN COALESCE(is_driver, 0) = 1 THEN '運転者 ' ELSE '' END,
+                CASE WHEN COALESCE(is_caller, 0) = 1 THEN '点呼者 ' ELSE '' END,
+                CASE WHEN COALESCE(is_inspector, 0) = 1 THEN '点検者 ' ELSE '' END
+            ) as attributes_display
+        FROM users 
+        ORDER BY role DESC, name
+    ");
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
 } catch (PDOException $e) {
-    echo "<div class='alert alert-danger'>データベースエラー: " . $e->getMessage() . "</div>";
+    echo "<div class='alert alert-danger'>データベースエラー: " . htmlspecialchars($e->getMessage()) . "</div>";
     exit;
 }
 ?>
@@ -203,14 +147,27 @@ try {
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2><i class="fas fa-users"></i> ユーザー管理</h2>
                     <div>
-                        <a href="?debug=1" class="btn btn-info btn-sm">🔍 デバッグモード</a>
                         <a href="dashboard.php" class="btn btn-secondary">ダッシュボード</a>
                     </div>
                 </div>
 
+                <?php if (isset($message)): ?>
+                    <div class="alert alert-success alert-dismissible fade show">
+                        <?= htmlspecialchars($message) ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (isset($error)): ?>
+                    <div class="alert alert-danger alert-dismissible fade show">
+                        <?= htmlspecialchars($error) ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                <?php endif; ?>
+
                 <!-- ユーザー一覧 -->
                 <div class="card">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h5>登録済みユーザー</h5>
                         <button class="btn btn-primary btn-sm" onclick="showAddUserModal()">
                             <i class="fas fa-plus"></i> 新規追加
@@ -233,15 +190,15 @@ try {
                                     <?php foreach ($users as $user): ?>
                                     <tr>
                                         <td><?= $user['id'] ?></td>
-                                        <td><?= htmlspecialchars($user['name']) ?></td>
-                                        <td><?= htmlspecialchars($user['login_id']) ?></td>
+                                        <td><?= htmlspecialchars($user['name'] ?? 'Unknown') ?></td>
+                                        <td><?= htmlspecialchars($user['login_id'] ?? '') ?></td>
                                         <td>
-                                            <span class="badge <?= $user['role'] === 'admin' ? 'bg-danger' : 'bg-primary' ?>">
-                                                <?= $user['role_display'] ?>
+                                            <span class="badge <?= ($user['role'] ?? 'user') === 'admin' ? 'bg-danger' : 'bg-primary' ?>">
+                                                <?= htmlspecialchars($user['role_display'] ?? 'ユーザー') ?>
                                             </span>
                                         </td>
                                         <td>
-                                            <small><?= $user['attributes_display'] ?></small>
+                                            <small><?= htmlspecialchars($user['attributes_display'] ?? '') ?></small>
                                         </td>
                                         <td>
                                             <button class="btn btn-sm btn-outline-primary" 
@@ -249,7 +206,7 @@ try {
                                                 <i class="fas fa-edit"></i>
                                             </button>
                                             <button class="btn btn-sm btn-outline-danger" 
-                                                    onclick="deleteUser(<?= $user['id'] ?>, '<?= htmlspecialchars($user['name']) ?>')">
+                                                    onclick="deleteUser(<?= $user['id'] ?>, '<?= htmlspecialchars($user['name'] ?? 'Unknown') ?>')">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </td>
@@ -347,13 +304,13 @@ try {
         function editUser(user) {
             document.getElementById('modalTitle').textContent = 'ユーザー編集';
             document.getElementById('action').value = 'update';
-            document.getElementById('user_id').value = user.id;
-            document.getElementById('name').value = user.name;
-            document.getElementById('login_id').value = user.login_id;
-            document.getElementById('role').value = user.role;
-            document.getElementById('is_driver').checked = user.is_driver == 1;
-            document.getElementById('is_caller').checked = user.is_caller == 1;
-            document.getElementById('is_inspector').checked = user.is_inspector == 1;
+            document.getElementById('user_id').value = user.id || '';
+            document.getElementById('name').value = user.name || '';
+            document.getElementById('login_id').value = user.login_id || '';
+            document.getElementById('role').value = user.role || 'user';
+            document.getElementById('is_driver').checked = (user.is_driver == 1);
+            document.getElementById('is_caller').checked = (user.is_caller == 1);
+            document.getElementById('is_inspector').checked = (user.is_inspector == 1);
             document.getElementById('passwordField').style.display = 'none';
             document.getElementById('password').required = false;
             
