@@ -40,14 +40,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 職務フラグの処理
             $is_driver = isset($_POST['is_driver']) ? 1 : 0;
             $is_caller = isset($_POST['is_caller']) ? 1 : 0;
-            $is_manager = isset($_POST['is_manager']) ? 1 : 0;
+            $is_inspector = isset($_POST['is_inspector']) ? 1 : 0;
             
             // バリデーション
             if (empty($name) || empty($login_id) || empty($password)) {
                 throw new Exception('すべての必須項目を入力してください。');
             }
             
-            if (!$is_driver && !$is_caller && !$is_manager) {
+            if (!$is_driver && !$is_caller && !$is_inspector) {
                 throw new Exception('少なくとも1つの職務を選択してください。');
             }
             
@@ -63,12 +63,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // ユーザー追加
             $stmt = $pdo->prepare("
-                INSERT INTO users (name, login_id, password, permission_level, is_driver, is_caller, is_manager, is_active, created_at) 
+                INSERT INTO users (name, login_id, password, permission_level, is_driver, is_caller, is_inspector, is_active, created_at) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, NOW())
             ");
             $stmt->execute([
                 $name, $login_id, $hashed_password, $permission_level, 
-                $is_driver, $is_caller, $is_manager
+                $is_driver, $is_caller, $is_inspector
             ]);
             
             $success_message = 'ユーザーを追加しました。';
@@ -84,14 +84,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 職務フラグの処理
             $is_driver = isset($_POST['is_driver']) ? 1 : 0;
             $is_caller = isset($_POST['is_caller']) ? 1 : 0;
-            $is_manager = isset($_POST['is_manager']) ? 1 : 0;
+            $is_inspector = isset($_POST['is_inspector']) ? 1 : 0;
             
             // バリデーション
             if (empty($name) || empty($login_id)) {
                 throw new Exception('名前とログインIDは必須です。');
             }
             
-            if (!$is_driver && !$is_caller && !$is_manager) {
+            if (!$is_driver && !$is_caller && !$is_inspector) {
                 throw new Exception('少なくとも1つの職務を選択してください。');
             }
             
@@ -105,12 +105,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // ユーザー更新
             $stmt = $pdo->prepare("
                 UPDATE users 
-                SET name = ?, login_id = ?, permission_level = ?, is_driver = ?, is_caller = ?, is_manager = ?, is_active = ?, updated_at = NOW() 
+                SET name = ?, login_id = ?, permission_level = ?, is_driver = ?, is_caller = ?, is_inspector = ?, is_active = ?, updated_at = NOW() 
                 WHERE id = ?
             ");
             $stmt->execute([
                 $name, $login_id, $permission_level,
-                $is_driver, $is_caller, $is_manager, $is_active, $edit_user_id
+                $is_driver, $is_caller, $is_inspector, $is_active, $edit_user_id
             ]);
             
             $success_message = 'ユーザー情報を更新しました。';
@@ -153,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ユーザー一覧取得 - permission_level基準に変更
 try {
     $stmt = $pdo->prepare("
-        SELECT id, name, login_id, permission_level, is_driver, is_caller, is_manager, 
+        SELECT id, name, login_id, permission_level, is_driver, is_caller, is_inspector, 
                COALESCE(is_active, 1) as is_active, created_at 
         FROM users 
         ORDER BY COALESCE(is_active, 1) DESC, permission_level, name
@@ -170,7 +170,7 @@ function getUserPermissions($user) {
     $permissions = [];
     if (isset($user['is_driver']) && $user['is_driver']) $permissions[] = '運転者';
     if (isset($user['is_caller']) && $user['is_caller']) $permissions[] = '点呼者';
-    if (isset($user['is_manager']) && $user['is_manager']) $permissions[] = '管理者';
+    if (isset($user['is_inspector']) && $user['is_inspector']) $permissions[] = '点検者';
     return implode(' + ', $permissions);
 }
 
@@ -336,8 +336,8 @@ function getPermissionLevelName($level) {
                                     <?php if (safeGet($user, 'is_caller')): ?>
                                         <span class="badge bg-warning me-1 mb-1">点呼者</span>
                                     <?php endif; ?>
-                                    <?php if (safeGet($user, 'is_manager')): ?>
-                                        <span class="badge bg-info me-1 mb-1">管理者</span>
+                                    <?php if (safeGet($user, 'is_inspector')): ?>
+                                        <span class="badge bg-info me-1 mb-1">点検者</span>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -426,10 +426,10 @@ function getPermissionLevelName($level) {
                                     </label>
                                 </div>
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="modalIsManager" name="is_manager">
-                                    <label class="form-check-label" for="modalIsManager">
-                                        <span class="badge bg-info me-2">管理者</span>
-                                        業務管理・報告業務を行う
+                                    <input class="form-check-input" type="checkbox" id="modalIsInspector" name="is_inspector">
+                                    <label class="form-check-label" for="modalIsInspector">
+                                        <span class="badge bg-info me-2">点検者</span>
+                                        日常・定期点検を実施する
                                     </label>
                                 </div>
                             </div>
@@ -511,7 +511,7 @@ function getPermissionLevelName($level) {
             document.getElementById('modalPermissionLevel').value = user.permission_level || 'User';
             document.getElementById('modalIsDriver').checked = user.is_driver == 1;
             document.getElementById('modalIsCaller').checked = user.is_caller == 1;
-            document.getElementById('modalIsManager').checked = user.is_manager == 1;
+            document.getElementById('modalIsInspector').checked = user.is_inspector == 1;
             document.getElementById('modalIsActive').checked = user.is_active == 1;
             document.getElementById('passwordField').style.display = 'none';
             document.getElementById('isActiveField').style.display = 'block';
