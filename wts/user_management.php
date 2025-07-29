@@ -1,136 +1,193 @@
 <?php
-/**
- * user_management.php エラー修正版
- * Undefined array key エラーの修正
- */
-
 session_start();
 require_once 'config/database.php';
 
-// エラー表示を一時的に有効化（デバッグ用）
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-// 権限チェック
+// ログインチェック
 if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php?error=login_required');
+    header('Location: index.php');
     exit;
 }
 
-// 管理者権限チェック（既存方式と新方式の併用）
-$is_admin = false;
-if (isset($_SESSION['role'])) {
-    $is_admin = ($_SESSION['role'] === 'admin' || $_SESSION['role'] === 'システム管理者' || $_SESSION['role'] === '管理者');
-}
+// システム管理者権限チェック - permission_level基準に変更
+$pdo = getDBConnection();
+$stmt = $pdo->prepare("SELECT permission_level FROM users WHERE id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$user_permission = $stmt->fetchColumn();
 
-if (!$is_admin) {
-    echo "<div class='alert alert-danger'>管理者権限が必要です。現在の権限: " . ($_SESSION['role'] ?? '未設定') . "</div>";
-    echo "<a href='dashboard.php'>ダッシュボードに戻る</a>";
+if ($user_permission !== 'Admin') {
+    header('Location: dashboard.php');
     exit;
 }
 
-try {
-    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET, DB_USER, DB_PASS);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$user_id = $_SESSION['user_id'];
+$user_name = $_SESSION['user_name'];
+
+$success_message = '';
+$error_message = '';
+
+// フォーム送信処理
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? '';
     
-    // POST処理（ユーザー更新）
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (isset($_POST['action'])) {
-            switch ($_POST['action']) {
-                case 'update':
-                    $stmt = $pdo->prepare("
-                        UPDATE users SET 
-                            name = ?, 
-                            login_id = ?, 
-                            role = ?,
-                            is_driver = ?,
-                            is_caller = ?,
-                            is_inspector = ?,
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    ");
-                    
-                    $result = $stmt->execute([
-                        $_POST['name'] ?? '',
-                        $_POST['login_id'] ?? '',
-                        $_POST['role'] ?? 'user',
-                        isset($_POST['is_driver']) ? 1 : 0,
-                        isset($_POST['is_caller']) ? 1 : 0,
-                        isset($_POST['is_inspector']) ? 1 : 0,
-                        $_POST['user_id'] ?? 0
-                    ]);
-                    
-                    if ($result) {
-                        $message = "ユーザー情報を更新しました。";
-                    } else {
-                        $error = "更新に失敗しました。";
-                    }
-                    break;
-                    
-                case 'add':
-                    $stmt = $pdo->prepare("
-                        INSERT INTO users (name, login_id, password, role, is_driver, is_caller, is_inspector) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ");
-                    
-                    $result = $stmt->execute([
-                        $_POST['name'] ?? '',
-                        $_POST['login_id'] ?? '',
-                        password_hash($_POST['password'], PASSWORD_DEFAULT),
-                        $_POST['role'] ?? 'user',
-                        isset($_POST['is_driver']) ? 1 : 0,
-                        isset($_POST['is_caller']) ? 1 : 0,
-                        isset($_POST['is_inspector']) ? 1 : 0
-                    ]);
-                    
-                    if ($result) {
-                        $message = "新規ユーザーを追加しました。";
-                    } else {
-                        $error = "追加に失敗しました。";
-                    }
-                    break;
-                    
-                case 'delete':
-                    $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
-                    $result = $stmt->execute([$_POST['user_id']]);
-                    
-                    if ($result) {
-                        $message = "ユーザーを削除しました。";
-                    } else {
-                        $error = "削除に失敗しました。";
-                    }
-                    break;
+    try {
+        if ($action === 'add') {
+            // 新規追加
+            $name = trim($_POST['name']);
+            $login_id = trim($_POST['login_id']);
+            $password = $_POST['password'];
+            $permission_level = $_POST['permission_level'];
+            
+            // 職務フラグの処理
+            $is_driver = isset($_POST['is_driver']) ? 1 : 0;
+            $is_caller = isset($_POST['is_caller']) ? 1 : 0;
+            $is_manager = isset($_POST['is_manager']) ? 1 : 0;
+            
+            // バリデーション
+            if (empty($name) || empty($login_id) || empty($password)) {
+                throw new Exception('すべての必須項目を入力してください。');
             }
+            
+            if (!$is_driver && !$is_caller && !$is_manager) {
+                throw new Exception('少なくとも1つの職務を選択してください。');
+            }
+            
+            // ログインID重複チェック
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE login_id = ?");
+            $stmt->execute([$login_id]);
+            if ($stmt->fetchColumn() > 0) {
+                throw new Exception('このログインIDは既に使用されています。');
+            }
+            
+            // パスワードハッシュ化
+            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+            
+            // ユーザー追加
+            $stmt = $pdo->prepare("
+                INSERT INTO users (name, login_id, password, permission_level, is_driver, is_caller, is_manager, active, created_at) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, NOW())
+            ");
+            $stmt->execute([
+                $name, $login_id, $hashed_password, $permission_level, 
+                $is_driver, $is_caller, $is_manager
+            ]);
+            
+            $success_message = 'ユーザーを追加しました。';
+            
+        } elseif ($action === 'edit') {
+            // 編集
+            $edit_user_id = $_POST['user_id'];
+            $name = trim($_POST['name']);
+            $login_id = trim($_POST['login_id']);
+            $permission_level = $_POST['permission_level'];
+            $active = isset($_POST['active']) ? 1 : 0;
+            
+            // 職務フラグの処理
+            $is_driver = isset($_POST['is_driver']) ? 1 : 0;
+            $is_caller = isset($_POST['is_caller']) ? 1 : 0;
+            $is_manager = isset($_POST['is_manager']) ? 1 : 0;
+            
+            // バリデーション
+            if (empty($name) || empty($login_id)) {
+                throw new Exception('名前とログインIDは必須です。');
+            }
+            
+            if (!$is_driver && !$is_caller && !$is_manager) {
+                throw new Exception('少なくとも1つの職務を選択してください。');
+            }
+            
+            // ログインID重複チェック（自分以外）
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE login_id = ? AND id != ?");
+            $stmt->execute([$login_id, $edit_user_id]);
+            if ($stmt->fetchColumn() > 0) {
+                throw new Exception('このログインIDは既に使用されています。');
+            }
+            
+            // ユーザー更新
+            $stmt = $pdo->prepare("
+                UPDATE users 
+                SET name = ?, login_id = ?, permission_level = ?, is_driver = ?, is_caller = ?, is_manager = ?, active = ?, updated_at = NOW() 
+                WHERE id = ?
+            ");
+            $stmt->execute([
+                $name, $login_id, $permission_level,
+                $is_driver, $is_caller, $is_manager, $active, $edit_user_id
+            ]);
+            
+            $success_message = 'ユーザー情報を更新しました。';
+            
+        } elseif ($action === 'change_password') {
+            // パスワード変更
+            $edit_user_id = $_POST['user_id'];
+            $new_password = $_POST['new_password'];
+            
+            if (empty($new_password)) {
+                throw new Exception('新しいパスワードを入力してください。');
+            }
+            
+            $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare("UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$hashed_password, $edit_user_id]);
+            
+            $success_message = 'パスワードを変更しました。';
+            
+        } elseif ($action === 'delete') {
+            // 削除（論理削除）
+            $delete_user_id = $_POST['user_id'];
+            
+            // 自分自身は削除不可
+            if ($delete_user_id == $user_id) {
+                throw new Exception('自分自身は削除できません。');
+            }
+            
+            $stmt = $pdo->prepare("UPDATE users SET active = FALSE, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$delete_user_id]);
+            
+            $success_message = 'ユーザーを削除しました。';
         }
+        
+    } catch (Exception $e) {
+        $error_message = $e->getMessage();
     }
-    
-    // ユーザー一覧取得（エラー回避版）
-    $stmt = $pdo->query("
-        SELECT 
-            id,
-            COALESCE(name, '') as name,
-            COALESCE(login_id, '') as login_id,
-            COALESCE(role, 'user') as role,
-            COALESCE(is_driver, 0) as is_driver,
-            COALESCE(is_caller, 0) as is_caller,
-            COALESCE(is_inspector, 0) as is_inspector,
-            CASE WHEN role = 'admin' THEN '管理者' ELSE 'ユーザー' END as role_display,
-            CONCAT(
-                CASE WHEN COALESCE(is_driver, 0) = 1 THEN '運転者 ' ELSE '' END,
-                CASE WHEN COALESCE(is_caller, 0) = 1 THEN '点呼者 ' ELSE '' END,
-                CASE WHEN COALESCE(is_inspector, 0) = 1 THEN '点検者 ' ELSE '' END
-            ) as attributes_display
+}
+
+// ユーザー一覧取得 - permission_level基準に変更
+try {
+    $stmt = $pdo->prepare("
+        SELECT id, name, login_id, permission_level, is_driver, is_caller, is_manager, 
+               COALESCE(active, 1) as active, created_at 
         FROM users 
-        ORDER BY role DESC, name
+        ORDER BY COALESCE(active, 1) DESC, permission_level, name
     ");
+    $stmt->execute();
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-} catch (PDOException $e) {
-    echo "<div class='alert alert-danger'>データベースエラー: " . htmlspecialchars($e->getMessage()) . "</div>";
-    exit;
+} catch (Exception $e) {
+    $error_message = 'ユーザー一覧の取得に失敗しました: ' . $e->getMessage();
+    $users = [];
+}
+
+// 権限表示用の関数
+function getUserPermissions($user) {
+    $permissions = [];
+    if (isset($user['is_driver']) && $user['is_driver']) $permissions[] = '運転者';
+    if (isset($user['is_caller']) && $user['is_caller']) $permissions[] = '点呼者';
+    if (isset($user['is_manager']) && $user['is_manager']) $permissions[] = '管理者';
+    return implode(' + ', $permissions);
+}
+
+// 安全な値取得関数
+function safeGet($array, $key, $default = '') {
+    return isset($array[$key]) ? $array[$key] : $default;
+}
+
+// permission_levelの表示名
+function getPermissionLevelName($level) {
+    switch ($level) {
+        case 'Admin': return 'システム管理者';
+        case 'User': return '一般ユーザー';
+        default: return $level;
+    }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -139,140 +196,256 @@ try {
     <title>ユーザー管理 - 福祉輸送管理システム</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #6f42c1 0%, #5a2d91 100%);
+            color: white;
+            padding: 1rem 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            margin-bottom: 2rem;
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, #6f42c1 0%, #5a2d91 100%);
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            padding: 1rem 1.5rem;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #6f42c1 0%, #5a2d91 100%);
+            border: none;
+            border-radius: 25px;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #5a2d91 0%, #4a236b 100%);
+            transform: translateY(-1px);
+        }
+        
+        .user-row {
+            border-left: 4px solid #6f42c1;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .user-row:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .user-row.inactive {
+            opacity: 0.6;
+            border-left-color: #6c757d;
+        }
+        
+        .form-control, .form-select {
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: #6f42c1;
+            box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
+        }
+    </style>
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-12">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h2><i class="fas fa-users"></i> ユーザー管理</h2>
-                    <div>
-                        <a href="dashboard.php" class="btn btn-secondary">ダッシュボード</a>
-                    </div>
+    <!-- ヘッダー -->
+    <div class="header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h1><i class="fas fa-users-cog me-2"></i>ユーザー管理</h1>
+                    <small>システム管理者専用</small>
                 </div>
-
-                <?php if (isset($message)): ?>
-                    <div class="alert alert-success alert-dismissible fade show">
-                        <?= htmlspecialchars($message) ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                <?php endif; ?>
-
-                <?php if (isset($error)): ?>
-                    <div class="alert alert-danger alert-dismissible fade show">
-                        <?= htmlspecialchars($error) ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                <?php endif; ?>
-
-                <!-- ユーザー一覧 -->
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5>登録済みユーザー</h5>
-                        <button class="btn btn-primary btn-sm" onclick="showAddUserModal()">
-                            <i class="fas fa-plus"></i> 新規追加
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>ユーザー名</th>
-                                        <th>ログインID</th>
-                                        <th>権限</th>
-                                        <th>業務属性</th>
-                                        <th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($users as $user): ?>
-                                    <tr>
-                                        <td><?= $user['id'] ?></td>
-                                        <td><?= htmlspecialchars($user['name'] ?? 'Unknown') ?></td>
-                                        <td><?= htmlspecialchars($user['login_id'] ?? '') ?></td>
-                                        <td>
-                                            <span class="badge <?= ($user['role'] ?? 'user') === 'admin' ? 'bg-danger' : 'bg-primary' ?>">
-                                                <?= htmlspecialchars($user['role_display'] ?? 'ユーザー') ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <small><?= htmlspecialchars($user['attributes_display'] ?? '') ?></small>
-                                        </td>
-                                        <td>
-                                            <button class="btn btn-sm btn-outline-primary" 
-                                                    onclick="editUser(<?= htmlspecialchars(json_encode($user)) ?>)">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-danger" 
-                                                    onclick="deleteUser(<?= $user['id'] ?>, '<?= htmlspecialchars($user['name'] ?? 'Unknown') ?>')">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                <div class="col-auto">
+                    <a href="dashboard.php" class="btn btn-outline-light btn-sm">
+                        <i class="fas fa-arrow-left me-1"></i>ダッシュボード
+                    </a>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- ユーザー編集モーダル -->
+    
+    <div class="container mt-4">
+        <!-- アラート -->
+        <?php if ($success_message): ?>
+        <div class="alert alert-success alert-dismissible fade show">
+            <i class="fas fa-check-circle me-2"></i>
+            <?= htmlspecialchars($success_message) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <?php endif; ?>
+        
+        <?php if ($error_message): ?>
+        <div class="alert alert-danger alert-dismissible fade show">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <?= htmlspecialchars($error_message) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <?php endif; ?>
+        
+        <!-- 新規追加ボタン -->
+        <div class="mb-4">
+            <button type="button" class="btn btn-primary" onclick="showAddModal()">
+                <i class="fas fa-user-plus me-2"></i>新規ユーザー追加
+            </button>
+        </div>
+        
+        <!-- ユーザー一覧 -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-list me-2"></i>ユーザー一覧</h5>
+            </div>
+            <div class="card-body">
+                <?php if (empty($users)): ?>
+                    <p class="text-muted text-center">ユーザーが登録されていません。</p>
+                <?php else: ?>
+                    <?php foreach ($users as $user): ?>
+                    <div class="user-row <?= safeGet($user, 'active', 1) ? '' : 'inactive' ?>">
+                        <div class="row align-items-center">
+                            <div class="col-md-3">
+                                <h6 class="mb-1"><?= htmlspecialchars(safeGet($user, 'name', '名前未設定')) ?></h6>
+                                <small class="text-muted">ID: <?= htmlspecialchars(safeGet($user, 'login_id', '未設定')) ?></small>
+                            </div>
+                            <div class="col-md-2">
+                                <span class="badge bg-<?= safeGet($user, 'permission_level') === 'Admin' ? 'danger' : 'primary' ?>">
+                                    <?= getPermissionLevelName(safeGet($user, 'permission_level', 'User')) ?>
+                                </span>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="permissions-badges">
+                                    <?php if (safeGet($user, 'is_driver')): ?>
+                                        <span class="badge bg-success me-1 mb-1">運転者</span>
+                                    <?php endif; ?>
+                                    <?php if (safeGet($user, 'is_caller')): ?>
+                                        <span class="badge bg-warning me-1 mb-1">点呼者</span>
+                                    <?php endif; ?>
+                                    <?php if (safeGet($user, 'is_manager')): ?>
+                                        <span class="badge bg-info me-1 mb-1">管理者</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <div class="col-md-1">
+                                <span class="badge <?= safeGet($user, 'active', 1) ? 'bg-success' : 'bg-secondary' ?>">
+                                    <?= safeGet($user, 'active', 1) ? '有効' : '無効' ?>
+                                </span>
+                            </div>
+                            <div class="col-md-3 text-end">
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" 
+                                            onclick="editUser(<?= htmlspecialchars(json_encode($user)) ?>)">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning" 
+                                            onclick="changePassword(<?= safeGet($user, 'id') ?>, '<?= htmlspecialchars(safeGet($user, 'name', '名前未設定')) ?>')">
+                                        <i class="fas fa-key"></i>
+                                    </button>
+                                    <?php if (safeGet($user, 'id') != $user_id): ?>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                                            onclick="deleteUser(<?= safeGet($user, 'id') ?>, '<?= htmlspecialchars(safeGet($user, 'name', '名前未設定')) ?>')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ユーザー追加・編集モーダル -->
     <div class="modal fade" id="userModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
-                <form method="POST" id="userForm">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="modalTitle">ユーザー編集</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="userModalTitle">ユーザー追加</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="userForm" method="POST">
+                    <input type="hidden" name="action" id="modalAction" value="add">
+                    <input type="hidden" name="user_id" id="modalUserId">
+                    
                     <div class="modal-body">
-                        <input type="hidden" name="action" id="action" value="update">
-                        <input type="hidden" name="user_id" id="user_id">
-                        
                         <div class="mb-3">
-                            <label class="form-label">ユーザー名</label>
-                            <input type="text" name="name" id="name" class="form-control" required>
+                            <label for="modalName" class="form-label">氏名 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="modalName" name="name" required>
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">ログインID</label>
-                            <input type="text" name="login_id" id="login_id" class="form-control" required>
+                            <label for="modalLoginId" class="form-label">ログインID <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="modalLoginId" name="login_id" required>
                         </div>
                         
-                        <div class="mb-3" id="passwordField" style="display: none;">
-                            <label class="form-label">パスワード</label>
-                            <input type="password" name="password" id="password" class="form-control">
+                        <div class="mb-3" id="passwordField">
+                            <label for="modalPassword" class="form-label">パスワード <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control" id="modalPassword" name="password">
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">システム権限</label>
-                            <select name="role" id="role" class="form-control" required>
-                                <option value="user">ユーザー</option>
-                                <option value="admin">管理者</option>
+                            <label for="modalPermissionLevel" class="form-label">権限レベル <span class="text-danger">*</span></label>
+                            <select class="form-select" id="modalPermissionLevel" name="permission_level" required>
+                                <option value="User">一般ユーザー</option>
+                                <option value="Admin">システム管理者</option>
                             </select>
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">業務属性（複数選択可）</label>
-                            <div class="form-check">
-                                <input type="checkbox" name="is_driver" id="is_driver" class="form-check-input" value="1">
-                                <label class="form-check-label" for="is_driver">運転者</label>
+                            <label class="form-label">職務 <span class="text-danger">*</span></label>
+                            <div class="border rounded p-3">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="modalIsDriver" name="is_driver">
+                                    <label class="form-check-label" for="modalIsDriver">
+                                        <span class="badge bg-success me-2">運転者</span>
+                                        車両の運転業務を行う
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="modalIsCaller" name="is_caller">
+                                    <label class="form-check-label" for="modalIsCaller">
+                                        <span class="badge bg-warning me-2">点呼者</span>
+                                        乗務前・乗務後点呼を実施する
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="modalIsManager" name="is_manager">
+                                    <label class="form-check-label" for="modalIsManager">
+                                        <span class="badge bg-info me-2">管理者</span>
+                                        業務管理・報告業務を行う
+                                    </label>
+                                </div>
                             </div>
+                            <small class="form-text text-muted">複数の職務を同時に選択することができます。</small>
+                        </div>
+                        
+                        <div class="mb-3" id="activeField" style="display: none;">
                             <div class="form-check">
-                                <input type="checkbox" name="is_caller" id="is_caller" class="form-check-input" value="1">
-                                <label class="form-check-label" for="is_caller">点呼者</label>
-                            </div>
-                            <div class="form-check">
-                                <input type="checkbox" name="is_inspector" id="is_inspector" class="form-check-input" value="1">
-                                <label class="form-check-label" for="is_inspector">点検者</label>
+                                <input class="form-check-input" type="checkbox" id="modalActive" name="active" checked>
+                                <label class="form-check-label" for="modalActive">
+                                    有効
+                                </label>
                             </div>
                         </div>
                     </div>
+                    
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
                         <button type="submit" class="btn btn-primary">保存</button>
@@ -281,48 +454,90 @@ try {
             </div>
         </div>
     </div>
-
+    
+    <!-- パスワード変更モーダル -->
+    <div class="modal fade" id="passwordModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">パスワード変更</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST">
+                    <input type="hidden" name="action" value="change_password">
+                    <input type="hidden" name="user_id" id="passwordUserId">
+                    
+                    <div class="modal-body">
+                        <p>ユーザー: <strong id="passwordUserName"></strong></p>
+                        <div class="mb-3">
+                            <label for="newPassword" class="form-label">新しいパスワード <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control" id="newPassword" name="new_password" required>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                        <button type="submit" class="btn btn-warning">パスワード変更</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function showAddUserModal() {
-            document.getElementById('modalTitle').textContent = '新規ユーザー追加';
-            document.getElementById('action').value = 'add';
-            document.getElementById('user_id').value = '';
-            document.getElementById('name').value = '';
-            document.getElementById('login_id').value = '';
-            document.getElementById('password').value = '';
-            document.getElementById('role').value = 'user';
-            document.getElementById('is_driver').checked = true;
-            document.getElementById('is_caller').checked = false;
-            document.getElementById('is_inspector').checked = false;
+        // 新規追加モーダル
+        function showAddModal() {
+            document.getElementById('userModalTitle').textContent = 'ユーザー追加';
+            document.getElementById('modalAction').value = 'add';
+            document.getElementById('modalUserId').value = '';
             document.getElementById('passwordField').style.display = 'block';
-            document.getElementById('password').required = true;
+            document.getElementById('activeField').style.display = 'none';
+            document.getElementById('modalPassword').required = true;
+            
+            // フォームリセット
+            document.getElementById('userForm').reset();
             
             new bootstrap.Modal(document.getElementById('userModal')).show();
         }
-
+        
+        // 編集モーダル
         function editUser(user) {
-            document.getElementById('modalTitle').textContent = 'ユーザー編集';
-            document.getElementById('action').value = 'update';
-            document.getElementById('user_id').value = user.id || '';
-            document.getElementById('name').value = user.name || '';
-            document.getElementById('login_id').value = user.login_id || '';
-            document.getElementById('role').value = user.role || 'user';
-            document.getElementById('is_driver').checked = (user.is_driver == 1);
-            document.getElementById('is_caller').checked = (user.is_caller == 1);
-            document.getElementById('is_inspector').checked = (user.is_inspector == 1);
+            document.getElementById('userModalTitle').textContent = 'ユーザー編集';
+            document.getElementById('modalAction').value = 'edit';
+            document.getElementById('modalUserId').value = user.id || '';
+            document.getElementById('modalName').value = user.name || '';
+            document.getElementById('modalLoginId').value = user.login_id || '';
+            document.getElementById('modalPermissionLevel').value = user.permission_level || 'User';
+            document.getElementById('modalIsDriver').checked = user.is_driver == 1;
+            document.getElementById('modalIsCaller').checked = user.is_caller == 1;
+            document.getElementById('modalIsManager').checked = user.is_manager == 1;
+            document.getElementById('modalActive').checked = user.active == 1;
             document.getElementById('passwordField').style.display = 'none';
-            document.getElementById('password').required = false;
+            document.getElementById('activeField').style.display = 'block';
+            document.getElementById('modalPassword').required = false;
             
             new bootstrap.Modal(document.getElementById('userModal')).show();
         }
-
+        
+        // パスワード変更モーダル
+        function changePassword(userId, userName) {
+            document.getElementById('passwordUserId').value = userId;
+            document.getElementById('passwordUserName').textContent = userName;
+            document.getElementById('newPassword').value = '';
+            
+            new bootstrap.Modal(document.getElementById('passwordModal')).show();
+        }
+        
+        // 削除確認
         function deleteUser(userId, userName) {
-            if (confirm('ユーザー「' + userName + '」を削除しますか？')) {
+            if (confirm(`ユーザー「${userName}」を削除しますか？`)) {
                 const form = document.createElement('form');
                 form.method = 'POST';
-                form.innerHTML = '<input type="hidden" name="action" value="delete">' +
-                               '<input type="hidden" name="user_id" value="' + userId + '">';
+                form.innerHTML = `
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="user_id" value="${userId}">
+                `;
                 document.body.appendChild(form);
                 form.submit();
             }
