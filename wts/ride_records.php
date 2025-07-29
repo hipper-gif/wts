@@ -178,7 +178,7 @@ try {
         SELECT id, name, role 
         FROM users 
         WHERE (role LIKE '%運転者%' OR role = 'システム管理者' OR role = 'admin' OR role = 'Admin') 
-        AND (active IS NULL OR active = 1)
+        AND (active IS NULL OR is_active = 1)
         ORDER BY name
     ";
     $drivers = $pdo->query($drivers_query)->fetchAll(PDO::FETCH_ASSOC);
@@ -192,7 +192,7 @@ try {
     $vehicles_query = "
         SELECT id, vehicle_number 
         FROM vehicles 
-        WHERE (active IS NULL OR active = 1)
+        WHERE (active IS NULL OR is_active = 1)
         ORDER BY vehicle_number
     ";
     $vehicles = $pdo->query($vehicles_query)->fetchAll(PDO::FETCH_ASSOC);
