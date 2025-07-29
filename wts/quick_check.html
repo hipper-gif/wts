@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>GitHub Quick Check</title>
+    <style>
+        body { font-family: system-ui; max-width: 800px; margin: 50px auto; padding: 20px; }
+        .result { background: #f0f8f0; padding: 15px; border-radius: 8px; margin: 20px 0; }
+        .btn { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        .btn:hover { background: #0056b3; }
+        .copy-btn { background: #28a745; }
+        pre { background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h2>🚀 GitHub 状況確認（10秒で完了）</h2>
+    
+    <div>
+        <input type="password" id="token" placeholder="GitHub Token (初回のみ)" style="width: 300px; padding: 8px;">
+        <button class="btn" onclick="quickCheck()">確認実行</button>
+    </div>
+    
+    <div id="result"></div>
+
+    <script>
+        // トークンをlocalStorageに保存
+        const savedToken = localStorage.getItem('gh_token');
+        if (savedToken) document.getElementById('token').value = savedToken;
+
+        async function quickCheck() {
+            const token = document.getElementById('token').value || savedToken;
+            if (!token) { alert('トークンが必要です'); return; }
+            
+            localStorage.setItem('gh_token', token);
+            
+            try {
+                const res = await fetch('https://api.github.com/repos/hipper-gif/wts/contents/wts?_=' + Date.now(), {
+                    headers: { 'Authorization': 'token ' + token }
+                });
+                const files = await res.json();
+                const phpFiles = files.filter(f => f.name.endsWith('.php')).map(f => f.name);
+                
+                const report = `【GitHub 現在状況】${new Date().toLocaleString('ja-JP')}
+
+✅ PHPファイル数: ${phpFiles.length}個
+✅ 確認方法: API直接確認
+
+Claude への指示: 
+現在のGitHub状況は上記の通りです。
+APIキャッシュは考慮せず、この情報で作業してください。
+
+確認済みファイル:
+${phpFiles.map(f => `• ${f}`).join('\n')}`;
+
+                document.getElementById('result').innerHTML = `
+                    <div class="result">
+                        <h3>✅ 確認完了！</h3>
+                        <button class="btn copy-btn" onclick="copyText()">📋 レポートをコピー</button>
+                        <pre id="report">${report}</pre>
+                    </div>
+                `;
+            } catch(e) {
+                document.getElementById('result').innerHTML = `<div style="color:red">エラー: ${e.message}</div>`;
+            }
+        }
+
+        function copyText() {
+            const text = document.getElementById('report').textContent;
+            navigator.clipboard.writeText(text);
+            event.target.textContent = '✅ コピー完了!';
+            setTimeout(() => event.target.textContent = '📋 レポートをコピー', 2000);
+        }
+    </script>
+</body>
+</html>
