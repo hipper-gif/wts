@@ -13,10 +13,22 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// ユーザー情報取得
-$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
-$stmt->execute([$_SESSION['user_id']]);
-$user = $stmt->fetch();
+// ユーザー情報取得（エラーハンドリング強化）
+try {
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // ユーザーが見つからない場合の処理
+    if (!$user) {
+        session_destroy();
+        header('Location: index.php?error=user_not_found');
+        exit;
+    }
+} catch (Exception $e) {
+    $error = "ユーザー情報の取得に失敗しました: " . $e->getMessage();
+    $user = ['name' => 'Unknown User', 'role' => 'guest']; // デフォルト値
+}
 
 // 🎯 集計関数群（total_tripsの代替）
 function getDailyStats($pdo, $date) {
@@ -159,9 +171,37 @@ $rides = $stmt->fetchAll();
 $today = date('Y-m-d');
 $today_stats = getDailyStats($pdo, $today);
 
-// ユーザー・車両マスタ取得
-$drivers = $pdo->query("SELECT id, name FROM users WHERE role = '運転者' OR role = 'システム管理者' ORDER BY name")->fetchAll();
-$vehicles = $pdo->query("SELECT id, vehicle_number FROM vehicles ORDER BY vehicle_number")->fetchAll();
+// ユーザー・車両マスタ取得（修正版）
+try {
+    // 運転者リスト取得 - より幅広い条件で取得
+    $drivers_query = "
+        SELECT id, name, role 
+        FROM users 
+        WHERE (role LIKE '%運転者%' OR role = 'システム管理者' OR role = 'admin' OR role = 'Admin') 
+        AND (active IS NULL OR active = 1)
+        ORDER BY name
+    ";
+    $drivers = $pdo->query($drivers_query)->fetchAll(PDO::FETCH_ASSOC);
+    
+    // 運転者が見つからない場合、全ユーザーを取得
+    if (count($drivers) === 0) {
+        $drivers = $pdo->query("SELECT id, name, role FROM users ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    // 車両リスト取得
+    $vehicles_query = "
+        SELECT id, vehicle_number 
+        FROM vehicles 
+        WHERE (active IS NULL OR active = 1)
+        ORDER BY vehicle_number
+    ";
+    $vehicles = $pdo->query($vehicles_query)->fetchAll(PDO::FETCH_ASSOC);
+    
+} catch (Exception $e) {
+    $drivers = [];
+    $vehicles = [];
+    $error = "マスタデータの取得に失敗しました: " . $e->getMessage();
+}
 ?>
 
 <!DOCTYPE html>
@@ -244,6 +284,17 @@ $vehicles = $pdo->query("SELECT id, vehicle_number FROM vehicles ORDER BY vehicl
                 </div>
             <?php endif; ?>
 
+            <!-- デバッグ情報（開発時のみ表示） -->
+            <?php if (isset($_GET['debug'])): ?>
+                <div class="alert alert-info">
+                    <h6>デバッグ情報:</h6>
+                    <p><strong>ユーザー情報:</strong> <?= json_encode($user) ?></p>
+                    <p><strong>運転者数:</strong> <?= count($drivers) ?></p>
+                    <p><strong>車両数:</strong> <?= count($vehicles) ?></p>
+                    <p><strong>運転者リスト:</strong> <?= json_encode($drivers) ?></p>
+                </div>
+            <?php endif; ?>
+
             <!-- 📊 今日の統計（動的計算版） -->
             <div class="stats-card">
                 <h4><i class="fas fa-chart-bar"></i> 今日の実績（<?= $today ?>）</h4>
@@ -299,19 +350,46 @@ $vehicles = $pdo->query("SELECT id, vehicle_number FROM vehicles ORDER BY vehicl
                                 <label class="form-label">運転者 <span class="text-danger">*</span></label>
                                 <select name="driver_id" class="form-select" required>
                                     <option value="">選択してください</option>
-                                    <?php foreach ($drivers as $driver): ?>
-                                        <option value="<?= $driver['id'] ?>"><?= htmlspecialchars($driver['name']) ?></option>
-                                    <?php endforeach; ?>
+                                    <?php if (count($drivers) > 0): ?>
+                                        <?php foreach ($drivers as $driver): ?>
+                                            <option value="<?= $driver['id'] ?>">
+                                                <?= htmlspecialchars($driver['name']) ?>
+                                                <?php if (isset($driver['role'])): ?>
+                                                    <small>(<?= htmlspecialchars($driver['role']) ?>)</small>
+                                                <?php endif; ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <option value="" disabled>運転者データなし</option>
+                                    <?php endif; ?>
                                 </select>
+                                <?php if (count($drivers) === 0): ?>
+                                    <div class="form-text text-danger">
+                                        <i class="fas fa-exclamation-triangle"></i> 
+                                        運転者が登録されていません。
+                                        <a href="user_management.php">ユーザー管理</a>で登録してください。
+                                    </div>
+                                <?php endif; ?>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">車両 <span class="text-danger">*</span></label>
                                 <select name="vehicle_id" class="form-select" required>
                                     <option value="">選択してください</option>
-                                    <?php foreach ($vehicles as $vehicle): ?>
-                                        <option value="<?= $vehicle['id'] ?>"><?= htmlspecialchars($vehicle['vehicle_number']) ?></option>
-                                    <?php endforeach; ?>
+                                    <?php if (count($vehicles) > 0): ?>
+                                        <?php foreach ($vehicles as $vehicle): ?>
+                                            <option value="<?= $vehicle['id'] ?>"><?= htmlspecialchars($vehicle['vehicle_number']) ?></option>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <option value="" disabled>車両データなし</option>
+                                    <?php endif; ?>
                                 </select>
+                                <?php if (count($vehicles) === 0): ?>
+                                    <div class="form-text text-danger">
+                                        <i class="fas fa-exclamation-triangle"></i> 
+                                        車両が登録されていません。
+                                        <a href="vehicle_management.php">車両管理</a>で登録してください。
+                                    </div>
+                                <?php endif; ?>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">乗車日 <span class="text-danger">*</span></label>
