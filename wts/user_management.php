@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // ユーザー追加
             $stmt = $pdo->prepare("
-                INSERT INTO users (name, login_id, password, permission_level, is_driver, is_caller, is_manager, active, created_at) 
+                INSERT INTO users (name, login_id, password, permission_level, is_driver, is_caller, is_manager, is_active, created_at) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, NOW())
             ");
             $stmt->execute([
@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $name = trim($_POST['name']);
             $login_id = trim($_POST['login_id']);
             $permission_level = $_POST['permission_level'];
-            $active = isset($_POST['active']) ? 1 : 0;
+            $is_active = isset($_POST['is_active']) ? 1 : 0;
             
             // 職務フラグの処理
             $is_driver = isset($_POST['is_driver']) ? 1 : 0;
@@ -105,12 +105,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // ユーザー更新
             $stmt = $pdo->prepare("
                 UPDATE users 
-                SET name = ?, login_id = ?, permission_level = ?, is_driver = ?, is_caller = ?, is_manager = ?, active = ?, updated_at = NOW() 
+                SET name = ?, login_id = ?, permission_level = ?, is_driver = ?, is_caller = ?, is_manager = ?, is_active = ?, updated_at = NOW() 
                 WHERE id = ?
             ");
             $stmt->execute([
                 $name, $login_id, $permission_level,
-                $is_driver, $is_caller, $is_manager, $active, $edit_user_id
+                $is_driver, $is_caller, $is_manager, $is_active, $edit_user_id
             ]);
             
             $success_message = 'ユーザー情報を更新しました。';
@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('自分自身は削除できません。');
             }
             
-            $stmt = $pdo->prepare("UPDATE users SET active = FALSE, updated_at = NOW() WHERE id = ?");
+            $stmt = $pdo->prepare("UPDATE users SET is_active = FALSE, updated_at = NOW() WHERE id = ?");
             $stmt->execute([$delete_user_id]);
             
             $success_message = 'ユーザーを削除しました。';
@@ -154,9 +154,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 try {
     $stmt = $pdo->prepare("
         SELECT id, name, login_id, permission_level, is_driver, is_caller, is_manager, 
-               COALESCE(active, 1) as active, created_at 
+               COALESCE(is_active, 1) as is_active, created_at 
         FROM users 
-        ORDER BY COALESCE(active, 1) DESC, permission_level, name
+        ORDER BY COALESCE(is_active, 1) DESC, permission_level, name
     ");
     $stmt->execute();
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -317,7 +317,7 @@ function getPermissionLevelName($level) {
                     <p class="text-muted text-center">ユーザーが登録されていません。</p>
                 <?php else: ?>
                     <?php foreach ($users as $user): ?>
-                    <div class="user-row <?= safeGet($user, 'active', 1) ? '' : 'inactive' ?>">
+                    <div class="user-row <?= safeGet($user, 'is_active', 1) ? '' : 'inactive' ?>">
                         <div class="row align-items-center">
                             <div class="col-md-3">
                                 <h6 class="mb-1"><?= htmlspecialchars(safeGet($user, 'name', '名前未設定')) ?></h6>
@@ -342,8 +342,8 @@ function getPermissionLevelName($level) {
                                 </div>
                             </div>
                             <div class="col-md-1">
-                                <span class="badge <?= safeGet($user, 'active', 1) ? 'bg-success' : 'bg-secondary' ?>">
-                                    <?= safeGet($user, 'active', 1) ? '有効' : '無効' ?>
+                                <span class="badge <?= safeGet($user, 'is_active', 1) ? 'bg-success' : 'bg-secondary' ?>">
+                                    <?= safeGet($user, 'is_active', 1) ? '有効' : '無効' ?>
                                 </span>
                             </div>
                             <div class="col-md-3 text-end">
@@ -436,10 +436,10 @@ function getPermissionLevelName($level) {
                             <small class="form-text text-muted">複数の職務を同時に選択することができます。</small>
                         </div>
                         
-                        <div class="mb-3" id="activeField" style="display: none;">
+                        <div class="mb-3" id="isActiveField" style="display: none;">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="modalActive" name="active" checked>
-                                <label class="form-check-label" for="modalActive">
+                                <input class="form-check-input" type="checkbox" id="modalIsActive" name="is_active" checked>
+                                <label class="form-check-label" for="modalIsActive">
                                     有効
                                 </label>
                             </div>
@@ -492,7 +492,7 @@ function getPermissionLevelName($level) {
             document.getElementById('modalAction').value = 'add';
             document.getElementById('modalUserId').value = '';
             document.getElementById('passwordField').style.display = 'block';
-            document.getElementById('activeField').style.display = 'none';
+            document.getElementById('isActiveField').style.display = 'none';
             document.getElementById('modalPassword').required = true;
             
             // フォームリセット
@@ -512,9 +512,9 @@ function getPermissionLevelName($level) {
             document.getElementById('modalIsDriver').checked = user.is_driver == 1;
             document.getElementById('modalIsCaller').checked = user.is_caller == 1;
             document.getElementById('modalIsManager').checked = user.is_manager == 1;
-            document.getElementById('modalActive').checked = user.active == 1;
+            document.getElementById('modalIsActive').checked = user.is_active == 1;
             document.getElementById('passwordField').style.display = 'none';
-            document.getElementById('activeField').style.display = 'block';
+            document.getElementById('isActiveField').style.display = 'block';
             document.getElementById('modalPassword').required = false;
             
             new bootstrap.Modal(document.getElementById('userModal')).show();
