@@ -605,13 +605,228 @@ $payment_data = $payment_stats->fetchAll(PDO::FETCH_OBJ);
     </div>
 </div>
 
-<!-- 編集モーダル -->
-<div class="modal fade" id="editRecordModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-edit me-2"></i>乗車記録編集
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div
+
+    <!-- 乗車記録入力・編集モーダル -->
+    <div class="modal fade" id="rideModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="rideModalTitle">
+                        <i class="fas fa-plus me-2"></i>乗車記録登録
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="rideForm" method="POST">
+                    <input type="hidden" name="action" id="modalAction" value="add">
+                    <input type="hidden" name="record_id" id="modalRecordId">
+                    <input type="hidden" name="is_return_trip" id="modalIsReturnTrip" value="0">
+                    <input type="hidden" name="original_ride_id" id="modalOriginalRideId">
+                    
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="modalDriverId" class="form-label">運転者 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="modalDriverId" name="driver_id" required>
+                                    <option value="">運転者を選択</option>
+                                    <?php foreach ($drivers as $driver): ?>
+                                        <option value="<?php echo $driver['id']; ?>">
+                                            <?php echo htmlspecialchars($driver['name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="modalVehicleId" class="form-label">車両 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="modalVehicleId" name="vehicle_id" required>
+                                    <option value="">車両を選択</option>
+                                    <?php foreach ($vehicles as $vehicle): ?>
+                                        <option value="<?php echo $vehicle['id']; ?>">
+                                            <?php echo htmlspecialchars($vehicle['vehicle_number'] . ' - ' . $vehicle['vehicle_name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="modalRideDate" class="form-label">乗車日 <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="modalRideDate" name="ride_date" 
+                                       value="<?php echo $today; ?>" required>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="modalRideTime" class="form-label">乗車時刻 <span class="text-danger">*</span></label>
+                                <input type="time" class="form-control" id="modalRideTime" name="ride_time" 
+                                       value="<?php echo $current_time; ?>" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="modalPassengerCount" class="form-label">人員数 <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="modalPassengerCount" name="passenger_count" 
+                                   value="1" min="1" max="10" required>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="modalPickupLocation" class="form-label">乗車地 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="modalPickupLocation" name="pickup_location" 
+                                       placeholder="乗車地を入力" required>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="modalDropoffLocation" class="form-label">降車地 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="modalDropoffLocation" name="dropoff_location" 
+                                       placeholder="降車地を入力" required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="modalFare" class="form-label">運賃 <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="modalFare" name="fare" min="0" step="10" required>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="modalCharge" class="form-label">料金</label>
+                                <input type="number" class="form-control" id="modalCharge" name="charge" min="0" step="10" value="0">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="modalTransportCategory" class="form-label">輸送分類 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="modalTransportCategory" name="transport_category" required>
+                                    <option value="">分類を選択</option>
+                                    <?php foreach ($transport_categories as $category): ?>
+                                        <option value="<?php echo $category; ?>"><?php echo $category; ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="modalPaymentMethod" class="form-label">支払方法 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="modalPaymentMethod" name="payment_method" required>
+                                    <?php foreach ($payment_methods as $method): ?>
+                                        <option value="<?php echo $method; ?>" <?php echo ($method === '現金') ? 'selected' : ''; ?>>
+                                            <?php echo $method; ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="modalNotes" class="form-label">備考</label>
+                            <textarea class="form-control" id="modalNotes" name="notes" rows="2" 
+                                      placeholder="特記事項があれば入力してください"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                        <button type="submit" class="btn btn-primary">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 新規登録モーダル表示
+        function showAddModal() {
+            document.getElementById('rideModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>乗車記録登録';
+            document.getElementById('modalAction').value = 'add';
+            document.getElementById('modalRecordId').value = '';
+            document.getElementById('modalIsReturnTrip').value = '0';
+            document.getElementById('modalOriginalRideId').value = '';
+            
+            // フォームをリセット
+            document.getElementById('rideForm').reset();
+            document.getElementById('modalRideDate').value = '<?php echo $today; ?>';
+            document.getElementById('modalRideTime').value = getCurrentTime();
+            document.getElementById('modalPassengerCount').value = '1';
+            document.getElementById('modalCharge').value = '0';
+            document.getElementById('modalPaymentMethod').value = '現金';
+            
+            new bootstrap.Modal(document.getElementById('rideModal')).show();
+        }
+
+        // 編集モーダル表示
+        function editRecord(record) {
+            document.getElementById('rideModalTitle').innerHTML = '<i class="fas fa-edit me-2"></i>乗車記録編集';
+            document.getElementById('modalAction').value = 'edit';
+            document.getElementById('modalRecordId').value = record.id;
+            
+            // フォームに値を設定
+            document.getElementById('modalDriverId').value = record.driver_id;
+            document.getElementById('modalVehicleId').value = record.vehicle_id;
+            document.getElementById('modalRideDate').value = record.ride_date;
+            document.getElementById('modalRideTime').value = record.ride_time;
+            document.getElementById('modalPassengerCount').value = record.passenger_count;
+            document.getElementById('modalPickupLocation').value = record.pickup_location;
+            document.getElementById('modalDropoffLocation').value = record.dropoff_location;
+            document.getElementById('modalFare').value = record.fare;
+            document.getElementById('modalCharge').value = record.charge;
+            document.getElementById('modalTransportCategory').value = record.transport_category;
+            document.getElementById('modalPaymentMethod').value = record.payment_method;
+            document.getElementById('modalNotes').value = record.notes || '';
+            
+            new bootstrap.Modal(document.getElementById('rideModal')).show();
+        }
+
+        // 復路作成モーダル表示
+        function createReturnTrip(record) {
+            document.getElementById('rideModalTitle').innerHTML = '<i class="fas fa-route me-2"></i>復路作成';
+            document.getElementById('modalAction').value = 'add';
+            document.getElementById('modalRecordId').value = '';
+            document.getElementById('modalIsReturnTrip').value = '1';
+            document.getElementById('modalOriginalRideId').value = record.id;
+            
+            // 基本情報をコピー（乗降地は入れ替え）
+            document.getElementById('modalDriverId').value = record.driver_id;
+            document.getElementById('modalVehicleId').value = record.vehicle_id;
+            document.getElementById('modalRideDate').value = record.ride_date;
+            document.getElementById('modalRideTime').value = getCurrentTime();
+            document.getElementById('modalPassengerCount').value = record.passenger_count;
+            
+            // 乗降地を入れ替え
+            document.getElementById('modalPickupLocation').value = record.dropoff_location;
+            document.getElementById('modalDropoffLocation').value = record.pickup_location;
+            
+            document.getElementById('modalFare').value = record.fare;
+            document.getElementById('modalCharge').value = record.charge;
+            document.getElementById('modalTransportCategory').value = record.transport_category;
+            document.getElementById('modalPaymentMethod').value = record.payment_method;
+            document.getElementById('modalNotes').value = '';
+            
+            new bootstrap.Modal(document.getElementById('rideModal')).show();
+        }
+
+        // 削除確認
+        function deleteRecord(recordId) {
+            if (confirm('この乗車記録を削除しますか？')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.innerHTML = `
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="record_id" value="${recordId}">
+                `;
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+
+        // 現在時刻を取得
+        function getCurrentTime() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+    </script>
+</body>
+</html>
