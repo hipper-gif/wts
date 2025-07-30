@@ -1026,11 +1026,10 @@ $payment_methods = ['現金', 'カード', 'その他'];
             // 復路情報表示
             const returnTripInfo = document.getElementById('returnTripInfo');
             returnTripInfo.style.display = 'block';
-            returnTripInfo.innerHTML = `
-                <h6><i class="fas fa-route me-2"></i>復路作成</h6>
-                <p class="mb-0">「${record.pickup_location} → ${record.dropoff_location}」の復路を作成します。</p>
-                <p class="mb-0 text-muted">乗車地と降車地が自動で入れ替わります。</p>
-            `;
+            returnTripInfo.innerHTML = 
+                '<h6><i class="fas fa-route me-2"></i>復路作成</h6>' +
+                '<p class="mb-0">「' + record.pickup_location + ' → ' + record.dropoff_location + '」の復路を作成します。</p>' +
+                '<p class="mb-0 text-muted">乗車地と降車地が自動で入れ替わります。</p>';
             
             // 基本情報をコピー（乗降地は入れ替え）
             document.getElementById('modalDriverId').value = record.driver_id;
@@ -1057,10 +1056,9 @@ $payment_methods = ['現金', 'カード', 'その他'];
             if (confirm('この乗車記録を削除しますか？')) {
                 const form = document.createElement('form');
                 form.method = 'POST';
-                form.innerHTML = `
-                    <input type="hidden" name="action" value="delete">
-                    <input type="hidden" name="record_id" value="${recordId}">
-                `;
+                form.innerHTML = 
+                    '<input type="hidden" name="action" value="delete">' +
+                    '<input type="hidden" name="record_id" value="' + recordId + '">';
                 document.body.appendChild(form);
                 form.submit();
             }
@@ -1071,7 +1069,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
             const now = new Date();
             const hours = String(now.getHours()).padStart(2, '0');
             const minutes = String(now.getMinutes()).padStart(2, '0');
-            return `${hours}:${minutes}`;
+            return hours + ':' + minutes;
         }
 
         // よく使う場所の候補表示
@@ -1094,7 +1092,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
                     topLocations.forEach(location => {
                         const div = document.createElement('div');
                         div.className = 'location-suggestion';
-                        div.innerHTML = `<i class="fas fa-map-marker-alt me-2 text-muted"></i>${location}`;
+                        div.innerHTML = '<i class="fas fa-map-marker-alt me-2 text-muted"></i>' + location;
                         div.onclick = () => selectLocation(input, location, suggestionsDiv);
                         suggestionsDiv.appendChild(div);
                     });
