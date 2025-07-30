@@ -16,19 +16,14 @@ $today = date('Y-m-d');
 $success_message = '';
 $error_message = '';
 
-// 過去データ入力モードのチェック
-$past_mode = isset($_GET['past_mode']) && $_GET['past_mode'] == '1';
-$target_date = $past_mode ? ($_GET['target_date'] ?? $today) : $today;
-$current_time = date('H:i');
-
 // 車両とドライバーの取得
 try {
     $stmt = $pdo->prepare("SELECT id, vehicle_number, model, current_mileage FROM vehicles WHERE is_active = TRUE ORDER BY vehicle_number");
     $stmt->execute();
     $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // 運転手のみを取得（role = 'driver' または is_driver = 1）
-    $stmt = $pdo->prepare("SELECT id, name, role FROM users WHERE (role = 'driver' OR is_driver = 1) AND is_active = TRUE ORDER BY name");
+    // 点検者取得の統一（運転者のみ）
+    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = TRUE ORDER BY name");
     $stmt->execute();
     $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
@@ -38,7 +33,8 @@ try {
     $drivers = [];
 }
 
-// 指定日の点検記録があるかチェック
+// 特定日の点検記録があるかチェック（日付指定対応）
+$target_date = $_GET['date'] ?? $today;
 $existing_inspection = null;
 if (($_GET['inspector_id'] ?? null) && ($_GET['vehicle_id'] ?? null)) {
     $stmt = $pdo->prepare("SELECT * FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
@@ -50,16 +46,16 @@ if (($_GET['inspector_id'] ?? null) && ($_GET['vehicle_id'] ?? null)) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $inspector_id = $_POST['inspector_id'];
     $vehicle_id = $_POST['vehicle_id'];
-    $inspection_date = $_POST['inspection_date'];
-    $inspection_time = $_POST['inspection_time'];
+    $inspection_date = $_POST['inspection_date'] ?? $today; // 日付入力対応
     $mileage = $_POST['mileage'];
+    $inspection_time = $_POST['inspection_time'] ?? date('H:i'); // 時間入力対応
     
-    // 運転手かどうかの確認
-    $stmt = $pdo->prepare("SELECT role, is_driver FROM users WHERE id = ?");
+    // 点検者の確認（統一された権限チェック）
+    $stmt = $pdo->prepare("SELECT is_driver FROM users WHERE id = ? AND is_active = TRUE");
     $stmt->execute([$inspector_id]);
     $inspector = $stmt->fetch();
     
-    if (!$inspector || ($inspector['role'] !== 'driver' && $inspector['is_driver'] != 1)) {
+    if (!$inspector || $inspector['is_driver'] != 1) {
         $error_message = 'エラー: 点検者は運転手のみ選択できます。';
     } else {
         // 点検項目の結果
@@ -141,18 +137,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$inspector_id, $vehicle_id, $inspection_date]);
             $existing_inspection = $stmt->fetch();
             
-            // 車両の走行距離を更新（今日の場合のみ）
-            if ($mileage && $inspection_date === $today) {
+            // 車両の走行距離を更新
+            if ($mileage) {
                 $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ?");
                 $stmt->execute([$mileage, $vehicle_id]);
-            }
-            
-            // 自動遷移パラメータの確認
-            $auto_flow = $_POST['auto_flow'] ?? null;
-            if ($auto_flow == '1' && $inspection_date === $today) {
-                // 日常点検完了後、乗務前点呼へ自動遷移
-                header("Location: pre_duty_call.php?driver_id=$inspector_id&auto_flow=1");
-                exit;
             }
             
         } catch (Exception $e) {
@@ -266,44 +254,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-bottom: 1rem;
         }
         
-        .auto-flow-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 15px;
+        .navigation-links {
+            background: #fff;
+            border-radius: 10px;
             padding: 1rem;
-            margin-bottom: 1rem;
-        }
-        
-        .past-mode-indicator {
-            background: #ffc107;
-            color: #212529;
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-        
-        .btn-save {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            border: none;
-            color: white;
-            padding: 0.75rem 2rem;
-            border-radius: 25px;
-            font-weight: 600;
-        }
-        
-        .btn-save:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
-            color: white;
-        }
-        
-        .history-link {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 1rem;
-            text-align: center;
             margin-top: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
         
         @media (max-width: 768px) {
@@ -324,11 +280,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="row align-items-center">
                 <div class="col">
                     <h1><i class="fas fa-tools me-2"></i>日常点検</h1>
-                    <small><?= $past_mode ? '過去データ入力モード' : date('Y年n月j日 (D)') ?></small>
+                    <small><?= date('Y年n月j日 (D)', strtotime($target_date)) ?></small>
                 </div>
                 <div class="col-auto">
-                    <a href="dashboard.php" class="btn btn-outline-light btn-sm">
+                    <a href="dashboard.php" class="btn btn-outline-light btn-sm me-2">
                         <i class="fas fa-arrow-left me-1"></i>ダッシュボード
+                    </a>
+                    <a href="pre_duty_call.php" class="btn btn-light btn-sm">
+                        <i class="fas fa-clipboard-check me-1"></i>乗務前点呼へ
                     </a>
                 </div>
             </div>
@@ -336,15 +295,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     
     <div class="container mt-4">
-        <!-- 過去データ入力モード表示 -->
-        <?php if ($past_mode): ?>
-        <div class="past-mode-indicator">
-            <i class="fas fa-history me-2"></i>
-            <strong>過去データ入力モード</strong> - 
-            <?= date('Y年n月j日', strtotime($target_date)) ?>のデータを入力・編集中
-        </div>
-        <?php endif; ?>
-        
         <!-- アラート -->
         <?php if ($success_message): ?>
         <div class="alert alert-success alert-dismissible fade show">
@@ -362,24 +312,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <?php endif; ?>
         
-        <!-- 自動遷移フロー案内（今日の場合のみ） -->
-        <?php if (!$past_mode): ?>
-        <div class="auto-flow-card">
-            <div class="row align-items-center">
-                <div class="col">
-                    <h6 class="mb-1"><i class="fas fa-route me-2"></i>連続業務フロー</h6>
-                    <small>日常点検完了後、乗務前点呼に自動遷移します</small>
-                </div>
-                <div class="col-auto">
-                    <span class="badge bg-light text-dark">日常点検 → 乗務前点呼</span>
-                </div>
-            </div>
-        </div>
-        <?php endif; ?>
-        
         <form method="POST" id="inspectionForm">
-            <input type="hidden" name="auto_flow" value="<?= $past_mode ? '0' : '1' ?>">
-            
             <!-- 基本情報 -->
             <div class="form-card">
                 <h5 class="form-card-header">
@@ -396,13 +329,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="form-card-body">
                     <div class="row">
                         <div class="col-md-6 mb-3">
+                            <label class="form-label">点検日 <span class="required-mark">*</span></label>
+                            <input type="date" class="form-control" name="inspection_date" 
+                                   value="<?= $existing_inspection ? $existing_inspection['inspection_date'] : $target_date ?>" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">点検時間</label>
+                            <input type="time" class="form-control" name="inspection_time" 
+                                   value="<?= $existing_inspection ? $existing_inspection['inspection_time'] : date('H:i') ?>">
+                        </div>
+                        <div class="col-md-6 mb-3">
                             <label class="form-label">点検者（運転手） <span class="required-mark">*</span></label>
                             <select class="form-select" name="inspector_id" required>
                                 <option value="">運転手を選択してください</option>
                                 <?php foreach ($drivers as $driver): ?>
                                 <option value="<?= $driver['id'] ?>" <?= ($existing_inspection && $existing_inspection['driver_id'] == $driver['id']) ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($driver['name']) ?>
-                                    <span class="text-muted">(運転手)</span>
                                 </option>
                                 <?php endforeach; ?>
                             </select>
@@ -424,21 +366,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </option>
                                 <?php endforeach; ?>
                             </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">点検日 <span class="required-mark">*</span></label>
-                            <input type="date" class="form-control" name="inspection_date" 
-                                   value="<?= $existing_inspection ? $existing_inspection['inspection_date'] : $target_date ?>" 
-                                   <?= $past_mode ? '' : 'max="' . $today . '"' ?> required>
-                            <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>
-                                <?= $past_mode ? '過去の日付を入力できます' : '今日までの日付を選択できます' ?>
-                            </div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">点検時刻 <span class="required-mark">*</span></label>
-                            <input type="time" class="form-control" name="inspection_time" 
-                                   value="<?= $existing_inspection ? $existing_inspection['inspection_time'] : $current_time ?>" required>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">走行距離</label>
@@ -626,28 +553,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- 保存ボタン -->
             <div class="text-center mb-4">
-                <button type="submit" class="btn btn-save btn-lg">
+                <button type="submit" class="btn btn-success btn-lg">
                     <i class="fas fa-save me-2"></i>
                     <?= $existing_inspection ? '更新する' : '登録する' ?>
                 </button>
-                <?php if (!$past_mode): ?>
-                <div class="mt-2">
-                    <small class="text-muted">
-                        <i class="fas fa-info-circle me-1"></i>
-                        保存後、自動的に乗務前点呼画面に移動します
-                    </small>
-                </div>
-                <?php endif; ?>
             </div>
         </form>
         
-        <!-- 履歴管理リンク（ページ下部） -->
-        <div class="history-link">
-            <h6 class="mb-2"><i class="fas fa-history me-2"></i>過去の記録管理</h6>
-            <p class="text-muted mb-2">過去の日常点検記録の閲覧・編集・削除を行います。</p>
-            <a href="daily_inspection_history.php" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-list me-1"></i>履歴一覧を表示
-            </a>
+        <!-- ナビゲーションリンク -->
+        <div class="navigation-links">
+            <div class="row text-center">
+                <div class="col-md-4 mb-2">
+                    <h6 class="text-muted mb-2">次の作業</h6>
+                    <a href="pre_duty_call.php" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-clipboard-check me-1"></i>乗務前点呼
+                    </a>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <h6 class="text-muted mb-2">他の点検</h6>
+                    <a href="periodic_inspection.php" class="btn btn-outline-info btn-sm">
+                        <i class="fas fa-wrench me-1"></i>定期点検
+                    </a>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <h6 class="text-muted mb-2">記録管理</h6>
+                    <a href="daily_inspection_history.php" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-history me-1"></i>履歴・編集
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -760,11 +694,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         document.getElementById('inspectionForm').addEventListener('submit', function(e) {
             const inspectorId = document.querySelector('select[name="inspector_id"]').value;
             const vehicleId = document.querySelector('select[name="vehicle_id"]').value;
-            const inspectionDate = document.querySelector('input[name="inspection_date"]').value;
             
-            if (!inspectorId || !vehicleId || !inspectionDate) {
+            if (!inspectorId || !vehicleId) {
                 e.preventDefault();
-                alert('点検者、車両、点検日を入力してください。');
+                alert('点検者と車両を選択してください。');
                 return;
             }
             
@@ -794,18 +727,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const defectDetails = document.querySelector('textarea[name="defect_details"]').value.trim();
                 if (!defectDetails) {
                     if (!confirm('点検結果に「否」がありますが、不良個所の詳細が未記入です。このまま保存しますか？')) {
-                        e.preventDefault();
-                        return;
-                    }
-                }
-            }
-            
-            // 自動遷移の確認（過去データ入力モードではない場合）
-            const autoFlow = document.querySelector('input[name="auto_flow"]').value;
-            if (autoFlow === '1') {
-                const today = new Date().toISOString().split('T')[0];
-                if (inspectionDate === today) {
-                    if (!confirm('日常点検完了後、乗務前点呼画面に自動的に移動します。続行しますか？')) {
                         e.preventDefault();
                         return;
                     }
