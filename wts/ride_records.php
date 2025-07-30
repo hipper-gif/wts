@@ -17,8 +17,8 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'];
-$user_role = $_SESSION['user_role'];
+$user_name = $_SESSION['user_name'] ?? 'ユーザー';
+$user_role = $_SESSION['user_role'] ?? 'User';
 
 // 今日の日付
 $today = date('Y-m-d');
@@ -821,8 +821,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
                                 <select class="form-select" id="modalDriverId" name="driver_id" required>
                                     <option value="">運転者を選択</option>
                                     <?php foreach ($drivers as $driver): ?>
-                                        <option value="<?php echo $driver['id']; ?>" 
-                                            <?php echo ($user_role === 'driver' && $driver['id'] == $user_id) ? 'selected' : ''; ?>>
+                                        <option value="<?php echo $driver['id']; ?>">
                                             <?php echo htmlspecialchars($driver['name']); ?>
                                         </option>
                                     <?php endforeach; ?>
@@ -964,8 +963,16 @@ $payment_methods = ['現金', 'カード', 'その他'];
         // PHPから取得したよく使う場所データ
         const commonLocations = <?php echo $locations_json; ?>;
 
+        // デバッグ用: モーダル表示確認
+        console.log('showAddModal function called');
+        
         // 新規登録モーダル表示
         function showAddModal() {
+            console.log('Modal elements check:', {
+                modal: document.getElementById('rideModal'),
+                title: document.getElementById('rideModalTitle'),
+                form: document.getElementById('rideForm')
+            });
             document.getElementById('rideModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>乗車記録登録';
             document.getElementById('modalAction').value = 'add';
             document.getElementById('modalRecordId').value = '';
@@ -984,11 +991,13 @@ $payment_methods = ['現金', 'カード', 'その他'];
             document.getElementById('modalPaymentMethod').value = '現金';
             
             // 運転者を自動選択（運転者の場合）
-            <?php if ($user_role === 'driver'): ?>
-                document.getElementById('modalDriverId').value = '<?php echo $user_id; ?>';
-            <?php endif; ?>
+            var modalDriverId = document.getElementById('modalDriverId');
+            if (modalDriverId && '<?php echo $user_role; ?>' === 'driver') {
+                modalDriverId.value = '<?php echo $user_id; ?>';
+            }
             
-            new bootstrap.Modal(document.getElementById('rideModal')).show();
+            var rideModal = new bootstrap.Modal(document.getElementById('rideModal'));
+            rideModal.show();
         }
 
         // 編集モーダル表示
@@ -1012,7 +1021,8 @@ $payment_methods = ['現金', 'カード', 'その他'];
             document.getElementById('modalPaymentMethod').value = record.payment_method;
             document.getElementById('modalNotes').value = record.notes || '';
             
-            new bootstrap.Modal(document.getElementById('rideModal')).show();
+            var rideModal = new bootstrap.Modal(document.getElementById('rideModal'));
+            rideModal.show();
         }
 
         // 復路作成モーダル表示
@@ -1048,7 +1058,8 @@ $payment_methods = ['現金', 'カード', 'その他'];
             document.getElementById('modalPaymentMethod').value = record.payment_method;
             document.getElementById('modalNotes').value = '';
             
-            new bootstrap.Modal(document.getElementById('rideModal')).show();
+            var rideModal = new bootstrap.Modal(document.getElementById('rideModal'));
+            rideModal.show();
         }
 
         // 削除確認
