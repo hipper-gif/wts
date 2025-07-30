@@ -12,6 +12,7 @@ $pdo = getDBConnection();
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'];
 $today = date('Y-m-d');
+$current_time = date('H:i');
 
 $success_message = '';
 $error_message = '';
@@ -46,6 +47,7 @@ if ($_GET['inspector_id'] ?? null && $_GET['vehicle_id'] ?? null) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $inspector_id = $_POST['inspector_id'];
     $vehicle_id = $_POST['vehicle_id'];
+    $inspection_time = $_POST['inspection_time']; // 新規追加
     $mileage = $_POST['mileage'];
     
     // 運転手権限チェック（is_driverフラグのみ）
@@ -70,6 +72,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         
         try {
+            // inspection_timeカラムが存在するかチェック
+            $stmt = $pdo->prepare("SHOW COLUMNS FROM daily_inspections LIKE 'inspection_time'");
+            $stmt->execute();
+            $time_column_exists = $stmt->fetch();
+            
+            if (!$time_column_exists) {
+                // inspection_timeカラムを追加
+                $pdo->exec("ALTER TABLE daily_inspections ADD COLUMN inspection_time TIME AFTER inspection_date");
+            }
+            
             // 既存レコードの確認
             $stmt = $pdo->prepare("SELECT id FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
             $stmt->execute([$inspector_id, $vehicle_id, $today]);
@@ -78,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($existing) {
                 // 更新
                 $sql = "UPDATE daily_inspections SET 
-                    mileage = ?,";
+                    inspection_time = ?, mileage = ?,";
                 
                 foreach ($inspection_items as $item) {
                     $sql .= " $item = ?,";
@@ -88,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?";
                 
                 $stmt = $pdo->prepare($sql);
-                $params = [$mileage];
+                $params = [$inspection_time, $mileage];
                 
                 foreach ($inspection_items as $item) {
                     $params[] = $_POST[$item] ?? '省略';
@@ -105,19 +117,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 // 新規挿入
                 $sql = "INSERT INTO daily_inspections (
-                    vehicle_id, driver_id, inspection_date, mileage,";
+                    vehicle_id, driver_id, inspection_date, inspection_time, mileage,";
                 
                 foreach ($inspection_items as $item) {
                     $sql .= " $item,";
                 }
                 
-                $sql .= " defect_details, remarks) VALUES (?, ?, ?, ?,";
+                $sql .= " defect_details, remarks) VALUES (?, ?, ?, ?, ?,";
                 
                 $sql .= str_repeat('?,', count($inspection_items));
                 $sql .= " ?, ?)";
                 
                 $stmt = $pdo->prepare($sql);
-                $params = [$vehicle_id, $inspector_id, $today, $mileage];
+                $params = [$vehicle_id, $inspector_id, $today, $inspection_time, $mileage];
                 
                 foreach ($inspection_items as $item) {
                     $params[] = $_POST[$item] ?? '省略';
@@ -252,6 +264,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-bottom: 1rem;
         }
         
+        .history-link {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
         @media (max-width: 768px) {
             .form-card-body {
                 padding: 1rem;
@@ -299,6 +320,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <?php endif; ?>
         
+        <!-- 過去記録リンク -->
+        <div class="history-link">
+            <a href="daily_inspection_history.php" class="btn btn-warning">
+                <i class="fas fa-history me-2"></i>過去の点検記録を確認・編集
+            </a>
+        </div>
+        
         <form method="POST" id="inspectionForm">
             <!-- 基本情報 -->
             <div class="form-card">
@@ -343,6 +371,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </option>
                                 <?php endforeach; ?>
                             </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">点検時間 <span class="required-mark">*</span></label>
+                            <input type="time" class="form-control" name="inspection_time" 
+                                   value="<?= $existing_inspection ? $existing_inspection['inspection_time'] : $current_time ?>" required>
+                            <div class="form-text">
+                                <i class="fas fa-clock me-1"></i>
+                                点検を実施した時間
+                            </div>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">走行距離</label>
@@ -647,10 +684,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         document.getElementById('inspectionForm').addEventListener('submit', function(e) {
             const inspectorId = document.querySelector('select[name="inspector_id"]').value;
             const vehicleId = document.querySelector('select[name="vehicle_id"]').value;
+            const inspectionTime = document.querySelector('input[name="inspection_time"]').value;
             
-            if (!inspectorId || !vehicleId) {
+            if (!inspectorId || !vehicleId || !inspectionTime) {
                 e.preventDefault();
-                alert('点検者と車両を選択してください。');
+                alert('点検者、車両、点検時間を入力してください。');
                 return;
             }
             
