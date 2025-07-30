@@ -49,11 +49,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $is_return_trip = (isset($_POST['is_return_trip']) && $_POST['is_return_trip'] == '1') ? 1 : 0;
             $original_ride_id = !empty($_POST['original_ride_id']) ? $_POST['original_ride_id'] : null;
             
-            $insert_sql = "INSERT INTO ride_records 
-                (driver_id, vehicle_id, ride_date, ride_time, passenger_count, 
-                 pickup_location, dropoff_location, fare, charge, transport_category, 
-                 payment_method, notes, is_return_trip, original_ride_id, created_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+// ✅ 正しいINSERT文（テーブル構造に合わせて）
+$insert_sql = "INSERT INTO ride_records 
+    (driver_id, vehicle_id, ride_date, ride_time, passenger_count, 
+     pickup_location, dropoff_location, fare, charge, transport_category, 
+     payment_method, notes, is_return_trip, original_ride_id, created_at) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
             $insert_stmt = $pdo->prepare($insert_sql);
             $insert_stmt->execute([
                 $driver_id, $vehicle_id, $ride_date, $ride_time, $passenger_count,
