@@ -15,24 +15,32 @@ $user_name = $_SESSION['user_name'];
 $success_message = '';
 $error_message = '';
 
+// 検索条件
+$search_date_from = $_GET['date_from'] ?? '';
+$search_date_to = $_GET['date_to'] ?? '';
+$search_vehicle_id = $_GET['vehicle_id'] ?? '';
+$search_driver_id = $_GET['driver_id'] ?? '';
+
+// 初期値設定（過去30日）
+if (!$search_date_from && !$search_date_to) {
+    $search_date_to = date('Y-m-d');
+    $search_date_from = date('Y-m-d', strtotime('-30 days'));
+}
+
 // 削除処理
-if (isset($_POST['delete_id'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'delete') {
+    $delete_id = $_POST['inspection_id'];
+    
     try {
         $stmt = $pdo->prepare("DELETE FROM daily_inspections WHERE id = ?");
-        $stmt->execute([$_POST['delete_id']]);
+        $stmt->execute([$delete_id]);
         $success_message = '点検記録を削除しました。';
     } catch (Exception $e) {
         $error_message = '削除中にエラーが発生しました: ' . $e->getMessage();
     }
 }
 
-// 検索条件の設定
-$start_date = $_GET['start_date'] ?? date('Y-m-01'); // 今月の1日
-$end_date = $_GET['end_date'] ?? date('Y-m-d'); // 今日
-$vehicle_filter = $_GET['vehicle_id'] ?? '';
-$driver_filter = $_GET['driver_id'] ?? '';
-
-// 車両とドライバーのリスト取得
+// 車両・運転者リスト取得
 try {
     $stmt = $pdo->prepare("SELECT id, vehicle_number, model FROM vehicles WHERE is_active = TRUE ORDER BY vehicle_number");
     $stmt->execute();
@@ -46,78 +54,71 @@ try {
     $drivers = [];
 }
 
-// 点検記録の取得
+// 検索条件に基づく点検記録取得
+$where_conditions = [];
+$params = [];
+
+if ($search_date_from) {
+    $where_conditions[] = "di.inspection_date >= ?";
+    $params[] = $search_date_from;
+}
+
+if ($search_date_to) {
+    $where_conditions[] = "di.inspection_date <= ?";
+    $params[] = $search_date_to;
+}
+
+if ($search_vehicle_id) {
+    $where_conditions[] = "di.vehicle_id = ?";
+    $params[] = $search_vehicle_id;
+}
+
+if ($search_driver_id) {
+    $where_conditions[] = "di.driver_id = ?";
+    $params[] = $search_driver_id;
+}
+
+$where_clause = $where_conditions ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
+
 try {
-    $sql = "SELECT 
-                di.id,
-                di.inspection_date,
-                di.inspection_time,
-                di.mileage,
-                di.defect_details,
-                di.remarks,
-                di.created_at,
-                u.name as driver_name,
-                v.vehicle_number,
-                v.model,
-                di.foot_brake_result,
-                di.parking_brake_result,
-                di.brake_fluid_result,
-                di.lights_result,
-                di.lens_result,
-                di.tire_pressure_result,
-                di.tire_damage_result
-            FROM daily_inspections di
-            JOIN users u ON di.driver_id = u.id
-            JOIN vehicles v ON di.vehicle_id = v.id
-            WHERE di.inspection_date BETWEEN ? AND ?";
-    
-    $params = [$start_date, $end_date];
-    
-    if ($vehicle_filter) {
-        $sql .= " AND di.vehicle_id = ?";
-        $params[] = $vehicle_filter;
-    }
-    
-    if ($driver_filter) {
-        $sql .= " AND di.driver_id = ?";
-        $params[] = $driver_filter;
-    }
-    
-    $sql .= " ORDER BY di.inspection_date DESC, di.inspection_time DESC";
+    $sql = "
+        SELECT di.*, 
+               u.name as driver_name,
+               v.vehicle_number, v.model as vehicle_model
+        FROM daily_inspections di
+        LEFT JOIN users u ON di.driver_id = u.id
+        LEFT JOIN vehicles v ON di.vehicle_id = v.id
+        {$where_clause}
+        ORDER BY di.inspection_date DESC, di.inspection_time DESC
+        LIMIT 100
+    ";
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $inspections = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
 } catch (Exception $e) {
-    $error_message = 'データの取得中にエラーが発生しました: ' . $e->getMessage();
+    $error_message = '記録の取得中にエラーが発生しました: ' . $e->getMessage();
     $inspections = [];
 }
 
-// 点検結果の状況統計
-function getInspectionStatus($inspection) {
+// 結果判定関数
+function getInspectionResult($inspection) {
     $required_items = [
         'foot_brake_result', 'parking_brake_result', 'brake_fluid_result',
         'lights_result', 'lens_result', 'tire_pressure_result', 'tire_damage_result'
     ];
     
-    $ok_count = 0;
     $ng_count = 0;
-    
     foreach ($required_items as $item) {
-        if ($inspection[$item] == '可') {
-            $ok_count++;
-        } elseif ($inspection[$item] == '否') {
+        if (isset($inspection[$item]) && $inspection[$item] === '否') {
             $ng_count++;
         }
     }
     
     if ($ng_count > 0) {
-        return ['status' => 'warning', 'text' => '要注意', 'color' => 'warning'];
-    } elseif ($ok_count == count($required_items)) {
-        return ['status' => 'ok', 'text' => '良好', 'color' => 'success'];
+        return ['status' => 'ng', 'label' => '要整備', 'class' => 'bg-danger'];
     } else {
-        return ['status' => 'partial', 'text' => '一部省略', 'color' => 'info'];
+        return ['status' => 'ok', 'label' => '良好', 'class' => 'bg-success'];
     }
 }
 ?>
@@ -126,7 +127,7 @@ function getInspectionStatus($inspection) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>日常点検履歴・編集 - 福祉輸送管理システム</title>
+    <title>日常点検記録履歴 - 福祉輸送管理システム</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -136,72 +137,98 @@ function getInspectionStatus($inspection) {
         }
         
         .header {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            background: linear-gradient(135deg, #6f42c1 0%, #5a2d91 100%);
             color: white;
             padding: 1rem 0;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         
-        .search-card {
-            background: white;
+        .card {
+            border: none;
             border-radius: 15px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.08);
             margin-bottom: 2rem;
         }
         
-        .search-card-header {
-            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+        .card-header {
+            background: linear-gradient(135deg, #6f42c1 0%, #5a2d91 100%);
             color: white;
+            border-radius: 15px 15px 0 0 !important;
             padding: 1rem 1.5rem;
-            border-radius: 15px 15px 0 0;
-            margin: 0;
-        }
-        
-        .results-card {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
         }
         
         .inspection-row {
-            border-bottom: 1px solid #e9ecef;
-            transition: background-color 0.2s ease;
+            border-left: 4px solid #6f42c1;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            transition: all 0.3s;
         }
         
         .inspection-row:hover {
-            background-color: #f8f9fa;
+            transform: translateX(5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         
-        .inspection-row:last-child {
-            border-bottom: none;
+        .inspection-row.ng {
+            border-left-color: #dc3545;
+        }
+        
+        .inspection-row.ok {
+            border-left-color: #28a745;
         }
         
         .status-badge {
-            font-size: 0.8rem;
-            padding: 0.25rem 0.5rem;
+            font-size: 0.8em;
+            padding: 4px 12px;
+            border-radius: 20px;
         }
         
-        .btn-sm {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.875rem;
+        .btn-edit {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+            border: none;
+            color: white;
         }
         
-        .table-responsive {
-            border-radius: 10px;
+        .btn-edit:hover {
+            background: linear-gradient(135deg, #138496 0%, #0e6674 100%);
+            color: white;
+        }
+        
+        .search-card {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 3rem;
+            color: #6c757d;
+        }
+        
+        .inspection-summary {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-top: 0.5rem;
         }
         
         @media (max-width: 768px) {
-            .table-responsive {
-                font-size: 0.9rem;
+            .inspection-row {
+                padding: 0.75rem;
             }
             
             .btn-group {
+                display: flex;
                 flex-direction: column;
+                gap: 0.5rem;
+                width: 100%;
             }
             
             .btn-group .btn {
-                border-radius: 0.375rem !important;
-                margin-bottom: 0.25rem;
+                width: 100%;
             }
         }
     </style>
@@ -212,16 +239,18 @@ function getInspectionStatus($inspection) {
         <div class="container">
             <div class="row align-items-center">
                 <div class="col">
-                    <h1><i class="fas fa-history me-2"></i>日常点検履歴・編集</h1>
+                    <h1><i class="fas fa-history me-2"></i>日常点検記録履歴</h1>
                     <small>過去の点検記録の確認・編集・削除</small>
                 </div>
                 <div class="col-auto">
-                    <a href="daily_inspection.php" class="btn btn-outline-light btn-sm me-2">
-                        <i class="fas fa-tools me-1"></i>新規点検
-                    </a>
-                    <a href="dashboard.php" class="btn btn-outline-light btn-sm">
-                        <i class="fas fa-arrow-left me-1"></i>ダッシュボード
-                    </a>
+                    <div class="btn-group">
+                        <a href="daily_inspection.php" class="btn btn-outline-light btn-sm">
+                            <i class="fas fa-plus me-1"></i>新規点検
+                        </a>
+                        <a href="dashboard.php" class="btn btn-outline-light btn-sm">
+                            <i class="fas fa-arrow-left me-1"></i>ダッシュボード
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -245,27 +274,27 @@ function getInspectionStatus($inspection) {
         </div>
         <?php endif; ?>
         
-        <!-- 検索フィルター -->
+        <!-- 検索フォーム -->
         <div class="search-card">
-            <h5 class="search-card-header">
-                <i class="fas fa-search me-2"></i>検索・フィルター
-            </h5>
             <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-search me-2"></i>検索条件</h5>
                 <form method="GET" class="row g-3">
                     <div class="col-md-3">
-                        <label class="form-label">開始日</label>
-                        <input type="date" class="form-control" name="start_date" value="<?= htmlspecialchars($start_date) ?>">
+                        <label for="date_from" class="form-label">開始日</label>
+                        <input type="date" class="form-control" id="date_from" name="date_from" 
+                               value="<?= htmlspecialchars($search_date_from) ?>">
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">終了日</label>
-                        <input type="date" class="form-control" name="end_date" value="<?= htmlspecialchars($end_date) ?>">
+                        <label for="date_to" class="form-label">終了日</label>
+                        <input type="date" class="form-control" id="date_to" name="date_to" 
+                               value="<?= htmlspecialchars($search_date_to) ?>">
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">車両</label>
-                        <select class="form-select" name="vehicle_id">
-                            <option value="">全ての車両</option>
+                        <label for="vehicle_id" class="form-label">車両</label>
+                        <select class="form-select" id="vehicle_id" name="vehicle_id">
+                            <option value="">全車両</option>
                             <?php foreach ($vehicles as $vehicle): ?>
-                            <option value="<?= $vehicle['id'] ?>" <?= ($vehicle_filter == $vehicle['id']) ? 'selected' : '' ?>>
+                            <option value="<?= $vehicle['id'] ?>" <?= ($search_vehicle_id == $vehicle['id']) ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($vehicle['vehicle_number']) ?>
                                 <?= $vehicle['model'] ? ' (' . htmlspecialchars($vehicle['model']) . ')' : '' ?>
                             </option>
@@ -273,11 +302,11 @@ function getInspectionStatus($inspection) {
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">運転手</label>
-                        <select class="form-select" name="driver_id">
-                            <option value="">全ての運転手</option>
+                        <label for="driver_id" class="form-label">点検者</label>
+                        <select class="form-select" id="driver_id" name="driver_id">
+                            <option value="">全員</option>
                             <?php foreach ($drivers as $driver): ?>
-                            <option value="<?= $driver['id'] ?>" <?= ($driver_filter == $driver['id']) ? 'selected' : '' ?>>
+                            <option value="<?= $driver['id'] ?>" <?= ($search_driver_id == $driver['id']) ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($driver['name']) ?>
                             </option>
                             <?php endforeach; ?>
@@ -285,10 +314,10 @@ function getInspectionStatus($inspection) {
                     </div>
                     <div class="col-12">
                         <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-search me-1"></i>検索
+                            <i class="fas fa-search me-2"></i>検索
                         </button>
                         <a href="daily_inspection_history.php" class="btn btn-outline-secondary ms-2">
-                            <i class="fas fa-undo me-1"></i>リセット
+                            <i class="fas fa-undo me-2"></i>リセット
                         </a>
                     </div>
                 </form>
@@ -296,366 +325,227 @@ function getInspectionStatus($inspection) {
         </div>
         
         <!-- 検索結果 -->
-        <div class="results-card">
-            <div class="card-header bg-light">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">
-                        <i class="fas fa-list me-2"></i>
-                        検索結果: <?= count($inspections) ?>件
-                    </h6>
-                    <small class="text-muted">
-                        <?= date('Y年n月j日', strtotime($start_date)) ?> ～ <?= date('Y年n月j日', strtotime($end_date)) ?>
-                    </small>
-                </div>
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>点検記録一覧
+                    <span class="badge bg-light text-dark ms-2"><?= count($inspections) ?>件</span>
+                </h5>
             </div>
-            
-            <?php if (empty($inspections)): ?>
-            <div class="card-body text-center py-5">
-                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">該当する点検記録がありません</h5>
-                <p class="text-muted">検索条件を変更するか、新しい点検記録を作成してください。</p>
-                <a href="daily_inspection.php" class="btn btn-primary">
-                    <i class="fas fa-plus me-1"></i>新規点検記録作成
-                </a>
-            </div>
-            <?php else: ?>
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>点検日</th>
-                            <th>時間</th>
-                            <th>運転手</th>
-                            <th>車両</th>
-                            <th>走行距離</th>
-                            <th>点検状況</th>
-                            <th>不良個所</th>
-                            <th class="text-center">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($inspections as $inspection): ?>
-                        <?php $status = getInspectionStatus($inspection); ?>
-                        <tr class="inspection-row">
-                            <td>
-                                <strong><?= date('n/j', strtotime($inspection['inspection_date'])) ?></strong>
-                                <br>
-                                <small class="text-muted"><?= date('(D)', strtotime($inspection['inspection_date'])) ?></small>
-                            </td>
-                            <td>
-                                <?= $inspection['inspection_time'] ? date('H:i', strtotime($inspection['inspection_time'])) : '-' ?>
-                            </td>
-                            <td><?= htmlspecialchars($inspection['driver_name']) ?></td>
-                            <td>
-                                <strong><?= htmlspecialchars($inspection['vehicle_number']) ?></strong>
-                                <?php if ($inspection['model']): ?>
-                                <br><small class="text-muted"><?= htmlspecialchars($inspection['model']) ?></small>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <?= $inspection['mileage'] ? number_format($inspection['mileage']) . 'km' : '-' ?>
-                            </td>
-                            <td>
-                                <span class="badge bg-<?= $status['color'] ?> status-badge">
-                                    <?= $status['text'] ?>
-                                </span>
-                            </td>
-                            <td>
-                                <?php if ($inspection['defect_details']): ?>
-                                <i class="fas fa-exclamation-triangle text-warning" 
-                                   data-bs-toggle="tooltip" 
-                                   title="<?= htmlspecialchars($inspection['defect_details']) ?>"></i>
-                                <?php else: ?>
-                                <span class="text-muted">なし</span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="text-center">
-                                <div class="btn-group" role="group">
-                                    <a href="daily_inspection.php?inspector_id=<?= $inspection['driver_id'] ?>&vehicle_id=<?= $inspection['vehicle_id'] ?>&date=<?= $inspection['inspection_date'] ?>" 
-                                       class="btn btn-outline-primary btn-sm" 
-                                       data-bs-toggle="tooltip" title="編集">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    <button type="button" 
-                                            class="btn btn-outline-info btn-sm" 
-                                            data-bs-toggle="modal" 
-                                            data-bs-target="#detailModal<?= $inspection['id'] ?>"
-                                            title="詳細">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    <button type="button" 
-                                            class="btn btn-outline-danger btn-sm" 
-                                            onclick="confirmDelete(<?= $inspection['id'] ?>, '<?= date('n月j日', strtotime($inspection['inspection_date'])) ?>', '<?= htmlspecialchars($inspection['driver_name']) ?>', '<?= htmlspecialchars($inspection['vehicle_number']) ?>')"
-                                            title="削除">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
+            <div class="card-body">
+                <?php if (empty($inspections)): ?>
+                    <div class="no-data">
+                        <i class="fas fa-search fa-3x mb-3"></i>
+                        <h5>該当する記録が見つかりません</h5>
+                        <p>検索条件を変更して再度お試しください。</p>
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($inspections as $inspection): ?>
+                        <?php $result = getInspectionResult($inspection); ?>
+                        <div class="inspection-row <?= $result['status'] ?>">
+                            <div class="row align-items-center">
+                                <div class="col-md-3">
+                                    <h6 class="mb-1">
+                                        <?= htmlspecialchars($inspection['inspection_date']) ?>
+                                        <small class="text-muted"><?= htmlspecialchars($inspection['inspection_time']) ?></small>
+                                    </h6>
+                                    <small class="text-muted">
+                                        <?= htmlspecialchars($inspection['vehicle_number']) ?>
+                                        <?= $inspection['vehicle_model'] ? ' (' . htmlspecialchars($inspection['vehicle_model']) . ')' : '' ?>
+                                    </small>
                                 </div>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                                <div class="col-md-2">
+                                    <strong><?= htmlspecialchars($inspection['driver_name']) ?></strong>
+                                    <small class="d-block text-muted">点検者</small>
+                                </div>
+                                <div class="col-md-2">
+                                    <span class="badge status-badge text-white <?= $result['class'] ?>">
+                                        <?= $result['label'] ?>
+                                    </span>
+                                    <?php if ($inspection['mileage']): ?>
+                                        <div class="inspection-summary">
+                                            走行距離: <?= number_format($inspection['mileage']) ?>km
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="col-md-2">
+                                    <?php if ($inspection['defect_details']): ?>
+                                        <small class="text-warning">
+                                            <i class="fas fa-exclamation-triangle me-1"></i>不良個所あり
+                                        </small>
+                                    <?php endif; ?>
+                                    <?php if ($inspection['remarks']): ?>
+                                        <small class="text-info d-block">
+                                            <i class="fas fa-comment me-1"></i>備考あり
+                                        </small>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="col-md-3 text-end">
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                onclick="viewDetail(<?= $inspection['id'] ?>)"
+                                                title="詳細表示">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <a href="daily_inspection_edit.php?id=<?= $inspection['id'] ?>" 
+                                           class="btn btn-sm btn-edit"
+                                           title="編集">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                onclick="confirmDelete(<?= $inspection['id'] ?>, '<?= htmlspecialchars($inspection['inspection_date']) ?>', '<?= htmlspecialchars($inspection['vehicle_number']) ?>')"
+                                                title="削除">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
-            <?php endif; ?>
         </div>
     </div>
     
-    <!-- 詳細モーダル -->
-    <?php foreach ($inspections as $inspection): ?>
-    <div class="modal fade" id="detailModal<?= $inspection['id'] ?>" tabindex="-1">
+    <!-- 詳細表示モーダル -->
+    <div class="modal fade" id="detailModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="fas fa-info-circle me-2"></i>
-                        点検記録詳細 - <?= date('Y年n月j日', strtotime($inspection['inspection_date'])) ?>
-                    </h5>
+                    <h5 class="modal-title">点検記録詳細</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>基本情報</h6>
-                            <table class="table table-sm">
-                                <tr>
-                                    <th width="40%">点検日時</th>
-                                    <td>
-                                        <?= date('Y年n月j日', strtotime($inspection['inspection_date'])) ?>
-                                        <?= $inspection['inspection_time'] ? ' ' . date('H:i', strtotime($inspection['inspection_time'])) : '' ?>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <th>運転手</th>
-                                    <td><?= htmlspecialchars($inspection['driver_name']) ?></td>
-                                </tr>
-                                <tr>
-                                    <th>車両</th>
-                                    <td>
-                                        <?= htmlspecialchars($inspection['vehicle_number']) ?>
-                                        <?= $inspection['model'] ? ' (' . htmlspecialchars($inspection['model']) . ')' : '' ?>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <th>走行距離</th>
-                                    <td><?= $inspection['mileage'] ? number_format($inspection['mileage']) . 'km' : '-' ?></td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>主要点検項目</h6>
-                            <table class="table table-sm">
-                                <tr>
-                                    <th width="60%">フットブレーキ</th>
-                                    <td><span class="badge bg-<?= $inspection['foot_brake_result'] == '可' ? 'success' : ($inspection['foot_brake_result'] == '否' ? 'danger' : 'warning') ?>"><?= $inspection['foot_brake_result'] ?></span></td>
-                                </tr>
-                                <tr>
-                                    <th>パーキングブレーキ</th>
-                                    <td><span class="badge bg-<?= $inspection['parking_brake_result'] == '可' ? 'success' : ($inspection['parking_brake_result'] == '否' ? 'danger' : 'warning') ?>"><?= $inspection['parking_brake_result'] ?></span></td>
-                                </tr>
-                                <tr>
-                                    <th>ブレーキ液量</th>
-                                    <td><span class="badge bg-<?= $inspection['brake_fluid_result'] == '可' ? 'success' : ($inspection['brake_fluid_result'] == '否' ? 'danger' : 'warning') ?>"><?= $inspection['brake_fluid_result'] ?></span></td>
-                                </tr>
-                                <tr>
-                                    <th>灯火類</th>
-                                    <td><span class="badge bg-<?= $inspection['lights_result'] == '可' ? 'success' : ($inspection['lights_result'] == '否' ? 'danger' : 'warning') ?>"><?= $inspection['lights_result'] ?></span></td>
-                                </tr>
-                                <tr>
-                                    <th>タイヤ空気圧</th>
-                                    <td><span class="badge bg-<?= $inspection['tire_pressure_result'] == '可' ? 'success' : ($inspection['tire_pressure_result'] == '否' ? 'danger' : 'warning') ?>"><?= $inspection['tire_pressure_result'] ?></span></td>
-                                </tr>
-                            </table>
-                        </div>
-                    </div>
-                    
-                    <?php if ($inspection['defect_details'] || $inspection['remarks']): ?>
-                    <div class="mt-3">
-                        <?php if ($inspection['defect_details']): ?>
-                        <h6>不良個所及び処置</h6>
-                        <div class="alert alert-warning">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            <?= nl2br(htmlspecialchars($inspection['defect_details'])) ?>
-                        </div>
-                        <?php endif; ?>
-                        
-                        <?php if ($inspection['remarks']): ?>
-                        <h6>備考</h6>
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            <?= nl2br(htmlspecialchars($inspection['remarks'])) ?>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                    <?php endif; ?>
-                    
-                    <div class="mt-3">
-                        <small class="text-muted">
-                            <i class="fas fa-clock me-1"></i>
-                            登録日時: <?= date('Y年n月j日 H:i', strtotime($inspection['created_at'])) ?>
-                        </small>
-                    </div>
+                <div class="modal-body" id="detailContent">
+                    <!-- 詳細内容がここに表示される -->
                 </div>
                 <div class="modal-footer">
-                    <a href="daily_inspection.php?inspector_id=<?= $inspection['driver_id'] ?>&vehicle_id=<?= $inspection['vehicle_id'] ?>&date=<?= $inspection['inspection_date'] ?>" 
-                       class="btn btn-primary">
-                        <i class="fas fa-edit me-1"></i>編集
-                    </a>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
                 </div>
             </div>
         </div>
     </div>
-    <?php endforeach; ?>
     
-    <!-- 削除確認モーダル -->
-    <div class="modal fade" id="deleteModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">
-                        <i class="fas fa-exclamation-triangle me-2"></i>点検記録の削除
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        <strong>警告:</strong> この操作は取り消せません。
-                    </div>
-                    <p>以下の点検記録を削除しますか？</p>
-                    <div class="card">
-                        <div class="card-body">
-                            <div id="deleteInfo">
-                                <!-- JavaScriptで動的に設定 -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <form method="POST" id="deleteForm">
-                        <input type="hidden" name="delete_id" id="deleteId">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                        <button type="submit" class="btn btn-danger">
-                            <i class="fas fa-trash me-1"></i>削除する
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- 削除確認フォーム -->
+    <form id="deleteForm" method="POST" style="display: none;">
+        <input type="hidden" name="action" value="delete">
+        <input type="hidden" name="inspection_id" id="deleteInspectionId">
+    </form>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // ツールチップの初期化
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
-        
-        // 削除確認ダイアログ
-        function confirmDelete(id, date, driverName, vehicleNumber) {
-            document.getElementById('deleteId').value = id;
-            document.getElementById('deleteInfo').innerHTML = `
-                <strong>点検日:</strong> ${date}<br>
-                <strong>運転手:</strong> ${driverName}<br>
-                <strong>車両:</strong> ${vehicleNumber}
-            `;
+        // 詳細表示
+        function viewDetail(inspectionId) {
+            // 該当の点検記録データを検索
+            const inspections = <?= json_encode($inspections) ?>;
+            const inspection = inspections.find(item => item.id == inspectionId);
             
-            var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-            deleteModal.show();
-        }
-        
-        // 検索フォームの期間チェック
-        document.querySelector('form').addEventListener('submit', function(e) {
-            const startDate = new Date(document.querySelector('input[name="start_date"]').value);
-            const endDate = new Date(document.querySelector('input[name="end_date"]').value);
-            
-            if (startDate > endDate) {
-                e.preventDefault();
-                alert('終了日は開始日以降の日付を選択してください。');
-                return false;
+            if (!inspection) {
+                alert('記録が見つかりません。');
+                return;
             }
             
-            // 期間が長すぎる場合の警告（3ヶ月以上）
-            const diffTime = Math.abs(endDate - startDate);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            // 詳細表示用HTML生成
+            let detailHtml = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>基本情報</h6>
+                        <table class="table table-sm">
+                            <tr><td>点検日時</td><td>${inspection.inspection_date} ${inspection.inspection_time || ''}</td></tr>
+                            <tr><td>車両</td><td>${inspection.vehicle_number} ${inspection.vehicle_model || ''}</td></tr>
+                            <tr><td>点検者</td><td>${inspection.driver_name}</td></tr>
+                            <tr><td>走行距離</td><td>${inspection.mileage ? Number(inspection.mileage).toLocaleString() + 'km' : '未記録'}</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>点検結果</h6>
+                        <div class="inspection-results">
+            `;
             
-            if (diffDays > 90) {
-                if (!confirm('検索期間が3ヶ月を超えています。データが多い場合、表示に時間がかかる可能性があります。続行しますか？')) {
-                    e.preventDefault();
-                    return false;
+            // 点検項目の結果表示
+            const items = {
+                'foot_brake_result': 'フットブレーキ',
+                'parking_brake_result': 'パーキングブレーキ',
+                'engine_start_result': 'エンジン始動',
+                'engine_performance_result': 'エンジン性能',
+                'wiper_result': 'ワイパー',
+                'washer_spray_result': 'ウォッシャー',
+                'brake_fluid_result': 'ブレーキ液',
+                'coolant_result': '冷却水',
+                'engine_oil_result': 'エンジンオイル',
+                'battery_fluid_result': 'バッテリー液',
+                'washer_fluid_result': 'ウォッシャー液',
+                'fan_belt_result': 'ファンベルト',
+                'lights_result': '灯火類',
+                'lens_result': 'レンズ',
+                'tire_pressure_result': 'タイヤ空気圧',
+                'tire_damage_result': 'タイヤ損傷',
+                'tire_tread_result': 'タイヤ溝'
+            };
+            
+            for (const [key, label] of Object.entries(items)) {
+                const result = inspection[key] || '未実施';
+                const badgeClass = result === '可' ? 'bg-success' : result === '否' ? 'bg-danger' : 'bg-warning';
+                detailHtml += `<span class="badge ${badgeClass} me-1 mb-1">${label}: ${result}</span>`;
+            }
+            
+            detailHtml += `</div></div></div>`;
+            
+            // 不良個所・備考
+            if (inspection.defect_details || inspection.remarks) {
+                detailHtml += `
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h6>詳細情報</h6>
+                `;
+                
+                if (inspection.defect_details) {
+                    detailHtml += `
+                        <div class="mb-2">
+                            <strong>不良個所及び処置:</strong>
+                            <p class="text-muted">${inspection.defect_details}</p>
+                        </div>
+                    `;
                 }
+                
+                if (inspection.remarks) {
+                    detailHtml += `
+                        <div class="mb-2">
+                            <strong>備考:</strong>
+                            <p class="text-muted">${inspection.remarks}</p>
+                        </div>
+                    `;
+                }
+                
+                detailHtml += `</div></div>`;
             }
-        });
-        
-        // 今月のクイック選択
-        function setThisMonth() {
-            const today = new Date();
-            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
             
-            document.querySelector('input[name="start_date"]').value = formatDate(firstDay);
-            document.querySelector('input[name="end_date"]').value = formatDate(lastDay);
+            document.getElementById('detailContent').innerHTML = detailHtml;
+            new bootstrap.Modal(document.getElementById('detailModal')).show();
         }
         
-        // 先月のクイック選択
-        function setLastMonth() {
-            const today = new Date();
-            const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            const lastDay = new Date(today.getFullYear(), today.getMonth(), 0);
-            
-            document.querySelector('input[name="start_date"]').value = formatDate(firstDay);
-            document.querySelector('input[name="end_date"]').value = formatDate(lastDay);
+        // 削除確認
+        function confirmDelete(inspectionId, date, vehicleNumber) {
+            if (confirm(`${date} の ${vehicleNumber} の点検記録を削除しますか？\n\nこの操作は元に戻せません。`)) {
+                document.getElementById('deleteInspectionId').value = inspectionId;
+                document.getElementById('deleteForm').submit();
+            }
         }
         
-        // 日付フォーマット関数
-        function formatDate(date) {
-            return date.getFullYear() + '-' + 
-                   String(date.getMonth() + 1).padStart(2, '0') + '-' + 
-                   String(date.getDate()).padStart(2, '0');
-        }
-        
-        // クイック期間選択ボタンの追加
+        // 検索フォームの便利機能
         document.addEventListener('DOMContentLoaded', function() {
-            const searchButton = document.querySelector('button[type="submit"]');
-            const quickButtonsHtml = `
-                <button type="button" class="btn btn-outline-info btn-sm ms-2" onclick="setThisMonth(); this.form.submit();">
-                    <i class="fas fa-calendar me-1"></i>今月
-                </button>
-                <button type="button" class="btn btn-outline-info btn-sm ms-1" onclick="setLastMonth(); this.form.submit();">
-                    <i class="fas fa-calendar-minus me-1"></i>先月
-                </button>
-            `;
-            searchButton.insertAdjacentHTML('afterend', quickButtonsHtml);
-        });
-        
-        // 詳細モーダルでのエスケープキー対応
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                const modals = document.querySelectorAll('.modal.show');
-                modals.forEach(modal => {
-                    const modalInstance = bootstrap.Modal.getInstance(modal);
-                    if (modalInstance) {
-                        modalInstance.hide();
-                    }
-                });
+            // 今日ボタン
+            const dateFromInput = document.getElementById('date_from');
+            const dateToInput = document.getElementById('date_to');
+            
+            // デフォルト値設定（過去30日）
+            if (!dateFromInput.value && !dateToInput.value) {
+                const today = new Date();
+                const thirtyDaysAgo = new Date(today.setDate(today.getDate() - 30));
+                
+                dateFromInput.value = thirtyDaysAgo.toISOString().split('T')[0];
+                dateToInput.value = new Date().toISOString().split('T')[0];
             }
         });
-        
-        // 表の行クリックで詳細表示（モバイル対応）
-        if (window.innerWidth <= 768) {
-            document.querySelectorAll('.inspection-row').forEach(row => {
-                row.style.cursor = 'pointer';
-                row.addEventListener('click', function(e) {
-                    if (!e.target.closest('.btn-group')) {
-                        const detailButton = this.querySelector('[data-bs-target^="#detailModal"]');
-                        if (detailButton) {
-                            detailButton.click();
-                        }
-                    }
-                });
-            });
-        }
     </script>
 </body>
 </html>
