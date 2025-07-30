@@ -16,6 +16,11 @@ $today = date('Y-m-d');
 $success_message = '';
 $error_message = '';
 
+// 過去データ入力モードのチェック
+$past_mode = isset($_GET['past_mode']) && $_GET['past_mode'] == '1';
+$target_date = $past_mode ? ($_GET['target_date'] ?? $today) : $today;
+$current_time = date('H:i');
+
 // 車両とドライバーの取得
 try {
     $stmt = $pdo->prepare("SELECT id, vehicle_number, model, current_mileage FROM vehicles WHERE is_active = TRUE ORDER BY vehicle_number");
@@ -35,10 +40,9 @@ try {
 
 // 指定日の点検記録があるかチェック
 $existing_inspection = null;
-$inspection_date = $_GET['date'] ?? $today;
 if (($_GET['inspector_id'] ?? null) && ($_GET['vehicle_id'] ?? null)) {
     $stmt = $pdo->prepare("SELECT * FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
-    $stmt->execute([$_GET['inspector_id'], $_GET['vehicle_id'], $inspection_date]);
+    $stmt->execute([$_GET['inspector_id'], $_GET['vehicle_id'], $target_date]);
     $existing_inspection = $stmt->fetch();
 }
 
@@ -49,7 +53,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $inspection_date = $_POST['inspection_date'];
     $inspection_time = $_POST['inspection_time'];
     $mileage = $_POST['mileage'];
-    $next_action = $_POST['next_action'] ?? '';
     
     // 運転手かどうかの確認
     $stmt = $pdo->prepare("SELECT role, is_driver FROM users WHERE id = ?");
@@ -59,31 +62,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$inspector || ($inspector['role'] !== 'driver' && $inspector['is_driver'] != 1)) {
         $error_message = 'エラー: 点検者は運転手のみ選択できます。';
     } else {
-        // 写真アップロード処理
-        $uploaded_photos = [];
-        if (isset($_FILES['defect_photos']) && $_FILES['defect_photos']['error'][0] !== UPLOAD_ERR_NO_FILE) {
-            $upload_dir = 'uploads/daily_inspections/';
-            if (!is_dir($upload_dir)) {
-                mkdir($upload_dir, 0755, true);
-            }
-            
-            foreach ($_FILES['defect_photos']['tmp_name'] as $key => $tmp_name) {
-                if ($_FILES['defect_photos']['error'][$key] === UPLOAD_ERR_OK) {
-                    $file_extension = strtolower(pathinfo($_FILES['defect_photos']['name'][$key], PATHINFO_EXTENSION));
-                    $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
-                    
-                    if (in_array($file_extension, $allowed_extensions)) {
-                        $filename = 'inspection_' . $inspector_id . '_' . $vehicle_id . '_' . $inspection_date . '_' . ($key + 1) . '.' . $file_extension;
-                        $upload_path = $upload_dir . $filename;
-                        
-                        if (move_uploaded_file($tmp_name, $upload_path)) {
-                            $uploaded_photos[] = $filename;
-                        }
-                    }
-                }
-            }
-        }
-        
         // 点検項目の結果
         $inspection_items = [
             // 運転室内
@@ -112,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $sql .= " $item = ?,";
                 }
                 
-                $sql .= " defect_details = ?, defect_photos = ?, remarks = ?, updated_at = NOW() 
+                $sql .= " defect_details = ?, remarks = ?, updated_at = NOW() 
                     WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?";
                 
                 $stmt = $pdo->prepare($sql);
@@ -123,7 +101,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 $params[] = $_POST['defect_details'] ?? '';
-                $params[] = implode(',', $uploaded_photos);
                 $params[] = $_POST['remarks'] ?? '';
                 $params[] = $inspector_id;
                 $params[] = $vehicle_id;
@@ -140,10 +117,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $sql .= " $item,";
                 }
                 
-                $sql .= " defect_details, defect_photos, remarks) VALUES (?, ?, ?, ?, ?,";
+                $sql .= " defect_details, remarks) VALUES (?, ?, ?, ?, ?,";
                 
                 $sql .= str_repeat('?,', count($inspection_items));
-                $sql .= " ?, ?, ?)";
+                $sql .= " ?, ?)";
                 
                 $stmt = $pdo->prepare($sql);
                 $params = [$vehicle_id, $inspector_id, $inspection_date, $inspection_time, $mileage];
@@ -153,7 +130,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 $params[] = $_POST['defect_details'] ?? '';
-                $params[] = implode(',', $uploaded_photos);
                 $params[] = $_POST['remarks'] ?? '';
                 
                 $stmt->execute($params);
@@ -165,15 +141,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$inspector_id, $vehicle_id, $inspection_date]);
             $existing_inspection = $stmt->fetch();
             
-            // 車両の走行距離を更新
-            if ($mileage) {
+            // 車両の走行距離を更新（今日の場合のみ）
+            if ($mileage && $inspection_date === $today) {
                 $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ?");
                 $stmt->execute([$mileage, $vehicle_id]);
             }
             
-            // 連続業務フロー処理
-            if ($next_action === 'pre_duty_call') {
-                header("Location: pre_duty_call.php?auto_flow=1&inspector_id=$inspector_id&vehicle_id=$vehicle_id");
+            // 自動遷移パラメータの確認
+            $auto_flow = $_POST['auto_flow'] ?? null;
+            if ($auto_flow == '1' && $inspection_date === $today) {
+                // 日常点検完了後、乗務前点呼へ自動遷移
+                header("Location: pre_duty_call.php?driver_id=$inspector_id&auto_flow=1");
                 exit;
             }
             
@@ -288,12 +266,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-bottom: 1rem;
         }
         
-        .photo-preview {
-            width: 100px;
-            height: 100px;
-            object-fit: cover;
-            border-radius: 5px;
-            margin: 5px;
+        .auto-flow-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .past-mode-indicator {
+            background: #ffc107;
+            color: #212529;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .btn-save {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border: none;
+            color: white;
+            padding: 0.75rem 2rem;
+            border-radius: 25px;
+            font-weight: 600;
+        }
+        
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+            color: white;
+        }
+        
+        .history-link {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            margin-top: 2rem;
         }
         
         @media (max-width: 768px) {
@@ -305,67 +315,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 font-size: 0.9rem;
             }
         }
-        
-        @media print {
-            .no-print {
-                display: none !important;
-            }
-            
-            .header {
-                background: #333 !important;
-                color: white !important;
-                -webkit-print-color-adjust: exact;
-            }
-            
-            .form-card {
-                box-shadow: none;
-                border: 1px solid #ddd;
-                margin-bottom: 1rem;
-            }
-            
-            .form-card-header {
-                background: #333 !important;
-                color: white !important;
-                -webkit-print-color-adjust: exact;
-            }
-            
-            .inspection-item {
-                border: 1px solid #ddd;
-                margin-bottom: 0.5rem;
-                padding: 0.5rem;
-            }
-            
-            .inspection-item.ok {
-                background: #f0f0f0 !important;
-                -webkit-print-color-adjust: exact;
-            }
-            
-            .inspection-item.ng {
-                background: #f0f0f0 !important;
-                -webkit-print-color-adjust: exact;
-            }
-            
-            .btn-result {
-                border: 1px solid #333;
-                padding: 2px 8px;
-                font-size: 12px;
-            }
-        }
     </style>
 </head>
 <body>
     <!-- ヘッダー -->
-    <div class="header no-print">
+    <div class="header">
         <div class="container">
             <div class="row align-items-center">
                 <div class="col">
                     <h1><i class="fas fa-tools me-2"></i>日常点検</h1>
-                    <small><?= date('Y年n月j日 (D)', strtotime($inspection_date)) ?></small>
+                    <small><?= $past_mode ? '過去データ入力モード' : date('Y年n月j日 (D)') ?></small>
                 </div>
                 <div class="col-auto">
-                    <button onclick="window.print()" class="btn btn-outline-light btn-sm me-2">
-                        <i class="fas fa-print me-1"></i>印刷
-                    </button>
                     <a href="dashboard.php" class="btn btn-outline-light btn-sm">
                         <i class="fas fa-arrow-left me-1"></i>ダッシュボード
                     </a>
@@ -375,9 +336,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     
     <div class="container mt-4">
+        <!-- 過去データ入力モード表示 -->
+        <?php if ($past_mode): ?>
+        <div class="past-mode-indicator">
+            <i class="fas fa-history me-2"></i>
+            <strong>過去データ入力モード</strong> - 
+            <?= date('Y年n月j日', strtotime($target_date)) ?>のデータを入力・編集中
+        </div>
+        <?php endif; ?>
+        
         <!-- アラート -->
         <?php if ($success_message): ?>
-        <div class="alert alert-success alert-dismissible fade show no-print">
+        <div class="alert alert-success alert-dismissible fade show">
             <i class="fas fa-check-circle me-2"></i>
             <?= htmlspecialchars($success_message) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
@@ -385,19 +355,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
         
         <?php if ($error_message): ?>
-        <div class="alert alert-danger alert-dismissible fade show no-print">
+        <div class="alert alert-danger alert-dismissible fade show">
             <i class="fas fa-exclamation-triangle me-2"></i>
             <?= htmlspecialchars($error_message) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
         <?php endif; ?>
         
-        <form method="POST" id="inspectionForm" enctype="multipart/form-data">
+        <!-- 自動遷移フロー案内（今日の場合のみ） -->
+        <?php if (!$past_mode): ?>
+        <div class="auto-flow-card">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h6 class="mb-1"><i class="fas fa-route me-2"></i>連続業務フロー</h6>
+                    <small>日常点検完了後、乗務前点呼に自動遷移します</small>
+                </div>
+                <div class="col-auto">
+                    <span class="badge bg-light text-dark">日常点検 → 乗務前点呼</span>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+        
+        <form method="POST" id="inspectionForm">
+            <input type="hidden" name="auto_flow" value="<?= $past_mode ? '0' : '1' ?>">
+            
             <!-- 基本情報 -->
             <div class="form-card">
                 <h5 class="form-card-header">
                     <i class="fas fa-info-circle me-2"></i>基本情報
-                    <div class="float-end no-print">
+                    <div class="float-end">
                         <button type="button" class="btn btn-outline-light btn-sm me-2" id="allOkBtn">
                             <i class="fas fa-check-circle me-1"></i>全て可
                         </button>
@@ -408,38 +395,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </h5>
                 <div class="form-card-body">
                     <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">点検日 <span class="required-mark">*</span></label>
-                            <input type="date" class="form-control" name="inspection_date" 
-                                   value="<?= htmlspecialchars($inspection_date) ?>"
-                                   max="<?= $today ?>" required>
-                            <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>
-                                過去の点検記録も入力可能です
-                            </div>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">点検時間 <span class="required-mark">*</span></label>
-                            <input type="time" class="form-control" name="inspection_time" 
-                                   value="<?= $existing_inspection ? $existing_inspection['inspection_time'] : date('H:i') ?>" required>
-                            <div class="form-text">
-                                <i class="fas fa-clock me-1"></i>
-                                点検実施時間を記録します
-                            </div>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">走行距離</label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" name="mileage" id="mileage"
-                                       value="<?= $existing_inspection ? $existing_inspection['mileage'] : '' ?>"
-                                       placeholder="現在の走行距離">
-                                <span class="input-group-text">km</span>
-                            </div>
-                            <div class="mileage-info mt-2" id="mileageInfo" style="display: none;">
-                                <i class="fas fa-info-circle me-1"></i>
-                                <span id="mileageText">前回記録: </span>
-                            </div>
-                        </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">点検者（運転手） <span class="required-mark">*</span></label>
                             <select class="form-select" name="inspector_id" required>
@@ -469,6 +424,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </option>
                                 <?php endforeach; ?>
                             </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">点検日 <span class="required-mark">*</span></label>
+                            <input type="date" class="form-control" name="inspection_date" 
+                                   value="<?= $existing_inspection ? $existing_inspection['inspection_date'] : $target_date ?>" 
+                                   <?= $past_mode ? '' : 'max="' . $today . '"' ?> required>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                <?= $past_mode ? '過去の日付を入力できます' : '今日までの日付を選択できます' ?>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">点検時刻 <span class="required-mark">*</span></label>
+                            <input type="time" class="form-control" name="inspection_time" 
+                                   value="<?= $existing_inspection ? $existing_inspection['inspection_time'] : $current_time ?>" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">走行距離</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="mileage" id="mileage"
+                                       value="<?= $existing_inspection ? $existing_inspection['mileage'] : '' ?>"
+                                       placeholder="現在の走行距離">
+                                <span class="input-group-text">km</span>
+                            </div>
+                            <div class="mileage-info mt-2" id="mileageInfo" style="display: none;">
+                                <i class="fas fa-info-circle me-1"></i>
+                                <span id="mileageText">前回記録: </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -509,375 +492,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <label class="btn btn-outline-success btn-result" for="<?= $key ?>_ok">可</label>
                                     
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="否" id="<?= $key ?>_ng"
-                                           <?= ($existing_inspection && $existing_inspection[$key] == '否') ? 'checked' : '' ?>>
-                                    <label class="btn btn-outline-danger btn-result" for="<?= $key ?>_ng">否</label>
-                                    
-                                    <?php if (!$item['required']): ?>
-                                    <input type="radio" class="btn-check" name="<?= $key ?>" value="省略" id="<?= $key ?>_skip"
-                                           <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>>
-                                    <label class="btn btn-outline-warning btn-result" for="<?= $key ?>_skip">省略</label>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            
-            <!-- 不良個所・写真・備考 -->
-            <div class="form-card">
-                <h5 class="form-card-header">
-                    <i class="fas fa-exclamation-triangle me-2"></i>不良個所及び処置・写真・備考
-                </h5>
-                <div class="form-card-body">
-                    <div class="mb-3">
-                        <label class="form-label">不良個所及び処置</label>
-                        <textarea class="form-control" name="defect_details" rows="3" 
-                                  placeholder="点検で「否」となった項目の詳細と処置内容を記入"><?= $existing_inspection ? htmlspecialchars($existing_inspection['defect_details']) : '' ?></textarea>
-                    </div>
-                    
-                    <!-- 写真添付機能 -->
-                    <div class="mb-3">
-                        <label class="form-label">不良箇所の写真</label>
-                        <input type="file" class="form-control" name="defect_photos[]" 
-                               multiple accept="image/*" onchange="previewPhotos(this)">
-                        <div class="form-text">
-                            <i class="fas fa-camera me-1"></i>
-                            不良箇所がある場合は写真を添付できます（最大5枚、JPG/PNG形式）
-                        </div>
-                        
-                        <!-- 写真プレビュー -->
-                        <div id="photoPreview" class="mt-2"></div>
-                        
-                        <!-- 既存写真の表示 -->
-                        <?php if ($existing_inspection && !empty($existing_inspection['defect_photos'])): ?>
-                        <div class="mt-2">
-                            <label class="form-label">既存の写真</label>
-                            <div class="d-flex flex-wrap">
-                                <?php 
-                                $photos = explode(',', $existing_inspection['defect_photos']);
-                                foreach ($photos as $photo): 
-                                    if (!empty(trim($photo))): 
-                                ?>
-                                <div class="position-relative me-2 mb-2">
-                                    <img src="uploads/daily_inspections/<?= htmlspecialchars(trim($photo)) ?>" 
-                                         class="photo-preview" alt="不良箇所写真">
-                                    <button type="button" class="btn btn-danger btn-sm position-absolute top-0 end-0 no-print"
-                                            onclick="removeExistingPhoto('<?= htmlspecialchars(trim($photo)) ?>')"
-                                            style="transform: translate(50%, -50%);">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                </div>
-                                <?php 
-                                    endif;
-                                endforeach; 
-                                ?>
-                            </div>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">備考</label>
-                        <textarea class="form-control" name="remarks" rows="2" 
-                                  placeholder="その他特記事項があれば記入"><?= $existing_inspection ? htmlspecialchars($existing_inspection['remarks']) : '' ?></textarea>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- 保存・連続業務ボタン -->
-            <div class="text-center mb-4 no-print">
-                <button type="submit" class="btn btn-success btn-lg me-2">
-                    <i class="fas fa-save me-2"></i>
-                    <?= $existing_inspection ? '更新する' : '登録する' ?>
-                </button>
-                
-                <!-- 連続業務フロー -->
-                <div class="mt-3">
-                    <button type="submit" name="next_action" value="pre_duty_call" 
-                            class="btn btn-primary btn-lg me-2">
-                        <i class="fas fa-arrow-right me-2"></i>
-                        保存して乗務前点呼へ
-                    </button>
-                    <a href="dashboard.php" class="btn btn-outline-secondary">
-                        <i class="fas fa-home me-1"></i>ダッシュボード
-                    </a>
-                </div>
-            </div>
-        </form>
-        
-        <!-- 履歴管理セクション -->
-        <div class="form-card no-print">
-            <h5 class="form-card-header">
-                <i class="fas fa-history me-2"></i>日常点検履歴・関連機能
-            </h5>
-            <div class="form-card-body">
-                <div class="row">
-                    <div class="col-md-3 mb-2">
-                        <a href="daily_inspection_history.php" class="btn btn-outline-info w-100">
-                            <i class="fas fa-list me-2"></i>履歴一覧・編集
-                        </a>
-                    </div>
-                    <div class="col-md-3 mb-2">
-                        <a href="daily_inspection_search.php" class="btn btn-outline-secondary w-100">
-                            <i class="fas fa-search me-2"></i>記録検索
-                        </a>
-                    </div>
-                    <div class="col-md-3 mb-2">
-                        <a href="export_document.php?type=daily_inspection" class="btn btn-outline-success w-100">
-                            <i class="fas fa-download me-2"></i>記録出力
-                        </a>
-                    </div>
-                    <div class="col-md-3 mb-2">
-                        <button onclick="window.print()" class="btn btn-outline-primary w-100">
-                            <i class="fas fa-print me-2"></i>チェックリスト印刷
-                        </button>
-                    </div>
-                </div>
-                <div class="text-muted text-center mt-2">
-                    <small>過去の記録の閲覧・編集・削除や、印刷用チェックリストは上記リンクから利用できます</small>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // 車両選択時の走行距離更新
-        function updateMileage() {
-            const vehicleSelect = document.querySelector('select[name="vehicle_id"]');
-            const mileageInput = document.getElementById('mileage');
-            const mileageInfo = document.getElementById('mileageInfo');
-            const mileageText = document.getElementById('mileageText');
-            
-            if (vehicleSelect.value) {
-                const selectedOption = vehicleSelect.options[vehicleSelect.selectedIndex];
-                const currentMileage = selectedOption.getAttribute('data-mileage');
-                
-                if (currentMileage && currentMileage !== '0') {
-                    mileageText.textContent = `前回記録: ${currentMileage}km`;
-                    mileageInfo.style.display = 'block';
-                    
-                    if (!mileageInput.value) {
-                        mileageInput.value = currentMileage;
-                    }
-                } else {
-                    mileageInfo.style.display = 'none';
-                }
-            } else {
-                mileageInfo.style.display = 'none';
-            }
-        }
-        
-        // 写真プレビュー機能
-        function previewPhotos(input) {
-            const previewContainer = document.getElementById('photoPreview');
-            previewContainer.innerHTML = '';
-            
-            if (input.files) {
-                Array.from(input.files).slice(0, 5).forEach((file, index) => {
-                    if (file.type.startsWith('image/')) {
-                        const reader = new FileReader();
-                        reader.onload = function(e) {
-                            const div = document.createElement('div');
-                            div.className = 'position-relative d-inline-block me-2 mb-2';
-                            div.innerHTML = `
-                                <img src="${e.target.result}" class="photo-preview" alt="プレビュー ${index + 1}">
-                                <button type="button" class="btn btn-danger btn-sm position-absolute top-0 end-0"
-                                        onclick="removePreviewPhoto(this)"
-                                        style="transform: translate(50%, -50%);">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            `;
-                            previewContainer.appendChild(div);
-                        };
-                        reader.readAsDataURL(file);
-                    }
-                });
-            }
-        }
-        
-        // プレビュー写真削除
-        function removePreviewPhoto(button) {
-            button.closest('.position-relative').remove();
-        }
-        
-        // 既存写真削除
-        function removeExistingPhoto(filename) {
-            if (confirm('この写真を削除しますか？')) {
-                // 実際の削除処理はサーバーサイドで実装
-                alert('写真削除機能は次回更新時に実装されます');
-            }
-        }
-        
-        // 点検結果の変更時にスタイル更新
-        function updateInspectionItemStyle(itemName, value) {
-            const item = document.querySelector(`[data-item="${itemName}"]`);
-            if (item) {
-                item.classList.remove('ok', 'ng', 'skip');
-                
-                if (value === '可') {
-                    item.classList.add('ok');
-                } else if (value === '否') {
-                    item.classList.add('ng');
-                } else if (value === '省略') {
-                    item.classList.add('skip');
-                }
-            }
-        }
-        
-        // 一括選択機能
-        function setAllResults(value) {
-            // 省略選択項目以外（必須項目）のみ対象
-            const requiredItems = [
-                'foot_brake_result', 'parking_brake_result', 'brake_fluid_result',
-                'lights_result', 'lens_result', 'tire_pressure_result', 'tire_damage_result'
-            ];
-            
-            requiredItems.forEach(function(itemName) {
-                const radio = document.querySelector(`input[name="${itemName}"][value="${value}"]`);
-                if (radio) {
-                    radio.checked = true;
-                    updateInspectionItemStyle(itemName, value);
-                }
-            });
-        }
-        
-        // 全て可
-        function setAllOk() {
-            setAllResults('可');
-        }
-        
-        // 全て否
-        function setAllNg() {
-            setAllResults('否');
-        }
-        
-        // 印刷前の処理
-        function setupPrint() {
-            // 印刷時に選択されたラジオボタンの値を表示
-            const radioButtons = document.querySelectorAll('input[type="radio"]:checked');
-            radioButtons.forEach(function(radio) {
-                const label = document.querySelector(`label[for="${radio.id}"]`);
-                if (label) {
-                    label.style.fontWeight = 'bold';
-                    label.style.backgroundColor = '#f0f0f0';
-                }
-            });
-        }
-        
-        // 印刷後の処理
-        function cleanupPrint() {
-            const labels = document.querySelectorAll('.btn-result');
-            labels.forEach(function(label) {
-                label.style.fontWeight = '';
-                label.style.backgroundColor = '';
-            });
-        }
-        
-        // 初期化処理
-        document.addEventListener('DOMContentLoaded', function() {
-            // 車両選択の初期設定
-            updateMileage();
-            
-            // 既存の点検結果のスタイル適用
-            const radioButtons = document.querySelectorAll('input[type="radio"]:checked');
-            radioButtons.forEach(function(radio) {
-                const itemName = radio.name;
-                const value = radio.value;
-                updateInspectionItemStyle(itemName, value);
-            });
-            
-            // ラジオボタンの変更イベント
-            const allRadios = document.querySelectorAll('input[type="radio"]');
-            allRadios.forEach(function(radio) {
-                radio.addEventListener('change', function() {
-                    updateInspectionItemStyle(this.name, this.value);
-                });
-            });
-            
-            // 一括選択ボタンのイベント設定
-            const allOkBtn = document.getElementById('allOkBtn');
-            const allNgBtn = document.getElementById('allNgBtn');
-            
-            if (allOkBtn) {
-                allOkBtn.addEventListener('click', setAllOk);
-            }
-            
-            if (allNgBtn) {
-                allNgBtn.addEventListener('click', setAllNg);
-            }
-            
-            // 印刷イベント
-            window.addEventListener('beforeprint', setupPrint);
-            window.addEventListener('afterprint', cleanupPrint);
-        });
-        
-        // フォーム送信前の確認
-        document.getElementById('inspectionForm').addEventListener('submit', function(e) {
-            const inspectorId = document.querySelector('select[name="inspector_id"]').value;
-            const vehicleId = document.querySelector('select[name="vehicle_id"]').value;
-            const inspectionDate = document.querySelector('input[name="inspection_date"]').value;
-            const inspectionTime = document.querySelector('input[name="inspection_time"]').value;
-            
-            if (!inspectorId || !vehicleId || !inspectionDate || !inspectionTime) {
-                e.preventDefault();
-                alert('点検者、車両、点検日、点検時間をすべて入力してください。');
-                return;
-            }
-            
-            // 必須項目のチェック
-            const requiredItems = [
-                'foot_brake_result', 'parking_brake_result', 'brake_fluid_result',
-                'lights_result', 'lens_result', 'tire_pressure_result', 'tire_damage_result'
-            ];
-            
-            let missingItems = [];
-            requiredItems.forEach(function(item) {
-                const checked = document.querySelector(`input[name="${item}"]:checked`);
-                if (!checked) {
-                    missingItems.push(item);
-                }
-            });
-            
-            if (missingItems.length > 0) {
-                e.preventDefault();
-                alert('必須点検項目に未選択があります。すべての必須項目を選択してください。');
-                return;
-            }
-            
-            // 「否」の項目がある場合の確認
-            const ngItems = document.querySelectorAll('input[value="否"]:checked');
-            if (ngItems.length > 0) {
-                const defectDetails = document.querySelector('textarea[name="defect_details"]').value.trim();
-                if (!defectDetails) {
-                    if (!confirm('点検結果に「否」がありますが、不良個所の詳細が未記入です。このまま保存しますか？')) {
-                        e.preventDefault();
-                        return;
-                    }
-                }
-            }
-            
-            // ファイルサイズチェック
-            const fileInput = document.querySelector('input[name="defect_photos[]"]');
-            if (fileInput.files.length > 5) {
-                e.preventDefault();
-                alert('写真は最大5枚まで添付できます。');
-                return;
-            }
-            
-            for (let i = 0; i < fileInput.files.length; i++) {
-                if (fileInput.files[i].size > 5 * 1024 * 1024) { // 5MB制限
-                    e.preventDefault();
-                    alert('写真のファイルサイズは5MB以下にしてください。');
-                    return;
-                }
-            }
-        });
-    </script>
-</body>
-</html>
                                            <?= ($existing_inspection && $existing_inspection[$key] == '否') ? 'checked' : '' ?>>
                                     <label class="btn btn-outline-danger btn-result" for="<?= $key ?>_ng">否</label>
                                     
@@ -975,3 +589,229 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <label class="btn btn-outline-success btn-result" for="<?= $key ?>_ok">可</label>
                                     
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="否" id="<?= $key ?>_ng"
+                                           <?= ($existing_inspection && $existing_inspection[$key] == '否') ? 'checked' : '' ?>>
+                                    <label class="btn btn-outline-danger btn-result" for="<?= $key ?>_ng">否</label>
+                                    
+                                    <?php if (!$item['required']): ?>
+                                    <input type="radio" class="btn-check" name="<?= $key ?>" value="省略" id="<?= $key ?>_skip"
+                                           <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>>
+                                    <label class="btn btn-outline-warning btn-result" for="<?= $key ?>_skip">省略</label>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            
+            <!-- 不良個所・備考 -->
+            <div class="form-card">
+                <h5 class="form-card-header">
+                    <i class="fas fa-exclamation-triangle me-2"></i>不良個所及び処置・備考
+                </h5>
+                <div class="form-card-body">
+                    <div class="mb-3">
+                        <label class="form-label">不良個所及び処置</label>
+                        <textarea class="form-control" name="defect_details" rows="3" 
+                                  placeholder="点検で「否」となった項目の詳細と処置内容を記入"><?= $existing_inspection ? htmlspecialchars($existing_inspection['defect_details']) : '' ?></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">備考</label>
+                        <textarea class="form-control" name="remarks" rows="2" 
+                                  placeholder="その他特記事項があれば記入"><?= $existing_inspection ? htmlspecialchars($existing_inspection['remarks']) : '' ?></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 保存ボタン -->
+            <div class="text-center mb-4">
+                <button type="submit" class="btn btn-save btn-lg">
+                    <i class="fas fa-save me-2"></i>
+                    <?= $existing_inspection ? '更新する' : '登録する' ?>
+                </button>
+                <?php if (!$past_mode): ?>
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        保存後、自動的に乗務前点呼画面に移動します
+                    </small>
+                </div>
+                <?php endif; ?>
+            </div>
+        </form>
+        
+        <!-- 履歴管理リンク（ページ下部） -->
+        <div class="history-link">
+            <h6 class="mb-2"><i class="fas fa-history me-2"></i>過去の記録管理</h6>
+            <p class="text-muted mb-2">過去の日常点検記録の閲覧・編集・削除を行います。</p>
+            <a href="daily_inspection_history.php" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-list me-1"></i>履歴一覧を表示
+            </a>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 車両選択時の走行距離更新
+        function updateMileage() {
+            const vehicleSelect = document.querySelector('select[name="vehicle_id"]');
+            const mileageInput = document.getElementById('mileage');
+            const mileageInfo = document.getElementById('mileageInfo');
+            const mileageText = document.getElementById('mileageText');
+            
+            if (vehicleSelect.value) {
+                const selectedOption = vehicleSelect.options[vehicleSelect.selectedIndex];
+                const currentMileage = selectedOption.getAttribute('data-mileage');
+                
+                if (currentMileage && currentMileage !== '0') {
+                    mileageText.textContent = `前回記録: ${currentMileage}km`;
+                    mileageInfo.style.display = 'block';
+                    
+                    if (!mileageInput.value) {
+                        mileageInput.value = currentMileage;
+                    }
+                } else {
+                    mileageInfo.style.display = 'none';
+                }
+            } else {
+                mileageInfo.style.display = 'none';
+            }
+        }
+        
+        // 点検結果の変更時にスタイル更新
+        function updateInspectionItemStyle(itemName, value) {
+            const item = document.querySelector(`[data-item="${itemName}"]`);
+            if (item) {
+                item.classList.remove('ok', 'ng', 'skip');
+                
+                if (value === '可') {
+                    item.classList.add('ok');
+                } else if (value === '否') {
+                    item.classList.add('ng');
+                } else if (value === '省略') {
+                    item.classList.add('skip');
+                }
+            }
+        }
+        
+        // 一括選択機能
+        function setAllResults(value) {
+            // 省略選択項目以外（必須項目）のみ対象
+            const requiredItems = [
+                'foot_brake_result', 'parking_brake_result', 'brake_fluid_result',
+                'lights_result', 'lens_result', 'tire_pressure_result', 'tire_damage_result'
+            ];
+            
+            requiredItems.forEach(function(itemName) {
+                const radio = document.querySelector(`input[name="${itemName}"][value="${value}"]`);
+                if (radio) {
+                    radio.checked = true;
+                    updateInspectionItemStyle(itemName, value);
+                }
+            });
+        }
+        
+        // 全て可
+        function setAllOk() {
+            setAllResults('可');
+        }
+        
+        // 全て否
+        function setAllNg() {
+            setAllResults('否');
+        }
+        
+        // 初期化処理
+        document.addEventListener('DOMContentLoaded', function() {
+            // 車両選択の初期設定
+            updateMileage();
+            
+            // 既存の点検結果のスタイル適用
+            const radioButtons = document.querySelectorAll('input[type="radio"]:checked');
+            radioButtons.forEach(function(radio) {
+                const itemName = radio.name;
+                const value = radio.value;
+                updateInspectionItemStyle(itemName, value);
+            });
+            
+            // ラジオボタンの変更イベント
+            const allRadios = document.querySelectorAll('input[type="radio"]');
+            allRadios.forEach(function(radio) {
+                radio.addEventListener('change', function() {
+                    updateInspectionItemStyle(this.name, this.value);
+                });
+            });
+            
+            // 一括選択ボタンのイベント設定
+            const allOkBtn = document.getElementById('allOkBtn');
+            const allNgBtn = document.getElementById('allNgBtn');
+            
+            if (allOkBtn) {
+                allOkBtn.addEventListener('click', setAllOk);
+            }
+            
+            if (allNgBtn) {
+                allNgBtn.addEventListener('click', setAllNg);
+            }
+        });
+        
+        // フォーム送信前の確認
+        document.getElementById('inspectionForm').addEventListener('submit', function(e) {
+            const inspectorId = document.querySelector('select[name="inspector_id"]').value;
+            const vehicleId = document.querySelector('select[name="vehicle_id"]').value;
+            const inspectionDate = document.querySelector('input[name="inspection_date"]').value;
+            
+            if (!inspectorId || !vehicleId || !inspectionDate) {
+                e.preventDefault();
+                alert('点検者、車両、点検日を入力してください。');
+                return;
+            }
+            
+            // 必須項目のチェック
+            const requiredItems = [
+                'foot_brake_result', 'parking_brake_result', 'brake_fluid_result',
+                'lights_result', 'lens_result', 'tire_pressure_result', 'tire_damage_result'
+            ];
+            
+            let missingItems = [];
+            requiredItems.forEach(function(item) {
+                const checked = document.querySelector(`input[name="${item}"]:checked`);
+                if (!checked) {
+                    missingItems.push(item);
+                }
+            });
+            
+            if (missingItems.length > 0) {
+                e.preventDefault();
+                alert('必須点検項目に未選択があります。すべての必須項目を選択してください。');
+                return;
+            }
+            
+            // 「否」の項目がある場合の確認
+            const ngItems = document.querySelectorAll('input[value="否"]:checked');
+            if (ngItems.length > 0) {
+                const defectDetails = document.querySelector('textarea[name="defect_details"]').value.trim();
+                if (!defectDetails) {
+                    if (!confirm('点検結果に「否」がありますが、不良個所の詳細が未記入です。このまま保存しますか？')) {
+                        e.preventDefault();
+                        return;
+                    }
+                }
+            }
+            
+            // 自動遷移の確認（過去データ入力モードではない場合）
+            const autoFlow = document.querySelector('input[name="auto_flow"]').value;
+            if (autoFlow === '1') {
+                const today = new Date().toISOString().split('T')[0];
+                if (inspectionDate === today) {
+                    if (!confirm('日常点検完了後、乗務前点呼画面に自動的に移動します。続行しますか？')) {
+                        e.preventDefault();
+                        return;
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
