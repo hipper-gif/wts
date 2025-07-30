@@ -138,7 +138,7 @@ try {
 
 // 車両一覧取得（is_active統一 + COALESCE使用）
 try {
-    $vehicles_sql = "SELECT id, vehicle_number, COALESCE(vehicle_name, model) as vehicle_name FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
+    $vehicles_sql = "SELECT id, vehicle_number, model FROM vehicles WHERE is_active = TRUE ORDER BY vehicle_number";
     error_log("Vehicles SQL: " . $vehicles_sql);
     $vehicles_stmt = $pdo->prepare($vehicles_sql);
     $vehicles_stmt->execute();
@@ -641,7 +641,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
                         <?php foreach ($vehicles as $vehicle): ?>
                             <option value="<?php echo $vehicle['id']; ?>" 
                                 <?php echo ($search_vehicle == $vehicle['id']) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($vehicle['vehicle_number']); ?>
+                                <?php echo htmlspecialchars($vehicle['vehicle_number'] . ' - ' . $vehicle['model']); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
