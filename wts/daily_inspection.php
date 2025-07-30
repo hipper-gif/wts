@@ -19,14 +19,14 @@ $error_message = '';
 
 // 車両とドライバーの取得
 try {
-    $stmt = $pdo->prepare("SELECT id, vehicle_number, model, current_mileage FROM vehicles WHERE is_active = TRUE ORDER BY vehicle_number");
+    $stmt = $pdo->prepare("SELECT id, vehicle_number, model, current_mileage FROM vehicles WHERE is_ = TRUE ORDER BY vehicle_number");
     $stmt->execute();
     $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // 運転手のみを取得（role = 'driver' または is_driver = 1）
-    $stmt = $pdo->prepare("SELECT id, name, role FROM users WHERE (role = 'driver' OR is_driver = 1) AND is_active = TRUE ORDER BY name");
-    $stmt->execute();
-    $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// 運転手のみを取得（is_driver = 1）
+$stmt = $pdo->prepare("SELECT id, name, permission_level FROM users WHERE is_driver = 1 ORDER BY name");
+$stmt->execute();
+$drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
 } catch (Exception $e) {
     error_log("Data fetch error: " . $e->getMessage());
@@ -48,14 +48,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $vehicle_id = $_POST['vehicle_id'];
     $mileage = $_POST['mileage'];
     
-    // 運転手かどうかの確認
-    $stmt = $pdo->prepare("SELECT role, is_driver FROM users WHERE id = ?");
-    $stmt->execute([$inspector_id]);
-    $inspector = $stmt->fetch();
-    
-    if (!$inspector || ($inspector['role'] !== 'driver' && $inspector['is_driver'] != 1)) {
-        $error_message = 'エラー: 点検者は運転手のみ選択できます。';
-    } else {
+// ✅ 新権限システム対応版
+$stmt = $pdo->prepare("SELECT permission_level, is_driver, is_caller, is_mechanic FROM users WHERE id = ?");
+$stmt->execute([$inspector_id]);
+$inspector = $stmt->fetch();
+
+if (!$inspector || (!$inspector['is_driver'] && !$inspector['is_mechanic'])) {
+    $error_message = 'エラー: 点検者は運転者または整備者のみ選択できます。';
+}else {
         // 点検項目の結果
         $inspection_items = [
             // 運転室内
@@ -222,7 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin: 0 0.25rem;
         }
         
-        .btn-result.active {
+        .btn-result. {
             font-weight: 600;
         }
         
@@ -313,24 +313,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </button>
                     </div>
                 </h5>
-                <div class="form-card-body">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">点検者（運転手） <span class="required-mark">*</span></label>
-                            <select class="form-select" name="inspector_id" required>
-                                <option value="">運転手を選択してください</option>
-                                <?php foreach ($drivers as $driver): ?>
-                                <option value="<?= $driver['id'] ?>" <?= ($existing_inspection && $existing_inspection['driver_id'] == $driver['id']) ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($driver['name']) ?>
-                                    <span class="text-muted">(運転手)</span>
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>
-                                日常点検は運転手が実施します
-                            </div>
-                        </div>
+<div class="col-md-6 mb-3">
+    <label class="form-label">点検者（運転者・整備者） <span class="required-mark">*</span></label>
+    <select class="form-select" name="inspector_id" required>
+        <option value="">点検者を選択してください</option>
+        <?php foreach ($drivers as $driver): ?>
+        <option value="<?= $driver['id'] ?>" <?= ($existing_inspection && $existing_inspection['driver_id'] == $driver['id']) ? 'selected' : '' ?>>
+            <?= htmlspecialchars($driver['name']) ?>
+            <?php if ($driver['permission_level'] === 'Admin'): ?>
+                <span class="text-muted">(管理者・運転者)</span>
+            <?php else: ?>
+                <span class="text-muted">(運転者)</span>
+            <?php endif; ?>
+        </option>
+        <?php endforeach; ?>
+    </select>
+    <div class="form-text">
+        <i class="fas fa-info-circle me-1"></i>
+        日常点検は運転者が実施します
+    </div>
+</div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">車両 <span class="required-mark">*</span></label>
                             <select class="form-select" name="vehicle_id" required onchange="updateMileage()">
