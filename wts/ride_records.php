@@ -1127,11 +1127,11 @@ $payment_methods = ['現金', 'カード', 'その他'];
                 const div = document.createElement('div');
                 div.className = 'location-suggestion';
                 
-                // 検索語をハイライト
-                const highlightedText = location.replace(
-                    new RegExp(query, 'gi'), 
-                    `<mark>                                                <?php if (!</mark>`
-                );
+
+    const highlightedText = location.replace(
+        new RegExp(query, 'gi'), 
+        `<mark>$&</mark>`
+        );
                 div.innerHTML = `<i class="fas fa-search me-2 text-muted"></i>${highlightedText}`;
                 div.onclick = () => selectLocation(input, location, suggestionsDiv);
                 suggestionsDiv.appendChild(div);
