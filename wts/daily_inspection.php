@@ -22,21 +22,21 @@ try {
     $stmt->execute();
     $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // 🔧 修正: 有効なユーザーのみを取得（active = TRUE または is_active = TRUE）
+    // 🔧 修正: 定期点検と同じ仕組みを採用（role基準 + is_active）
     $stmt = $pdo->prepare("
-        SELECT id, name, role, is_driver 
+        SELECT id, name, role 
         FROM users 
-        WHERE (role = 'driver' OR is_driver = 1) 
-        AND (active = TRUE OR is_active = TRUE)
+        WHERE role IN ('driver', 'manager', 'admin') 
+        AND is_active = TRUE 
         ORDER BY name
     ");
     $stmt->execute();
-    $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $inspectors = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
 } catch (Exception $e) {
     error_log("Data fetch error: " . $e->getMessage());
     $vehicles = [];
-    $drivers = [];
+    $inspectors = [];
 }
 
 // 今日の点検記録があるかチェック
@@ -53,20 +53,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $vehicle_id = $_POST['vehicle_id'];
     $mileage = $_POST['mileage'];
     
-    // 🔧 修正: 運転手かつ有効ユーザーかの確認
+    // 🔧 修正: 定期点検と同じ検証ロジック（role基準）
     $stmt = $pdo->prepare("
-        SELECT role, is_driver, active, is_active 
+        SELECT role, is_active 
         FROM users 
         WHERE id = ? 
-        AND (active = TRUE OR is_active = TRUE)
+        AND is_active = TRUE
     ");
     $stmt->execute([$inspector_id]);
     $inspector = $stmt->fetch();
     
     if (!$inspector) {
         $error_message = 'エラー: 選択されたユーザーは無効または存在しません。';
-    } elseif ($inspector['role'] !== 'driver' && $inspector['is_driver'] != 1) {
-        $error_message = 'エラー: 点検者は運転手のみ選択できます。';
+    } elseif (!in_array($inspector['role'], ['driver', 'manager', 'admin'])) {
+        $error_message = 'エラー: 点検者は運転手または管理者のみ選択できます。';
     } else {
         // 点検項目の結果
         $inspection_items = [
@@ -334,13 +334,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <?php foreach ($drivers as $driver): ?>
                                 <option value="<?= $driver['id'] ?>" <?= ($existing_inspection && $existing_inspection['driver_id'] == $driver['id']) ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($driver['name']) ?>
-                                    <span class="text-muted">(運転手)</span>
+                                    <span class="text-muted">(<?= htmlspecialchars($driver['role']) ?>)</span>
                                 </option>
                                 <?php endforeach; ?>
                             </select>
                             <div class="form-text">
                                 <i class="fas fa-info-circle me-1"></i>
-                                日常点検は運転手が実施します
+                                日常点検は運転手・管理者が実施します
                             </div>
                         </div>
                         <div class="col-md-6 mb-3">
