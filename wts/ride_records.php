@@ -109,13 +109,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 🔧 修正1: 運転者一覧取得（新権限システム対応）
+// 運転者一覧取得（新権限システム対応）
 $drivers_sql = "SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name";
 $drivers_stmt = $pdo->prepare($drivers_sql);
 $drivers_stmt->execute();
 $drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// 🔧 修正2: 車両一覧取得（is_active統一 + COALESCE使用）
+// 車両一覧取得（is_active統一 + COALESCE使用）
 $vehicles_sql = "SELECT id, vehicle_number, COALESCE(vehicle_name, model) as vehicle_name FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
 $vehicles_stmt = $pdo->prepare($vehicles_sql);
 $vehicles_stmt->execute();
@@ -178,7 +178,7 @@ if ($search_vehicle) {
     $params[] = $search_vehicle;
 }
 
-// 🔧 修正3: 乗車記録取得クエリ（JOIN条件強化 + COALESCE使用）
+// 乗車記録取得クエリ（JOIN条件強化 + COALESCE使用）
 $rides_sql = "SELECT r.*, u.name as driver_name, v.vehicle_number, 
     COALESCE(v.vehicle_name, v.model) as vehicle_name,
     (r.fare + r.charge) as total_amount,
