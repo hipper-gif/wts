@@ -863,9 +863,9 @@ $payment_methods = ['現金', 'カード', 'その他'];
                                 <select class="form-select" id="modalVehicleId" name="vehicle_id" required>
                                     <option value="">車両を選択</option>
                                     <?php foreach ($vehicles as $vehicle): ?>
-                                        <option value="<?php echo $vehicle['id']; ?>">
-                                            <?php echo htmlspecialchars($vehicle['vehicle_number'] . ' - ' . $vehicle['vehicle_name']); ?>
-                                        </option>
+<option value="<?php echo $vehicle['id']; ?>">
+    <?php echo htmlspecialchars($vehicle['vehicle_number'] . (!empty($vehicle['model']) ? ' - ' . $vehicle['model'] : '')); ?>
+</option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
