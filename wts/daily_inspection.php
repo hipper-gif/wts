@@ -22,21 +22,21 @@ try {
     $stmt->execute();
     $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // 🔧 修正: 定期点検と同じ仕組みを採用（role基準 + is_active）
+    // 🔧 修正: 日常点検用のユーザー取得（運転手のみ、有効性チェック強化）
     $stmt = $pdo->prepare("
-        SELECT id, name, role 
+        SELECT id, name, role, is_driver 
         FROM users 
-        WHERE role IN ('driver', 'manager', 'admin') 
+        WHERE (role = 'driver' OR is_driver = 1) 
         AND is_active = TRUE 
         ORDER BY name
     ");
     $stmt->execute();
-    $inspectors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
 } catch (Exception $e) {
     error_log("Data fetch error: " . $e->getMessage());
     $vehicles = [];
-    $inspectors = [];
+    $drivers = [];
 }
 
 // 今日の点検記録があるかチェック
@@ -53,9 +53,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $vehicle_id = $_POST['vehicle_id'];
     $mileage = $_POST['mileage'];
     
-    // 🔧 修正: 定期点検と同じ検証ロジック（role基準）
+    // 🔧 修正: 運転手のみで有効性チェック
     $stmt = $pdo->prepare("
-        SELECT role, is_active 
+        SELECT role, is_driver, is_active 
         FROM users 
         WHERE id = ? 
         AND is_active = TRUE
@@ -65,8 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (!$inspector) {
         $error_message = 'エラー: 選択されたユーザーは無効または存在しません。';
-    } elseif (!in_array($inspector['role'], ['driver', 'manager', 'admin'])) {
-        $error_message = 'エラー: 点検者は運転手または管理者のみ選択できます。';
+    } elseif ($inspector['role'] !== 'driver' && $inspector['is_driver'] != 1) {
+        $error_message = 'エラー: 点検者は運転手のみ選択できます。';
     } else {
         // 点検項目の結果
         $inspection_items = [
@@ -334,13 +334,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <?php foreach ($drivers as $driver): ?>
                                 <option value="<?= $driver['id'] ?>" <?= ($existing_inspection && $existing_inspection['driver_id'] == $driver['id']) ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($driver['name']) ?>
-                                    <span class="text-muted">(<?= htmlspecialchars($driver['role']) ?>)</span>
+                                    <span class="text-muted">(運転手)</span>
                                 </option>
                                 <?php endforeach; ?>
                             </select>
                             <div class="form-text">
                                 <i class="fas fa-info-circle me-1"></i>
-                                日常点検は運転手・管理者が実施します
+                                日常点検は運転手が実施します
                             </div>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -358,6 +358,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
+                            <label class="form-label">点検日</label>
+                            <input type="text" class="form-control" value="<?= date('Y年n月j日 (D)') ?>" readonly>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                今日の日付で記録されます
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
                             <label class="form-label">走行距離</label>
                             <div class="input-group">
                                 <input type="number" class="form-control" name="mileage" id="mileage"
@@ -368,6 +376,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="mileage-info mt-2" id="mileageInfo" style="display: none;">
                                 <i class="fas fa-info-circle me-1"></i>
                                 <span id="mileageText">前回記録: </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 乗務前点呼への導線 -->
+                    <div class="alert alert-info mt-3">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>点検完了後は乗務前点呼を行ってください</strong>
+                            </div>
+                            <div class="col-auto">
+                                <a href="pre_duty_call.php" class="btn btn-outline-info btn-sm">
+                                    <i class="fas fa-microphone me-1"></i>乗務前点呼へ
+                                </a>
                             </div>
                         </div>
                     </div>
