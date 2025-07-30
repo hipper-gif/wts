@@ -41,9 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $passenger_count = $_POST['passenger_count'];
             $pickup_location = $_POST['pickup_location'];
             $dropoff_location = $_POST['dropoff_location'];
-            $fare = $_POST['fare'];
+            $fare_amount = $_POST['fare_amount'];
             $charge = $_POST['charge'] ?? 0;
-            $transport_category = $_POST['transport_category'];
+            $transport_type = $_POST['transport_type'];
             $payment_method = $_POST['payment_method'];
             $notes = $_POST['notes'] ?? '';
             $is_return_trip = (isset($_POST['is_return_trip']) && $_POST['is_return_trip'] == '1') ? 1 : 0;
@@ -52,13 +52,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ✅ 正しいINSERT文（テーブル構造に合わせて）
 $insert_sql = "INSERT INTO ride_records 
     (driver_id, vehicle_id, ride_date, ride_time, passenger_count, 
-     pickup_location, dropoff_location, fare, charge, transport_category, 
+     pickup_location, dropoff_location, fare_amount, charge, transport_type, 
      payment_method, notes, is_return_trip, original_ride_id, created_at) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+            
+            // デバッグ情報を追加
+            error_log("INSERT SQL: " . $insert_sql);
+            error_log("Parameters: " . json_encode([
+                $driver_id, $vehicle_id, $ride_date, $ride_time, $passenger_count,
+                $pickup_location, $dropoff_location, $fare_amount, $charge, $transport_type,
+                $payment_method, $notes, $is_return_trip, $original_ride_id
+            ]));
+            
             $insert_stmt = $pdo->prepare($insert_sql);
             $insert_stmt->execute([
                 $driver_id, $vehicle_id, $ride_date, $ride_time, $passenger_count,
-                $pickup_location, $dropoff_location, $fare, $charge, $transport_category,
+                $pickup_location, $dropoff_location, $fare_amount, $charge, $transport_type,
                 $payment_method, $notes, $is_return_trip, $original_ride_id
             ]);
             
@@ -75,21 +84,21 @@ $insert_sql = "INSERT INTO ride_records
             $passenger_count = $_POST['passenger_count'];
             $pickup_location = $_POST['pickup_location'];
             $dropoff_location = $_POST['dropoff_location'];
-            $fare = $_POST['fare'];
+            $fare_amount = $_POST['fare_amount'];
             $charge = $_POST['charge'] ?? 0;
-            $transport_category = $_POST['transport_category'];
+            $transport_type = $_POST['transport_type'];
             $payment_method = $_POST['payment_method'];
             $notes = $_POST['notes'] ?? '';
             
             $update_sql = "UPDATE ride_records SET 
                 ride_time = ?, passenger_count = ?, pickup_location = ?, dropoff_location = ?, 
-                fare = ?, charge = ?, transport_category = ?, payment_method = ?, 
+                fare_amount = ?, charge = ?, transport_type = ?, payment_method = ?, 
                 notes = ?, updated_at = NOW() 
                 WHERE id = ?";
             $update_stmt = $pdo->prepare($update_sql);
             $update_stmt->execute([
                 $ride_time, $passenger_count, $pickup_location, $dropoff_location,
-                $fare, $charge, $transport_category, $payment_method, $notes, $record_id
+                $fare_amount, $charge, $transport_type, $payment_method, $notes, $record_id
             ]);
             
             $success_message = '乗車記録を更新しました。';
@@ -107,20 +116,38 @@ $insert_sql = "INSERT INTO ride_records
         
     } catch (Exception $e) {
         $error_message = $e->getMessage();
+        // デバッグ情報を追加
+        error_log("乗車記録処理エラー: " . $e->getMessage());
+        error_log("SQL State: " . $e->getCode());
+        error_log("Stack trace: " . $e->getTraceAsString());
     }
 }
 
 // 運転者一覧取得（新権限システム対応）
-$drivers_sql = "SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name";
-$drivers_stmt = $pdo->prepare($drivers_sql);
-$drivers_stmt->execute();
-$drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
+try {
+    $drivers_sql = "SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name";
+    error_log("Drivers SQL: " . $drivers_sql);
+    $drivers_stmt = $pdo->prepare($drivers_sql);
+    $drivers_stmt->execute();
+    $drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
+    error_log("Drivers count: " . count($drivers));
+} catch (Exception $e) {
+    error_log("Drivers query error: " . $e->getMessage());
+    $drivers = [];
+}
 
 // 車両一覧取得（is_active統一 + COALESCE使用）
-$vehicles_sql = "SELECT id, vehicle_number, COALESCE(vehicle_name, model) as vehicle_name FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
-$vehicles_stmt = $pdo->prepare($vehicles_sql);
-$vehicles_stmt->execute();
-$vehicles = $vehicles_stmt->fetchAll(PDO::FETCH_ASSOC);
+try {
+    $vehicles_sql = "SELECT id, vehicle_number, COALESCE(vehicle_name, model) as vehicle_name FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
+    error_log("Vehicles SQL: " . $vehicles_sql);
+    $vehicles_stmt = $pdo->prepare($vehicles_sql);
+    $vehicles_stmt->execute();
+    $vehicles = $vehicles_stmt->fetchAll(PDO::FETCH_ASSOC);
+    error_log("Vehicles count: " . count($vehicles));
+} catch (Exception $e) {
+    error_log("Vehicles query error: " . $e->getMessage());
+    $vehicles = [];
+}
 
 // よく使う場所の取得（過去の記録から）
 $common_locations_sql = "
@@ -182,7 +209,7 @@ if ($search_vehicle) {
 // 乗車記録取得クエリ（JOIN条件強化 + COALESCE使用）
 $rides_sql = "SELECT r.*, u.name as driver_name, v.vehicle_number, 
     COALESCE(v.vehicle_name, v.model) as vehicle_name,
-    (r.fare + r.charge) as total_amount,
+    (r.fare_amount + r.charge) as total_amount,
     CASE WHEN r.is_return_trip = 1 THEN '復路' ELSE '往路' END as trip_type
     FROM ride_records r 
     JOIN users u ON r.driver_id = u.id AND u.is_active = 1
@@ -197,12 +224,12 @@ $rides = $rides_stmt->fetchAll(PDO::FETCH_ASSOC);
 $summary_sql = "SELECT 
     COUNT(*) as total_rides,
     SUM(r.passenger_count) as total_passengers,
-    SUM(r.fare + r.charge) as total_revenue,
-    AVG(r.fare + r.charge) as avg_fare,
+    SUM(r.fare_amount + r.charge) as total_revenue,
+    AVG(r.fare_amount + r.charge) as avg_fare,
     COUNT(CASE WHEN r.payment_method = '現金' THEN 1 END) as cash_count,
     COUNT(CASE WHEN r.payment_method = 'カード' THEN 1 END) as card_count,
-    SUM(CASE WHEN r.payment_method = '現金' THEN r.fare + r.charge ELSE 0 END) as cash_total,
-    SUM(CASE WHEN r.payment_method = 'カード' THEN r.fare + r.charge ELSE 0 END) as card_total
+    SUM(CASE WHEN r.payment_method = '現金' THEN r.fare_amount + r.charge ELSE 0 END) as cash_total,
+    SUM(CASE WHEN r.payment_method = 'カード' THEN r.fare_amount + r.charge ELSE 0 END) as card_total
     FROM ride_records r 
     WHERE " . implode(' AND ', $where_conditions);
 $summary_stmt = $pdo->prepare($summary_sql);
@@ -211,20 +238,20 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
 
 // 輸送分類別集計
 $category_sql = "SELECT 
-    r.transport_category,
+    r.transport_type,
     COUNT(*) as count,
     SUM(r.passenger_count) as passengers,
-    SUM(r.fare + r.charge) as revenue
+    SUM(r.fare_amount + r.charge) as revenue
     FROM ride_records r 
     WHERE " . implode(' AND ', $where_conditions) . "
-    GROUP BY r.transport_category 
+    GROUP BY r.transport_type 
     ORDER BY count DESC";
 $category_stmt = $pdo->prepare($category_sql);
 $category_stmt->execute($params);
 $categories = $category_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 輸送分類・支払方法の選択肢
-$transport_categories = ['通院', '外出等', '退院', '転院', '施設入所', 'その他'];
+$transport_types = ['通院', '外出等', '退院', '転院', '施設入所', 'その他'];
 $payment_methods = ['現金', 'カード', 'その他'];
 ?>
 
@@ -679,7 +706,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
                                                 <strong><?php echo htmlspecialchars($ride['dropoff_location']); ?></strong>
                                             </div>
                                             <small class="text-muted">
-                                                <?php echo $ride['passenger_count']; ?>名 / <?php echo htmlspecialchars($ride['transport_category']); ?> / <?php echo htmlspecialchars($ride['payment_method']); ?>
+                                                <?php echo $ride['passenger_count']; ?>名 / <?php echo htmlspecialchars($ride['transport_type']); ?> / <?php echo htmlspecialchars($ride['payment_method']); ?>
                                                 <?php if ($ride['notes']): ?>
                                                     <br><i class="fas fa-sticky-note me-1"></i><?php echo htmlspecialchars($ride['notes']); ?>
                                                 <?php endif; ?>
@@ -896,10 +923,10 @@ $payment_methods = ['現金', 'カード', 'その他'];
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="modalFare" class="form-label">
+                                <label for="modalFareAmount" class="form-label">
                                     <i class="fas fa-yen-sign me-1"></i>運賃 <span class="text-danger">*</span>
                                 </label>
-                                <input type="number" class="form-control" id="modalFare" name="fare" min="0" step="10" required>
+                                <input type="number" class="form-control" id="modalFareAmount" name="fare_amount" min="0" step="10" required>
                             </div>
 
                             <div class="col-md-6 mb-3">
@@ -912,13 +939,13 @@ $payment_methods = ['現金', 'カード', 'その他'];
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="modalTransportCategory" class="form-label">
+                                <label for="modalTransportType" class="form-label">
                                     <i class="fas fa-tags me-1"></i>輸送分類 <span class="text-danger">*</span>
                                 </label>
-                                <select class="form-select" id="modalTransportCategory" name="transport_category" required>
+                                <select class="form-select" id="modalTransportType" name="transport_type" required>
                                     <option value="">分類を選択</option>
-                                    <?php foreach ($transport_categories as $category): ?>
-                                        <option value="<?php echo $category; ?>"><?php echo $category; ?></option>
+                                    <?php foreach ($transport_types as $type): ?>
+                                        <option value="<?php echo $type; ?>"><?php echo $type; ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -1016,9 +1043,9 @@ $payment_methods = ['現金', 'カード', 'その他'];
             document.getElementById('modalPassengerCount').value = record.passenger_count;
             document.getElementById('modalPickupLocation').value = record.pickup_location;
             document.getElementById('modalDropoffLocation').value = record.dropoff_location;
-            document.getElementById('modalFare').value = record.fare;
+            document.getElementById('modalFareAmount').value = record.fare_amount;
             document.getElementById('modalCharge').value = record.charge;
-            document.getElementById('modalTransportCategory').value = record.transport_category;
+            document.getElementById('modalTransportType').value = record.transport_type;
             document.getElementById('modalPaymentMethod').value = record.payment_method;
             document.getElementById('modalNotes').value = record.notes || '';
             
@@ -1052,10 +1079,9 @@ $payment_methods = ['現金', 'カード', 'その他'];
             // 乗降地を入れ替え
             document.getElementById('modalPickupLocation').value = record.dropoff_location;
             document.getElementById('modalDropoffLocation').value = record.pickup_location;
-            
-            document.getElementById('modalFare').value = record.fare;
+            document.getElementById('modalFareAmount').value = record.fare_amount;
             document.getElementById('modalCharge').value = record.charge;
-            document.getElementById('modalTransportCategory').value = record.transport_category;
+            document.getElementById('modalTransportType').value = record.transport_type;
             document.getElementById('modalPaymentMethod').value = record.payment_method;
             document.getElementById('modalNotes').value = '';
             
