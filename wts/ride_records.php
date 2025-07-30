@@ -1034,7 +1034,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
             document.getElementById('modalOriginalRideId').value = record.id;
             
             // 復路情報表示
-            const returnTripInfo = document.getElementById('returnTripInfo');
+            var returnTripInfo = document.getElementById('returnTripInfo');
             returnTripInfo.style.display = 'block';
             returnTripInfo.innerHTML = 
                 '<h6><i class="fas fa-route me-2"></i>復路作成</h6>' +
@@ -1150,10 +1150,11 @@ $payment_methods = ['現金', 'カード', 'その他'];
         // イベントリスナー設定
         document.addEventListener('DOMContentLoaded', function() {
             // 場所入力フィールドのイベント設定
-            ['modalPickupLocation', 'modalDropoffLocation'].forEach(id => {
-                const input = document.getElementById(id);
+            var locationFields = ['modalPickupLocation', 'modalDropoffLocation'];
+            locationFields.forEach(function(id) {
+                var input = document.getElementById(id);
                 if (input) {
-                    const type = id.includes('Pickup') ? 'pickup' : 'dropoff';
+                    var type = id.includes('Pickup') ? 'pickup' : 'dropoff';
                     
                     input.addEventListener('keyup', function() {
                         showLocationSuggestions(this, type);
@@ -1176,10 +1177,10 @@ $payment_methods = ['現金', 'カード', 'その他'];
 
         // フォーム送信前の確認
         document.getElementById('rideForm').addEventListener('submit', function(e) {
-            const action = document.getElementById('modalAction').value;
-            const isReturnTrip = document.getElementById('modalIsReturnTrip').value === '1';
+            var action = document.getElementById('modalAction').value;
+            var isReturnTrip = document.getElementById('modalIsReturnTrip').value === '1';
             
-            let message = '';
+            var message = '';
             if (action === 'add' && isReturnTrip) {
                 message = '復路の乗車記録を登録しますか？';
             } else if (action === 'add') {
