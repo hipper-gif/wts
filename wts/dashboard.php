@@ -278,7 +278,9 @@ function getTodayStats($pdo, $today) {
 
 // 月間実績取得（既存テーブル構造対応）
 function getMonthlyStats($pdo) {
-    $current_month = date('Y-m');
+    // 今月の1日から今日まで（月初〜現在日）
+    $month_start = date('Y-m-01');  // 今月の1日
+    $today = date('Y-m-d');         // 今日
     
     $stats = [
         'monthly_sales' => 0,
@@ -297,11 +299,11 @@ function getMonthlyStats($pdo) {
             $columns = array_column($stmt->fetchAll(), 'Field');
             
             // 日付カラムの確認
-            $date_condition = "DATE_FORMAT(ride_date, '%Y-%m') = ?";
+            $date_condition = "ride_date BETWEEN ? AND ?";
             if (!in_array('ride_date', $columns) && in_array('ride_time', $columns)) {
-                $date_condition = "DATE_FORMAT(ride_time, '%Y-%m') = ?";
+                $date_condition = "DATE(ride_time) BETWEEN ? AND ?";
             } elseif (!in_array('ride_date', $columns) && in_array('created_at', $columns)) {
-                $date_condition = "DATE_FORMAT(created_at, '%Y-%m') = ?";
+                $date_condition = "DATE(created_at) BETWEEN ? AND ?";
             }
 
             // 料金カラムの確認
@@ -329,7 +331,7 @@ function getMonthlyStats($pdo) {
                 FROM ride_records 
                 WHERE {$date_condition}
             ");
-            $stmt->execute([$current_month]);
+            $stmt->execute([$month_start, $today]);
             $monthly_data = $stmt->fetch(PDO::FETCH_ASSOC);
 
             $stats['monthly_sales'] = $monthly_data['monthly_sales'] ?: 0;
@@ -348,9 +350,9 @@ function getMonthlyStats($pdo) {
             $stmt = $pdo->prepare("
                 SELECT SUM(total_distance) as monthly_distance
                 FROM arrival_records 
-                WHERE DATE_FORMAT(arrival_date, '%Y-%m') = ?
+                WHERE arrival_date BETWEEN ? AND ?
             ");
-            $stmt->execute([$current_month]);
+            $stmt->execute([$month_start, $today]);
             $stats['monthly_distance'] = $stmt->fetchColumn() ?: 0;
         }
         // 従来テーブルからの取得
@@ -360,9 +362,9 @@ function getMonthlyStats($pdo) {
                 $stmt = $pdo->prepare("
                     SELECT SUM(total_distance) as monthly_distance
                     FROM daily_operations 
-                    WHERE DATE_FORMAT(operation_date, '%Y-%m') = ?
+                    WHERE operation_date BETWEEN ? AND ?
                 ");
-                $stmt->execute([$current_month]);
+                $stmt->execute([$month_start, $today]);
                 $stats['monthly_distance'] = $stmt->fetchColumn() ?: 0;
             }
         }
@@ -622,7 +624,8 @@ $alerts = getAlerts($pdo);
     <!-- 月間実績 -->
     <div class="row mb-4">
         <div class="col-12">
-            <h3><i class="fas fa-calendar-alt me-2"></i>今月の実績 (<?= date('Y年m月') ?>)</h3>
+            <h3><i class="fas fa-calendar-alt me-2"></i>今月の実績 (<?= date('Y年m月1日') ?> 〜 <?= date('Y年m月d日') ?>)</h3>
+            <small class="text-muted">※集計期間: 今月1日から今日まで</small>
         </div>
     </div>
 
@@ -671,33 +674,30 @@ $alerts = getAlerts($pdo);
     <?php if ($permission_level === 'Admin'): ?>
         <!-- 管理者メニュー：全機能 -->
         <div class="row">
-            <!-- 基本業務 -->
+            <!-- 基本業務（フロー順） -->
             <div class="col-md-4 mb-3">
                 <div class="card menu-card">
                     <div class="card-header bg-primary text-white">
-                        <h5><i class="fas fa-clipboard-list me-2"></i>基本業務</h5>
+                        <h5><i class="fas fa-clipboard-list me-2"></i>基本業務（フロー順）</h5>
                     </div>
                     <div class="card-body">
-                        <a href="departure.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-sign-out-alt me-1"></i>出庫処理
-                        </a>
-                        <a href="arrival.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-sign-in-alt me-1"></i>入庫処理
-                        </a>
-                        <a href="ride_records.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-users me-1"></i>乗車記録
-                        </a>
                         <a href="pre_duty_call.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-phone me-1"></i>乗務前点呼
-                        </a>
-                        <a href="post_duty_call.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-phone-alt me-1"></i>乗務後点呼
+                            <i class="fas fa-phone me-1"></i>1. 乗務前点呼
                         </a>
                         <a href="daily_inspection.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-tools me-1"></i>日常点検
+                            <i class="fas fa-tools me-1"></i>2. 日常点検
                         </a>
-                        <a href="periodic_inspection.php" class="btn btn-outline-primary btn-sm w-100">
-                            <i class="fas fa-cog me-1"></i>定期点検
+                        <a href="departure.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
+                            <i class="fas fa-sign-out-alt me-1"></i>3. 出庫処理
+                        </a>
+                        <a href="ride_records.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
+                            <i class="fas fa-users me-1"></i>4. 乗車記録
+                        </a>
+                        <a href="arrival.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
+                            <i class="fas fa-sign-in-alt me-1"></i>5. 入庫処理
+                        </a>
+                        <a href="post_duty_call.php" class="btn btn-outline-primary btn-sm w-100">
+                            <i class="fas fa-phone-alt me-1"></i>6. 乗務後点呼
                         </a>
                     </div>
                 </div>
@@ -712,6 +712,12 @@ $alerts = getAlerts($pdo);
                     <div class="card-body">
                         <a href="cash_management.php" class="btn btn-outline-success btn-sm mb-2 w-100">
                             <i class="fas fa-coins me-1"></i>集金管理
+                        </a>
+                        <a href="periodic_inspection.php" class="btn btn-outline-success btn-sm mb-2 w-100">
+                            <i class="fas fa-cog me-1"></i>定期点検（3ヶ月）
+                        </a>
+                        <a href="annual_report.php" class="btn btn-outline-success btn-sm mb-2 w-100">
+                            <i class="fas fa-file-alt me-1"></i>陸運局提出
                         </a>
                         <a href="accident_management.php" class="btn btn-outline-success btn-sm mb-2 w-100">
                             <i class="fas fa-exclamation-circle me-1"></i>事故管理
@@ -736,9 +742,6 @@ $alerts = getAlerts($pdo);
                         <a href="vehicle_management.php" class="btn btn-outline-danger btn-sm mb-2 w-100">
                             <i class="fas fa-car me-1"></i>車両管理
                         </a>
-                        <a href="annual_report.php" class="btn btn-outline-danger btn-sm mb-2 w-100">
-                            <i class="fas fa-file-alt me-1"></i>陸運局提出
-                        </a>
                         <a href="emergency_audit_kit.php" class="btn btn-outline-danger btn-sm w-100">
                             <i class="fas fa-shield-alt me-1"></i>緊急監査対応
                         </a>
@@ -750,33 +753,30 @@ $alerts = getAlerts($pdo);
     <?php else: ?>
         <!-- 一般ユーザーメニュー：基本業務のみ -->
         <div class="row">
-            <!-- 基本業務 -->
+            <!-- 基本業務（フロー順） -->
             <div class="col-md-6 mb-3">
                 <div class="card menu-card">
                     <div class="card-header bg-primary text-white">
-                        <h5><i class="fas fa-clipboard-list me-2"></i>基本業務</h5>
+                        <h5><i class="fas fa-clipboard-list me-2"></i>基本業務（フロー順）</h5>
                     </div>
                     <div class="card-body">
-                        <a href="departure.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-sign-out-alt me-1"></i>出庫処理
-                        </a>
-                        <a href="arrival.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-sign-in-alt me-1"></i>入庫処理
-                        </a>
-                        <a href="ride_records.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-users me-1"></i>乗車記録
-                        </a>
                         <a href="pre_duty_call.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-phone me-1"></i>乗務前点呼
-                        </a>
-                        <a href="post_duty_call.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-phone-alt me-1"></i>乗務後点呼
+                            <i class="fas fa-phone me-1"></i>1. 乗務前点呼
                         </a>
                         <a href="daily_inspection.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-tools me-1"></i>日常点検
+                            <i class="fas fa-tools me-1"></i>2. 日常点検
                         </a>
-                        <a href="periodic_inspection.php" class="btn btn-outline-primary btn-sm w-100">
-                            <i class="fas fa-cog me-1"></i>定期点検
+                        <a href="departure.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
+                            <i class="fas fa-sign-out-alt me-1"></i>3. 出庫処理
+                        </a>
+                        <a href="ride_records.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
+                            <i class="fas fa-users me-1"></i>4. 乗車記録
+                        </a>
+                        <a href="arrival.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
+                            <i class="fas fa-sign-in-alt me-1"></i>5. 入庫処理
+                        </a>
+                        <a href="post_duty_call.php" class="btn btn-outline-primary btn-sm w-100">
+                            <i class="fas fa-phone-alt me-1"></i>6. 乗務後点呼
                         </a>
                     </div>
                 </div>
