@@ -7,7 +7,13 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
     exit;
 }
+// モード判定を追加
+$mode = $_GET['mode'] ?? 'normal';
 
+if ($mode === 'historical') {
+    include 'includes/historical_daily_inspection.php';
+    exit;
+}
 $pdo = getDBConnection();
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'];
@@ -293,7 +299,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
-    
+    <!-- 既存のタイトル部分の下に追加 -->
+<div class="mode-switch mb-4">
+    <div class="btn-group" role="group">
+        <a href="daily_inspection.php" class="btn btn-primary">
+            <i class="fas fa-edit"></i> 通常入力
+        </a>
+        <a href="daily_inspection.php?mode=historical" class="btn btn-outline-success">
+            <i class="fas fa-history"></i> 過去データ入力
+        </a>
+    </div>
+</div>
     <div class="container mt-4">
         <!-- アラート -->
         <?php if ($success_message): ?>
