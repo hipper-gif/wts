@@ -122,6 +122,20 @@ function getUsersByJobFunction($pdo, $job_function) {
     ");
     $stmt->execute();
     return $stmt->fetchAll(PDO::FETCH_OBJ);
+    }
+// ★★★ ここにシステム名取得処理を追加 ★★★
+$system_name = '福祉輸送管理システム'; // デフォルト値
+try {
+    $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'system_name' LIMIT 1");
+    $stmt->execute();
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($result && !empty($result['setting_value'])) {
+        $system_name = $result['setting_value'];
+    }
+} catch (PDOException $e) {
+    // データベースエラーの場合はデフォルト値を使用
+    error_log("System name fetch error: " . $e->getMessage());
 }
 
 $user_info = getUserInfo($pdo, $_SESSION['user_id']);
