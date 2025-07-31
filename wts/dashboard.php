@@ -17,36 +17,107 @@ try {
     die("データベース接続エラー: " . $e->getMessage());
 }
 
-// ユーザー情報取得（新権限システム対応）
+// 既存のテーブル構造確認
+function checkTableStructure($pdo) {
+    try {
+        $stmt = $pdo->query("DESCRIBE users");
+        $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        return $columns;
+    } catch(PDOException $e) {
+        return [];
+    }
+}
+
+// ユーザー情報取得（既存テーブル構造対応）
 function getUserInfo($pdo, $user_id) {
-    $stmt = $pdo->prepare("SELECT id, name, permission_level, is_driver, is_caller, is_manager FROM users WHERE id = ? AND active = TRUE");
+    $columns = checkTableStructure($pdo);
+    
+    // 基本カラムの存在確認
+    $select_columns = ['id', 'name'];
+    
+    // 新権限システムカラムの確認
+    if (in_array('permission_level', $columns)) {
+        $select_columns[] = 'permission_level';
+    } elseif (in_array('role', $columns)) {
+        $select_columns[] = 'role';
+    }
+    
+    // 職務フラグの確認
+    if (in_array('is_driver', $columns)) $select_columns[] = 'is_driver';
+    if (in_array('is_caller', $columns)) $select_columns[] = 'is_caller';
+    if (in_array('is_manager', $columns)) $select_columns[] = 'is_manager';
+    
+    $select_sql = implode(', ', $select_columns);
+    
+    // activeカラムの存在確認
+    $where_clause = "id = ?";
+    if (in_array('active', $columns)) {
+        $where_clause .= " AND active = TRUE";
+    }
+    
+    $stmt = $pdo->prepare("SELECT {$select_sql} FROM users WHERE {$where_clause}");
     $stmt->execute([$user_id]);
     return $stmt->fetch(PDO::FETCH_OBJ);
 }
 
-// 権限レベル取得
+// 権限レベル取得（既存テーブル構造対応）
 function getUserPermissionLevel($pdo, $user_id) {
-    $stmt = $pdo->prepare("SELECT permission_level FROM users WHERE id = ?");
-    $stmt->execute([$user_id]);
-    $user = $stmt->fetch(PDO::FETCH_OBJ);
-    return $user ? $user->permission_level : 'User';
+    $columns = checkTableStructure($pdo);
+    
+    if (in_array('permission_level', $columns)) {
+        // 新権限システム
+        $stmt = $pdo->prepare("SELECT permission_level FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $user = $stmt->fetch(PDO::FETCH_OBJ);
+        return $user ? $user->permission_level : 'User';
+    } elseif (in_array('role', $columns)) {
+        // 旧権限システムからの変換
+        $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $user = $stmt->fetch(PDO::FETCH_OBJ);
+        if ($user) {
+            // roleからpermission_levelに変換
+            return (strpos($user->role, '管理') !== false || $user->role === 'admin') ? 'Admin' : 'User';
+        }
+    }
+    
+    return 'User'; // デフォルト
 }
 
-// 職務フラグによるユーザー取得
+// 職務フラグによるユーザー取得（既存テーブル構造対応）
 function getUsersByJobFunction($pdo, $job_function) {
+    $columns = checkTableStructure($pdo);
+    
+    // 基本的に全ユーザーを返す（既存システム互換）
+    $where_conditions = [];
+    
     if (is_array($job_function)) {
-        $conditions = [];
         foreach ($job_function as $job) {
-            $conditions[] = "is_{$job} = TRUE";
+            if (in_array("is_{$job}", $columns)) {
+                $where_conditions[] = "is_{$job} = TRUE";
+            }
         }
-        $where = implode(' OR ', $conditions);
     } else {
-        $where = "is_{$job_function} = TRUE";
+        if (in_array("is_{$job_function}", $columns)) {
+            $where_conditions[] = "is_{$job_function} = TRUE";
+        }
+    }
+    
+    // 職務フラグが存在しない場合は全ユーザーを返す
+    if (empty($where_conditions)) {
+        $where_clause = "1=1";
+    } else {
+        $where_clause = implode(' OR ', $where_conditions);
+    }
+    
+    // activeカラムの存在確認
+    if (in_array('active', $columns)) {
+        $where_clause .= " AND active = TRUE";
     }
     
     $stmt = $pdo->prepare("
         SELECT id, name FROM users 
-        WHERE active = TRUE AND ({$where})
+        WHERE {$where_clause}
         ORDER BY name
     ");
     $stmt->execute();
@@ -65,141 +136,317 @@ if (!$user_info) {
 // 今日の日付
 $today = date('Y-m-d');
 
-// 今日の業務状況取得
+// 今日の業務状況取得（既存テーブル構造対応）
 function getTodayStats($pdo, $today) {
-    // 稼働車両数（今日出庫済み未入庫）
-    $stmt = $pdo->prepare("
-        SELECT COUNT(DISTINCT d.vehicle_id) as active_vehicles
-        FROM departure_records d 
-        LEFT JOIN arrival_records a ON d.id = a.departure_record_id
-        WHERE d.departure_date = ? AND a.id IS NULL
-    ");
-    $stmt->execute([$today]);
-    $active_vehicles = $stmt->fetchColumn() ?: 0;
-
-    // 今日の乗車回数
-    $stmt = $pdo->prepare("
-        SELECT COUNT(*) as ride_count
-        FROM ride_records 
-        WHERE ride_date = ?
-    ");
-    $stmt->execute([$today]);
-    $ride_count = $stmt->fetchColumn() ?: 0;
-
-    // 今日の売上（修正版 - リアルタイム反映）
-    $stmt = $pdo->prepare("
-        SELECT 
-            SUM(fare_amount) as total_sales,
-            SUM(CASE WHEN payment_method = '現金' THEN fare_amount ELSE 0 END) as cash_sales,
-            SUM(CASE WHEN payment_method = 'カード' THEN fare_amount ELSE 0 END) as card_sales,
-            COUNT(*) as total_rides,
-            SUM(passenger_count) as total_passengers
-        FROM ride_records 
-        WHERE ride_date = ?
-    ");
-    $stmt->execute([$today]);
-    $sales_data = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    // 未入庫車両リスト
-    $stmt = $pdo->prepare("
-        SELECT d.vehicle_id, v.vehicle_number, u.name as driver_name, d.departure_time
-        FROM departure_records d
-        JOIN vehicles v ON d.vehicle_id = v.id
-        JOIN users u ON d.driver_id = u.id
-        LEFT JOIN arrival_records a ON d.id = a.departure_record_id
-        WHERE d.departure_date = ? AND a.id IS NULL
-        ORDER BY d.departure_time
-    ");
-    $stmt->execute([$today]);
-    $not_returned_vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    return [
-        'active_vehicles' => $active_vehicles,
-        'ride_count' => $ride_count,
-        'total_sales' => $sales_data['total_sales'] ?: 0,
-        'cash_sales' => $sales_data['cash_sales'] ?: 0,
-        'card_sales' => $sales_data['card_sales'] ?: 0,
-        'total_rides' => $sales_data['total_rides'] ?: 0,
-        'total_passengers' => $sales_data['total_passengers'] ?: 0,
-        'not_returned_vehicles' => $not_returned_vehicles
-    ];
-}
-
-// 月間実績取得
-function getMonthlyStats($pdo) {
-    $current_month = date('Y-m');
-    
-    $stmt = $pdo->prepare("
-        SELECT 
-            SUM(fare_amount) as monthly_sales,
-            COUNT(*) as monthly_rides,
-            SUM(passenger_count) as monthly_passengers,
-            AVG(fare_amount) as avg_fare
-        FROM ride_records 
-        WHERE DATE_FORMAT(ride_date, '%Y-%m') = ?
-    ");
-    $stmt->execute([$current_month]);
-    $monthly_data = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    // 月間走行距離
-    $stmt = $pdo->prepare("
-        SELECT SUM(total_distance) as monthly_distance
-        FROM arrival_records 
-        WHERE DATE_FORMAT(arrival_date, '%Y-%m') = ?
-    ");
-    $stmt->execute([$current_month]);
-    $monthly_distance = $stmt->fetchColumn() ?: 0;
-
-    return [
-        'monthly_sales' => $monthly_data['monthly_sales'] ?: 0,
-        'monthly_rides' => $monthly_data['monthly_rides'] ?: 0,
-        'monthly_passengers' => $monthly_data['monthly_passengers'] ?: 0,
-        'monthly_distance' => $monthly_distance,
-        'avg_fare' => $monthly_data['avg_fare'] ?: 0
-    ];
-}
-
-// アラート情報取得
-function getAlerts($pdo) {
-    $alerts = [];
-    
-    // 点検期限アラート（1週間以内）
-    $stmt = $pdo->prepare("
-        SELECT vehicle_number, next_inspection_date
-        FROM vehicles 
-        WHERE next_inspection_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
-        AND next_inspection_date >= CURDATE()
-    ");
-    $stmt->execute();
-    $inspection_alerts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    if ($inspection_alerts) {
-        foreach ($inspection_alerts as $alert) {
-            $alerts[] = [
-                'type' => 'warning',
-                'message' => "車両 {$alert['vehicle_number']} の定期点検期限が近づいています ({$alert['next_inspection_date']})"
-            ];
+    // テーブル存在確認
+    function tableExists($pdo, $table_name) {
+        try {
+            $stmt = $pdo->query("SHOW TABLES LIKE '{$table_name}'");
+            return $stmt->rowCount() > 0;
+        } catch(PDOException $e) {
+            return false;
         }
     }
 
-    // 未入庫車両アラート（18時以降）
-    if (date('H') >= 18) {
-        $today = date('Y-m-d');
+    $stats = [
+        'active_vehicles' => 0,
+        'ride_count' => 0,
+        'total_sales' => 0,
+        'cash_sales' => 0,
+        'card_sales' => 0,
+        'total_rides' => 0,
+        'total_passengers' => 0,
+        'not_returned_vehicles' => []
+    ];
+
+    // 分離型テーブルが存在する場合
+    if (tableExists($pdo, 'departure_records') && tableExists($pdo, 'arrival_records')) {
+        // 稼働車両数（今日出庫済み未入庫）
         $stmt = $pdo->prepare("
-            SELECT COUNT(*) as count
-            FROM departure_records d
+            SELECT COUNT(DISTINCT d.vehicle_id) as active_vehicles
+            FROM departure_records d 
             LEFT JOIN arrival_records a ON d.id = a.departure_record_id
             WHERE d.departure_date = ? AND a.id IS NULL
         ");
         $stmt->execute([$today]);
-        $not_returned_count = $stmt->fetchColumn();
+        $stats['active_vehicles'] = $stmt->fetchColumn() ?: 0;
+
+        // 未入庫車両リスト
+        $stmt = $pdo->prepare("
+            SELECT d.vehicle_id, v.vehicle_number, u.name as driver_name, d.departure_time
+            FROM departure_records d
+            JOIN vehicles v ON d.vehicle_id = v.id
+            JOIN users u ON d.driver_id = u.id
+            LEFT JOIN arrival_records a ON d.id = a.departure_record_id
+            WHERE d.departure_date = ? AND a.id IS NULL
+            ORDER BY d.departure_time
+        ");
+        $stmt->execute([$today]);
+        $stats['not_returned_vehicles'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    // 従来の運行記録テーブルから取得
+    elseif (tableExists($pdo, 'daily_operations')) {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT vehicle_id) as active_vehicles
+            FROM daily_operations 
+            WHERE operation_date = ? AND return_time IS NULL
+        ");
+        $stmt->execute([$today]);
+        $stats['active_vehicles'] = $stmt->fetchColumn() ?: 0;
+    }
+
+    // 乗車記録から売上データ取得
+    if (tableExists($pdo, 'ride_records')) {
+        // ride_recordsテーブルの列構造確認
+        $stmt = $pdo->query("DESCRIBE ride_records");
+        $columns = array_column($stmt->fetchAll(), 'Field');
         
-        if ($not_returned_count > 0) {
-            $alerts[] = [
-                'type' => 'danger',
-                'message' => "{$not_returned_count}台の車両が未入庫です"
-            ];
+        // 日付カラムの確認
+        $date_column = 'ride_date';
+        if (!in_array('ride_date', $columns) && in_array('ride_time', $columns)) {
+            $date_column = 'DATE(ride_time)';
+        } elseif (!in_array('ride_date', $columns) && in_array('created_at', $columns)) {
+            $date_column = 'DATE(created_at)';
         }
+
+        // 料金カラムの確認
+        $fare_column = 'fare_amount';
+        if (!in_array('fare_amount', $columns) && in_array('fare', $columns)) {
+            $fare_column = 'fare';
+        } elseif (!in_array('fare_amount', $columns) && in_array('amount', $columns)) {
+            $fare_column = 'amount';
+        }
+
+        // 支払方法カラムの確認
+        $payment_column = 'payment_method';
+        if (!in_array('payment_method', $columns) && in_array('payment_type', $columns)) {
+            $payment_column = 'payment_type';
+        }
+
+        // 人数カラムの確認
+        $passenger_column = 'passenger_count';
+        if (!in_array('passenger_count', $columns) && in_array('passengers', $columns)) {
+            $passenger_column = 'passengers';
+        } elseif (!in_array('passenger_count', $columns)) {
+            $passenger_column = '1'; // デフォルト値
+        }
+
+        $where_condition = "WHERE {$date_column} = ?";
+        if (in_array('ride_date', $columns)) {
+            $where_condition = "WHERE ride_date = ?";
+        }
+
+        try {
+            $stmt = $pdo->prepare("
+                SELECT 
+                    SUM({$fare_column}) as total_sales,
+                    COUNT(*) as total_rides,
+                    SUM({$passenger_column}) as total_passengers
+                FROM ride_records 
+                {$where_condition}
+            ");
+            $stmt->execute([$today]);
+            $sales_data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $stats['total_sales'] = $sales_data['total_sales'] ?: 0;
+            $stats['total_rides'] = $sales_data['total_rides'] ?: 0;
+            $stats['total_passengers'] = $sales_data['total_passengers'] ?: 0;
+
+            // 支払方法別集計（カラムが存在する場合のみ）
+            if (in_array($payment_column, $columns)) {
+                $stmt = $pdo->prepare("
+                    SELECT 
+                        SUM(CASE WHEN {$payment_column} = '現金' THEN {$fare_column} ELSE 0 END) as cash_sales,
+                        SUM(CASE WHEN {$payment_column} = 'カード' THEN {$fare_column} ELSE 0 END) as card_sales
+                    FROM ride_records 
+                    {$where_condition}
+                ");
+                $stmt->execute([$today]);
+                $payment_data = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                $stats['cash_sales'] = $payment_data['cash_sales'] ?: 0;
+                $stats['card_sales'] = $payment_data['card_sales'] ?: 0;
+            }
+        } catch(PDOException $e) {
+            // エラーの場合はデフォルト値を使用
+        }
+    }
+
+    $stats['ride_count'] = $stats['total_rides'];
+    return $stats;
+}
+
+// 月間実績取得（既存テーブル構造対応）
+function getMonthlyStats($pdo) {
+    $current_month = date('Y-m');
+    
+    $stats = [
+        'monthly_sales' => 0,
+        'monthly_rides' => 0,
+        'monthly_passengers' => 0,
+        'monthly_distance' => 0,
+        'avg_fare' => 0
+    ];
+
+    // ride_recordsテーブルから月間売上取得
+    try {
+        $stmt = $pdo->query("SHOW TABLES LIKE 'ride_records'");
+        if ($stmt->rowCount() > 0) {
+            // テーブル構造確認
+            $stmt = $pdo->query("DESCRIBE ride_records");
+            $columns = array_column($stmt->fetchAll(), 'Field');
+            
+            // 日付カラムの確認
+            $date_condition = "DATE_FORMAT(ride_date, '%Y-%m') = ?";
+            if (!in_array('ride_date', $columns) && in_array('ride_time', $columns)) {
+                $date_condition = "DATE_FORMAT(ride_time, '%Y-%m') = ?";
+            } elseif (!in_array('ride_date', $columns) && in_array('created_at', $columns)) {
+                $date_condition = "DATE_FORMAT(created_at, '%Y-%m') = ?";
+            }
+
+            // 料金カラムの確認
+            $fare_column = 'fare_amount';
+            if (!in_array('fare_amount', $columns) && in_array('fare', $columns)) {
+                $fare_column = 'fare';
+            } elseif (!in_array('fare_amount', $columns) && in_array('amount', $columns)) {
+                $fare_column = 'amount';
+            }
+
+            // 人数カラムの確認
+            $passenger_column = 'passenger_count';
+            if (!in_array('passenger_count', $columns) && in_array('passengers', $columns)) {
+                $passenger_column = 'passengers';
+            } elseif (!in_array('passenger_count', $columns)) {
+                $passenger_column = '1';
+            }
+
+            $stmt = $pdo->prepare("
+                SELECT 
+                    SUM({$fare_column}) as monthly_sales,
+                    COUNT(*) as monthly_rides,
+                    SUM({$passenger_column}) as monthly_passengers,
+                    AVG({$fare_column}) as avg_fare
+                FROM ride_records 
+                WHERE {$date_condition}
+            ");
+            $stmt->execute([$current_month]);
+            $monthly_data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $stats['monthly_sales'] = $monthly_data['monthly_sales'] ?: 0;
+            $stats['monthly_rides'] = $monthly_data['monthly_rides'] ?: 0;
+            $stats['monthly_passengers'] = $monthly_data['monthly_passengers'] ?: 0;
+            $stats['avg_fare'] = $monthly_data['avg_fare'] ?: 0;
+        }
+    } catch(PDOException $e) {
+        // エラーの場合はデフォルト値を使用
+    }
+
+    // 月間走行距離取得
+    try {
+        $stmt = $pdo->query("SHOW TABLES LIKE 'arrival_records'");
+        if ($stmt->rowCount() > 0) {
+            $stmt = $pdo->prepare("
+                SELECT SUM(total_distance) as monthly_distance
+                FROM arrival_records 
+                WHERE DATE_FORMAT(arrival_date, '%Y-%m') = ?
+            ");
+            $stmt->execute([$current_month]);
+            $stats['monthly_distance'] = $stmt->fetchColumn() ?: 0;
+        }
+        // 従来テーブルからの取得
+        else {
+            $stmt = $pdo->query("SHOW TABLES LIKE 'daily_operations'");
+            if ($stmt->rowCount() > 0) {
+                $stmt = $pdo->prepare("
+                    SELECT SUM(total_distance) as monthly_distance
+                    FROM daily_operations 
+                    WHERE DATE_FORMAT(operation_date, '%Y-%m') = ?
+                ");
+                $stmt->execute([$current_month]);
+                $stats['monthly_distance'] = $stmt->fetchColumn() ?: 0;
+            }
+        }
+    } catch(PDOException $e) {
+        // エラーの場合はデフォルト値を使用
+    }
+
+    return $stats;
+}
+
+// アラート情報取得（既存テーブル構造対応）
+function getAlerts($pdo) {
+    $alerts = [];
+    
+    try {
+        // 点検期限アラート（vehiclesテーブルが存在する場合）
+        $stmt = $pdo->query("SHOW TABLES LIKE 'vehicles'");
+        if ($stmt->rowCount() > 0) {
+            // vehiclesテーブルの構造確認
+            $stmt = $pdo->query("DESCRIBE vehicles");
+            $columns = array_column($stmt->fetchAll(), 'Field');
+            
+            if (in_array('next_inspection_date', $columns)) {
+                $stmt = $pdo->prepare("
+                    SELECT vehicle_number, next_inspection_date
+                    FROM vehicles 
+                    WHERE next_inspection_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+                    AND next_inspection_date >= CURDATE()
+                ");
+                $stmt->execute();
+                $inspection_alerts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                if ($inspection_alerts) {
+                    foreach ($inspection_alerts as $alert) {
+                        $alerts[] = [
+                            'type' => 'warning',
+                            'message' => "車両 {$alert['vehicle_number']} の定期点検期限が近づいています ({$alert['next_inspection_date']})"
+                        ];
+                    }
+                }
+            }
+        }
+
+        // 未入庫車両アラート（18時以降）
+        if (date('H') >= 18) {
+            $today = date('Y-m-d');
+            
+            // departure_recordsテーブルが存在する場合
+            $stmt = $pdo->query("SHOW TABLES LIKE 'departure_records'");
+            if ($stmt->rowCount() > 0) {
+                $stmt = $pdo->prepare("
+                    SELECT COUNT(*) as count
+                    FROM departure_records d
+                    LEFT JOIN arrival_records a ON d.id = a.departure_record_id
+                    WHERE d.departure_date = ? AND a.id IS NULL
+                ");
+                $stmt->execute([$today]);
+                $not_returned_count = $stmt->fetchColumn();
+            }
+            // 従来のdaily_operationsテーブルの場合
+            else {
+                $stmt = $pdo->query("SHOW TABLES LIKE 'daily_operations'");
+                if ($stmt->rowCount() > 0) {
+                    $stmt = $pdo->prepare("
+                        SELECT COUNT(*) as count
+                        FROM daily_operations 
+                        WHERE operation_date = ? AND return_time IS NULL
+                    ");
+                    $stmt->execute([$today]);
+                    $not_returned_count = $stmt->fetchColumn();
+                } else {
+                    $not_returned_count = 0;
+                }
+            }
+            
+            if ($not_returned_count > 0) {
+                $alerts[] = [
+                    'type' => 'danger',
+                    'message' => "{$not_returned_count}台の車両が未入庫です"
+                ];
+            }
+        }
+    } catch(PDOException $e) {
+        // エラーの場合は空の配列を返す
     }
 
     return $alerts;
