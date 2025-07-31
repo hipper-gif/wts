@@ -464,7 +464,7 @@ $alerts = getAlerts($pdo);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ダッシュボード - 福祉輸送管理システム</title>
+    <title>ダッシュボード - <?= htmlspecialchars($system_name) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -511,7 +511,7 @@ $alerts = getAlerts($pdo);
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container">
-        <a class="navbar-brand" href="#"><i class="fas fa-car me-2"></i>福祉輸送管理システム</a>
+        <a class="navbar-brand" href="#"><i class="fas fa-car me-2"></i><?= htmlspecialchars($system_name) ?></a>
         <div class="navbar-nav ms-auto">
             <span class="navbar-text me-3">
                 <i class="fas fa-user me-1"></i><?= htmlspecialchars($user_info->name) ?>
@@ -681,11 +681,11 @@ $alerts = getAlerts($pdo);
                         <h5><i class="fas fa-clipboard-list me-2"></i>基本業務（フロー順）</h5>
                     </div>
                     <div class="card-body">
-                        <a href="pre_duty_call.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-phone me-1"></i>1. 乗務前点呼
-                        </a>
                         <a href="daily_inspection.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-tools me-1"></i>2. 日常点検
+                            <i class="fas fa-phone me-1"></i>1. 日常点検
+                        </a>
+                        <a href="pre_duty_call.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
+                            <i class="fas fa-tools me-1"></i>2. 乗務前点呼
                         </a>
                         <a href="departure.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
                             <i class="fas fa-sign-out-alt me-1"></i>3. 出庫処理
@@ -760,11 +760,11 @@ $alerts = getAlerts($pdo);
                         <h5><i class="fas fa-clipboard-list me-2"></i>基本業務（フロー順）</h5>
                     </div>
                     <div class="card-body">
-                        <a href="pre_duty_call.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-phone me-1"></i>1. 乗務前点呼
-                        </a>
                         <a href="daily_inspection.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
-                            <i class="fas fa-tools me-1"></i>2. 日常点検
+                            <i class="fas fa-phone me-1"></i>1. 日常点検
+                        </a>
+                        <a href="pre_duty_call.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
+                            <i class="fas fa-tools me-1"></i>2. 乗務前点呼
                         </a>
                         <a href="departure.php" class="btn btn-outline-primary btn-sm mb-2 w-100">
                             <i class="fas fa-sign-out-alt me-1"></i>3. 出庫処理
