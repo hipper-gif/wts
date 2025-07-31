@@ -26,8 +26,7 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// 新権限システム対応：セッションから基本情報取得
-$user_name = $_SESSION['user_name'] ?? '不明なユーザー';
+$user_name = $_SESSION['user_name'];
 $user_id = $_SESSION['user_id'];
 $today = date('Y-m-d');
 $current_time = date('H:i');
@@ -38,17 +37,12 @@ $current_month_start = date('Y-m-01');
 $last_month_start = date('Y-m-01', strtotime('-1 month'));
 $last_month_end = date('Y-m-t', strtotime('-1 month'));
 
-// 新権限システム：データベースからユーザー情報を取得
+// 新権限システム：ユーザー情報を取得
 $permission_level = 'User'; // デフォルト
-$user_permissions = [
-    'is_driver' => false,
-    'is_caller' => false, 
-    'is_mechanic' => false,
-    'is_manager' => false
-];
+$user_permissions = [];
 
 try {
-    $stmt = $pdo->prepare("SELECT permission_level, is_driver, is_caller, is_mechanic, is_manager FROM users WHERE id = ? AND active = TRUE");
+    $stmt = $pdo->prepare("SELECT permission_level, is_driver, is_caller, is_mechanic, is_manager FROM users WHERE id = ?");
     $stmt->execute([$user_id]);
     $user_data = $stmt->fetch();
     
@@ -63,7 +57,7 @@ try {
     }
 } catch (Exception $e) {
     error_log("User permission error: " . $e->getMessage());
-    // デフォルト値を使用して継続
+    // デフォルト値を使用
 }
 
 // システム名を取得
@@ -83,7 +77,7 @@ try {
 $alerts = [];
 
 try {
-    // 1. 【改善】実際に法令違反リスクがある場合のみアラート
+    // 1. 【改善】出庫済みで乗車記録があるが、必須前提条件が未完了の場合のみアラート
     $stmt = $pdo->prepare("
         SELECT DISTINCT 
             r.driver_id, u.name as driver_name, v.vehicle_number,
@@ -95,7 +89,7 @@ try {
         JOIN users u ON r.driver_id = u.id
         JOIN vehicles v ON r.vehicle_id = v.id
         LEFT JOIN pre_duty_calls pdc ON r.driver_id = pdc.driver_id AND r.ride_date = pdc.call_date AND pdc.is_completed = TRUE
-        LEFT JOIN daily_inspections di ON r.vehicle_id = di.vehicle_id AND r.ride_date = di.inspection_date
+        LEFT JOIN daily_inspections di ON r.vehicle_id = di.vehicle_id AND r.ride_date = di.inspection_date AND r.driver_id = di.driver_id
         LEFT JOIN departure_records dr ON r.driver_id = dr.driver_id AND r.vehicle_id = dr.vehicle_id AND r.ride_date = dr.departure_date
         WHERE r.ride_date = ?
         GROUP BY r.driver_id, u.name, v.vehicle_number
@@ -121,8 +115,9 @@ try {
         ];
     }
 
-    // 2. 【改善】長時間未入庫のみアラート（18時以降かつ6時間以上経過）
+    // 2. 【改善】18時以降の未完了業務のみアラート
     if ($current_hour >= 18) {
+        // 未入庫で出庫から6時間以上経過している車両
         $stmt = $pdo->prepare("
             SELECT dr.vehicle_id, v.vehicle_number, u.name as driver_name, 
                    dr.departure_time, 
@@ -154,41 +149,41 @@ try {
     // 乗務前点呼
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM pre_duty_calls WHERE call_date = ? AND is_completed = TRUE");
     $stmt->execute([$today]);
-    $today_pre_duty_calls = $stmt->fetchColumn() ?: 0;
+    $today_pre_duty_calls = $stmt->fetchColumn();
     
     // 乗務後点呼
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM post_duty_calls WHERE call_date = ? AND is_completed = TRUE");
     $stmt->execute([$today]);
-    $today_post_duty_calls = $stmt->fetchColumn() ?: 0;
+    $today_post_duty_calls = $stmt->fetchColumn();
     
     // 出庫・入庫記録
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE departure_date = ?");
     $stmt->execute([$today]);
-    $today_departures = $stmt->fetchColumn() ?: 0;
+    $today_departures = $stmt->fetchColumn();
     
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE arrival_date = ?");
     $stmt->execute([$today]);
-    $today_arrivals = $stmt->fetchColumn() ?: 0;
+    $today_arrivals = $stmt->fetchColumn();
     
     // 今日の乗車記録と売上
     $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(fare + charge), 0) as revenue FROM ride_records WHERE ride_date = ?");
     $stmt->execute([$today]);
     $result = $stmt->fetch();
-    $today_ride_records = $result ? (int)$result['count'] : 0;
-    $today_total_revenue = $result ? (int)$result['revenue'] : 0;
+    $today_ride_records = $result ? $result['count'] : 0;
+    $today_total_revenue = $result ? $result['revenue'] : 0;
 
     // 当月の売上データ
     $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(fare + charge), 0) as revenue FROM ride_records WHERE ride_date >= ?");
     $stmt->execute([$current_month_start]);
     $result = $stmt->fetch();
-    $month_ride_records = $result ? (int)$result['count'] : 0;
-    $month_total_revenue = $result ? (int)$result['revenue'] : 0;
+    $month_ride_records = $result ? $result['count'] : 0;
+    $month_total_revenue = $result ? $result['revenue'] : 0;
 
     // 前月の売上データ
     $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(fare + charge), 0) as revenue FROM ride_records WHERE ride_date >= ? AND ride_date <= ?");
     $stmt->execute([$last_month_start, $last_month_end]);
     $result = $stmt->fetch();
-    $last_month_revenue = $result ? (int)$result['revenue'] : 0;
+    $last_month_revenue = $result ? $result['revenue'] : 0;
 
     // 売上増減率計算
     $revenue_change_percent = 0;
@@ -197,21 +192,11 @@ try {
     }
     
     // 平均売上計算
-    $days_in_month = (int)date('j');
+    $days_in_month = date('j');
     $month_avg_revenue = $days_in_month > 0 ? round($month_total_revenue / $days_in_month) : 0;
-    
-    // 日常点検完了状況
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM daily_inspections WHERE inspection_date = ?");
-    $stmt->execute([$today]);
-    $today_daily_inspections = $stmt->fetchColumn() ?: 0;
     
 } catch (Exception $e) {
     error_log("Dashboard error: " . $e->getMessage());
-    
-    // エラー時のデフォルト値
-    $today_pre_duty_calls = $today_post_duty_calls = $today_departures = $today_arrivals = 0;
-    $today_ride_records = $today_total_revenue = $month_ride_records = $month_total_revenue = 0;
-    $last_month_revenue = $revenue_change_percent = $month_avg_revenue = $today_daily_inspections = 0;
 }
 
 // アラートを優先度でソート
@@ -312,6 +297,14 @@ usort($alerts, function($a, $b) {
             margin-top: 0.5rem;
         }
         
+        .revenue-change.positive {
+            color: #d4edda;
+        }
+        
+        .revenue-change.negative {
+            color: #f8d7da;
+        }
+        
         /* 統計カード */
         .stats-card {
             background: white;
@@ -408,12 +401,6 @@ usort($alerts, function($a, $b) {
             margin-top: 1rem;
         }
         
-        /* バッジスタイル */
-        .permission-badge {
-            font-size: 0.7rem;
-            margin-left: 0.25rem;
-        }
-        
         @media (max-width: 768px) {
             .revenue-number-large {
                 font-size: 2.5rem;
@@ -441,16 +428,16 @@ usort($alerts, function($a, $b) {
                     <div class="user-info">
                         <i class="fas fa-user me-1"></i><?= htmlspecialchars($user_name) ?> 
                         (<?= $permission_level === 'Admin' ? 'システム管理者' : 'ユーザー' ?>)
-                        <?php if ($user_permissions['is_driver']): ?>
-                            <span class="badge bg-primary permission-badge">運転者</span>
+                        <?php if (!empty($user_permissions['is_driver'])): ?>
+                            <span class="badge bg-primary ms-1">運転者</span>
                         <?php endif; ?>
-                        <?php if ($user_permissions['is_caller']): ?>
-                            <span class="badge bg-warning permission-badge">点呼者</span>
+                        <?php if (!empty($user_permissions['is_caller'])): ?>
+                            <span class="badge bg-warning ms-1">点呼者</span>
                         <?php endif; ?>
-                        <?php if ($user_permissions['is_manager']): ?>
-                            <span class="badge bg-success permission-badge">管理者</span>
+                        <?php if (!empty($user_permissions['is_manager'])): ?>
+                            <span class="badge bg-success ms-1">管理者</span>
                         <?php endif; ?>
-                        <br class="d-md-none"><span class="d-none d-md-inline">| </span><?= date('Y年n月j日 (D)', strtotime($today)) ?> <?= $current_time ?>
+                        | <?= date('Y年n月j日 (D)', strtotime($today)) ?> <?= $current_time ?>
                     </div>
                 </div>
                 <div class="col-auto">
@@ -471,11 +458,11 @@ usort($alerts, function($a, $b) {
             <div class="alert alert-item alert-<?= $alert['priority'] ?>">
                 <div class="row align-items-center">
                     <div class="col-auto">
-                        <i class="<?= $alert['icon'] ?>"></i>
+                        <i class="<?= $alert['icon'] ?> alert-icon"></i>
                     </div>
                     <div class="col">
-                        <div class="fw-bold"><?= htmlspecialchars($alert['title']) ?></div>
-                        <div><?= htmlspecialchars($alert['message']) ?></div>
+                        <div class="alert-title"><?= htmlspecialchars($alert['title']) ?></div>
+                        <div class="alert-message"><?= htmlspecialchars($alert['message']) ?></div>
                     </div>
                     <?php if ($alert['action']): ?>
                     <div class="col-auto">
@@ -508,12 +495,10 @@ usort($alerts, function($a, $b) {
                         <h6 class="mb-2 text-info"><i class="fas fa-calendar-alt me-2"></i>今月の売上</h6>
                         <div class="stats-number text-info">¥<?= number_format($month_total_revenue) ?></div>
                         <div class="stats-label"><?= $month_ride_records ?>回の乗車</div>
-                        <?php if ($last_month_revenue > 0): ?>
-                        <div class="revenue-change mt-2" style="color: <?= $revenue_change_percent >= 0 ? '#28a745' : '#dc3545' ?>;">
+                        <div class="revenue-change <?= $revenue_change_percent >= 0 ? 'positive' : 'negative' ?>" style="color: <?= $revenue_change_percent >= 0 ? '#28a745' : '#dc3545' ?>;">
                             <i class="fas fa-<?= $revenue_change_percent >= 0 ? 'arrow-up' : 'arrow-down' ?> me-1"></i>
                             前月比 <?= abs($revenue_change_percent) ?>%
                         </div>
-                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="col-md-4">
@@ -524,6 +509,11 @@ usort($alerts, function($a, $b) {
                     </div>
                 </div>
             </div>
+            
+            <!-- 売上推移チャート -->
+            <div class="chart-container">
+                <canvas id="revenueChart"></canvas>
+            </div>
         </div>
         
         <!-- 今日の業務状況 -->
@@ -532,6 +522,10 @@ usort($alerts, function($a, $b) {
                 <div class="stats-card">
                     <h5 class="mb-3"><i class="fas fa-tasks me-2"></i>今日の業務状況</h5>
                     <div class="row text-center">
+                        <div class="col-6 col-md-3">
+                            <div class="stats-number text-primary"><?= $today_departures ?></div>
+                            <div class="stats-label">出庫</div>
+                        </div>
                         <div class="col-6 col-md-3">
                             <div class="stats-number text-success"><?= $today_ride_records ?></div>
                             <div class="stats-label">乗車</div>
@@ -773,17 +767,6 @@ usort($alerts, function($a, $b) {
                                 <div class="stats-label">今月の売上</div>
                             </div>
                         </div>
-                        <?php if ($last_month_revenue > 0): ?>
-                        <div class="text-center mt-2">
-                            <small class="text-muted">
-                                前月比 
-                                <span style="color: <?= $revenue_change_percent >= 0 ? '#28a745' : '#dc3545' ?>;">
-                                    <i class="fas fa-<?= $revenue_change_percent >= 0 ? 'arrow-up' : 'arrow-down' ?>"></i>
-                                    <?= abs($revenue_change_percent) ?>%
-                                </span>
-                            </small>
-                        </div>
-                        <?php endif; ?>
                     </div>
                     
                     <div class="stats-card">
@@ -798,7 +781,7 @@ usort($alerts, function($a, $b) {
                                 <div class="stats-label">今月の乗車</div>
                             </div>
                             <div class="col-4">
-                                <div class="stats-number text-secondary" style="font-size: 1.5rem;">¥<?= number_format($month_avg_revenue) ?></div>
+                                <div class="stats-number text-secondary" style="font-size: 1.5rem;"><?= $month_avg_revenue ?></div>
                                 <div class="stats-label">日平均売上</div>
                             </div>
                         </div>
@@ -818,7 +801,7 @@ usort($alerts, function($a, $b) {
                             <div class="progress-guide">
                                 <div class="row text-center">
                                     <div class="col-3">
-                                        <div class="progress-step <?= ($today_pre_duty_calls > 0 && $today_daily_inspections > 0) ? 'completed' : 'pending' ?>">
+                                        <div class="progress-step <?= ($today_pre_duty_calls > 0 && $stmt = $pdo->prepare("SELECT COUNT(*) FROM daily_inspections WHERE inspection_date = ?") && $stmt->execute([$today]) && $stmt->fetchColumn() > 0) ? 'completed' : 'pending' ?>">
                                             <i class="fas fa-tools"></i>
                                             <small>点検・点呼</small>
                                         </div>
@@ -919,18 +902,67 @@ usort($alerts, function($a, $b) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // 売上推移チャート（サンプルデータ）
+        const ctx = document.getElementById('revenueChart').getContext('2d');
+        
+        // 過去7日間のデータを生成（実際の実装では PHPから渡す）
+        const last7Days = [];
+        const revenues = [];
+        for (let i = 6; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            last7Days.push(date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }));
+            // サンプルデータ（実際にはPHPから売上データを取得）
+            revenues.push(Math.floor(Math.random() * 50000) + 10000);
+        }
+        
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: last7Days,
+                datasets: [{
+                    label: '売上推移',
+                    data: revenues,
+                    borderColor: 'rgb(102, 126, 234)',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '過去7日間の売上推移'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '¥' + value.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
         // 重要なアラートがある場合のブラウザ通知
         <?php if (!empty($alerts) && in_array('critical', array_column($alerts, 'priority'))): ?>
         if (Notification.permission === "granted") {
             new Notification("重要な業務確認があります", {
-                body: "<?= isset($alerts[0]) ? str_replace(['"', "'", "\n"], ['\"', "\'", " "], $alerts[0]['message']) : '' ?>",
+                body: "<?= isset($alerts[0]) ? htmlspecialchars($alerts[0]['message']) : '' ?>",
                 icon: "/favicon.ico"
             });
         } else if (Notification.permission !== "denied") {
             Notification.requestPermission().then(function (permission) {
                 if (permission === "granted") {
                     new Notification("重要な業務確認があります", {
-                        body: "<?= isset($alerts[0]) ? str_replace(['"', "'", "\n"], ['\"', "\'", " "], $alerts[0]['message']) : '' ?>",
+                        body: "<?= isset($alerts[0]) ? htmlspecialchars($alerts[0]['message']) : '' ?>",
                         icon: "/favicon.ico"
                     });
                 }
@@ -953,20 +985,8 @@ usort($alerts, function($a, $b) {
 
         // 5分ごとの自動更新（アラート更新のため）
         setInterval(function() {
-            // 現在のスクロール位置を保持
-            const scrollY = window.scrollY;
             window.location.reload();
-            // リロード後にスクロール位置を復元
-            window.scrollTo(0, scrollY);
         }, 300000); // 5分
-
-        console.log('新権限システム対応ダッシュボード loaded');
-        console.log('Permission Level: <?= $permission_level ?>');
-        console.log('User Permissions:', <?= json_encode($user_permissions) ?>);
     </script>
 </body>
-</html> text-primary"><?= $today_departures ?></div>
-                            <div class="stats-label">出庫</div>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <div class="stats-number
+</html>
