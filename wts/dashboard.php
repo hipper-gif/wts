@@ -35,6 +35,31 @@ $current_hour = date('H');
 // 当月の開始日
 $current_month_start = date('Y-m-01');
 
+// 【修正】ユーザー権限を正確に取得（roleとpermission_levelの両方に対応）
+$permission_level = 'User'; // デフォルト
+try {
+    $stmt = $pdo->prepare("SELECT role, permission_level FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $user_data = $stmt->fetch();
+    
+    if ($user_data) {
+        // permission_levelが存在する場合はそれを優先、なければroleから判定
+        if (!empty($user_data['permission_level'])) {
+            $permission_level = $user_data['permission_level'];
+        } elseif (!empty($user_data['role'])) {
+            // roleからpermission_levelに変換
+            $role = $user_data['role'];
+            if (in_array($role, ['admin', 'システム管理者', 'manager', '管理者'])) {
+                $permission_level = 'Admin';
+            } else {
+                $permission_level = 'User';
+            }
+        }
+    }
+} catch (Exception $e) {
+    error_log("Permission check error: " . $e->getMessage());
+}
+
 // システム名を取得
 $system_name = 'smileyケアタクシー';
 try {
@@ -181,7 +206,7 @@ try {
     $stmt->execute([$today]);
     $today_arrivals = $stmt->fetchColumn();
     
-    // 【修正】今日の乗車記録数と売上 - カラム名確認と対応
+    // 【修正】今日の乗車記録数と売上 - より詳細なデバッグ出力
     $stmt = $pdo->prepare("
         SELECT 
             COUNT(*) as count, 
@@ -194,7 +219,8 @@ try {
                 END
             ), 0) as revenue,
             COALESCE(SUM(fare), 0) as total_fare,
-            COALESCE(SUM(charge), 0) as total_charge
+            COALESCE(SUM(charge), 0) as total_charge,
+            GROUP_CONCAT(CONCAT('F:', IFNULL(fare, 'NULL'), ' C:', IFNULL(charge, 'NULL')) SEPARATOR ', ') as debug_data
         FROM ride_records 
         WHERE ride_date = ?
     ");
@@ -216,9 +242,7 @@ try {
                     WHEN charge IS NOT NULL THEN charge
                     ELSE 0
                 END
-            ), 0) as revenue,
-            COALESCE(SUM(fare), 0) as total_fare,
-            COALESCE(SUM(charge), 0) as total_charge
+            ), 0) as revenue
         FROM ride_records 
         WHERE ride_date >= ?
     ");
@@ -226,8 +250,6 @@ try {
     $result = $stmt->fetch();
     $month_ride_records = $result ? $result['count'] : 0;
     $month_total_revenue = $result ? $result['revenue'] : 0;
-    $month_total_fare = $result ? $result['total_fare'] : 0;
-    $month_total_charge = $result ? $result['total_charge'] : 0;
     
     // 【追加】平均売上計算
     $days_in_month = date('j'); // 今月の経過日数
@@ -544,18 +566,16 @@ usort($alerts, function($a, $b) {
             color: white;
         }
         
-        /* 【追加】売上詳細表示 */
-        .revenue-detail {
-            font-size: 0.8rem;
-            opacity: 0.9;
-            margin-top: 0.3rem;
-        }
-        
-        .revenue-breakdown {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        /* 【追加】デバッグ情報表示 */
+        .debug-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 0.5rem;
+            font-size: 0.75rem;
+            color: #6c757d;
             margin-top: 0.5rem;
+            word-break: break-all;
         }
         
         @media (max-width: 768px) {
@@ -584,6 +604,7 @@ usort($alerts, function($a, $b) {
                     <div class="header-user-info">
                         <i class="fas fa-user me-1"></i><?= htmlspecialchars($user_name) ?> 
                         (<?= $user_role === 'admin' ? 'システム管理者' : ($user_role === 'manager' ? '管理者' : '運転者') ?>)
+                        | 権限レベル: <?= $permission_level ?>
                         | <?= date('Y年n月j日 (D)', strtotime($today)) ?> <?= $current_time ?>
                     </div>
                 </div>
@@ -653,11 +674,378 @@ usort($alerts, function($a, $b) {
             </div>
         </div>
 
-        <!-- 【修正】売上情報（改善版：詳細表示付き） -->
+        <!-- 【修正】売上情報（改善版：デバッグ情報付き） -->
         <div class="row mb-4">
             <div class="col-md-4">
                 <div class="stats-card revenue-card">
                     <h6 class="mb-2"><i class="fas fa-yen-sign me-2"></i>今日の売上</h6>
                     <div class="stats-number">¥<?= number_format($today_total_revenue) ?></div>
                     <div class="stats-label" style="color: rgba(255,255,255,0.9);"><?= $today_ride_records ?>回の乗車</div>
-                    <?php if ($today_
+                    <?php if ($today_total_fare > 0 || $today_total_charge > 0): ?>
+                    <div class="debug-info" style="color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
+                        運賃: ¥<?= number_format($today_total_fare) ?> | 料金: ¥<?= number_format($today_total_charge) ?>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-card revenue-month-card">
+                    <h6 class="mb-2"><i class="fas fa-calendar-alt me-2"></i>今月の売上</h6>
+                    <div class="stats-number">¥<?= number_format($month_total_revenue) ?></div>
+                    <div class="stats-label" style="color: rgba(255,255,255,0.9);"><?= $month_ride_records ?>回の乗車</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-card">
+                    <h6 class="mb-2"><i class="fas fa-chart-bar me-2"></i>月平均</h6>
+                    <div class="stats-number text-secondary">¥<?= number_format($month_avg_revenue) ?></div>
+                    <div class="stats-label">1日あたり平均売上</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- クイックアクション（改善版：権限別表示） -->
+        <div class="row">
+            <!-- 運転者向け：1日の流れに沿った業務 -->
+            <div class="col-lg-6">
+                <div class="quick-action-group">
+                    <h5><i class="fas fa-route me-2"></i>運転業務（1日の流れ）</h5>
+                    
+                    <a href="daily_inspection.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-secondary">
+                                <i class="fas fa-tools"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>1. 日常点検</h6>
+                                <small>最初に実施（法定義務）</small>
+                            </div>
+                        </div>
+                    </a>
+                    
+                    <a href="pre_duty_call.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-warning">
+                                <i class="fas fa-clipboard-check"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>2. 乗務前点呼</h6>
+                                <small>日常点検後に実施</small>
+                            </div>
+                        </div>
+                    </a>
+                    
+                    <a href="departure.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-primary">
+                                <i class="fas fa-sign-out-alt"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>3. 出庫処理</h6>
+                                <small>点呼・点検完了後</small>
+                            </div>
+                        </div>
+                    </a>
+                    
+                    <a href="ride_records.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-success">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>4. 乗車記録</h6>
+                                <small>営業中随時入力</small>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+
+            <!-- 1日の終了業務と管理業務 -->
+            <div class="col-lg-6">
+                <div class="quick-action-group">
+                    <h5><i class="fas fa-moon me-2"></i>終業・管理業務</h5>
+                    
+                    <a href="arrival.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-info">
+                                <i class="fas fa-sign-in-alt"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>入庫処理</h6>
+                                <small>営業終了時に実施</small>
+                            </div>
+                        </div>
+                    </a>
+                    
+                    <a href="post_duty_call.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-danger">
+                                <i class="fas fa-clipboard-check"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>乗務後点呼</h6>
+                                <small>入庫後に実施</small>
+                            </div>
+                        </div>
+                    </a>
+                    
+                    <a href="periodic_inspection.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-purple">
+                                <i class="fas fa-wrench"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>定期点検</h6>
+                                <small>3ヶ月ごと</small>
+                            </div>
+                        </div>
+                    </a>
+
+                    <!-- 【修正】Admin権限のみ表示 -->
+                    <?php if ($permission_level === 'Admin'): ?>
+                    <a href="cash_management.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-success">
+                                <i class="fas fa-money-bill-wave"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>集金管理</h6>
+                                <small>売上・入金管理</small>
+                            </div>
+                        </div>
+                    </a>
+                    
+                    <a href="annual_report.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-info">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>陸運局提出</h6>
+                                <small>年次報告書作成</small>
+                            </div>
+                        </div>
+                    </a>
+                    
+                    <a href="user_management.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-orange">
+                                <i class="fas fa-users-cog"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>ユーザー管理</h6>
+                                <small>アカウント・権限設定</small>
+                            </div>
+                        </div>
+                    </a>
+                    
+                    <a href="vehicle_management.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-primary">
+                                <i class="fas fa-car"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>車両管理</h6>
+                                <small>車両情報・点検期限</small>
+                            </div>
+                        </div>
+                    </a>
+                    
+                    <a href="emergency_audit_kit.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-danger">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>緊急監査対応</h6>
+                                <small>5分で監査準備完了</small>
+                            </div>
+                        </div>
+                    </a>
+                    <?php else: ?>
+                    <a href="master_menu.php" class="quick-action-btn">
+                        <div class="quick-action-content">
+                            <div class="quick-action-icon text-orange">
+                                <i class="fas fa-cogs"></i>
+                            </div>
+                            <div class="quick-action-text">
+                                <h6>基本設定</h6>
+                                <small>システム設定</small>
+                            </div>
+                        </div>
+                    </a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- 今日の業務進捗ガイド -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="stats-card">
+                    <h5 class="mb-3"><i class="fas fa-tasks me-2"></i>今日の業務進捗ガイド</h5>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="progress-guide">
+                                <div class="row text-center">
+                                    <div class="col-3">
+                                        <div class="progress-step <?= $today_departures > 0 ? 'completed' : 'pending' ?>">
+                                            <i class="fas fa-tools"></i>
+                                            <small>点検・点呼</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="progress-step <?= $today_departures > 0 ? 'completed' : 'pending' ?>">
+                                            <i class="fas fa-sign-out-alt"></i>
+                                            <small>出庫</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="progress-step <?= $today_ride_records > 0 ? 'completed' : 'pending' ?>">
+                                            <i class="fas fa-users"></i>
+                                            <small>営業</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="progress-step <?= $today_arrivals > 0 ? 'completed' : 'pending' ?>">
+                                            <i class="fas fa-sign-in-alt"></i>
+                                            <small>終業</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="next-action">
+                                <?php if ($today_departures == 0): ?>
+                                    <h6 class="text-primary">次の作業</h6>
+                                    <p class="mb-1"><strong>日常点検</strong> を実施してください</p>
+                                    <small class="text-muted">その後、乗務前点呼→出庫の順番です</small>
+                                <?php elseif ($today_arrivals == 0): ?>
+                                    <h6 class="text-success">営業中</h6>
+                                    <p class="mb-1">お疲れ様です！</p>
+                                    <small class="text-muted">乗車記録の入力をお忘れなく</small>
+                                <?php elseif ($today_post_duty_calls == 0): ?>
+                                    <h6 class="text-warning">終業処理</h6>
+                                    <p class="mb-1"><strong>乗務後点呼</strong> を実施してください</p>
+                                    <small class="text-muted">本日の業務完了まであと少しです</small>
+                                <?php else: ?>
+                                    <h6 class="text-success">業務完了</h6>
+                                    <p class="mb-1">本日もお疲れ様でした！</p>
+                                    <small class="text-muted">明日もよろしくお願いします</small>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 【追加】デバッグ情報（開発用・Admin権限のみ表示） -->
+        <?php if ($permission_level === 'Admin' && isset($result['debug_data'])): ?>
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="stats-card">
+                    <h6><i class="fas fa-bug me-2"></i>デバッグ情報（Admin用）</h6>
+                    <div class="debug-info">
+                        <strong>今日の乗車記録データ:</strong><br>
+                        <?= htmlspecialchars($result['debug_data']) ?: '乗車記録なし' ?>
+                        <br><br>
+                        <strong>権限情報:</strong><br>
+                        セッション role: <?= htmlspecialchars($user_role) ?><br>
+                        計算済み permission_level: <?= htmlspecialchars($permission_level) ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+
+    <style>
+        .progress-guide {
+            padding: 1rem 0;
+        }
+        
+        .progress-step {
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .progress-step.completed {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        
+        .progress-step.pending {
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 2px dashed #dee2e6;
+        }
+        
+        .progress-step i {
+            font-size: 1.5rem;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        
+        .progress-step small {
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .next-action {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 1.5rem;
+            border-radius: 10px;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .next-action h6 {
+            margin-bottom: 1rem;
+        }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 5分ごとにページを自動更新してアラートを更新
+        setInterval(function() {
+            window.location.reload();
+        }, 300000); // 5分 = 300000ms
+
+        // アラートが存在する場合、ブラウザ通知を表示（ユーザーの許可が必要）
+        <?php if (!empty($alerts) && in_array('critical', array_column($alerts, 'priority'))): ?>
+        if (Notification.permission === "granted") {
+            new Notification("重要な業務漏れがあります", {
+                body: "<?= isset($alerts[0]) ? htmlspecialchars($alerts[0]['message']) : '' ?>",
+                icon: "/favicon.ico"
+            });
+        } else if (Notification.permission !== "denied") {
+            Notification.requestPermission().then(function (permission) {
+                if (permission === "granted") {
+                    new Notification("重要な業務漏れがあります", {
+                        body: "<?= isset($alerts[0]) ? htmlspecialchars($alerts[0]['message']) : '' ?>",
+                        icon: "/favicon.ico"
+                    });
+                }
+            });
+        }
+        <?php endif; ?>
+
+        // 業務進捗の可視化アニメーション
+        document.addEventListener('DOMContentLoaded', function() {
+            const steps = document.querySelectorAll('.progress-step');
+            steps.forEach((step, index) => {
+                setTimeout(() => {
+                    step.style.transform = 'scale(1.05)';
+                    setTimeout(() => {
+                        step.style.transform = 'scale(1)';
+                    }, 200);
+                }, index * 100);
+            });
+        });
+    </script>
+</body>
+</html>
