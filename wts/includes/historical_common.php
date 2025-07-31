@@ -84,12 +84,13 @@ function categorizeDates($all_dates, $existing_dates) {
  * @return array ユーザー配列
  */
 function getUsersByRole($pdo, $role_filter = null) {
-    $sql = "SELECT id, name FROM users WHERE active = 1";
+    $sql = "SELECT id, name FROM users WHERE is_active = 1";
     $params = [];
     
     if ($role_filter) {
         // 新しい権限システム（is_driver, is_caller等）に対応
-        $sql .= " AND is_{$role_filter} = 1";
+        $role_column = "is_{$role_filter}";
+        $sql .= " AND {$role_column} = 1";
     }
     
     $sql .= " ORDER BY name";
@@ -106,7 +107,7 @@ function getUsersByRole($pdo, $role_filter = null) {
  * @return array 車両配列
  */
 function getVehicles($pdo) {
-    $sql = "SELECT id, vehicle_number, model FROM vehicles ORDER BY vehicle_number";
+    $sql = "SELECT id, vehicle_number, model FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
     $stmt = $pdo->query($sql);
     
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -118,32 +119,36 @@ function getVehicles($pdo) {
  * @return array 日常点検データ
  */
 function generateDailyInspectionDefaults($base_data) {
+    // 実際のテーブル構造に合わせた項目名
     return array_merge($base_data, [
         // 運転室内点検
-        'cabin_brake_pedal' => '可',
-        'cabin_parking_brake' => '可',
-        'cabin_engine_condition' => '可',
-        'cabin_engine_performance' => '可',
-        'cabin_wiper_performance' => '可',
-        'cabin_washer_fluid_spray' => '可',
+        'foot_brake_result' => '可',
+        'parking_brake_result' => '可',
+        'engine_start_result' => '可',
+        'engine_performance_result' => '可',
+        'wiper_result' => '可',
+        'washer_spray_result' => '可',
         
         // エンジンルーム内点検
-        'engine_brake_fluid' => '可',
-        'engine_coolant_level' => '可',
-        'engine_oil_level' => '可',
-        'engine_battery_fluid' => '可',
-        'engine_washer_fluid_level' => '可',
-        'engine_fan_belt' => '可',
+        'brake_fluid_result' => '可',
+        'coolant_result' => '可',
+        'engine_oil_result' => '可',
+        'battery_fluid_result' => '可',
+        'washer_fluid_result' => '可',
+        'fan_belt_result' => '可',
         
         // 灯火類・タイヤ点検
-        'light_headlights' => '可',
-        'light_taillights' => '可',
-        'light_brake_lights' => '可',
-        'tire_air_pressure' => '可',
-        'tire_condition' => '可',
+        'lights_result' => '可',
+        'lens_result' => '可',
+        'tire_pressure_result' => '可',
+        'tire_damage_result' => '可',
+        'tire_tread_result' => '可',
         
         // その他
         'defect_details' => '',
+        'remarks' => '',
+        'mileage' => 0,
+        'inspector_name' => '', // 後で設定
         'created_at' => date('Y-m-d H:i:s')
     ]);
 }
