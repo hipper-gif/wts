@@ -802,7 +802,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
                             <?php foreach ($categories as $category): ?>
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <div>
-                                        <strong><?php echo htmlspecialchars($category['transport_category'] ?? 'その他'); ?></strong>
+                                        <strong><?php echo htmlspecialchars($category['transport_type'] ?? 'その他'); ?></strong>
                                         <br>
                                         <small class="text-muted"><?php echo $category['count']; ?>回 / <?php echo $category['passengers']; ?>名</small>
                                     </div>
