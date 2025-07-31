@@ -320,11 +320,10 @@ $historical_data = $_SESSION['historical_data'] ?? null;
                                     </div>
                                     
                                     <div class="inspection-items" id="items_<?= str_replace('-', '_', $date) ?>">
-                                        <!-- 運転室内点検 -->
-                                        <h6 class="text-primary">運転室内点検</h6>
+                                        <!-- 簡略化された点検項目 -->
                                         <div class="row">
                                             <div class="col-md-4">
-                                                <label class="form-label">フットブレーキの踏み代・効き</label>
+                                                <label class="form-label">ブレーキペダル</label>
                                                 <select class="form-select form-select-sm inspection-item" 
                                                         name="inspection_data[<?= $date ?>][cabin_brake_pedal]">
                                                     <option value="可" selected>可</option>
@@ -332,7 +331,7 @@ $historical_data = $_SESSION['historical_data'] ?? null;
                                                 </select>
                                             </div>
                                             <div class="col-md-4">
-                                                <label class="form-label">パーキングブレーキの引き代</label>
+                                                <label class="form-label">パーキングブレーキ</label>
                                                 <select class="form-select form-select-sm inspection-item" 
                                                         name="inspection_data[<?= $date ?>][cabin_parking_brake]">
                                                     <option value="可" selected>可</option>
@@ -340,7 +339,7 @@ $historical_data = $_SESSION['historical_data'] ?? null;
                                                 </select>
                                             </div>
                                             <div class="col-md-4">
-                                                <label class="form-label">※エンジンのかかり具合・異音</label>
+                                                <label class="form-label">エンジン状態</label>
                                                 <select class="form-select form-select-sm inspection-item" 
                                                         name="inspection_data[<?= $date ?>][cabin_engine_condition]">
                                                     <option value="可" selected>可</option>
@@ -352,99 +351,7 @@ $historical_data = $_SESSION['historical_data'] ?? null;
 
                                         <div class="row mt-2">
                                             <div class="col-md-4">
-                                                <label class="form-label">※エンジンの低速・加速</label>
-                                                <select class="form-select form-select-sm inspection-item" 
-                                                        name="inspection_data[<?= $date ?>][cabin_engine_performance]">
-                                                    <option value="可" selected>可</option>
-                                                    <option value="否">否</option>
-                                                    <option value="省略">省略</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label">※ワイパーのふき取り能力</label>
-                                                <select class="form-select form-select-sm inspection-item" 
-                                                        name="inspection_data[<?= $date ?>][cabin_wiper_performance]">
-                                                    <option value="可" selected>可</option>
-                                                    <option value="否">否</option>
-                                                    <option value="省略">省略</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label">※ウインドウォッシャー液の噴射状態</label>
-                                                <select class="form-select form-select-sm inspection-item" 
-                                                        name="inspection_data[<?= $date ?>][cabin_washer_fluid_spray]">
-                                                    <option value="可" selected>可</option>
-                                                    <option value="否">否</option>
-                                                    <option value="省略">省略</option>
-                                                </select>
-                                            </div>
-                                        </div>
-
-                                        <!-- エンジンルーム内点検 -->
-                                        <h6 class="text-success mt-4">エンジンルーム内点検</h6>
-                                        <div class="row">
-                                            <div class="col-md-4">
-                                                <label class="form-label">ブレーキ液量</label>
-                                                <select class="form-select form-select-sm inspection-item" 
-                                                        name="inspection_data[<?= $date ?>][engine_brake_fluid]">
-                                                    <option value="可" selected>可</option>
-                                                    <option value="否">否</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label">※冷却水量</label>
-                                                <select class="form-select form-select-sm inspection-item" 
-                                                        name="inspection_data[<?= $date ?>][engine_coolant_level]">
-                                                    <option value="可" selected>可</option>
-                                                    <option value="否">否</option>
-                                                    <option value="省略">省略</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label">※エンジンオイル量</label>
-                                                <select class="form-select form-select-sm inspection-item" 
-                                                        name="inspection_data[<?= $date ?>][engine_oil_level]">
-                                                    <option value="可" selected>可</option>
-                                                    <option value="否">否</option>
-                                                    <option value="省略">省略</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="row mt-2">
-                                            <div class="col-md-4">
-                                                <label class="form-label">※バッテリー液量</label>
-                                                <select class="form-select form-select-sm inspection-item" 
-                                                        name="inspection_data[<?= $date ?>][engine_battery_fluid]">
-                                                    <option value="可" selected>可</option>
-                                                    <option value="否">否</option>
-                                                    <option value="省略">省略</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label">※ウインドウォッシャー液量</label>
-                                                <select class="form-select form-select-sm inspection-item" 
-                                                        name="inspection_data[<?= $date ?>][engine_washer_fluid_level]">
-                                                    <option value="可" selected>可</option>
-                                                    <option value="否">否</option>
-                                                    <option value="省略">省略</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label">※ファンベルトの張り・損傷</label>
-                                                <select class="form-select form-select-sm inspection-item" 
-                                                        name="inspection_data[<?= $date ?>][engine_fan_belt]">
-                                                    <option value="可" selected>可</option>
-                                                    <option value="否">否</option>
-                                                    <option value="省略">省略</option>
-                                                </select>
-                                            </div>
-                                        </div>
-
-                                        <!-- 灯火類・タイヤ点検 -->
-                                        <h6 class="text-warning mt-4">灯火類・タイヤ点検</h6>
-                                        <div class="row">
-                                            <div class="col-md-4">
-                                                <label class="form-label">灯火類の点灯・点滅</label>
+                                                <label class="form-label">灯火類</label>
                                                 <select class="form-select form-select-sm inspection-item" 
                                                         name="inspection_data[<?= $date ?>][light_headlights]">
                                                     <option value="可" selected>可</option>
@@ -452,38 +359,19 @@ $historical_data = $_SESSION['historical_data'] ?? null;
                                                 </select>
                                             </div>
                                             <div class="col-md-4">
-                                                <label class="form-label">レンズの損傷・汚れ</label>
-                                                <select class="form-select form-select-sm inspection-item" 
-                                                        name="inspection_data[<?= $date ?>][light_lens_condition]">
-                                                    <option value="可" selected>可</option>
-                                                    <option value="否">否</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label">タイヤの空気圧</label>
+                                                <label class="form-label">タイヤ空気圧</label>
                                                 <select class="form-select form-select-sm inspection-item" 
                                                         name="inspection_data[<?= $date ?>][tire_air_pressure]">
                                                     <option value="可" selected>可</option>
                                                     <option value="否">否</option>
                                                 </select>
                                             </div>
-                                        </div>
-                                        <div class="row mt-2">
                                             <div class="col-md-4">
-                                                <label class="form-label">タイヤの亀裂・損傷</label>
+                                                <label class="form-label">タイヤ状態</label>
                                                 <select class="form-select form-select-sm inspection-item" 
                                                         name="inspection_data[<?= $date ?>][tire_condition]">
                                                     <option value="可" selected>可</option>
                                                     <option value="否">否</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label">※タイヤ溝の深さ</label>
-                                                <select class="form-select form-select-sm inspection-item" 
-                                                        name="inspection_data[<?= $date ?>][tire_tread_depth]">
-                                                    <option value="可" selected>可</option>
-                                                    <option value="否">否</option>
-                                                    <option value="省略">省略</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -495,3 +383,134 @@ $historical_data = $_SESSION['historical_data'] ?? null;
                                                       name="inspection_data[<?= $date ?>][defect_details]" 
                                                       placeholder="問題があった場合は詳細を記入"></textarea>
                                         </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+
+                            <!-- 保存ボタン -->
+                            <div class="mt-4 d-flex justify-content-between">
+                                <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                                    <i class="fas fa-undo"></i> リセット
+                                </button>
+                                <div>
+                                    <button type="button" class="btn btn-outline-danger me-2" onclick="cancelInput()">
+                                        <i class="fas fa-times"></i> キャンセル
+                                    </button>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save"></i> データを保存
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                    <?php else: ?>
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i> 
+                            指定された期間のデータは既に全て入力済みです。
+                        </div>
+                        <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                            <i class="fas fa-arrow-left"></i> 期間選択に戻る
+                        </button>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <!-- 戻るボタン -->
+        <div class="mt-4">
+            <a href="daily_inspection.php" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> 通常の日常点検に戻る
+            </a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 全項目を指定値に設定
+        function setAllItems(value) {
+            const selects = document.querySelectorAll('.inspection-item');
+            selects.forEach(select => {
+                const dateCard = select.closest('.inspection-date-card');
+                const skipCheckbox = dateCard.querySelector('input[type="checkbox"][name*="[skip]"]');
+                
+                if (!skipCheckbox.checked) {
+                    const option = select.querySelector('option[value="' + value + '"]');
+                    if (option) {
+                        select.value = value;
+                    }
+                }
+            });
+        }
+
+        // 全てスキップの切り替え
+        function toggleAllSkip() {
+            const skipCheckboxes = document.querySelectorAll('input[type="checkbox"][name*="[skip]"]');
+            const firstCheckbox = skipCheckboxes[0];
+            const newState = !firstCheckbox.checked;
+            
+            skipCheckboxes.forEach(checkbox => {
+                checkbox.checked = newState;
+                toggleInspectionItems(checkbox);
+            });
+        }
+
+        // スキップ時の項目表示/非表示切り替え
+        function toggleInspectionItems(checkbox) {
+            const dateCard = checkbox.closest('.inspection-date-card');
+            const itemsDiv = dateCard.querySelector('.inspection-items');
+            
+            if (checkbox.checked) {
+                itemsDiv.style.opacity = '0.3';
+                itemsDiv.style.pointerEvents = 'none';
+            } else {
+                itemsDiv.style.opacity = '1';
+                itemsDiv.style.pointerEvents = 'auto';
+            }
+        }
+
+        // フォームリセット
+        function resetForm() {
+            if (confirm('入力内容がリセットされます。よろしいですか？')) {
+                window.location.href = 'daily_inspection.php?mode=historical';
+            }
+        }
+
+        // 入力キャンセル
+        function cancelInput() {
+            if (confirm('入力を中止して通常モードに戻りますか？')) {
+                window.location.href = 'daily_inspection.php';
+            }
+        }
+
+        // ページ読み込み時の初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            const skipCheckboxes = document.querySelectorAll('input[type="checkbox"][name*="[skip]"]');
+            skipCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    toggleInspectionItems(this);
+                });
+            });
+
+            const form = document.getElementById('inspection-form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    const skipCount = document.querySelectorAll('input[type="checkbox"][name*="[skip]"]:checked').length;
+                    const totalCount = document.querySelectorAll('input[type="checkbox"][name*="[skip]"]').length;
+                    const saveCount = totalCount - skipCount;
+                    
+                    if (saveCount === 0) {
+                        e.preventDefault();
+                        alert('保存するデータがありません。少なくとも1件はスキップを解除してください。');
+                        return false;
+                    }
+                    
+                    if (!confirm(saveCount + '件のデータを保存します。よろしいですか？')) {
+                        e.preventDefault();
+                        return false;
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
