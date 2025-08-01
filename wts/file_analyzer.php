@@ -8,10 +8,15 @@
  */
 
 // GitHub API設定
-$github_token = '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';
+$github_token = ''; // セキュリティのため空にしています
 $repo_owner = 'hipper-gif';
 $repo_name = 'wts';
 $directory = 'wts'; // 対象ディレクトリ
+
+// フォームからのトークン入力を受け取る
+if (isset($_POST['github_token']) && !empty($_POST['github_token'])) {
+    $github_token = $_POST['github_token'];
+}
 
 // GitHub API URL
 $api_url = "https://api.github.com/repos/{$repo_owner}/{$repo_name}/contents/{$directory}";
@@ -20,24 +25,36 @@ $api_url = "https://api.github.com/repos/{$repo_owner}/{$repo_name}/contents/{$d
  * cURLでGitHub APIにリクエストを送信
  */
 function makeGitHubRequest($url, $token) {
+    if (empty($token)) {
+        throw new Exception("GitHub APIトークンが設定されていません");
+    }
+    
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: token ' . $token,
+        'Authorization: Bearer ' . $token, // Bearerトークン形式に変更
         'User-Agent: WTS-File-Analyzer/1.0',
-        'Accept: application/vnd.github.v3+json',
+        'Accept: application/vnd.github+json',
         'X-GitHub-Api-Version: 2022-11-28'
     ]);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_VERBOSE, false); // デバッグ用
     
     $response = curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error_msg = curl_error($ch);
     curl_close($ch);
     
+    if ($response === false) {
+        throw new Exception("cURL Error: " . $error_msg);
+    }
+    
     if ($http_code !== 200) {
-        throw new Exception("GitHub API Error: HTTP {$http_code}");
+        $decoded_response = json_decode($response, true);
+        $api_message = isset($decoded_response['message']) ? $decoded_response['message'] : 'Unknown error';
+        throw new Exception("GitHub API Error: HTTP {$http_code} - {$api_message}");
     }
     
     return json_decode($response, true);
@@ -150,6 +167,11 @@ try {
     echo "        .filter-btn { padding: 8px 16px; margin: 5px; border: 1px solid #d1d5da; background: white; border-radius: 6px; cursor: pointer; }\n";
     echo "        .filter-btn.active { background: #0366d6; color: white; }\n";
     echo "        .summary { background: #f6f8fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }\n";
+    echo "        .token-form { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin-bottom: 20px; }\n";
+    echo "        .form-group { margin-bottom: 15px; }\n";
+    echo "        .form-control { width: 100%; padding: 10px; border: 1px solid #d1d5da; border-radius: 6px; font-family: monospace; }\n";
+    echo "        .btn { padding: 10px 20px; background: #0366d6; color: white; border: none; border-radius: 6px; cursor: pointer; }\n";
+    echo "        .btn:hover { background: #0256cc; }\n";
     echo "    </style>\n";
     echo "</head>\n";
     echo "<body>\n";
@@ -160,6 +182,33 @@ try {
     echo "        <p>福祉輸送管理システム - リポジトリファイル分析ツール</p>\n";
     echo "        <p><strong>Repository:</strong> {$repo_owner}/{$repo_name}/{$directory}</p>\n";
     echo "    </div>\n";
+    
+    // APIトークンが設定されていない場合はフォームを表示
+    if (empty($github_token)) {
+        echo "    <div class='token-form'>\n";
+        echo "        <h3>🔑 GitHub Personal Access Token が必要です</h3>\n";
+        echo "        <p>リポジトリにアクセスするために、GitHub Personal Access Token を入力してください。</p>\n";
+        echo "        <form method='POST'>\n";
+        echo "            <div class='form-group'>\n";
+        echo "                <label for='github_token'>GitHub Personal Access Token:</label>\n";
+        echo "                <input type='password' id='github_token' name='github_token' class='form-control' placeholder='ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' required>\n";
+        echo "            </div>\n";
+        echo "            <button type='submit' class='btn'>🔍 ファイル分析を開始</button>\n";
+        echo "        </form>\n";
+        echo "        <div style='margin-top: 15px; font-size: 0.9em; color: #586069;'>\n";
+        echo "            <p><strong>セキュリティについて:</strong></p>\n";
+        echo "            <ul>\n";
+        echo "                <li>トークンはサーバーに保存されません</li>\n";
+        echo "                <li>セッション終了時に自動的に削除されます</li>\n";
+        echo "                <li>読み取り権限のみのトークンを使用してください</li>\n";
+        echo "            </ul>\n";
+        echo "        </div>\n";
+        echo "    </div>\n";
+        echo "</div>\n";
+        echo "</body>\n";
+        echo "</html>\n";
+        return;
+    }
     
     echo "    <div class='summary'>\n";
     echo "        <h2>📊 分析結果サマリー</h2>\n";
