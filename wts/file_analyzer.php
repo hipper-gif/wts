@@ -290,6 +290,8 @@ try {
     echo "        </thead>\n";
     echo "        <tbody>\n";
     
+    $all_raw_links = []; // rawリンク一覧用
+    
     foreach ($files as $file) {
         if ($file['type'] === 'file') {
             $filename = htmlspecialchars($file['name']);
@@ -308,6 +310,14 @@ try {
             // Raw リンクの生成
             $raw_link = "https://raw.githubusercontent.com/{$repo_owner}/{$repo_name}/main/{$directory}/{$filename}";
             
+            // rawリンク一覧に追加
+            $all_raw_links[] = [
+                'filename' => $file['name'],
+                'raw_link' => $raw_link,
+                'category' => $category,
+                'size' => $file['size']
+            ];
+            
             // データ属性用のカテゴリークラス
             $data_category = strtolower(str_replace([' ', '/'], ['_', '_'], $category));
             
@@ -323,6 +333,68 @@ try {
     
     echo "        </tbody>\n";
     echo "    </table>\n";
+    
+    // Raw Links 一覧セクション
+    echo "    <div style='margin-top: 30px; background: #f8f9fa; padding: 20px; border-radius: 8px;'>\n";
+    echo "        <h3>📋 全ファイル Raw Links 一覧（コピー用）</h3>\n";
+    echo "        <p>以下のテキストをコピーして、ChatGPTなどのAIツールに貼り付けて分析を依頼できます。</p>\n";
+    
+    // カテゴリー別Raw Links
+    $categories_links = [];
+    foreach ($all_raw_links as $link) {
+        $categories_links[$link['category']][] = $link;
+    }
+    
+    echo "        <div style='margin: 15px 0;'>\n";
+    echo "            <button onclick='copyAllLinks()' class='btn' style='margin-right: 10px;'>📋 全リンクをコピー</button>\n";
+    echo "            <button onclick='copyCoreLinks()' class='btn' style='margin-right: 10px;'>🎯 コアファイルのみコピー</button>\n";
+    echo "            <button onclick='copyAnalysisRequest()' class='btn'>🤖 分析依頼文をコピー</button>\n";
+    echo "        </div>\n";
+    
+    // 全リンク表示
+    echo "        <div style='margin-top: 20px;'>\n";
+    echo "            <h4>🎯 コアシステムファイル（" . count(array_filter($all_raw_links, function($l) { return strpos($l['category'], 'Core') !== false; })) . "個）</h4>\n";
+    echo "            <textarea id='coreLinks' readonly style='width: 100%; height: 200px; font-family: monospace; font-size: 0.9em; border: 1px solid #d1d5da; border-radius: 6px; padding: 10px;'>";
+    foreach ($all_raw_links as $link) {
+        if (strpos($link['category'], 'Core') !== false) {
+            echo $link['raw_link'] . "\n";
+        }
+    }
+    echo "</textarea>\n";
+    echo "        </div>\n";
+    
+    echo "        <div style='margin-top: 20px;'>\n";
+    echo "            <h4>📄 全ファイルリンク（" . count($all_raw_links) . "個）</h4>\n";
+    echo "            <textarea id='allLinks' readonly style='width: 100%; height: 300px; font-family: monospace; font-size: 0.9em; border: 1px solid #d1d5da; border-radius: 6px; padding: 10px;'>";
+    foreach ($all_raw_links as $link) {
+        echo "# " . $link['filename'] . " (" . $link['category'] . " - " . formatBytes($link['size']) . ")\n";
+        echo $link['raw_link'] . "\n\n";
+    }
+    echo "</textarea>\n";
+    echo "        </div>\n";
+    
+    // 分析依頼用テンプレート
+    echo "        <div style='margin-top: 20px;'>\n";
+    echo "            <h4>🤖 AI分析依頼テンプレート</h4>\n";
+    echo "            <textarea id='analysisRequest' readonly style='width: 100%; height: 200px; font-family: monospace; font-size: 0.9em; border: 1px solid #d1d5da; border-radius: 6px; padding: 10px;'>";
+    echo "福祉輸送管理システムのGitHubファイル分析をお願いします。\n\n";
+    echo "【分析対象】\n";
+    echo "- 総ファイル数: " . count($all_raw_links) . "個\n";
+    echo "- コアシステム: " . count(array_filter($all_raw_links, function($l) { return strpos($l['category'], 'Core') !== false; })) . "個\n";
+    echo "- 保守・テストファイル: " . count(array_filter($all_raw_links, function($l) { return strpos($l['category'], 'Test') !== false || strpos($l['category'], 'Setup') !== false || strpos($l['category'], 'Fix') !== false; })) . "個\n\n";
+    echo "【分析希望項目】\n";
+    echo "1. システムの実装完成度（各ファイルの機能実装状況）\n";
+    echo "2. 削除候補ファイルの特定（テスト・デバッグ・重複ファイル等）\n";
+    echo "3. コードの品質・セキュリティ問題\n";
+    echo "4. ファイル間の依存関係\n";
+    echo "5. システム全体の技術的評価\n\n";
+    echo "【Raw Links】\n";
+    foreach ($all_raw_links as $link) {
+        echo $link['raw_link'] . "\n";
+    }
+    echo "</textarea>\n";
+    echo "        </div>\n";
+    echo "    </div>\n";
     
     // ファイル分類統計
     echo "    <div style='margin-top: 30px;'>\n";
@@ -353,7 +425,7 @@ try {
     
     echo "</div>\n";
     
-    // JavaScript for filtering
+    // JavaScript for filtering and copying
     echo "<script>\n";
     echo "function filterFiles(category) {\n";
     echo "    const rows = document.querySelectorAll('#fileTable tbody tr');\n";
@@ -369,7 +441,54 @@ try {
     echo "            row.style.display = 'none';\n";
     echo "        }\n";
     echo "    });\n";
-    echo "}\n";
+    echo "}\n\n";
+    
+    echo "function copyToClipboard(text) {\n";
+    echo "    navigator.clipboard.writeText(text).then(function() {\n";
+    echo "        showCopyMessage('コピーしました！');\n";
+    echo "    }, function(err) {\n";
+    echo "        console.error('コピーに失敗しました: ', err);\n";
+    echo "        showCopyMessage('コピーに失敗しました', true);\n";
+    echo "    });\n";
+    echo "}\n\n";
+    
+    echo "function showCopyMessage(message, isError = false) {\n";
+    echo "    const msg = document.createElement('div');\n";
+    echo "    msg.textContent = message;\n";
+    echo "    msg.style.cssText = `\n";
+    echo "        position: fixed; top: 20px; right: 20px; z-index: 1000;\n";
+    echo "        padding: 10px 20px; border-radius: 5px;\n";
+    echo "        background: ${isError ? '#dc3545' : '#28a745'}; color: white;\n";
+    echo "        font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);\n";
+    echo "    `;\n";
+    echo "    document.body.appendChild(msg);\n";
+    echo "    setTimeout(() => msg.remove(), 3000);\n";
+    echo "}\n\n";
+    
+    echo "function copyAllLinks() {\n";
+    echo "    const textarea = document.getElementById('allLinks');\n";
+    echo "    copyToClipboard(textarea.value);\n";
+    echo "}\n\n";
+    
+    echo "function copyCoreLinks() {\n";
+    echo "    const textarea = document.getElementById('coreLinks');\n";
+    echo "    copyToClipboard(textarea.value);\n";
+    echo "}\n\n";
+    
+    echo "function copyAnalysisRequest() {\n";
+    echo "    const textarea = document.getElementById('analysisRequest');\n";
+    echo "    copyToClipboard(textarea.value);\n";
+    echo "}\n\n";
+    
+    echo "// テキストエリアのクリック時に全選択\n";
+    echo "document.addEventListener('DOMContentLoaded', function() {\n";
+    echo "    const textareas = document.querySelectorAll('textarea');\n";
+    echo "    textareas.forEach(textarea => {\n";
+    echo "        textarea.addEventListener('click', function() {\n";
+    echo "            this.select();\n";
+    echo "        });\n";
+    echo "    });\n";
+    echo "});\n";
     echo "</script>\n";
     
     echo "</body>\n";
