@@ -102,18 +102,18 @@ try {
     $stmt->execute([$today]);
     $result = $stmt->fetch();
     $today_ride_records = $result ? $result['count'] : 0;
-    $today_total_revenue = $result ? $result['revenue'] : 0;
+    $today_fare_amount = $result ? $result['revenue'] : 0;
 
     // 当月の乗車記録数と売上
     $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(fare + charge), 0) as revenue FROM ride_records WHERE ride_date >= ?");
     $stmt->execute([$current_month_start]);
     $result = $stmt->fetch();
     $month_ride_records = $result ? $result['count'] : 0;
-    $month_total_revenue = $result ? $result['revenue'] : 0;
+    $month_fare_amount = $result ? $result['revenue'] : 0;
     
     // 平均売上計算
     $days_in_month = date('j');
-    $month_avg_revenue = $days_in_month > 0 ? round($month_total_revenue / $days_in_month) : 0;
+    $month_avg_revenue = $days_in_month > 0 ? round($month_fare_amount / $days_in_month) : 0;
     
 } catch (Exception $e) {
     error_log("Dashboard stats error: " . $e->getMessage());
@@ -123,9 +123,9 @@ try {
     $today_departures = 0;
     $today_arrivals = 0;
     $today_ride_records = 0;
-    $today_total_revenue = 0;
+    $today_fare_amount = 0;
     $month_ride_records = 0;
-    $month_total_revenue = 0;
+    $month_fare_amount = 0;
     $month_avg_revenue = 0;
 }
 ?>
@@ -321,14 +321,14 @@ try {
             <div class="col-md-4">
                 <div class="stats-card revenue-card">
                     <h6 class="mb-2"><i class="fas fa-yen-sign me-2"></i>今日の売上</h6>
-                    <div class="stats-number">¥<?= number_format($today_total_revenue) ?></div>
+                    <div class="stats-number">¥<?= number_format($today_fare_amount) ?></div>
                     <div class="stats-label" style="color: rgba(255,255,255,0.8);"><?= $today_ride_records ?>回の乗車</div>
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="stats-card revenue-month-card">
                     <h6 class="mb-2"><i class="fas fa-calendar-alt me-2"></i>今月の売上</h6>
-                    <div class="stats-number">¥<?= number_format($month_total_revenue) ?></div>
+                    <div class="stats-number">¥<?= number_format($month_fare_amount) ?></div>
                     <div class="stats-label" style="color: rgba(255,255,255,0.8);"><?= $month_ride_records ?>回の乗車</div>
                 </div>
             </div>
