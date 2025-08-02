@@ -1021,11 +1021,11 @@ $payment_methods = ['現金', 'カード', 'その他'];
 var modalDriverId = document.getElementById('modalDriverId');
 if (modalDriverId) {
     modalDriverId.value = '<?php echo $user_id; ?>';
-}
+
 
 var rideModal = new bootstrap.Modal(document.getElementById('rideModal'));
 rideModal.show();
-
+}
         // 編集モーダル表示
         function editRecord(record) {
             document.getElementById('rideModalTitle').innerHTML = '<i class="fas fa-edit me-2"></i>乗車記録編集';
