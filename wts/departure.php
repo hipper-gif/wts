@@ -302,7 +302,7 @@ $weather_options = ['晴', '曇', '雨', '雪', '霧'];
         <?php echo htmlspecialchars($driver['name']); ?>
     </option>
 <?php endforeach; ?>
-                                            <?php endforeach; ?>
+
                                         </select>
                                     </div>
 
