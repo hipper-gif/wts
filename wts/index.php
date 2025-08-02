@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo = getDBConnection();
             
             // 【修正】全ての権限情報を取得
-            $stmt = $pdo->prepare("SELECT id, name, login_id, password, role, is_driver, is_caller, is_admin, is_active FROM users WHERE login_id = ? AND is_active = TRUE");
+            $stmt = $pdo->prepare("SELECT id, name, password, permission_level, is_driver, is_caller, is_admin FROM users WHERE login_id = ? AND is_active = TRUE");
             $stmt->execute([$login_id]);
             $user = $stmt->fetch();
             
@@ -33,19 +33,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['login_id'] = $user['login_id'];
                 
                 // 権限の統合判定
-                $is_driver = isset($user['is_driver']) ? (bool)$user['is_driver'] : true;
-                $is_caller = isset($user['is_caller']) ? (bool)$user['is_caller'] : true;
-                $is_admin = isset($user['is_admin']) ? (bool)$user['is_admin'] : false;
-                $db_role = $user['role'] ?? 'driver';
-                
-                // メイン権限の決定（優先度：admin > manager > driver）
-                if ($is_admin || $db_role === 'admin') {
-                    $_SESSION['user_role'] = 'admin';
-                } elseif ($db_role === 'manager' || $is_caller) {
-                    $_SESSION['user_role'] = 'manager';  
-                } else {
-                    $_SESSION['user_role'] = 'driver';
-                }
+$permission_level = $user['permission_level'] ?? 'User';
+$_SESSION['user_permission_level'] = $permission_level;
+
+// 職務フラグもセッションに保存
+$_SESSION['is_driver'] = (bool)($user['is_driver'] ?? false);
+$_SESSION['is_caller'] = (bool)($user['is_caller'] ?? false);
+$_SESSION['is_admin'] = (bool)($user['is_admin'] ?? false);
                 
                 // 個別権限も保存
                 $_SESSION['is_driver'] = $is_driver;
