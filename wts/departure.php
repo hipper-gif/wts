@@ -18,7 +18,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'];
-$user_role = $_SESSION['user_role'];
+
 
 // 今日の日付
 $today = date('Y-m-d');
@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // 運転者一覧取得
-$drivers_sql = "SELECT id, name FROM users WHERE (role IN ('driver', 'admin') OR is_driver = 1) AND is_active = 1 ORDER BY name";
+$stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");
 $drivers_stmt = $pdo->prepare($drivers_sql);
 $drivers_stmt->execute();
 $drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -296,11 +296,12 @@ $weather_options = ['晴', '曇', '雨', '雪', '霧'];
                                         </label>
                                         <select class="form-select" id="driver_id" name="driver_id" required>
                                             <option value="">運転者を選択</option>
-                                            <?php foreach ($drivers as $driver): ?>
-                                                <option value="<?php echo $driver['id']; ?>" 
-                                                    <?php echo ($user_role === 'driver' && $driver['id'] == $user_id) ? 'selected' : ''; ?>>
-                                                    <?php echo htmlspecialchars($driver['name']); ?>
-                                                </option>
+<?php foreach ($drivers as $driver): ?>
+    <option value="<?php echo $driver['id']; ?>" 
+        <?php echo ($driver['id'] == $user_id) ? 'selected' : ''; ?>>
+        <?php echo htmlspecialchars($driver['name']); ?>
+    </option>
+<?php endforeach; ?>
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
