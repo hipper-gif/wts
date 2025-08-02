@@ -357,12 +357,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="col-md-6 mb-3">
                             <label class="form-label">点検者（運転手） <span class="required-mark">*</span></label>
                             <select class="form-select" name="inspector_id" required>
-                                <option value="">運転手を選択してください</option>
-                                <?php foreach ($drivers as $driver): ?>
-                                <option value="<?= $driver['id'] ?>" <?= ($existing_inspection && $existing_inspection['driver_id'] == $driver['id']) ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($driver['name']) ?>
-                                </option>
-                                <?php endforeach; ?>
+<option value="">運転者を選択</option>
+<?php foreach ($drivers as $driver): ?>
+    <option value="<?php echo $driver['id']; ?>" 
+        <?php echo ($driver['id'] == $user_id) ? 'selected' : ''; ?>>
+        <?php echo htmlspecialchars($driver['name']); ?>
+    </option>
+<?php endforeach; ?>
                             </select>
                             <div class="form-text">
                                 <i class="fas fa-info-circle me-1"></i>
