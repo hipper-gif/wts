@@ -47,9 +47,7 @@ $_SESSION['is_admin'] = (bool)($user['is_admin'] ?? false);
                 $_SESSION['is_admin'] = $is_admin;
                 $_SESSION['login_time'] = time();
                 
-                // デバッグログ
-                error_log("Login success - User: {$user['name']}, Role: {$_SESSION['user_role']}, Admin: {$is_admin}, Caller: {$is_caller}, Driver: {$is_driver}");
-                
+
                 // 最終ログイン時刻を更新
                 try {
                     $stmt = $pdo->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?");
