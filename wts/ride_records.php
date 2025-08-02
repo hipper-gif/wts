@@ -20,12 +20,12 @@ $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'];
 $user_role = $_SESSION['user_role'];
 
-// ログインユーザーが運転者かどうかを確認
-$user_is_driver_sql = "SELECT is_driver, role FROM users WHERE id = ?";
+// ログインユーザーが運転者かどうかを確認（職務フラグのみ使用）
+$user_is_driver_sql = "SELECT is_driver FROM users WHERE id = ?";
 $user_is_driver_stmt = $pdo->prepare($user_is_driver_sql);
 $user_is_driver_stmt->execute([$user_id]);
 $user_info = $user_is_driver_stmt->fetch(PDO::FETCH_ASSOC);
-$user_is_driver = ($user_info['is_driver'] == 1 || $user_info['role'] === 'driver');
+$user_is_driver = ($user_info['is_driver'] == 1);
 
 // 今日の日付
 $today = date('Y-m-d');
@@ -116,8 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 運転者一覧取得（権限チェックを緩和）
-$drivers_sql = "SELECT id, name FROM users WHERE (role IN ('driver', 'admin') OR is_driver = 1) AND is_active = 1 ORDER BY name";
+// 運転者一覧取得（職務フラグのみ使用）
+$drivers_sql = "SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name";
 $drivers_stmt = $pdo->prepare($drivers_sql);
 $drivers_stmt->execute();
 $drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
