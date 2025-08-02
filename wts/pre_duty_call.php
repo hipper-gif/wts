@@ -19,13 +19,13 @@ $error_message = '';
 
 // ドライバーと点呼者の取得
 try {
-    // 運転者取得（is_driverフラグベース）
+    // 運転者取得（is_driverフラグのみ）
     $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");
     $stmt->execute();
     $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // 点呼者取得（permission_levelベース）
-    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE permission_level = 'Admin' AND is_active = 1 ORDER BY name");
+    // 点呼者取得（is_callerフラグのみ）
+    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_caller = 1 AND is_active = 1 ORDER BY name");
     $stmt->execute();
     $callers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
