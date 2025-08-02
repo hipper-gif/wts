@@ -18,7 +18,12 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'];
-$user_role = $_SESSION['user_role'];
+
+// ユーザーの権限レベルを取得（新権限システム）
+$user_permission_sql = "SELECT permission_level FROM users WHERE id = ?";
+$user_permission_stmt = $pdo->prepare($user_permission_sql);
+$user_permission_stmt->execute([$user_id]);
+$user_permission = $user_permission_stmt->fetchColumn() ?: 'User';
 
 // ログインユーザーが運転者かどうかを確認（職務フラグのみ使用）
 $user_is_driver_sql = "SELECT is_driver FROM users WHERE id = ?";
