@@ -19,13 +19,13 @@ $error_message = '';
 
 // ドライバーと点呼者の取得
 try {
-    // 運転者のみ取得（実際に運転する人のみ）
-    $stmt = $pdo->prepare("SELECT id, name, role FROM users WHERE (role = 'driver' OR is_driver = 1) AND is_active = TRUE ORDER BY name");
+    // 運転者取得（フラグベース）
+    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");
     $stmt->execute();
     $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // 点呼者取得（管理者・マネージャーのみ）
-    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_caller = 1 AND is_active = TRUE ORDER BY name");
+    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_caller = 1 AND is_active = 1 ORDER BY name");
     $stmt->execute();
     $callers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
@@ -386,12 +386,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="col-md-6 mb-3">
                             <label class="form-label">運転者 <span class="required-mark">*</span></label>
                             <select class="form-select" name="driver_id" required>
-                                <option value="">選択してください</option>
-                                <?php foreach ($drivers as $driver): ?>
-                                <option value="<?= $driver['id'] ?>" <?= ($existing_call && $existing_call['driver_id'] == $driver['id']) ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($driver['name']) ?>
-                                </option>
-                                <?php endforeach; ?>
+<option value="">運転者を選択</option>
+<?php foreach ($drivers as $driver): ?>
+    <option value="<?php echo $driver['id']; ?>" 
+        <?php echo ($driver['id'] == $user_id) ? 'selected' : ''; ?>>
+        <?php echo htmlspecialchars($driver['name']); ?>
+    </option>
+<?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
