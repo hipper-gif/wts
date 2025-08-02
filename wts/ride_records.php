@@ -831,20 +831,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
                     <input type="hidden" name="original_ride_id" id="modalOriginalRideId">
                     
                     <div class="modal-body">
-                        <!-- ログインユーザーが運転者の場合の情報表示 -->
-                        <?php if ($user_is_driver): ?>
-                        <div class="default-driver-info">
-                            <div class="d-flex align-items-center">
-                                <i class="fas fa-user-check icon me-3"></i>
-                                <div>
-                                    <h6 class="mb-1">運転者として登録されます</h6>
-                                    <small class="text-muted">
-                                        ログインユーザー「<?php echo htmlspecialchars($user_name); ?>」が運転者として自動設定されます
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
-                        <?php endif; ?>
+
 
                         <!-- 復路情報表示 -->
                         <div id="returnTripInfo" class="return-trip-info" style="display: none;">
