@@ -993,39 +993,37 @@ $payment_methods = ['現金', 'カード', 'その他'];
         // デバッグ用: モーダル表示確認
         console.log('showAddModal function called');
         
-        // 新規登録モーダル表示
-        function showAddModal() {
-            console.log('Modal elements check:', {
-                modal: document.getElementById('rideModal'),
-                title: document.getElementById('rideModalTitle'),
-                form: document.getElementById('rideForm')
-            });
-            document.getElementById('rideModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>乗車記録登録';
-            document.getElementById('modalAction').value = 'add';
-            document.getElementById('modalRecordId').value = '';
-            document.getElementById('modalIsReturnTrip').value = '0';
-            document.getElementById('modalOriginalRideId').value = '';
-            document.getElementById('returnTripInfo').style.display = 'none';
-            
-            // フォームをリセット
-            document.getElementById('rideForm').reset();
-            document.getElementById('modalRideDate').value = '<?php echo $today; ?>';
-            document.getElementById('modalRideTime').value = getCurrentTime();
-            document.getElementById('modalPassengerCount').value = '1';
-            document.getElementById('modalCharge').value = '0';
-            
-            // デフォルトで現金を選択
-            document.getElementById('modalPaymentMethod').value = '現金';
-            
-// 運転者を自動選択（ログインユーザー）
-var modalDriverId = document.getElementById('modalDriverId');
-if (modalDriverId) {
-    modalDriverId.value = '<?php echo $user_id; ?>';
+// 新規登録モーダル表示
+function showAddModal() {
+    console.log('Modal elements check:', {
+        modal: document.getElementById('rideModal'),
+        title: document.getElementById('rideModalTitle'),
+        form: document.getElementById('rideForm')
+    });
+    
+    document.getElementById('rideModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>乗車記録登録';
+    document.getElementById('modalAction').value = 'add';
+    document.getElementById('modalRecordId').value = '';
+    document.getElementById('modalIsReturnTrip').value = '0';
+    document.getElementById('modalOriginalRideId').value = '';
+    document.getElementById('returnTripInfo').style.display = 'none';
+    
+    // フォームをリセット
+    document.getElementById('rideForm').reset();
+    document.getElementById('modalRideDate').value = '<?php echo $today; ?>';
+    document.getElementById('modalRideTime').value = getCurrentTime();
+    document.getElementById('modalPassengerCount').value = '1';
+    document.getElementById('modalCharge').value = '0';
+    
+    // デフォルトで現金を選択
+    document.getElementById('modalPaymentMethod').value = '現金';
+    
+    // 運転者の自動選択は削除（手動選択推奨）
+    
+    var rideModal = new bootstrap.Modal(document.getElementById('rideModal'));
+    rideModal.show();
+} // ← この閉じ括弧が重要
 
-
-var rideModal = new bootstrap.Modal(document.getElementById('rideModal'));
-rideModal.show();
-}
         // 編集モーダル表示
         function editRecord(record) {
             document.getElementById('rideModalTitle').innerHTML = '<i class="fas fa-edit me-2"></i>乗車記録編集';
