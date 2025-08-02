@@ -18,7 +18,6 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'] ?? 'ユーザー';
-$user_role = $_SESSION['user_role'] ?? 'User';
 
 // 今日の日付
 $today = date('Y-m-d');
@@ -1018,15 +1017,14 @@ $payment_methods = ['現金', 'カード', 'その他'];
             // デフォルトで現金を選択
             document.getElementById('modalPaymentMethod').value = '現金';
             
-            // 運転者を自動選択（運転者の場合）
-            var modalDriverId = document.getElementById('modalDriverId');
-            if (modalDriverId && '<?php echo $user_role; ?>' === 'driver') {
-                modalDriverId.value = '<?php echo $user_id; ?>';
-            }
-            
-            var rideModal = new bootstrap.Modal(document.getElementById('rideModal'));
-            rideModal.show();
-        }
+// 運転者を自動選択（ログインユーザー）
+var modalDriverId = document.getElementById('modalDriverId');
+if (modalDriverId) {
+    modalDriverId.value = '<?php echo $user_id; ?>';
+}
+
+var rideModal = new bootstrap.Modal(document.getElementById('rideModal'));
+rideModal.show();
 
         // 編集モーダル表示
         function editRecord(record) {
