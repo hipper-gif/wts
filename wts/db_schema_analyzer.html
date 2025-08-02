@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福祉輸送管理システム - データベーススキーマ分析ツール</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            margin: 20px 0;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .analysis-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 15px 0;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .table-card {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            transition: all 0.3s ease;
+        }
+        
+        .table-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .relationship-card {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        
+        .schema-stats {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        
+        .btn-analyze {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 12px 30px;
+            color: white;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-analyze:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+            color: white;
+        }
+        
+        .loading-spinner {
+            display: none;
+        }
+        
+        .alert-custom {
+            border-radius: 10px;
+            border: none;
+        }
+        
+        .share-buttons {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .share-buttons .btn {
+            margin: 5px;
+            border-radius: 20px;
+        }
+        
+        .table-dependency {
+            font-size: 0.9em;
+            color: #666;
+            margin-left: 20px;
+        }
+        
+        .badge-table-type {
+            font-size: 0.8em;
+        }
+        
+        .er-diagram {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- ヘッダー -->
+        <div class="header text-center">
+            <h1><i class="fas fa-database me-2 text-primary"></i>データベーススキーマ分析ツール</h1>
+            <p class="text-muted mb-0">GitHubのrawリンクからデータベーススキーマを自動分析・可視化</p>
+        </div>
+
+        <!-- 入力フォーム -->
+        <div class="analysis-card">
+            <h3><i class="fas fa-link me-2"></i>rawリンク入力</h3>
+            <div class="row">
+                <div class="col-md-8">
+                    <textarea id="rawLinksInput" class="form-control" rows="6" 
+                              placeholder="GitHubのrawリンクを入力してください（複数可、改行区切り）
+
+例:
+https://raw.githubusercontent.com/hipper-gif/wts/main/wts/dashboard.php
+https://raw.githubusercontent.com/hipper-gif/wts/main/wts/ride_records.php
+https://raw.githubusercontent.com/hipper-gif/wts/main/wts/user_management.php"></textarea>
+                </div>
+                <div class="col-md-4">
+                    <button id="analyzeBtn" class="btn btn-analyze w-100 mb-3">
+                        <i class="fas fa-search me-2"></i>スキーマ分析開始
+                    </button>
+                    <div class="loading-spinner text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">分析中...</span>
+                        </div>
+                        <p class="mt-2">ファイルを分析中...</p>
+                    </div>
+                    <button id="loadSampleBtn" class="btn btn-outline-info w-100">
+                        <i class="fas fa-flask me-2"></i>サンプルデータ読み込み
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分析結果 -->
+        <div id="analysisResults" style="display: none;">
+            <!-- 統計情報 -->
+            <div class="analysis-card">
+                <h3><i class="fas fa-chart-bar me-2"></i>データベース統計</h3>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="schema-stats">
+                            <h4 id="totalTables">0</h4>
+                            <small>総テーブル数</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="schema-stats" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
+                            <h4 id="totalColumns">0</h4>
+                            <small>総カラム数</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="schema-stats" style="background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%); color: #333;">
+                            <h4 id="totalRelations">0</h4>
+                            <small>関連数</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="schema-stats" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">
+                            <h4 id="totalFiles">0</h4>
+                            <small>分析ファイル数</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- テーブル一覧 -->
+            <div class="analysis-card">
+                <h3><i class="fas fa-table me-2"></i>テーブル構成</h3>
+                <div id="tablesContainer"></div>
+            </div>
+
+            <!-- ER図（簡易版） -->
+            <div class="analysis-card">
+                <h3><i class="fas fa-project-diagram me-2"></i>テーブル関係図</h3>
+                <div id="erDiagram" class="er-diagram">
+                    <div class="text-center">
+                        <i class="fas fa-database fa-3x mb-3"></i>
+                        <p>関係図をここに表示</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SQL定義 -->
+            <div class="analysis-card">
+                <h3><i class="fas fa-code me-2"></i>CREATE TABLE文生成</h3>
+                <div class="code-block" id="sqlDefinitions">
+                    -- 分析結果からCREATE TABLE文を生成
+                </div>
+                <button class="btn btn-outline-primary mt-3" onclick="copyToClipboard('sqlDefinitions')">
+                    <i class="fas fa-copy me-2"></i>SQLをコピー
+                </button>
+            </div>
+
+            <!-- 共有機能 -->
+            <div class="analysis-card">
+                <h3><i class="fas fa-share-alt me-2"></i>共有・エクスポート</h3>
+                <div class="share-buttons">
+                    <button class="btn btn-success" onclick="exportToMarkdown()">
+                        <i class="fab fa-markdown me-2"></i>Markdown出力
+                    </button>
+                    <button class="btn btn-info" onclick="exportToJSON()">
+                        <i class="fas fa-file-code me-2"></i>JSON出力
+                    </button>
+                    <button class="btn btn-warning" onclick="generateShareableLink()">
+                        <i class="fas fa-link me-2"></i>共有リンク生成
+                    </button>
+                    <button class="btn btn-primary" onclick="copyAnalysisReport()">
+                        <i class="fas fa-clipboard me-2"></i>分析レポートをコピー
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let analysisData = {
+            tables: {},
+            relations: [],
+            files: [],
+            stats: {
+                totalTables: 0,
+                totalColumns: 0,
+                totalRelations: 0,
+                totalFiles: 0
+            }
+        };
+
+        // サンプルデータ読み込み
+        document.getElementById('loadSampleBtn').addEventListener('click', function() {
+            const sampleLinks = `https://raw.githubusercontent.com/hipper-gif/wts/main/wts/dashboard.php
+https://raw.githubusercontent.com/hipper-gif/wts/main/wts/ride_records.php
+https://raw.githubusercontent.com/hipper-gif/wts/main/wts/user_management.php
+https://raw.githubusercontent.com/hipper-gif/wts/main/wts/departure.php
+https://raw.githubusercontent.com/hipper-gif/wts/main/wts/arrival.php`;
+            document.getElementById('rawLinksInput').value = sampleLinks;
+        });
+
+        // 分析開始
+        document.getElementById('analyzeBtn').addEventListener('click', async function() {
+            const rawLinks = document.getElementById('rawLinksInput').value.trim();
+            if (!rawLinks) {
+                alert('rawリンクを入力してください');
+                return;
+            }
+
+            const links = rawLinks.split('\n').filter(link => link.trim());
+            
+            this.style.display = 'none';
+            document.querySelector('.loading-spinner').style.display = 'block';
+
+            try {
+                await analyzeSchemas(links);
+                displayResults();
+                document.getElementById('analysisResults').style.display = 'block';
+            } catch (error) {
+                console.error('分析エラー:', error);
+                alert('分析中にエラーが発生しました: ' + error.message);
+            } finally {
+                this.style.display = 'block';
+                document.querySelector('.loading-spinner').style.display = 'none';
+            }
+        });
+
+        async function analyzeSchemas(links) {
+            analysisData = {
+                tables: {},
+                relations: [],
+                files: [],
+                stats: { totalTables: 0, totalColumns: 0, totalRelations: 0, totalFiles: 0 }
+            };
+
+            for (const link of links) {
+                if (!link.trim()) continue;
+                
+                try {
+                    const response = await fetch(link);
+                    const content = await response.text();
+                    
+                    analysisData.files.push({
+                        url: link,
+                        filename: link.split('/').pop(),
+                        size: content.length
+                    });
+
+                    // SQL文からテーブル構造を抽出
+                    extractTablesFromSQL(content, link);
+                    
+                    // PHP/MySQLクエリからテーブル情報を抽出
+                    extractTablesFromPHP(content, link);
+                    
+                } catch (error) {
+                    console.error(`ファイル読み込みエラー (${link}):`, error);
+                }
+            }
+
+            // 統計計算
+            analysisData.stats.totalTables = Object.keys(analysisData.tables).length;
+            analysisData.stats.totalColumns = Object.values(analysisData.tables)
+                .reduce((sum, table) => sum + (table.columns ? table.columns.length : 0), 0);
+            analysisData.stats.totalRelations = analysisData.relations.length;
+            analysisData.stats.totalFiles = analysisData.files.length;
+        }
+
+        function extractTablesFromSQL(content, sourceFile) {
+            // CREATE TABLE文の抽出
+            const createTableRegex = /CREATE\s+TABLE\s+(\w+)\s*\(([\s\S]*?)\)/gi;
+            let match;
+
+            while ((match = createTableRegex.exec(content)) !== null) {
+                const tableName = match[1];
+                const tableDefinition = match[2];
+                
+                if (!analysisData.tables[tableName]) {
+                    analysisData.tables[tableName] = {
+                        name: tableName,
+                        columns: [],
+                        primaryKeys: [],
+                        foreignKeys: [],
+                        sourceFile: sourceFile
+                    };
+                }
+
+                // カラム定義の抽出
+                const columnLines = tableDefinition.split(',');
+                columnLines.forEach(line => {
+                    const cleanLine = line.trim();
+                    if (cleanLine && !cleanLine.startsWith('PRIMARY KEY') && !cleanLine.startsWith('FOREIGN KEY')) {
+                        const columnMatch = cleanLine.match(/(\w+)\s+(\w+(?:\(\d+\))?)/);
+                        if (columnMatch) {
+                            analysisData.tables[tableName].columns.push({
+                                name: columnMatch[1],
+                                type: columnMatch[2],
+                                constraints: extractConstraints(cleanLine)
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        function extractTablesFromPHP(content, sourceFile) {
+            // SQLクエリからテーブル名を抽出
+            const sqlPatterns = [
+                /FROM\s+(\w+)/gi,
+                /JOIN\s+(\w+)/gi,
+                /UPDATE\s+(\w+)/gi,
+                /INSERT\s+INTO\s+(\w+)/gi,
+                /DELETE\s+FROM\s+(\w+)/gi
+            ];
+
+            const foundTables = new Set();
+
+            sqlPatterns.forEach(pattern => {
+                let match;
+                while ((match = pattern.exec(content)) !== null) {
+                    const tableName = match[1];
+                    if (tableName && !['SET', 'WHERE', 'AND', 'OR'].includes(tableName.toUpperCase())) {
+                        foundTables.add(tableName);
+                    }
+                }
+            });
+
+            // 推測されるテーブル構造を作成
+            foundTables.forEach(tableName => {
+                if (!analysisData.tables[tableName]) {
+                    analysisData.tables[tableName] = {
+                        name: tableName,
+                        columns: [],
+                        primaryKeys: ['id'], // 推測
+                        foreignKeys: [],
+                        sourceFile: sourceFile,
+                        inferred: true // 推測されたテーブル
+                    };
+                }
+            });
+
+            // 特定のテーブルパターンから構造を推測
+            inferTableStructures(content, sourceFile);
+        }
+
+        function inferTableStructures(content, sourceFile) {
+            // よく使われるテーブル構造パターンを推測
+            const commonTables = {
+                'users': ['id', 'name', 'email', 'password', 'role', 'created_at'],
+                'vehicles': ['id', 'vehicle_number', 'vehicle_name', 'status'],
+                'ride_records': ['id', 'driver_id', 'vehicle_id', 'ride_date', 'pickup_location', 'dropoff_location', 'fare'],
+                'departure_records': ['id', 'driver_id', 'vehicle_id', 'departure_date', 'departure_time'],
+                'arrival_records': ['id', 'driver_id', 'vehicle_id', 'arrival_date', 'arrival_time'],
+                'pre_duty_calls': ['id', 'driver_id', 'vehicle_id', 'call_date', 'call_time'],
+                'post_duty_calls': ['id', 'driver_id', 'vehicle_id', 'call_date', 'call_time'],
+                'daily_inspections': ['id', 'vehicle_id', 'inspector_id', 'inspection_date'],
+                'periodic_inspections': ['id', 'vehicle_id', 'inspector_id', 'inspection_date']
+            };
+
+            Object.keys(commonTables).forEach(tableName => {
+                if (content.includes(tableName) && !analysisData.tables[tableName]) {
+                    analysisData.tables[tableName] = {
+                        name: tableName,
+                        columns: commonTables[tableName].map(col => ({
+                            name: col,
+                            type: inferColumnType(col),
+                            constraints: col === 'id' ? ['PRIMARY KEY', 'AUTO_INCREMENT'] : []
+                        })),
+                        primaryKeys: ['id'],
+                        foreignKeys: [],
+                        sourceFile: sourceFile,
+                        inferred: true
+                    };
+                }
+            });
+        }
+
+        function inferColumnType(columnName) {
+            if (columnName === 'id' || columnName.endsWith('_id')) return 'INT';
+            if (columnName.includes('date')) return 'DATE';
+            if (columnName.includes('time')) return 'TIME';
+            if (columnName.includes('created_at') || columnName.includes('updated_at')) return 'TIMESTAMP';
+            if (columnName.includes('count') || columnName.includes('amount') || columnName.includes('fare')) return 'INT';
+            return 'VARCHAR(255)';
+        }
+
+        function extractConstraints(columnDefinition) {
+            const constraints = [];
+            if (columnDefinition.includes('NOT NULL')) constraints.push('NOT NULL');
+            if (columnDefinition.includes('AUTO_INCREMENT')) constraints.push('AUTO_INCREMENT');
+            if (columnDefinition.includes('UNIQUE')) constraints.push('UNIQUE');
+            return constraints;
+        }
+
+        function displayResults() {
+            // 統計情報を更新
+            document.getElementById('totalTables').textContent = analysisData.stats.totalTables;
+            document.getElementById('totalColumns').textContent = analysisData.stats.totalColumns;
+            document.getElementById('totalRelations').textContent = analysisData.stats.totalRelations;
+            document.getElementById('totalFiles').textContent = analysisData.stats.totalFiles;
+
+            // テーブル一覧を表示
+            displayTables();
+
+            // SQL定義を生成
+            generateSQLDefinitions();
+
+            // ER図を生成
+            generateERDiagram();
+        }
+
+        function displayTables() {
+            const container = document.getElementById('tablesContainer');
+            container.innerHTML = '';
+
+            Object.values(analysisData.tables).forEach(table => {
+                const tableCard = document.createElement('div');
+                tableCard.className = 'table-card';
+                
+                const badge = table.inferred ? 
+                    '<span class="badge bg-warning badge-table-type ms-2">推測</span>' : 
+                    '<span class="badge bg-success badge-table-type ms-2">確認済み</span>';
+
+                tableCard.innerHTML = `
+                    <h5>
+                        <i class="fas fa-table me-2"></i>${table.name}
+                        ${badge}
+                    </h5>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6>カラム一覧:</h6>
+                            ${table.columns.map(col => `
+                                <div class="table-dependency">
+                                    <i class="fas fa-columns me-1"></i>
+                                    <strong>${col.name}</strong> 
+                                    <span class="text-muted">${col.type}</span>
+                                    ${col.constraints.length > 0 ? `<small class="text-info">[${col.constraints.join(', ')}]</small>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted">
+                                <i class="fas fa-file me-1"></i>
+                                ソース: ${table.sourceFile.split('/').pop()}
+                            </small>
+                            <br>
+                            <small class="text-muted">
+                                <i class="fas fa-list me-1"></i>
+                                ${table.columns.length} カラム
+                            </small>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(tableCard);
+            });
+        }
+
+        function generateSQLDefinitions() {
+            const sqlContainer = document.getElementById('sqlDefinitions');
+            let sql = '-- 福祉輸送管理システム データベーススキーマ\n\n';
+
+            Object.values(analysisData.tables).forEach(table => {
+                sql += `-- ${table.name}テーブル\n`;
+                sql += `CREATE TABLE ${table.name} (\n`;
+                
+                const columnDefs = table.columns.map(col => {
+                    let def = `    ${col.name} ${col.type}`;
+                    if (col.constraints.length > 0) {
+                        def += ' ' + col.constraints.join(' ');
+                    }
+                    return def;
+                });
+                
+                sql += columnDefs.join(',\n');
+                
+                if (table.primaryKeys.length > 0) {
+                    sql += `,\n    PRIMARY KEY (${table.primaryKeys.join(', ')})`;
+                }
+                
+                sql += '\n);\n\n';
+            });
+
+            sqlContainer.textContent = sql;
+        }
+
+        function generateERDiagram() {
+            const erContainer = document.getElementById('erDiagram');
+            
+            // 簡易的なテーブル関係図を生成
+            let diagramHTML = '<div class="row">';
+            
+            Object.values(analysisData.tables).forEach((table, index) => {
+                const colClass = index % 3 === 0 ? 'col-md-4' : index % 3 === 1 ? 'col-md-4' : 'col-md-4';
+                
+                diagramHTML += `
+                    <div class="${colClass} mb-3">
+                        <div class="card" style="border: 2px solid #007bff;">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-table me-2"></i>${table.name}
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                ${table.columns.slice(0, 5).map(col => `
+                                    <small class="d-block">
+                                        ${col.constraints.includes('PRIMARY KEY') ? '🔑' : '📄'} ${col.name}
+                                    </small>
+                                `).join('')}
+                                ${table.columns.length > 5 ? `<small class="text-muted">... +${table.columns.length - 5} more</small>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            diagramHTML += '</div>';
+            erContainer.innerHTML = diagramHTML;
+        }
+
+        // ユーティリティ関数
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('クリップボードにコピーしました！');
+            });
+        }
+
+        function exportToMarkdown() {
+            let markdown = '# 福祉輸送管理システム - データベーススキーマ\n\n';
+            markdown += `## 統計情報\n\n`;
+            markdown += `- **総テーブル数**: ${analysisData.stats.totalTables}\n`;
+            markdown += `- **総カラム数**: ${analysisData.stats.totalColumns}\n`;
+            markdown += `- **分析ファイル数**: ${analysisData.stats.totalFiles}\n\n`;
+            
+            markdown += `## テーブル一覧\n\n`;
+            
+            Object.values(analysisData.tables).forEach(table => {
+                markdown += `### ${table.name}\n\n`;
+                markdown += `| カラム名 | データ型 | 制約 |\n`;
+                markdown += `|----------|----------|------|\n`;
+                
+                table.columns.forEach(col => {
+                    markdown += `| ${col.name} | ${col.type} | ${col.constraints.join(', ')} |\n`;
+                });
+                
+                markdown += `\n`;
+            });
+
+            const blob = new Blob([markdown], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'database_schema.md';
+            a.click();
+        }
+
+        function exportToJSON() {
+            const json = JSON.stringify(analysisData, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'database_schema.json';
+            a.click();
+        }
+
+        function generateShareableLink() {
+            const data = btoa(JSON.stringify(analysisData));
+            const shareUrl = `${window.location.origin}${window.location.pathname}?data=${data}`;
+            
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                alert('共有リンクをクリップボードにコピーしました！\n\nこのリンクを共有することで、他の人が同じ分析結果を見ることができます。');
+            });
+        }
+
+        function copyAnalysisReport() {
+            let report = '# 福祉輸送管理システム - データベース分析レポート\n\n';
+            report += `**分析日時**: ${new Date().toLocaleString('ja-JP')}\n\n`;
+            report += `## 📊 概要統計\n`;
+            report += `- テーブル数: ${analysisData.stats.totalTables}\n`;
+            report += `- カラム数: ${analysisData.stats.totalColumns}\n`;
+            report += `- 分析ファイル数: ${analysisData.stats.totalFiles}\n\n`;
+            
+            report += `## 🗂️ テーブル構成\n\n`;
+            Object.values(analysisData.tables).forEach(table => {
+                report += `### ${table.name} (${table.columns.length}カラム)\n`;
+                table.columns.forEach(col => {
+                    report += `- ${col.name}: ${col.type} ${col.constraints.join(' ')}\n`;
+                });
+                report += '\n';
+            });
+            
+            navigator.clipboard.writeText(report).then(() => {
+                alert('分析レポートをクリップボードにコピーしました！');
+            });
+        }
+
+        // URLパラメータから共有データを読み込み
+        window.addEventListener('load', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sharedData = urlParams.get('data');
+            
+            if (sharedData) {
+                try {
+                    analysisData = JSON.parse(atob(sharedData));
+                    displayResults();
+                    document.getElementById('analysisResults').style.display = 'block';
+                } catch (error) {
+                    console.error('共有データの読み込みエラー:', error);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
