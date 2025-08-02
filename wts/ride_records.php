@@ -17,7 +17,15 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'] ?? 'ユーザー';
+$user_name = $_SESSION['user_name'];
+$user_role = $_SESSION['user_role'];
+
+// ログインユーザーが運転者かどうかを確認
+$user_is_driver_sql = "SELECT is_driver, role FROM users WHERE id = ?";
+$user_is_driver_stmt = $pdo->prepare($user_is_driver_sql);
+$user_is_driver_stmt->execute([$user_id]);
+$user_info = $user_is_driver_stmt->fetch(PDO::FETCH_ASSOC);
+$user_is_driver = ($user_info['is_driver'] == 1 || $user_info['role'] === 'driver');
 
 // 今日の日付
 $today = date('Y-m-d');
@@ -40,33 +48,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $passenger_count = $_POST['passenger_count'];
             $pickup_location = $_POST['pickup_location'];
             $dropoff_location = $_POST['dropoff_location'];
-            $fare_amount = $_POST['fare_amount'];
+            $fare = $_POST['fare'];
             $charge = $_POST['charge'] ?? 0;
-            $transport_type = $_POST['transport_type'];
+            $transport_category = $_POST['transport_category'];
             $payment_method = $_POST['payment_method'];
             $notes = $_POST['notes'] ?? '';
             $is_return_trip = (isset($_POST['is_return_trip']) && $_POST['is_return_trip'] == '1') ? 1 : 0;
             $original_ride_id = !empty($_POST['original_ride_id']) ? $_POST['original_ride_id'] : null;
             
-// ✅ 正しいINSERT文（テーブル構造に合わせて）
-$insert_sql = "INSERT INTO ride_records 
-    (driver_id, vehicle_id, ride_date, ride_time, passenger_count, 
-     pickup_location, dropoff_location, fare_amount, charge, transport_type, 
-     payment_method, notes, is_return_trip, original_ride_id, created_at) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-            
-            // デバッグ情報を追加
-            error_log("INSERT SQL: " . $insert_sql);
-            error_log("Parameters: " . json_encode([
-                $driver_id, $vehicle_id, $ride_date, $ride_time, $passenger_count,
-                $pickup_location, $dropoff_location, $fare_amount, $charge, $transport_type,
-                $payment_method, $notes, $is_return_trip, $original_ride_id
-            ]));
-            
+            $insert_sql = "INSERT INTO ride_records 
+                (driver_id, vehicle_id, ride_date, ride_time, passenger_count, 
+                 pickup_location, dropoff_location, fare, charge, transport_category, 
+                 payment_method, notes, is_return_trip, original_ride_id, created_at) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
             $insert_stmt = $pdo->prepare($insert_sql);
             $insert_stmt->execute([
                 $driver_id, $vehicle_id, $ride_date, $ride_time, $passenger_count,
-                $pickup_location, $dropoff_location, $fare_amount, $charge, $transport_type,
+                $pickup_location, $dropoff_location, $fare, $charge, $transport_category,
                 $payment_method, $notes, $is_return_trip, $original_ride_id
             ]);
             
@@ -83,21 +81,21 @@ $insert_sql = "INSERT INTO ride_records
             $passenger_count = $_POST['passenger_count'];
             $pickup_location = $_POST['pickup_location'];
             $dropoff_location = $_POST['dropoff_location'];
-            $fare_amount = $_POST['fare_amount'];
+            $fare = $_POST['fare'];
             $charge = $_POST['charge'] ?? 0;
-            $transport_type = $_POST['transport_type'];
+            $transport_category = $_POST['transport_category'];
             $payment_method = $_POST['payment_method'];
             $notes = $_POST['notes'] ?? '';
             
             $update_sql = "UPDATE ride_records SET 
                 ride_time = ?, passenger_count = ?, pickup_location = ?, dropoff_location = ?, 
-                fare_amount = ?, charge = ?, transport_type = ?, payment_method = ?, 
+                fare = ?, charge = ?, transport_category = ?, payment_method = ?, 
                 notes = ?, updated_at = NOW() 
                 WHERE id = ?";
             $update_stmt = $pdo->prepare($update_sql);
             $update_stmt->execute([
                 $ride_time, $passenger_count, $pickup_location, $dropoff_location,
-                $fare_amount, $charge, $transport_type, $payment_method, $notes, $record_id
+                $fare, $charge, $transport_category, $payment_method, $notes, $record_id
             ]);
             
             $success_message = '乗車記録を更新しました。';
@@ -115,38 +113,20 @@ $insert_sql = "INSERT INTO ride_records
         
     } catch (Exception $e) {
         $error_message = $e->getMessage();
-        // デバッグ情報を追加
-        error_log("乗車記録処理エラー: " . $e->getMessage());
-        error_log("SQL State: " . $e->getCode());
-        error_log("Stack trace: " . $e->getTraceAsString());
     }
 }
 
-// 運転者一覧取得（新権限システム対応）
-try {
-    $drivers_sql = "SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name";
-    error_log("Drivers SQL: " . $drivers_sql);
-    $drivers_stmt = $pdo->prepare($drivers_sql);
-    $drivers_stmt->execute();
-    $drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
-    error_log("Drivers count: " . count($drivers));
-} catch (Exception $e) {
-    error_log("Drivers query error: " . $e->getMessage());
-    $drivers = [];
-}
+// 運転者一覧取得（権限チェックを緩和）
+$drivers_sql = "SELECT id, name FROM users WHERE (role IN ('driver', 'admin') OR is_driver = 1) AND is_active = 1 ORDER BY name";
+$drivers_stmt = $pdo->prepare($drivers_sql);
+$drivers_stmt->execute();
+$drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// 車両一覧取得（is_active統一 + COALESCE使用）
-try {
-    $vehicles_sql = "SELECT id, vehicle_number, model FROM vehicles WHERE is_active = TRUE ORDER BY vehicle_number";
-    error_log("Vehicles SQL: " . $vehicles_sql);
-    $vehicles_stmt = $pdo->prepare($vehicles_sql);
-    $vehicles_stmt->execute();
-    $vehicles = $vehicles_stmt->fetchAll(PDO::FETCH_ASSOC);
-    error_log("Vehicles count: " . count($vehicles));
-} catch (Exception $e) {
-    error_log("Vehicles query error: " . $e->getMessage());
-    $vehicles = [];
-}
+// 車両一覧取得
+$vehicles_sql = "SELECT id, vehicle_number, vehicle_name FROM vehicles WHERE status = 'active' ORDER BY vehicle_number";
+$vehicles_stmt = $pdo->prepare($vehicles_sql);
+$vehicles_stmt->execute();
+$vehicles = $vehicles_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // よく使う場所の取得（過去の記録から）
 $common_locations_sql = "
@@ -205,14 +185,12 @@ if ($search_vehicle) {
     $params[] = $search_vehicle;
 }
 
-// 乗車記録取得クエリ（JOIN条件強化 + COALESCE使用）
-$rides_sql = "SELECT r.*, u.name as driver_name, v.vehicle_number, 
-    COALESCE(v.vehicle_name, v.model) as vehicle_name,
-    (r.fare_amount + r.charge) as total_amount,
+$rides_sql = "SELECT r.*, u.name as driver_name, v.vehicle_number, v.vehicle_name,
+    (r.fare + r.charge) as total_amount,
     CASE WHEN r.is_return_trip = 1 THEN '復路' ELSE '往路' END as trip_type
     FROM ride_records r 
-    JOIN users u ON r.driver_id = u.id AND u.is_active = 1
-    JOIN vehicles v ON r.vehicle_id = v.id AND v.is_active = 1
+    JOIN users u ON r.driver_id = u.id 
+    JOIN vehicles v ON r.vehicle_id = v.id 
     WHERE " . implode(' AND ', $where_conditions) . "
     ORDER BY r.ride_time DESC";
 $rides_stmt = $pdo->prepare($rides_sql);
@@ -223,12 +201,12 @@ $rides = $rides_stmt->fetchAll(PDO::FETCH_ASSOC);
 $summary_sql = "SELECT 
     COUNT(*) as total_rides,
     SUM(r.passenger_count) as total_passengers,
-    SUM(r.fare_amount + r.charge) as total_revenue,
-    AVG(r.fare_amount + r.charge) as avg_fare,
+    SUM(r.fare + r.charge) as total_revenue,
+    AVG(r.fare + r.charge) as avg_fare,
     COUNT(CASE WHEN r.payment_method = '現金' THEN 1 END) as cash_count,
     COUNT(CASE WHEN r.payment_method = 'カード' THEN 1 END) as card_count,
-    SUM(CASE WHEN r.payment_method = '現金' THEN r.fare_amount + r.charge ELSE 0 END) as cash_total,
-    SUM(CASE WHEN r.payment_method = 'カード' THEN r.fare_amount + r.charge ELSE 0 END) as card_total
+    SUM(CASE WHEN r.payment_method = '現金' THEN r.fare + r.charge ELSE 0 END) as cash_total,
+    SUM(CASE WHEN r.payment_method = 'カード' THEN r.fare + r.charge ELSE 0 END) as card_total
     FROM ride_records r 
     WHERE " . implode(' AND ', $where_conditions);
 $summary_stmt = $pdo->prepare($summary_sql);
@@ -237,20 +215,20 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
 
 // 輸送分類別集計
 $category_sql = "SELECT 
-    r.transport_type,
+    r.transport_category,
     COUNT(*) as count,
     SUM(r.passenger_count) as passengers,
-    SUM(r.fare_amount + r.charge) as revenue
+    SUM(r.fare + r.charge) as revenue
     FROM ride_records r 
     WHERE " . implode(' AND ', $where_conditions) . "
-    GROUP BY r.transport_type 
+    GROUP BY r.transport_category 
     ORDER BY count DESC";
 $category_stmt = $pdo->prepare($category_sql);
 $category_stmt->execute($params);
 $categories = $category_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 輸送分類・支払方法の選択肢
-$transport_types = ['通院', '外出等', '退院', '転院', '施設入所', 'その他'];
+$transport_categories = ['通院', '外出等', '退院', '転院', '施設入所', 'その他'];
 $payment_methods = ['現金', 'カード', 'その他'];
 ?>
 
@@ -366,6 +344,20 @@ $payment_methods = ['現金', 'カード', 'その他'];
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
             color: white;
+        }
+        
+        /* デフォルト運転者表示 */
+        .default-driver-info {
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            border: 1px solid #bbdefb;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .default-driver-info .icon {
+            color: #1976d2;
+            font-size: 1.2em;
         }
         
         /* よく使う場所のドロップダウン */
@@ -640,7 +632,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
                         <?php foreach ($vehicles as $vehicle): ?>
                             <option value="<?php echo $vehicle['id']; ?>" 
                                 <?php echo ($search_vehicle == $vehicle['id']) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($vehicle['vehicle_number'] . ' - ' . $vehicle['model']); ?>
+                                <?php echo htmlspecialchars($vehicle['vehicle_number']); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -699,46 +691,46 @@ $payment_methods = ['現金', 'カード', 'その他'];
                                             </div>
                                             <div class="mb-1">
                                                 <i class="fas fa-map-marker-alt text-success me-1"></i>
-                                                <strong><?php echo htmlspecialchars($ride['pickup_location']); ?></strong>
-                                                <i class="fas fa-arrow-right mx-2 text-muted"></i>
-                                                <i class="fas fa-map-marker-alt text-danger me-1"></i>
-                                                <strong><?php echo htmlspecialchars($ride['dropoff_location']); ?></strong>
-                                            </div>
-                                            <small class="text-muted">
-                                                <?php echo $ride['passenger_count']; ?>名 / <?php echo htmlspecialchars($ride['transport_type']); ?> / <?php echo htmlspecialchars($ride['payment_method']); ?>
-                                                <?php if ($ride['notes']): ?>
-                                                    <br><i class="fas fa-sticky-note me-1"></i><?php echo htmlspecialchars($ride['notes']); ?>
-                                                <?php endif; ?>
-                                            </small>
-                                        </div>
-                                        <div class="col-md-4 text-end">
-                                            <div class="amount-display mb-2">
-                                                ¥<?php echo number_format($ride['total_amount']); ?>
-                                            </div>
-                                            <div class="btn-group" role="group">
-                                                <?php if (!$ride['is_return_trip']): ?>
-                                                    <button type="button" class="btn return-btn btn-sm" 
-                                                            onclick="createReturnTrip(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
-                                                            title="復路作成">
-                                                        <i class="fas fa-route me-1"></i>復路作成
-                                                    </button>
-                                                <?php endif; ?>
-                                                <button type="button" class="btn btn-warning btn-sm" 
-                                                        onclick="editRecord(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
-                                                        title="編集">
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-danger btn-sm" 
-                                                        onclick="deleteRecord(<?php echo $ride['id']; ?>)"
-                                                        title="削除">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
+                                <strong><?php echo htmlspecialchars($ride['pickup_location']); ?></strong>
+                                <i class="fas fa-arrow-right mx-2 text-muted"></i>
+                                <i class="fas fa-map-marker-alt text-danger me-1"></i>
+                                <strong><?php echo htmlspecialchars($ride['dropoff_location']); ?></strong>
+                            </div>
+                            <small class="text-muted">
+                                <?php echo $ride['passenger_count']; ?>名 / <?php echo htmlspecialchars($ride['transport_category']); ?> / <?php echo htmlspecialchars($ride['payment_method']); ?>
+                                <?php if ($ride['notes']): ?>
+                                    <br><i class="fas fa-sticky-note me-1"></i><?php echo htmlspecialchars($ride['notes']); ?>
+                                <?php endif; ?>
+                            </small>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <div class="amount-display mb-2">
+                                ¥<?php echo number_format($ride['total_amount']); ?>
+                            </div>
+                            <div class="btn-group" role="group">
+                                <?php if (!$ride['is_return_trip']): ?>
+                                    <button type="button" class="btn return-btn btn-sm" 
+                                            onclick="createReturnTrip(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
+                                            title="復路作成">
+                                        <i class="fas fa-route me-1"></i>復路作成
+                                    </button>
+                                <?php endif; ?>
+                                <button type="button" class="btn btn-warning btn-sm" 
+                                        onclick="editRecord(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
+                                        title="編集">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button type="button" class="btn btn-danger btn-sm" 
+                                        onclick="deleteRecord(<?php echo $ride['id']; ?>)"
+                                        title="削除">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -801,7 +793,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
                             <?php foreach ($categories as $category): ?>
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <div>
-                                        <strong><?php echo htmlspecialchars($category['transport_type'] ?? 'その他'); ?></strong>
+                                        <strong><?php echo htmlspecialchars($category['transport_category']); ?></strong>
                                         <br>
                                         <small class="text-muted"><?php echo $category['count']; ?>回 / <?php echo $category['passengers']; ?>名</small>
                                     </div>
@@ -834,6 +826,21 @@ $payment_methods = ['現金', 'カード', 'その他'];
                     <input type="hidden" name="original_ride_id" id="modalOriginalRideId">
                     
                     <div class="modal-body">
+                        <!-- ログインユーザーが運転者の場合の情報表示 -->
+                        <?php if ($user_is_driver): ?>
+                        <div class="default-driver-info">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-user-check icon me-3"></i>
+                                <div>
+                                    <h6 class="mb-1">運転者として登録されます</h6>
+                                    <small class="text-muted">
+                                        ログインユーザー「<?php echo htmlspecialchars($user_name); ?>」が運転者として自動設定されます
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+
                         <!-- 復路情報表示 -->
                         <div id="returnTripInfo" class="return-trip-info" style="display: none;">
                             <h6><i class="fas fa-route me-2"></i>復路作成</h6>
@@ -862,9 +869,9 @@ $payment_methods = ['現金', 'カード', 'その他'];
                                 <select class="form-select" id="modalVehicleId" name="vehicle_id" required>
                                     <option value="">車両を選択</option>
                                     <?php foreach ($vehicles as $vehicle): ?>
-<option value="<?php echo $vehicle['id']; ?>">
-    <?php echo htmlspecialchars($vehicle['vehicle_number'] . (!empty($vehicle['model']) ? ' - ' . $vehicle['model'] : '')); ?>
-</option>
+                                        <option value="<?php echo $vehicle['id']; ?>">
+                                            <?php echo htmlspecialchars($vehicle['vehicle_number'] . ' - ' . $vehicle['vehicle_name']); ?>
+                                        </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -922,10 +929,10 @@ $payment_methods = ['現金', 'カード', 'その他'];
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="modalFareAmount" class="form-label">
+                                <label for="modalFare" class="form-label">
                                     <i class="fas fa-yen-sign me-1"></i>運賃 <span class="text-danger">*</span>
                                 </label>
-                                <input type="number" class="form-control" id="modalFareAmount" name="fare_amount" min="0" step="10" required>
+                                <input type="number" class="form-control" id="modalFare" name="fare" min="0" step="10" required>
                             </div>
 
                             <div class="col-md-6 mb-3">
@@ -938,13 +945,13 @@ $payment_methods = ['現金', 'カード', 'その他'];
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="modalTransportType" class="form-label">
+                                <label for="modalTransportCategory" class="form-label">
                                     <i class="fas fa-tags me-1"></i>輸送分類 <span class="text-danger">*</span>
                                 </label>
-                                <select class="form-select" id="modalTransportType" name="transport_type" required>
+                                <select class="form-select" id="modalTransportCategory" name="transport_category" required>
                                     <option value="">分類を選択</option>
-                                    <?php foreach ($transport_types as $type): ?>
-                                        <option value="<?php echo $type; ?>"><?php echo $type; ?></option>
+                                    <?php foreach ($transport_categories as $category): ?>
+                                        <option value="<?php echo $category; ?>"><?php echo $category; ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -987,42 +994,37 @@ $payment_methods = ['現金', 'カード', 'その他'];
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // PHPから取得したよく使う場所データ
+        // PHPから取得したよく使う場所データとユーザー情報
         const commonLocations = <?php echo $locations_json; ?>;
+        const currentUserId = <?php echo $user_id; ?>;
+        const userIsDriver = <?php echo $user_is_driver ? 'true' : 'false'; ?>;
 
-        // デバッグ用: モーダル表示確認
-        console.log('showAddModal function called');
-        
-// 新規登録モーダル表示
-function showAddModal() {
-    console.log('Modal elements check:', {
-        modal: document.getElementById('rideModal'),
-        title: document.getElementById('rideModalTitle'),
-        form: document.getElementById('rideForm')
-    });
-    
-    document.getElementById('rideModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>乗車記録登録';
-    document.getElementById('modalAction').value = 'add';
-    document.getElementById('modalRecordId').value = '';
-    document.getElementById('modalIsReturnTrip').value = '0';
-    document.getElementById('modalOriginalRideId').value = '';
-    document.getElementById('returnTripInfo').style.display = 'none';
-    
-    // フォームをリセット
-    document.getElementById('rideForm').reset();
-    document.getElementById('modalRideDate').value = '<?php echo $today; ?>';
-    document.getElementById('modalRideTime').value = getCurrentTime();
-    document.getElementById('modalPassengerCount').value = '1';
-    document.getElementById('modalCharge').value = '0';
-    
-    // デフォルトで現金を選択
-    document.getElementById('modalPaymentMethod').value = '現金';
-    
-    // 運転者の自動選択は削除（手動選択推奨）
-    
-    var rideModal = new bootstrap.Modal(document.getElementById('rideModal'));
-    rideModal.show();
-} // ← この閉じ括弧が重要
+        // 新規登録モーダル表示
+        function showAddModal() {
+            document.getElementById('rideModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>乗車記録登録';
+            document.getElementById('modalAction').value = 'add';
+            document.getElementById('modalRecordId').value = '';
+            document.getElementById('modalIsReturnTrip').value = '0';
+            document.getElementById('modalOriginalRideId').value = '';
+            document.getElementById('returnTripInfo').style.display = 'none';
+            
+            // フォームをリセット
+            document.getElementById('rideForm').reset();
+            document.getElementById('modalRideDate').value = '<?php echo $today; ?>';
+            document.getElementById('modalRideTime').value = getCurrentTime();
+            document.getElementById('modalPassengerCount').value = '1';
+            document.getElementById('modalCharge').value = '0';
+            
+            // デフォルトで現金を選択
+            document.getElementById('modalPaymentMethod').value = '現金';
+            
+            // ログインユーザーが運転者の場合、自動選択
+            if (userIsDriver) {
+                document.getElementById('modalDriverId').value = currentUserId;
+            }
+            
+            new bootstrap.Modal(document.getElementById('rideModal')).show();
+        }
 
         // 編集モーダル表示
         function editRecord(record) {
@@ -1039,14 +1041,13 @@ function showAddModal() {
             document.getElementById('modalPassengerCount').value = record.passenger_count;
             document.getElementById('modalPickupLocation').value = record.pickup_location;
             document.getElementById('modalDropoffLocation').value = record.dropoff_location;
-            document.getElementById('modalFareAmount').value = record.fare_amount;
+            document.getElementById('modalFare').value = record.fare;
             document.getElementById('modalCharge').value = record.charge;
-            document.getElementById('modalTransportType').value = record.transport_type;
+            document.getElementById('modalTransportCategory').value = record.transport_category;
             document.getElementById('modalPaymentMethod').value = record.payment_method;
             document.getElementById('modalNotes').value = record.notes || '';
             
-            var rideModal = new bootstrap.Modal(document.getElementById('rideModal'));
-            rideModal.show();
+            new bootstrap.Modal(document.getElementById('rideModal')).show();
         }
 
         // 復路作成モーダル表示
@@ -1058,12 +1059,13 @@ function showAddModal() {
             document.getElementById('modalOriginalRideId').value = record.id;
             
             // 復路情報表示
-            var returnTripInfo = document.getElementById('returnTripInfo');
+            const returnTripInfo = document.getElementById('returnTripInfo');
             returnTripInfo.style.display = 'block';
-            returnTripInfo.innerHTML = 
-                '<h6><i class="fas fa-route me-2"></i>復路作成</h6>' +
-                '<p class="mb-0">「' + record.pickup_location + ' → ' + record.dropoff_location + '」の復路を作成します。</p>' +
-                '<p class="mb-0 text-muted">乗車地と降車地が自動で入れ替わります。</p>';
+            returnTripInfo.innerHTML = `
+                <h6><i class="fas fa-route me-2"></i>復路作成</h6>
+                <p class="mb-0">「${record.pickup_location} → ${record.dropoff_location}」の復路を作成します。</p>
+                <p class="mb-0 text-muted">乗車地と降車地が自動で入れ替わります。</p>
+            `;
             
             // 基本情報をコピー（乗降地は入れ替え）
             document.getElementById('modalDriverId').value = record.driver_id;
@@ -1075,14 +1077,14 @@ function showAddModal() {
             // 乗降地を入れ替え
             document.getElementById('modalPickupLocation').value = record.dropoff_location;
             document.getElementById('modalDropoffLocation').value = record.pickup_location;
-            document.getElementById('modalFareAmount').value = record.fare_amount;
+            
+            document.getElementById('modalFare').value = record.fare;
             document.getElementById('modalCharge').value = record.charge;
-            document.getElementById('modalTransportType').value = record.transport_type;
+            document.getElementById('modalTransportCategory').value = record.transport_category;
             document.getElementById('modalPaymentMethod').value = record.payment_method;
             document.getElementById('modalNotes').value = '';
             
-            var rideModal = new bootstrap.Modal(document.getElementById('rideModal'));
-            rideModal.show();
+            new bootstrap.Modal(document.getElementById('rideModal')).show();
         }
 
         // 削除確認
@@ -1090,9 +1092,10 @@ function showAddModal() {
             if (confirm('この乗車記録を削除しますか？')) {
                 const form = document.createElement('form');
                 form.method = 'POST';
-                form.innerHTML = 
-                    '<input type="hidden" name="action" value="delete">' +
-                    '<input type="hidden" name="record_id" value="' + recordId + '">';
+                form.innerHTML = `
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="record_id" value="${recordId}">
+                `;
                 document.body.appendChild(form);
                 form.submit();
             }
@@ -1103,7 +1106,7 @@ function showAddModal() {
             const now = new Date();
             const hours = String(now.getHours()).padStart(2, '0');
             const minutes = String(now.getMinutes()).padStart(2, '0');
-            return hours + ':' + minutes;
+            return `${hours}:${minutes}`;
         }
 
         // よく使う場所の候補表示
@@ -1126,7 +1129,7 @@ function showAddModal() {
                     topLocations.forEach(location => {
                         const div = document.createElement('div');
                         div.className = 'location-suggestion';
-                        div.innerHTML = '<i class="fas fa-map-marker-alt me-2 text-muted"></i>' + location;
+                        div.innerHTML = `<i class="fas fa-map-marker-alt me-2 text-muted"></i>${location}`;
                         div.onclick = () => selectLocation(input, location, suggestionsDiv);
                         suggestionsDiv.appendChild(div);
                     });
@@ -1150,11 +1153,11 @@ function showAddModal() {
                 const div = document.createElement('div');
                 div.className = 'location-suggestion';
                 
-
-    const highlightedText = location.replace(
-        new RegExp(query, 'gi'), 
-        `<mark>$&</mark>`
-        );
+                // 検索語をハイライト
+                const highlightedText = location.replace(
+                    new RegExp(query, 'gi'), 
+                    `<mark>                                <i class="fas fa-map-marker-alt text-success me-1</mark>`
+                );
                 div.innerHTML = `<i class="fas fa-search me-2 text-muted"></i>${highlightedText}`;
                 div.onclick = () => selectLocation(input, location, suggestionsDiv);
                 suggestionsDiv.appendChild(div);
@@ -1173,11 +1176,10 @@ function showAddModal() {
         // イベントリスナー設定
         document.addEventListener('DOMContentLoaded', function() {
             // 場所入力フィールドのイベント設定
-            var locationFields = ['modalPickupLocation', 'modalDropoffLocation'];
-            locationFields.forEach(function(id) {
-                var input = document.getElementById(id);
+            ['modalPickupLocation', 'modalDropoffLocation'].forEach(id => {
+                const input = document.getElementById(id);
                 if (input) {
-                    var type = id.includes('Pickup') ? 'pickup' : 'dropoff';
+                    const type = id.includes('Pickup') ? 'pickup' : 'dropoff';
                     
                     input.addEventListener('keyup', function() {
                         showLocationSuggestions(this, type);
@@ -1200,10 +1202,10 @@ function showAddModal() {
 
         // フォーム送信前の確認
         document.getElementById('rideForm').addEventListener('submit', function(e) {
-            var action = document.getElementById('modalAction').value;
-            var isReturnTrip = document.getElementById('modalIsReturnTrip').value === '1';
+            const action = document.getElementById('modalAction').value;
+            const isReturnTrip = document.getElementById('modalIsReturnTrip').value === '1';
             
-            var message = '';
+            let message = '';
             if (action === 'add' && isReturnTrip) {
                 message = '復路の乗車記録を登録しますか？';
             } else if (action === 'add') {
