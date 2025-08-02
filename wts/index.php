@@ -273,12 +273,7 @@ $_SESSION['is_admin'] = (bool)($user['is_admin'] ?? false);
                     </button>
                 </form>
                 
-                <div class="demo-info">
-                    <h6><i class="fas fa-info-circle me-2"></i>デモ用ログイン情報</h6>
-                    <p><strong>管理者:</strong> admin / admin123</p>
-                    <p><strong>運転者:</strong> driver1 / driver123</p>
-                    <p class="mb-0"><small class="text-muted">※本番運用時はこの情報を削除してください</small></p>
-                </div>
+
                 
                 <!-- システム状況表示（開発時のみ） -->
                 <?php if (isset($_GET['status'])): ?>
