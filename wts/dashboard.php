@@ -62,65 +62,26 @@ return $stmt->fetch(PDO::FETCH_OBJ);
 
 // 権限レベル取得（既存テーブル構造対応）
 function getUserPermissionLevel($pdo, $user_id) {
-    $columns = checkTableStructure($pdo);
-/**
- * セッションから権限レベルを取得
- */
-function getUserPermissionLevel() {
-    return $_SESSION['user_permission_level'] ?? 'User';
+$columns = checkTableStructure($pdo);
+
+if (in_array('permission_level', $columns)) {
+// 新権限システム
+$stmt = $pdo->prepare("SELECT permission_level FROM users WHERE id = ?");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch(PDO::FETCH_OBJ);
+return $user ? $user->permission_level : 'User';
+} elseif (in_array('role', $columns)) {
+// 旧権限システムからの変換
+$stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch(PDO::FETCH_OBJ);
+if ($user) {
+// roleからpermission_levelに変換
+return (strpos($user->role, '管理') !== false || $user->role === 'admin') ? 'Admin' : 'User';
+}
 }
 
-/**
- * 管理者権限チェック
- */
-function isAdmin() {
-    return getUserPermissionLevel() === 'Admin';
-}
-
-/**
- * 職務フラグチェック
- */
-function hasJobFunction($job) {
-    $session_key = "is_{$job}";
-    return isset($_SESSION[$session_key]) && $_SESSION[$session_key] === true;
-}
-
-/**
- * ユーザー表示名取得（権限付き）
- */
-function getUserDisplayName() {
-    $name = $_SESSION['user_name'] ?? '不明';
-
-    if (in_array('permission_level', $columns)) {
-        // 新権限システム
-        $stmt = $pdo->prepare("SELECT permission_level FROM users WHERE id = ?");
-        $stmt->execute([$user_id]);
-        $user = $stmt->fetch(PDO::FETCH_OBJ);
-        return $user ? $user->permission_level : 'User';
-    } elseif (in_array('role', $columns)) {
-        // 旧権限システムからの変換
-        $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
-        $stmt->execute([$user_id]);
-        $user = $stmt->fetch(PDO::FETCH_OBJ);
-        if ($user) {
-            // roleからpermission_levelに変換
-            return (strpos($user->role, '管理') !== false || $user->role === 'admin') ? 'Admin' : 'User';
-    if (isAdmin()) {
-        return $name . ' (システム管理者)';
-    } else {
-        // 職務に応じた表示
-        $roles = [];
-        if (hasJobFunction('driver')) $roles[] = '運転者';
-        if (hasJobFunction('caller')) $roles[] = '点呼者';
-        
-        if (!empty($roles)) {
-            return $name . ' (' . implode('・', $roles) . ')';
-        } else {
-            return $name . ' (ユーザー)';
-}
-}
-    
-    return 'User'; // デフォルト
+return 'User'; // デフォルト
 }
 
 // 職務フラグによるユーザー取得（既存テーブル構造対応）
@@ -161,20 +122,20 @@ $stmt = $pdo->prepare("
    ");
 $stmt->execute();
 return $stmt->fetchAll(PDO::FETCH_OBJ);
-}
+    }
 // ★★★ ここにシステム名取得処理を追加 ★★★
 $system_name = '福祉輸送管理システム'; // デフォルト値
 try {
-$stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'system_name' LIMIT 1");
-$stmt->execute();
-$result = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if ($result && !empty($result['setting_value'])) {
-$system_name = $result['setting_value'];
-}
+    $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'system_name' LIMIT 1");
+    $stmt->execute();
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($result && !empty($result['setting_value'])) {
+        $system_name = $result['setting_value'];
+    }
 } catch (PDOException $e) {
-// データベースエラーの場合はデフォルト値を使用
-error_log("System name fetch error: " . $e->getMessage());
+    // データベースエラーの場合はデフォルト値を使用
+    error_log("System name fetch error: " . $e->getMessage());
 }
 
 $user_info = getUserInfo($pdo, $_SESSION['user_id']);
