@@ -65,11 +65,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 運転者一覧取得
-$stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");
-$drivers_stmt = $pdo->prepare($drivers_sql);
-$drivers_stmt->execute();
-$drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
+    // 運転者取得
+    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");
+    $stmt->execute();
+    $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 車両一覧取得
 $vehicles_sql = "SELECT id, vehicle_number, vehicle_name, current_mileage FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
