@@ -2,10 +2,21 @@
 session_start();
 
 // ログイン確認のみ（権限チェックなし）
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit();
+// ファイル上部に追加
+function requireAdmin($pdo, $user_id) {
+    $stmt = $pdo->prepare("SELECT permission_level FROM users WHERE id = ? AND active = TRUE");
+    $stmt->execute([$user_id]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$user || $user['permission_level'] !== 'Admin') {
+        header('Location: dashboard.php?error=admin_required');
+        exit;
+    }
+    return true;
 }
+
+// 使用例
+requireAdmin($pdo, $_SESSION['user_id']);
 
 // データベース接続
 require_once 'config/database.php';
@@ -188,7 +199,7 @@ function getDrivers($pdo) {
     $stmt = $pdo->prepare("
         SELECT id, name 
         FROM users 
-        WHERE (role IN ('driver', 'admin') OR is_driver = 1) 
+        WHERE (permission_leve lIN ('driver', 'admin') OR is_driver = 1) 
         AND is_active = 1 
         ORDER BY name
     ");
@@ -461,14 +472,14 @@ foreach ($range_sales as $sale) {
     <div class="container mt-4">
         <!-- メッセージ表示 -->
         <?php if ($message): ?>
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <div class="alert alert-success alert-dismissible fade show" permission_level="alert">
                 <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($message) ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
 
         <?php if ($error): ?>
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <div class="alert alert-danger alert-dismissible fade show" permission_level="alert">
                 <i class="fas fa-exclamation-triangle me-2"></i><?= htmlspecialchars($error) ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
