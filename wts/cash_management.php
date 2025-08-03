@@ -18,7 +18,7 @@ try {
 }
 
 // 管理者権限チェック（集金管理は管理者のみ）
-$stmt = $pdo->prepare("SELECT name, permission_level FROM users WHERE id = ? AND active = TRUE");
+$stmt = $pdo->prepare("SELECT name, permission_level FROM users WHERE id = ? AND is_active = TRUE");
 $stmt->execute([$_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
