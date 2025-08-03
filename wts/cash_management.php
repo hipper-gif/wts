@@ -1,22 +1,11 @@
 <?php
 session_start();
 
-// ログイン確認のみ（権限チェックなし）
-// ファイル上部に追加
-function requireAdmin($pdo, $user_id) {
-    $stmt = $pdo->prepare("SELECT permission_level FROM users WHERE id = ? AND active = TRUE");
-    $stmt->execute([$user_id]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if (!$user || $user['permission_level'] !== 'Admin') {
-        header('Location: dashboard.php?error=admin_required');
-        exit;
-    }
-    return true;
+// ログイン確認
+if (!isset($_SESSION['user_id'])) {
+    header('Location: index.php');
+    exit();
 }
-
-// 使用例
-requireAdmin($pdo, $_SESSION['user_id']);
 
 // データベース接続
 require_once 'config/database.php';
@@ -27,6 +16,24 @@ try {
 } catch (PDOException $e) {
     die('データベース接続エラー: ' . $e->getMessage());
 }
+
+// 管理者権限チェック（集金管理は管理者のみ）
+$stmt = $pdo->prepare("SELECT name, permission_level FROM users WHERE id = ? AND active = TRUE");
+$stmt->execute([$_SESSION['user_id']]);
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$user) {
+    session_destroy();
+    header('Location: index.php');
+    exit();
+}
+
+if ($user['permission_level'] !== 'Admin') {
+    header('Location: dashboard.php?error=admin_required');
+    exit();
+}
+
+// 以下、既存のコードを継続...
 
 // ユーザー情報取得
 $stmt = $pdo->prepare("SELECT permission_level FROM users WHERE id = ? AND active = TRUE");
