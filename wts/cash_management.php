@@ -206,7 +206,7 @@ function getDrivers($pdo) {
     $stmt = $pdo->prepare("
         SELECT id, name 
         FROM users 
-        WHERE (permission_leve lIN ('driver', 'admin') OR is_driver = 1) 
+        WHERE (permission_level IN ('user', 'admin') OR is_driver = 1) 
         AND is_active = 1 
         ORDER BY name
     ");
