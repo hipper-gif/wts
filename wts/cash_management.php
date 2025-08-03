@@ -201,13 +201,13 @@ function getRangeSales($pdo, $date_from, $date_to, $driver_ids = []) {
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// 運転手一覧取得
+// 運転手一覧取得（修正版）
 function getDrivers($pdo) {
     $stmt = $pdo->prepare("
         SELECT id, name 
         FROM users 
-        WHERE (permission_level IN ('user', 'admin') OR is_driver = 1) 
-        AND is_active = 1 
+        WHERE is_driver = TRUE 
+        AND is_active = TRUE 
         ORDER BY name
     ");
     $stmt->execute();
