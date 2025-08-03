@@ -36,7 +36,7 @@ if ($user['permission_level'] !== 'Admin') {
 // 以下、既存のコードを継続...
 
 // ユーザー情報取得
-$stmt = $pdo->prepare("SELECT permission_level FROM users WHERE id = ? AND active = TRUE");
+$stmt = $pdo->prepare("SELECT name, permission_level FROM users WHERE id = ? AND is_active = TRUE");
 $stmt->execute([$_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
