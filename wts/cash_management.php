@@ -27,14 +27,17 @@ try {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS cash_confirmations (
             id INT PRIMARY KEY AUTO_INCREMENT,
-            confirmation_date DATE NOT NULL UNIQUE,
+            confirmation_date DATE NOT NULL,
+            driver_id INT NOT NULL,
             confirmed_amount INT NOT NULL DEFAULT 0,
             calculated_amount INT NOT NULL DEFAULT 0,
             difference INT NOT NULL DEFAULT 0,
+            change_stock INT NOT NULL DEFAULT 0,
             memo TEXT,
             confirmed_by INT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_date_driver (confirmation_date, driver_id)
         )
     ");
     
@@ -45,9 +48,34 @@ try {
             stock_amount INT NOT NULL DEFAULT 0,
             notes TEXT,
             updated_by INT,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_driver (driver_id)
         )
     ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS cash_count_details (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            confirmation_date DATE NOT NULL,
+            driver_id INT NOT NULL,
+            bill_10000 INT DEFAULT 0,
+            bill_5000 INT DEFAULT 0,
+            bill_2000 INT DEFAULT 0,
+            bill_1000 INT DEFAULT 0,
+            coin_500 INT DEFAULT 0,
+            coin_100 INT DEFAULT 0,
+            coin_50 INT DEFAULT 0,
+            coin_10 INT DEFAULT 0,
+            coin_5 INT DEFAULT 0,
+            coin_1 INT DEFAULT 0,
+            total_amount INT NOT NULL DEFAULT 0,
+            memo TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_date_driver (confirmation_date, driver_id)
+        )
+    ");
+    
 } catch (PDOException $e) {
     // テーブル作成エラーは無視（既存の場合）
 }
@@ -56,27 +84,94 @@ try {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
+            case 'cash_count':
+                $date = $_POST['date'];
+                $driver_id = (int)$_POST['driver_id'];
+                
+                // 各金種の枚数
+                $bills = [
+                    '10000' => (int)($_POST['bill_10000'] ?? 0),
+                    '5000' => (int)($_POST['bill_5000'] ?? 0),
+                    '2000' => (int)($_POST['bill_2000'] ?? 0),
+                    '1000' => (int)($_POST['bill_1000'] ?? 0)
+                ];
+                $coins = [
+                    '500' => (int)($_POST['coin_500'] ?? 0),
+                    '100' => (int)($_POST['coin_100'] ?? 0),
+                    '50' => (int)($_POST['coin_50'] ?? 0),
+                    '10' => (int)($_POST['coin_10'] ?? 0),
+                    '5' => (int)($_POST['coin_5'] ?? 0),
+                    '1' => (int)($_POST['coin_1'] ?? 0)
+                ];
+                
+                // 合計金額計算
+                $total_amount = 0;
+                foreach ($bills as $value => $count) {
+                    $total_amount += $value * $count;
+                }
+                foreach ($coins as $value => $count) {
+                    $total_amount += $value * $count;
+                }
+                
+                $memo = $_POST['memo'] ?? '';
+                
+                try {
+                    $stmt = $pdo->prepare("
+                        INSERT INTO cash_count_details 
+                        (confirmation_date, driver_id, bill_10000, bill_5000, bill_2000, bill_1000, 
+                         coin_500, coin_100, coin_50, coin_10, coin_5, coin_1, total_amount, memo)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE
+                        bill_10000 = VALUES(bill_10000),
+                        bill_5000 = VALUES(bill_5000),
+                        bill_2000 = VALUES(bill_2000),
+                        bill_1000 = VALUES(bill_1000),
+                        coin_500 = VALUES(coin_500),
+                        coin_100 = VALUES(coin_100),
+                        coin_50 = VALUES(coin_50),
+                        coin_10 = VALUES(coin_10),
+                        coin_5 = VALUES(coin_5),
+                        coin_1 = VALUES(coin_1),
+                        total_amount = VALUES(total_amount),
+                        memo = VALUES(memo),
+                        updated_at = CURRENT_TIMESTAMP
+                    ");
+                    $stmt->execute([
+                        $date, $driver_id, 
+                        $bills['10000'], $bills['5000'], $bills['2000'], $bills['1000'],
+                        $coins['500'], $coins['100'], $coins['50'], $coins['10'], $coins['5'], $coins['1'],
+                        $total_amount, $memo
+                    ]);
+                    $success_message = "現金カウント記録を保存しました";
+                } catch (PDOException $e) {
+                    $error_message = "保存エラー: " . $e->getMessage();
+                }
+                break;
+                
             case 'confirm_cash':
                 $date = $_POST['date'];
+                $driver_id = (int)$_POST['driver_id'];
                 $confirmed_amount = (int)$_POST['confirmed_amount'];
                 $calculated_amount = (int)$_POST['calculated_amount'];
+                $change_stock = (int)$_POST['change_stock'];
                 $difference = $confirmed_amount - $calculated_amount;
                 $memo = $_POST['memo'] ?? '';
                 
                 try {
                     $stmt = $pdo->prepare("
                         INSERT INTO cash_confirmations 
-                        (confirmation_date, confirmed_amount, calculated_amount, difference, memo, confirmed_by)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        (confirmation_date, driver_id, confirmed_amount, calculated_amount, difference, change_stock, memo, confirmed_by)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         ON DUPLICATE KEY UPDATE
                         confirmed_amount = VALUES(confirmed_amount),
                         calculated_amount = VALUES(calculated_amount),
                         difference = VALUES(difference),
+                        change_stock = VALUES(change_stock),
                         memo = VALUES(memo),
                         confirmed_by = VALUES(confirmed_by),
                         updated_at = CURRENT_TIMESTAMP
                     ");
-                    $stmt->execute([$date, $confirmed_amount, $calculated_amount, $difference, $memo, $_SESSION['user_id']]);
+                    $stmt->execute([$date, $driver_id, $confirmed_amount, $calculated_amount, $difference, $change_stock, $memo, $_SESSION['user_id']]);
                     $success_message = "現金確認記録を保存しました";
                 } catch (PDOException $e) {
                     $error_message = "保存エラー: " . $e->getMessage();
@@ -132,6 +227,28 @@ function getDailySales($pdo, $date) {
     }
 }
 
+function getDailySalesByDriver($pdo, $date) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT 
+                r.driver_id,
+                u.name as driver_name,
+                r.payment_method,
+                COUNT(*) as trip_count,
+                SUM(r.fare) as total_amount
+            FROM ride_records r
+            LEFT JOIN users u ON r.driver_id = u.id
+            WHERE DATE(r.ride_date) = ? AND u.is_active = TRUE
+            GROUP BY r.driver_id, u.name, r.payment_method
+            ORDER BY u.name, r.payment_method
+        ");
+        $stmt->execute([$date]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
 function getDailyTotal($pdo, $date) {
     try {
         $stmt = $pdo->prepare("
@@ -145,6 +262,61 @@ function getDailyTotal($pdo, $date) {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
         return ['total_trips' => 0, 'total_amount' => 0];
+    }
+}
+
+function getDailyDrivers($pdo, $date) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT
+                u.id,
+                u.name,
+                SUM(CASE WHEN r.payment_method = '現金' THEN r.fare ELSE 0 END) as cash_sales,
+                SUM(CASE WHEN r.payment_method = 'カード' THEN r.fare ELSE 0 END) as card_sales,
+                SUM(CASE WHEN r.payment_method NOT IN ('現金', 'カード') THEN r.fare ELSE 0 END) as other_sales,
+                COUNT(*) as total_trips,
+                SUM(r.fare) as total_sales
+            FROM ride_records r
+            LEFT JOIN users u ON r.driver_id = u.id
+            WHERE DATE(r.ride_date) = ? AND u.is_active = TRUE
+            GROUP BY u.id, u.name
+            ORDER BY u.name
+        ");
+        $stmt->execute([$date]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+function getDriverChangeStock($pdo, $driver_id) {
+    try {
+        $stmt = $pdo->prepare("SELECT stock_amount FROM driver_change_stocks WHERE driver_id = ?");
+        $stmt->execute([$driver_id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ? $result['stock_amount'] : 0;
+    } catch (PDOException $e) {
+        return 0;
+    }
+}
+
+function getCashCountDetails($pdo, $date, $driver_id) {
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM cash_count_details WHERE confirmation_date = ? AND driver_id = ?");
+        $stmt->execute([$date, $driver_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        return null;
+    }
+}
+
+function getCashConfirmation($pdo, $date, $driver_id) {
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM cash_confirmations WHERE confirmation_date = ? AND driver_id = ?");
+        $stmt->execute([$date, $driver_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        return null;
     }
 }
 
@@ -170,86 +342,12 @@ function getMonthlySummary($pdo, $month) {
     }
 }
 
-function getMonthlySalesDetails($pdo, $month) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT 
-                r.ride_date,
-                r.ride_time,
-                u.name as driver_name,
-                r.pickup_location,
-                r.dropoff_location,
-                r.passenger_count,
-                r.fare,
-                r.payment_method,
-                r.transportation_type,
-                r.memo
-            FROM ride_records r
-            LEFT JOIN users u ON r.driver_id = u.id
-            WHERE DATE_FORMAT(r.ride_date, '%Y-%m') = ?
-            ORDER BY r.ride_date DESC, r.ride_time DESC
-        ");
-        $stmt->execute([$month]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        return [];
-    }
-}
-
-function getCashConfirmation($pdo, $date) {
-    try {
-        $stmt = $pdo->prepare("SELECT * FROM cash_confirmations WHERE confirmation_date = ?");
-        $stmt->execute([$date]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        return null;
-    }
-}
-
-function getDriverChangeStocks($pdo) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT 
-                dcs.*,
-                u.name as driver_name
-            FROM driver_change_stocks dcs
-            LEFT JOIN users u ON dcs.driver_id = u.id
-            WHERE u.is_active = TRUE AND u.is_driver = TRUE
-            ORDER BY u.name
-        ");
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        return [];
-    }
-}
-
-function getDailyDrivers($pdo, $date) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT DISTINCT
-                u.id,
-                u.name
-            FROM ride_records r
-            LEFT JOIN users u ON r.driver_id = u.id
-            WHERE DATE(r.ride_date) = ? AND u.is_active = TRUE
-            ORDER BY u.name
-        ");
-        $stmt->execute([$date]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        return [];
-    }
-}
-
 // データ取得
 $daily_sales = getDailySales($pdo, $selected_date);
+$daily_sales_by_driver = getDailySalesByDriver($pdo, $selected_date);
 $daily_total = getDailyTotal($pdo, $selected_date);
-$monthly_summary = getMonthlySummary($pdo, $selected_month);
-$monthly_details = getMonthlySalesDetails($pdo, $selected_month);
-$cash_confirmation = getCashConfirmation($pdo, $selected_date);
-$driver_change_stocks = getDriverChangeStocks($pdo);
 $daily_drivers = getDailyDrivers($pdo, $selected_date);
+$monthly_summary = getMonthlySummary($pdo, $selected_month);
 
 // 計算
 $cash_sales = 0;
@@ -270,10 +368,6 @@ foreach ($daily_sales as $sale) {
     }
 }
 
-// おつり在庫考慮の計算現金
-$total_change_stock = array_sum(array_column($driver_change_stocks, 'stock_amount'));
-$calculated_cash = $cash_sales - $total_change_stock;
-
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -291,6 +385,10 @@ $calculated_cash = $cash_sales - $total_change_stock;
         .amount-display { font-size: 1.8rem; font-weight: bold; }
         .change-stock-card { border-left: 4px solid #9c27b0; }
         .accounting-memo { background-color: #f8f9fa; border-left: 4px solid #17a2b8; }
+        .driver-cash-card { border-left: 4px solid #673ab7; }
+        .cash-counter { background-color: #f8f9fa; }
+        .money-input { text-align: center; font-weight: bold; }
+        .money-label { font-size: 0.9rem; color: #666; }
         @media print {
             .no-print { display: none !important; }
             .container-fluid { max-width: none !important; }
@@ -414,31 +512,95 @@ $calculated_cash = $cash_sales - $total_change_stock;
         </div>
     </div>
 
-    <!-- 運転者別おつり在庫 -->
-    <?php if (!empty($driver_change_stocks)): ?>
+    <!-- 運転者別現金確認 -->
+    <?php if (!empty($daily_drivers)): ?>
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card change-stock-card">
-                <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card driver-cash-card">
+                <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-wallet me-2"></i>運転者別おつり在庫
+                        <i class="fas fa-users me-2"></i><?= date('Y/m/d', strtotime($selected_date)) ?> 運転者別現金確認
                     </h5>
-                    <span class="badge bg-purple text-white">合計: ¥<?= number_format($total_change_stock) ?></span>
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <?php foreach ($driver_change_stocks as $stock): ?>
-                        <div class="col-md-4 mb-3">
-                            <div class="card bg-light">
+                        <?php foreach ($daily_drivers as $driver): ?>
+                        <?php 
+                        $change_stock = getDriverChangeStock($pdo, $driver['id']);
+                        $calculated_cash = $driver['cash_sales'] - $change_stock;
+                        $cash_count = getCashCountDetails($pdo, $selected_date, $driver['id']);
+                        $cash_confirmation = getCashConfirmation($pdo, $selected_date, $driver['id']);
+                        ?>
+                        <div class="col-md-6 col-lg-4 mb-4">
+                            <div class="card border-primary">
+                                <div class="card-header bg-primary text-white">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-user me-2"></i><?= htmlspecialchars($driver['name']) ?>
+                                    </h6>
+                                </div>
                                 <div class="card-body">
-                                    <h6 class="card-title"><?= htmlspecialchars($stock['driver_name']) ?></h6>
-                                    <div class="h5 text-purple">¥<?= number_format($stock['stock_amount']) ?></div>
-                                    <?php if ($stock['notes']): ?>
-                                        <small class="text-muted"><?= htmlspecialchars($stock['notes']) ?></small>
+                                    <!-- 売上サマリー -->
+                                    <div class="mb-3">
+                                        <div class="row text-center">
+                                            <div class="col-4">
+                                                <div class="text-danger">
+                                                    <strong>¥<?= number_format($driver['cash_sales']) ?></strong>
+                                                    <small class="d-block text-muted">現金売上</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-4">
+                                                <div class="text-warning">
+                                                    <strong>¥<?= number_format($change_stock) ?></strong>
+                                                    <small class="d-block text-muted">おつり在庫</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-4">
+                                                <div class="text-success">
+                                                    <strong>¥<?= number_format($calculated_cash) ?></strong>
+                                                    <small class="d-block text-muted">回収予定</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 現金カウント -->
+                                    <div class="mb-3">
+                                        <button class="btn btn-outline-info btn-sm w-100 no-print" 
+                                                onclick="showCashCountModal(<?= $driver['id'] ?>, '<?= htmlspecialchars($driver['name']) ?>', <?= $calculated_cash ?>)">
+                                            <i class="fas fa-calculator me-2"></i>現金カウント
+                                            <?php if ($cash_count): ?>
+                                                <span class="badge bg-success ms-2">完了</span>
+                                            <?php endif; ?>
+                                        </button>
+                                    </div>
+
+                                    <!-- 確認状況 -->
+                                    <?php if ($cash_confirmation): ?>
+                                    <div class="alert alert-success py-2 mb-2">
+                                        <small>
+                                            <i class="fas fa-check-circle me-1"></i>確認済み: ¥<?= number_format($cash_confirmation['confirmed_amount']) ?>
+                                            <?php if ($cash_confirmation['difference'] != 0): ?>
+                                                <span class="text-<?= $cash_confirmation['difference'] > 0 ? 'primary' : 'danger' ?>">
+                                                    (<?= $cash_confirmation['difference'] > 0 ? '+' : '' ?><?= number_format($cash_confirmation['difference']) ?>)
+                                                </span>
+                                            <?php endif; ?>
+                                        </small>
+                                    </div>
                                     <?php endif; ?>
-                                    <button class="btn btn-sm btn-outline-primary mt-2 no-print" 
-                                            onclick="showChangeStockModal(<?= $stock['driver_id'] ?>, '<?= htmlspecialchars($stock['driver_name']) ?>', <?= $stock['stock_amount'] ?>, '<?= htmlspecialchars($stock['notes'] ?? '') ?>')">
-                                        <i class="fas fa-edit"></i> 調整
+
+                                    <!-- カウント結果表示 -->
+                                    <?php if ($cash_count): ?>
+                                    <div class="alert alert-info py-2 mb-2">
+                                        <small>
+                                            <i class="fas fa-coins me-1"></i>カウント: ¥<?= number_format($cash_count['total_amount']) ?>
+                                        </small>
+                                    </div>
+                                    <?php endif; ?>
+
+                                    <!-- 現金確認ボタン -->
+                                    <button class="btn btn-primary btn-sm w-100 no-print" 
+                                            onclick="showCashConfirmModal(<?= $driver['id'] ?>, '<?= htmlspecialchars($driver['name']) ?>', <?= $calculated_cash ?>, <?= $change_stock ?>, <?= $cash_count['total_amount'] ?? $calculated_cash ?>)">
+                                        <i class="fas fa-check me-2"></i>現金確認
                                     </button>
                                 </div>
                             </div>
@@ -450,242 +612,6 @@ $calculated_cash = $cash_sales - $total_change_stock;
         </div>
     </div>
     <?php endif; ?>
-
-    <!-- 現金確認セクション -->
-    <div class="row mb-4">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <i class="fas fa-calculator me-2"></i><?= date('Y/m/d', strtotime($selected_date)) ?> 現金確認
-                </div>
-                <div class="card-body">
-                    <form method="POST">
-                        <input type="hidden" name="action" value="confirm_cash">
-                        <input type="hidden" name="date" value="<?= $selected_date ?>">
-                        <input type="hidden" name="calculated_amount" value="<?= $calculated_cash ?>">
-                        
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">売上現金（自動計算）</label>
-                                    <div class="input-group">
-                                        <span class="input-group-text">¥</span>
-                                        <input type="text" class="form-control" value="<?= number_format($cash_sales) ?>" readonly>
-                                    </div>
-                                    <small class="text-muted">本日の現金売上</small>
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label class="form-label">おつり在庫（自動計算）</label>
-                                    <div class="input-group">
-                                        <span class="input-group-text">¥</span>
-                                        <input type="text" class="form-control" value="<?= number_format($total_change_stock) ?>" readonly>
-                                    </div>
-                                    <small class="text-muted">運転者が保持するおつり在庫</small>
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label class="form-label">実回収可能額（自動計算）</label>
-                                    <div class="input-group">
-                                        <span class="input-group-text">¥</span>
-                                        <input type="text" id="calculated_amount" class="form-control bg-success text-white fw-bold" 
-                                               value="<?= number_format($calculated_cash) ?>" readonly>
-                                    </div>
-                                    <small class="text-success">現金売上 - おつり在庫</small>
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">実際の回収金額 <span class="text-danger">*</span></label>
-                                    <div class="input-group">
-                                        <span class="input-group-text">¥</span>
-                                        <input type="number" name="confirmed_amount" id="confirmed_amount" 
-                                               class="form-control" required
-                                               value="<?= $cash_confirmation['confirmed_amount'] ?? $calculated_cash ?>"
-                                               onchange="calculateDifference()">
-                                    </div>
-                                    <small class="text-muted">実際に回収した現金額</small>
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label class="form-label">差額</label>
-                                    <div class="input-group">
-                                        <span class="input-group-text">¥</span>
-                                        <input type="text" id="difference_display" class="form-control" readonly>
-                                    </div>
-                                    <small id="difference_note" class="text-muted">実際金額 - 計算金額</small>
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label class="form-label">メモ</label>
-                                    <textarea name="memo" class="form-control" rows="3" 
-                                              placeholder="差額の理由等"><?= htmlspecialchars($cash_confirmation['memo'] ?? '') ?></textarea>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <button type="submit" class="btn btn-success no-print">
-                            <i class="fas fa-save me-2"></i>現金確認記録を保存
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-        
-        <!-- 経理入力支援 -->
-        <div class="col-md-4">
-            <div class="card accounting-memo">
-                <div class="card-header">
-                    <i class="fas fa-file-invoice me-2"></i>経理入力用仕訳メモ
-                </div>
-                <div class="card-body">
-                    <h6>売上計上</h6>
-                    <pre class="small">現金　　　¥<?= number_format($cash_sales) ?>
-カード　　¥<?= number_format($card_sales) ?>
-／売上　　¥<?= number_format($daily_total['total_amount']) ?></pre>
-                    
-                    <h6 class="mt-3">現金管理</h6>
-                    <pre class="small">現金　　　¥<?= number_format($calculated_cash) ?>
-／売掛金　¥<?= number_format($calculated_cash) ?></pre>
-                    
-                    <?php if ($cash_confirmation && $cash_confirmation['difference'] != 0): ?>
-                    <h6 class="mt-3">現金過不足</h6>
-                    <pre class="small"><?= $cash_confirmation['difference'] > 0 ? '現金' : '雑損失' ?>　¥<?= number_format(abs($cash_confirmation['difference'])) ?>
-／<?= $cash_confirmation['difference'] > 0 ? '雑益' : '現金' ?>　¥<?= number_format(abs($cash_confirmation['difference'])) ?></pre>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 支払方法別詳細 -->
-    <?php if (!empty($daily_sales)): ?>
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <i class="fas fa-list me-2"></i><?= date('Y/m/d', strtotime($selected_date)) ?> 支払方法別詳細
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>支払方法</th>
-                                    <th class="text-end">回数</th>
-                                    <th class="text-end">金額</th>
-                                    <th class="text-end">構成比</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($daily_sales as $sale): ?>
-                                <tr>
-                                    <td>
-                                        <?php if ($sale['payment_method'] === '現金'): ?>
-                                            <i class="fas fa-money-bill-wave text-danger me-2"></i>
-                                        <?php elseif ($sale['payment_method'] === 'カード'): ?>
-                                            <i class="fas fa-credit-card text-primary me-2"></i>
-                                        <?php else: ?>
-                                            <i class="fas fa-coins text-warning me-2"></i>
-                                        <?php endif; ?>
-                                        <?= htmlspecialchars($sale['payment_method']) ?>
-                                    </td>
-                                    <td class="text-end"><?= $sale['trip_count'] ?>回</td>
-                                    <td class="text-end">¥<?= number_format($sale['total_amount']) ?></td>
-                                    <td class="text-end">
-                                        <?= $daily_total['total_amount'] > 0 ? number_format(($sale['total_amount'] / $daily_total['total_amount']) * 100, 1) : 0 ?>%
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                            <tfoot class="table-primary">
-                                <tr>
-                                    <th>合計</th>
-                                    <th class="text-end"><?= $daily_total['total_trips'] ?>回</th>
-                                    <th class="text-end">¥<?= number_format($daily_total['total_amount']) ?></th>
-                                    <th class="text-end">100.0%</th>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- 当月売上詳細リスト -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="fas fa-table me-2"></i><?= date('Y年m月', strtotime($selected_month)) ?> 売上詳細
-                    </h5>
-                    <button class="btn btn-outline-primary no-print" onclick="toggleDetails()">
-                        <i class="fas fa-eye me-2"></i><span id="toggle-text">詳細表示</span>
-                    </button>
-                </div>
-                <div class="card-body" id="details-section" style="display: none;">
-                    <?php if (!empty($monthly_details)): ?>
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>日時</th>
-                                    <th>運転者</th>
-                                    <th>乗車地</th>
-                                    <th>降車地</th>
-                                    <th class="text-center">人数</th>
-                                    <th class="text-end">料金</th>
-                                    <th>支払</th>
-                                    <th>輸送種別</th>
-                                    <th>メモ</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($monthly_details as $detail): ?>
-                                <tr>
-                                    <td>
-                                        <?= date('m/d', strtotime($detail['ride_date'])) ?>
-                                        <small class="text-muted d-block"><?= date('H:i', strtotime($detail['ride_time'])) ?></small>
-                                    </td>
-                                    <td><?= htmlspecialchars($detail['driver_name']) ?></td>
-                                    <td><?= htmlspecialchars($detail['pickup_location']) ?></td>
-                                    <td><?= htmlspecialchars($detail['dropoff_location']) ?></td>
-                                    <td class="text-center"><?= $detail['passenger_count'] ?></td>
-                                    <td class="text-end">¥<?= number_format($detail['fare']) ?></td>
-                                    <td>
-                                        <?php if ($detail['payment_method'] === '現金'): ?>
-                                            <span class="badge bg-danger"><?= htmlspecialchars($detail['payment_method']) ?></span>
-                                        <?php elseif ($detail['payment_method'] === 'カード'): ?>
-                                            <span class="badge bg-primary"><?= htmlspecialchars($detail['payment_method']) ?></span>
-                                        <?php else: ?>
-                                            <span class="badge bg-warning"><?= htmlspecialchars($detail['payment_method']) ?></span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><?= htmlspecialchars($detail['transportation_type']) ?></td>
-                                    <td>
-                                        <?php if ($detail['memo']): ?>
-                                            <i class="fas fa-comment text-info" title="<?= htmlspecialchars($detail['memo']) ?>"></i>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                    <?php else: ?>
-                    <div class="text-center text-muted py-4">
-                        <i class="fas fa-inbox fa-3x mb-3"></i>
-                        <p>該当月のデータがありません</p>
-                    </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- 月次サマリー -->
     <?php if (!empty($monthly_summary)): ?>
@@ -769,6 +695,258 @@ $calculated_cash = $cash_sales - $total_change_stock;
     <?php endif; ?>
 </div>
 
+<!-- 現金カウントモーダル -->
+<div class="modal fade" id="cashCountModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-calculator me-2"></i>現金カウント
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body cash-counter">
+                    <input type="hidden" name="action" value="cash_count">
+                    <input type="hidden" name="date" value="<?= $selected_date ?>">
+                    <input type="hidden" name="driver_id" id="count_driver_id">
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">運転者</label>
+                            <input type="text" id="count_driver_name" class="form-control" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">回収予定金額（参考）</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="text" id="count_expected_amount" class="form-control" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <!-- 紙幣 -->
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3">
+                                <i class="fas fa-money-bill-wave me-2"></i>紙幣
+                            </h6>
+                            <div class="row mb-2">
+                                <div class="col-4">
+                                    <label class="money-label">1万円札</label>
+                                    <input type="number" name="bill_10000" id="bill_10000" 
+                                           class="form-control money-input" min="0" value="0" 
+                                           onchange="calculateTotal()">
+                                </div>
+                                <div class="col-4">
+                                    <label class="money-label">5千円札</label>
+                                    <input type="number" name="bill_5000" id="bill_5000" 
+                                           class="form-control money-input" min="0" value="0" 
+                                           onchange="calculateTotal()">
+                                </div>
+                                <div class="col-4">
+                                    <label class="money-label">2千円札</label>
+                                    <input type="number" name="bill_2000" id="bill_2000" 
+                                           class="form-control money-input" min="0" value="0" 
+                                           onchange="calculateTotal()">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-4">
+                                    <label class="money-label">千円札</label>
+                                    <input type="number" name="bill_1000" id="bill_1000" 
+                                           class="form-control money-input" min="0" value="0" 
+                                           onchange="calculateTotal()">
+                                </div>
+                                <div class="col-8">
+                                    <div class="alert alert-info py-2">
+                                        <small>
+                                            <strong>紙幣計: </strong>
+                                            <span id="bills_total">¥0</span>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 硬貨 -->
+                        <div class="col-md-6">
+                            <h6 class="text-warning mb-3">
+                                <i class="fas fa-coins me-2"></i>硬貨
+                            </h6>
+                            <div class="row mb-2">
+                                <div class="col-4">
+                                    <label class="money-label">500円</label>
+                                    <input type="number" name="coin_500" id="coin_500" 
+                                           class="form-control money-input" min="0" value="0" 
+                                           onchange="calculateTotal()">
+                                </div>
+                                <div class="col-4">
+                                    <label class="money-label">100円</label>
+                                    <input type="number" name="coin_100" id="coin_100" 
+                                           class="form-control money-input" min="0" value="0" 
+                                           onchange="calculateTotal()">
+                                </div>
+                                <div class="col-4">
+                                    <label class="money-label">50円</label>
+                                    <input type="number" name="coin_50" id="coin_50" 
+                                           class="form-control money-input" min="0" value="0" 
+                                           onchange="calculateTotal()">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-4">
+                                    <label class="money-label">10円</label>
+                                    <input type="number" name="coin_10" id="coin_10" 
+                                           class="form-control money-input" min="0" value="0" 
+                                           onchange="calculateTotal()">
+                                </div>
+                                <div class="col-4">
+                                    <label class="money-label">5円</label>
+                                    <input type="number" name="coin_5" id="coin_5" 
+                                           class="form-control money-input" min="0" value="0" 
+                                           onchange="calculateTotal()">
+                                </div>
+                                <div class="col-4">
+                                    <label class="money-label">1円</label>
+                                    <input type="number" name="coin_1" id="coin_1" 
+                                           class="form-control money-input" min="0" value="0" 
+                                           onchange="calculateTotal()">
+                                </div>
+                            </div>
+                            <div class="alert alert-warning py-2">
+                                <small>
+                                    <strong>硬貨計: </strong>
+                                    <span id="coins_total">¥0</span>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 合計表示 -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="alert alert-success">
+                                <div class="row align-items-center">
+                                    <div class="col-md-4">
+                                        <h5 class="mb-0">
+                                            <strong>カウント合計: </strong>
+                                            <span id="total_amount_display">¥0</span>
+                                        </h5>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong>差額: </strong>
+                                        <span id="difference_amount" class="fw-bold">¥0</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span id="difference_status" class="badge bg-secondary">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">メモ</label>
+                        <textarea name="memo" id="count_memo" class="form-control" rows="2" 
+                                  placeholder="カウント時の特記事項など"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save me-2"></i>カウント記録を保存
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 現金確認モーダル -->
+<div class="modal fade" id="cashConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-check-circle me-2"></i>現金確認
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="confirm_cash">
+                    <input type="hidden" name="date" value="<?= $selected_date ?>">
+                    <input type="hidden" name="driver_id" id="confirm_driver_id">
+                    <input type="hidden" name="calculated_amount" id="confirm_calculated_amount">
+                    <input type="hidden" name="change_stock" id="confirm_change_stock">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">運転者</label>
+                        <input type="text" id="confirm_driver_name" class="form-control" readonly>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">現金売上</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="text" id="confirm_cash_sales" class="form-control" readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">おつり在庫</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="text" id="confirm_change_display" class="form-control" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">計算上の回収額</label>
+                        <div class="input-group">
+                            <span class="input-group-text">¥</span>
+                            <input type="text" id="confirm_calculated_display" class="form-control bg-info text-white fw-bold" readonly>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">実際の確認金額 <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">¥</span>
+                            <input type="number" name="confirmed_amount" id="confirm_actual_amount" 
+                                   class="form-control" required onchange="calculateConfirmDifference()">
+                        </div>
+                        <small class="text-muted">カウントした実際の金額を入力</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">差額</label>
+                        <div class="input-group">
+                            <span class="input-group-text">¥</span>
+                            <input type="text" id="confirm_difference_display" class="form-control" readonly>
+                        </div>
+                        <small id="confirm_difference_note" class="text-muted">実際金額 - 計算金額</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">メモ</label>
+                        <textarea name="memo" id="confirm_memo" class="form-control" rows="3" 
+                                  placeholder="差額の理由、特記事項など"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>確認記録を保存
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- おつり在庫調整モーダル -->
 <div class="modal fade" id="changeStockModal" tabindex="-1">
     <div class="modal-dialog">
@@ -782,18 +960,18 @@ $calculated_cash = $cash_sales - $total_change_stock;
             <form method="POST">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="update_change_stock">
-                    <input type="hidden" name="driver_id" id="modal_driver_id">
+                    <input type="hidden" name="driver_id" id="stock_driver_id">
                     
                     <div class="mb-3">
                         <label class="form-label">運転者</label>
-                        <input type="text" id="modal_driver_name" class="form-control" readonly>
+                        <input type="text" id="stock_driver_name" class="form-control" readonly>
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">在庫金額 <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <span class="input-group-text">¥</span>
-                            <input type="number" name="stock_amount" id="modal_stock_amount" 
+                            <input type="number" name="stock_amount" id="stock_amount" 
                                    class="form-control" required min="0" step="100">
                         </div>
                         <small class="text-muted">100円単位で入力してください</small>
@@ -801,7 +979,7 @@ $calculated_cash = $cash_sales - $total_change_stock;
                     
                     <div class="mb-3">
                         <label class="form-label">メモ</label>
-                        <textarea name="notes" id="modal_notes" class="form-control" rows="3" 
+                        <textarea name="notes" id="stock_notes" class="form-control" rows="3" 
                                   placeholder="調整理由など"></textarea>
                     </div>
                 </div>
@@ -818,24 +996,83 @@ $calculated_cash = $cash_sales - $total_change_stock;
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// 差額計算
-function calculateDifference() {
-    const confirmed = parseInt(document.getElementById('confirmed_amount').value) || 0;
-    const calculated = <?= $calculated_cash ?>;
-    const difference = confirmed - calculated;
+// 現金カウント計算
+function calculateTotal() {
+    // 紙幣計算
+    const bills = {
+        10000: parseInt(document.getElementById('bill_10000').value) || 0,
+        5000: parseInt(document.getElementById('bill_5000').value) || 0,
+        2000: parseInt(document.getElementById('bill_2000').value) || 0,
+        1000: parseInt(document.getElementById('bill_1000').value) || 0
+    };
     
-    const differenceDisplay = document.getElementById('difference_display');
-    const differenceNote = document.getElementById('difference_note');
+    // 硬貨計算
+    const coins = {
+        500: parseInt(document.getElementById('coin_500').value) || 0,
+        100: parseInt(document.getElementById('coin_100').value) || 0,
+        50: parseInt(document.getElementById('coin_50').value) || 0,
+        10: parseInt(document.getElementById('coin_10').value) || 0,
+        5: parseInt(document.getElementById('coin_5').value) || 0,
+        1: parseInt(document.getElementById('coin_1').value) || 0
+    };
+    
+    // 紙幣合計
+    let billsTotal = 0;
+    for (const [value, count] of Object.entries(bills)) {
+        billsTotal += parseInt(value) * count;
+    }
+    
+    // 硬貨合計
+    let coinsTotal = 0;
+    for (const [value, count] of Object.entries(coins)) {
+        coinsTotal += parseInt(value) * count;
+    }
+    
+    // 総合計
+    const totalAmount = billsTotal + coinsTotal;
+    
+    // 表示更新
+    document.getElementById('bills_total').textContent = '¥' + billsTotal.toLocaleString();
+    document.getElementById('coins_total').textContent = '¥' + coinsTotal.toLocaleString();
+    document.getElementById('total_amount_display').textContent = '¥' + totalAmount.toLocaleString();
+    
+    // 差額計算
+    const expectedAmount = parseInt(document.getElementById('count_expected_amount').value.replace(/[¥,]/g, '')) || 0;
+    const difference = totalAmount - expectedAmount;
+    
+    document.getElementById('difference_amount').textContent = (difference >= 0 ? '+' : '') + '¥' + Math.abs(difference).toLocaleString();
+    
+    const statusElement = document.getElementById('difference_status');
+    if (difference > 0) {
+        statusElement.textContent = '過剰';
+        statusElement.className = 'badge bg-warning';
+    } else if (difference < 0) {
+        statusElement.textContent = '不足';
+        statusElement.className = 'badge bg-danger';
+    } else {
+        statusElement.textContent = '一致';
+        statusElement.className = 'badge bg-success';
+    }
+}
+
+// 現金確認差額計算
+function calculateConfirmDifference() {
+    const actual = parseInt(document.getElementById('confirm_actual_amount').value) || 0;
+    const calculated = parseInt(document.getElementById('confirm_calculated_amount').value) || 0;
+    const difference = actual - calculated;
+    
+    const differenceDisplay = document.getElementById('confirm_difference_display');
+    const differenceNote = document.getElementById('confirm_difference_note');
     
     differenceDisplay.value = (difference >= 0 ? '+' : '') + difference.toLocaleString();
     
     if (difference > 0) {
         differenceDisplay.className = 'form-control text-primary fw-bold';
-        differenceNote.textContent = '現金過剰（お釣り不足等の可能性）';
+        differenceNote.textContent = '現金過剰（要確認）';
         differenceNote.className = 'text-primary';
     } else if (difference < 0) {
         differenceDisplay.className = 'form-control text-danger fw-bold';
-        differenceNote.textContent = '現金不足（売上金の未回収等の可能性）';
+        differenceNote.textContent = '現金不足（要確認）';
         differenceNote.className = 'text-danger';
     } else {
         differenceDisplay.className = 'form-control text-success fw-bold';
@@ -844,52 +1081,71 @@ function calculateDifference() {
     }
 }
 
-// 詳細表示切り替え
-function toggleDetails() {
-    const section = document.getElementById('details-section');
-    const toggleText = document.getElementById('toggle-text');
+// 現金カウントモーダル表示
+function showCashCountModal(driverId, driverName, expectedAmount) {
+    document.getElementById('count_driver_id').value = driverId;
+    document.getElementById('count_driver_name').value = driverName;
+    document.getElementById('count_expected_amount').value = '¥' + expectedAmount.toLocaleString();
     
-    if (section.style.display === 'none') {
-        section.style.display = 'block';
-        toggleText.textContent = '詳細非表示';
-    } else {
-        section.style.display = 'none';
-        toggleText.textContent = '詳細表示';
+    // 既存データがあれば読み込み
+    <?php foreach ($daily_drivers as $driver): ?>
+    <?php $cash_count = getCashCountDetails($pdo, $selected_date, $driver['id']); ?>
+    <?php if ($cash_count): ?>
+    if (driverId === <?= $driver['id'] ?>) {
+        document.getElementById('bill_10000').value = <?= $cash_count['bill_10000'] ?>;
+        document.getElementById('bill_5000').value = <?= $cash_count['bill_5000'] ?>;
+        document.getElementById('bill_2000').value = <?= $cash_count['bill_2000'] ?>;
+        document.getElementById('bill_1000').value = <?= $cash_count['bill_1000'] ?>;
+        document.getElementById('coin_500').value = <?= $cash_count['coin_500'] ?>;
+        document.getElementById('coin_100').value = <?= $cash_count['coin_100'] ?>;
+        document.getElementById('coin_50').value = <?= $cash_count['coin_50'] ?>;
+        document.getElementById('coin_10').value = <?= $cash_count['coin_10'] ?>;
+        document.getElementById('coin_5').value = <?= $cash_count['coin_5'] ?>;
+        document.getElementById('coin_1').value = <?= $cash_count['coin_1'] ?>;
+        document.getElementById('count_memo').value = '<?= htmlspecialchars($cash_count['memo'] ?? '') ?>';
+        calculateTotal();
     }
+    <?php endif; ?>
+    <?php endforeach; ?>
+    
+    new bootstrap.Modal(document.getElementById('cashCountModal')).show();
 }
 
-// おつり在庫調整モーダル
+// 現金確認モーダル表示
+function showCashConfirmModal(driverId, driverName, calculatedAmount, changeStock, countedAmount) {
+    const cashSales = calculatedAmount + changeStock;
+    
+    document.getElementById('confirm_driver_id').value = driverId;
+    document.getElementById('confirm_driver_name').value = driverName;
+    document.getElementById('confirm_calculated_amount').value = calculatedAmount;
+    document.getElementById('confirm_change_stock').value = changeStock;
+    document.getElementById('confirm_cash_sales').value = cashSales.toLocaleString();
+    document.getElementById('confirm_change_display').value = changeStock.toLocaleString();
+    document.getElementById('confirm_calculated_display').value = calculatedAmount.toLocaleString();
+    document.getElementById('confirm_actual_amount').value = countedAmount;
+    
+    calculateConfirmDifference();
+    
+    new bootstrap.Modal(document.getElementById('cashConfirmModal')).show();
+}
+
+// おつり在庫調整モーダル表示
 function showChangeStockModal(driverId, driverName, stockAmount, notes) {
-    document.getElementById('modal_driver_id').value = driverId;
-    document.getElementById('modal_driver_name').value = driverName;
-    document.getElementById('modal_stock_amount').value = stockAmount;
-    document.getElementById('modal_notes').value = notes;
+    document.getElementById('stock_driver_id').value = driverId;
+    document.getElementById('stock_driver_name').value = driverName;
+    document.getElementById('stock_amount').value = stockAmount;
+    document.getElementById('stock_notes').value = notes;
     
     new bootstrap.Modal(document.getElementById('changeStockModal')).show();
 }
 
 // ページ読み込み時の初期化
 document.addEventListener('DOMContentLoaded', function() {
-    calculateDifference();
-    
     // ツールチップ初期化
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
-});
-
-// 印刷機能
-function printPage() {
-    window.print();
-}
-
-// 確認金額入力時のエンターキー対応
-document.getElementById('confirmed_amount').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        calculateDifference();
-    }
 });
 </script>
 
