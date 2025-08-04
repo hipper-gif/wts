@@ -224,10 +224,10 @@ $date_column = 'DATE(created_at)';
 }
 
 // 料金カラムの確認
-$fare_column = 'fare_amount';
-if (!in_array('fare_amount', $columns) && in_array('fare', $columns)) {
 $fare_column = 'fare';
-} elseif (!in_array('fare_amount', $columns) && in_array('amount', $columns)) {
+if (!in_array('fare', $columns) && in_array('fare', $columns)) {
+$fare_column = 'fare';
+} elseif (!in_array('fare', $columns) && in_array('amount', $columns)) {
 $fare_column = 'amount';
 }
 
@@ -321,10 +321,10 @@ $date_condition = "DATE(created_at) BETWEEN ? AND ?";
 }
 
 // 料金カラムの確認
-$fare_column = 'fare_amount';
-if (!in_array('fare_amount', $columns) && in_array('fare', $columns)) {
 $fare_column = 'fare';
-} elseif (!in_array('fare_amount', $columns) && in_array('amount', $columns)) {
+if (!in_array('fare', $columns) && in_array('fare', $columns)) {
+$fare_column = 'fare';
+} elseif (!in_array('fare', $columns) && in_array('amount', $columns)) {
 $fare_column = 'amount';
 }
 
