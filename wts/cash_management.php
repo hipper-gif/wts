@@ -553,18 +553,6 @@ foreach ($daily_sales as $sale) {
                                         </div>
                                     </div>
 
-                                    <!-- 現金カウント -->
-                                    <div class="mb-3">
-                                        <button type="button" class="btn btn-outline-info btn-sm w-100 no-print" 
-                                                data-bs-toggle="modal" data-bs-target="#cashCountModal"
-                                                onclick="showCashCountModal(<?php echo $driver['id']; ?>, '<?php echo htmlspecialchars($driver['name']); ?>', <?php echo $calculated_cash; ?>)">
-                                            <i class="fas fa-calculator me-2"></i>現金カウント
-                                            <?php if ($cash_count): ?>
-                                                <span class="badge bg-success ms-2">完了</span>
-                                            <?php endif; ?>
-                                        </button>
-                                    </div>
-
                                     <!-- 確認状況 -->
                                     <?php if ($cash_confirmation): ?>
                                     <div class="alert alert-success py-2 mb-2">
@@ -588,15 +576,18 @@ foreach ($daily_sales as $sale) {
                                     </div>
                                     <?php endif; ?>
 
-                                    <!-- 現金確認ボタン -->
-                                    <button type="button" class="btn btn-primary btn-sm w-100 no-print" 
-                                            data-bs-toggle="modal" data-bs-target="#cashConfirmModal"
-                                            onclick="showCashConfirmModal(<?php echo $driver['id']; ?>, '<?php echo htmlspecialchars($driver['name']); ?>', <?php echo $calculated_cash; ?>, <?php echo $change_stock; ?>, <?php echo $cash_count ? $cash_count['total_amount'] : $calculated_cash; ?>)">
-                                        <i class="fas fa-check me-2"></i>現金確認
+                                    <!-- 統合された現金カウント・確認ボタン -->
+                                    <button type="button" class="btn btn-success btn-sm w-100 mb-2 no-print" 
+                                            data-bs-toggle="modal" data-bs-target="#cashManagementModal"
+                                            onclick="showCashManagementModal(<?php echo $driver['id']; ?>, '<?php echo htmlspecialchars($driver['name']); ?>', <?php echo $driver['cash_sales']; ?>, <?php echo $change_stock; ?>, <?php echo $calculated_cash; ?>)">
+                                        <i class="fas fa-calculator me-2"></i>現金カウント・確認
+                                        <?php if ($cash_confirmation): ?>
+                                            <span class="badge bg-light text-dark ms-2">完了</span>
+                                        <?php endif; ?>
                                     </button>
 
                                     <!-- おつり在庫調整ボタン -->
-                                    <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-2 no-print" 
+                                    <button type="button" class="btn btn-outline-secondary btn-sm w-100 no-print" 
                                             data-bs-toggle="modal" data-bs-target="#changeStockModal"
                                             onclick="showChangeStockModal(<?php echo $driver['id']; ?>, '<?php echo htmlspecialchars($driver['name']); ?>', <?php echo $change_stock; ?>, '')">
                                         <i class="fas fa-wallet me-2"></i>おつり調整
@@ -606,6 +597,19 @@ foreach ($daily_sales as $sale) {
                         </div>
                         <?php endforeach; ?>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php else: ?>
+    <!-- 運転者がいない場合の表示 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center text-muted py-5">
+                    <i class="fas fa-info-circle fa-3x mb-3"></i>
+                    <h5><?php echo date('Y/m/d', strtotime($selected_date)); ?> の運転者データがありません</h5>
+                    <p>この日に乗車記録がある運転者のみ表示されます。</p>
                 </div>
             </div>
         </div>
@@ -694,129 +698,207 @@ foreach ($daily_sales as $sale) {
     <?php endif; ?>
 </div>
 
-<!-- 現金カウントモーダル -->
-<div class="modal fade" id="cashCountModal" tabindex="-1" aria-labelledby="cashCountModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+<!-- 統合現金管理モーダル -->
+<div class="modal fade" id="cashManagementModal" tabindex="-1" aria-labelledby="cashManagementModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="cashCountModalLabel">
-                    <i class="fas fa-calculator me-2"></i>現金カウント
+                <h5 class="modal-title" id="cashManagementModalLabel">
+                    <i class="fas fa-calculator me-2"></i>現金カウント・確認
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="POST" id="cashCountForm">
-                <div class="modal-body cash-counter">
-                    <input type="hidden" name="action" value="cash_count">
+            <form method="POST" id="cashManagementForm">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="cash_count_and_confirm">
                     <input type="hidden" name="date" value="<?php echo $selected_date; ?>">
-                    <input type="hidden" name="driver_id" id="count_driver_id">
+                    <input type="hidden" name="driver_id" id="cash_driver_id">
                     
-                    <div class="row mb-3">
-                        <div class="col-md-6">
+                    <!-- 運転者情報 -->
+                    <div class="row mb-4">
+                        <div class="col-md-4">
                             <label class="form-label">運転者</label>
-                            <input type="text" id="count_driver_name" class="form-control" readonly>
+                            <input type="text" id="cash_driver_name" class="form-control" readonly>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">回収予定金額（参考）</label>
+                        <div class="col-md-4">
+                            <label class="form-label">現金売上</label>
                             <div class="input-group">
                                 <span class="input-group-text">¥</span>
-                                <input type="text" id="count_expected_amount" class="form-control" readonly>
+                                <input type="text" id="cash_sales_display" class="form-control" readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">おつり在庫</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="text" id="change_stock_display" class="form-control" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">回収予定金額</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="text" id="expected_amount_display" class="form-control bg-info text-white fw-bold" readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">カウント合計</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="text" id="count_total_display" class="form-control bg-success text-white fw-bold" readonly>
                             </div>
                         </div>
                     </div>
                     
                     <div class="row">
-                        <!-- 紙幣 -->
-                        <div class="col-md-6">
+                        <!-- 現金カウント -->
+                        <div class="col-md-8">
                             <h6 class="text-primary mb-3">
-                                <i class="fas fa-money-bill-wave me-2"></i>紙幣
+                                <i class="fas fa-coins me-2"></i>現金カウント
                             </h6>
-                            <div class="row mb-2">
-                                <div class="col-3">
-                                    <label class="money-label">1万円札</label>
-                                    <input type="number" name="bill_10000" id="bill_10000" 
-                                           class="form-control money-input" min="0" value="0" 
-                                           onchange="calculateTotal()">
+                            
+                            <div class="cash-counter p-3 rounded">
+                                <!-- 紙幣 -->
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <h6 class="text-success mb-2">
+                                            <i class="fas fa-money-bill-wave me-2"></i>紙幣
+                                        </h6>
+                                    </div>
+                                    <div class="col-3">
+                                        <label class="money-label">1万円札</label>
+                                        <input type="number" name="bill_10000" id="cash_bill_10000" 
+                                               class="form-control money-input" min="0" value="0" 
+                                               onchange="calculateCashTotal()">
+                                    </div>
+                                    <div class="col-3">
+                                        <label class="money-label">5千円札</label>
+                                        <input type="number" name="bill_5000" id="cash_bill_5000" 
+                                               class="form-control money-input" min="0" value="0" 
+                                               onchange="calculateCashTotal()">
+                                    </div>
+                                    <div class="col-3">
+                                        <label class="money-label">2千円札</label>
+                                        <input type="number" name="bill_2000" id="cash_bill_2000" 
+                                               class="form-control money-input" min="0" value="0" 
+                                               onchange="calculateCashTotal()">
+                                    </div>
+                                    <div class="col-3">
+                                        <label class="money-label">千円札</label>
+                                        <input type="number" name="bill_1000" id="cash_bill_1000" 
+                                               class="form-control money-input" min="0" value="0" 
+                                               onchange="calculateCashTotal()">
+                                    </div>
                                 </div>
-                                <div class="col-3">
-                                    <label class="money-label">5千円札</label>
-                                    <input type="number" name="bill_5000" id="bill_5000" 
-                                           class="form-control money-input" min="0" value="0" 
-                                           onchange="calculateTotal()">
+                                
+                                <!-- 硬貨 -->
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <h6 class="text-warning mb-2">
+                                            <i class="fas fa-coins me-2"></i>硬貨
+                                        </h6>
+                                    </div>
+                                    <div class="col-2">
+                                        <label class="money-label">500円</label>
+                                        <input type="number" name="coin_500" id="cash_coin_500" 
+                                               class="form-control money-input" min="0" value="0" 
+                                               onchange="calculateCashTotal()">
+                                    </div>
+                                    <div class="col-2">
+                                        <label class="money-label">100円</label>
+                                        <input type="number" name="coin_100" id="cash_coin_100" 
+                                               class="form-control money-input" min="0" value="0" 
+                                               onchange="calculateCashTotal()">
+                                    </div>
+                                    <div class="col-2">
+                                        <label class="money-label">50円</label>
+                                        <input type="number" name="coin_50" id="cash_coin_50" 
+                                               class="form-control money-input" min="0" value="0" 
+                                               onchange="calculateCashTotal()">
+                                    </div>
+                                    <div class="col-2">
+                                        <label class="money-label">10円</label>
+                                        <input type="number" name="coin_10" id="cash_coin_10" 
+                                               class="form-control money-input" min="0" value="0" 
+                                               onchange="calculateCashTotal()">
+                                    </div>
+                                    <div class="col-2">
+                                        <label class="money-label">5円</label>
+                                        <input type="number" name="coin_5" id="cash_coin_5" 
+                                               class="form-control money-input" min="0" value="0" 
+                                               onchange="calculateCashTotal()">
+                                    </div>
+                                    <div class="col-2">
+                                        <label class="money-label">1円</label>
+                                        <input type="number" name="coin_1" id="cash_coin_1" 
+                                               class="form-control money-input" min="0" value="0" 
+                                               onchange="calculateCashTotal()">
+                                    </div>
                                 </div>
-                                <div class="col-3">
-                                    <label class="money-label">2千円札</label>
-                                    <input type="number" name="bill_2000" id="bill_2000" 
-                                           class="form-control money-input" min="0" value="0" 
-                                           onchange="calculateTotal()">
-                                </div>
-                                <div class="col-3">
-                                    <label class="money-label">千円札</label>
-                                    <input type="number" name="bill_1000" id="bill_1000" 
-                                           class="form-control money-input" min="0" value="0" 
-                                           onchange="calculateTotal()">
-                                </div>
-                            </div>
-                            <div class="alert alert-info py-2 mb-3">
-                                <small>
-                                    <strong>紙幣計: </strong>
-                                    <span id="bills_total">¥0</span>
-                                </small>
                             </div>
                         </div>
                         
-                        <!-- 硬貨 -->
-                        <div class="col-md-6">
-                            <h6 class="text-warning mb-3">
-                                <i class="fas fa-coins me-2"></i>硬貨
+                        <!-- 確認・差額 -->
+                        <div class="col-md-4">
+                            <h6 class="text-success mb-3">
+                                <i class="fas fa-check-circle me-2"></i>確認・差額
                             </h6>
-                            <div class="row mb-2">
-                                <div class="col-4">
-                                    <label class="money-label">500円</label>
-                                    <input type="number" name="coin_500" id="coin_500" 
-                                           class="form-control money-input" min="0" value="0" 
-                                           onchange="calculateTotal()">
-                                </div>
-                                <div class="col-4">
-                                    <label class="money-label">100円</label>
-                                    <input type="number" name="coin_100" id="coin_100" 
-                                           class="form-control money-input" min="0" value="0" 
-                                           onchange="calculateTotal()">
-                                </div>
-                                <div class="col-4">
-                                    <label class="money-label">50円</label>
-                                    <input type="number" name="coin_50" id="coin_50" 
-                                           class="form-control money-input" min="0" value="0" 
-                                           onchange="calculateTotal()">
+                            
+                            <!-- 差額表示 -->
+                            <div class="alert alert-primary mb-3">
+                                <div class="text-center">
+                                    <h6 class="mb-1">差額</h6>
+                                    <div class="h4 mb-0">
+                                        <span id="cash_difference_display">¥0</span>
+                                    </div>
+                                    <small id="cash_difference_status" class="text-muted">-</small>
                                 </div>
                             </div>
-                            <div class="row mb-3">
-                                <div class="col-4">
-                                    <label class="money-label">10円</label>
-                                    <input type="number" name="coin_10" id="coin_10" 
-                                           class="form-control money-input" min="0" value="0" 
-                                           onchange="calculateTotal()">
+                            
+                            <!-- 最終確認金額 -->
+                            <div class="mb-3">
+                                <label class="form-label">最終確認金額 <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="number" name="confirmed_amount" id="final_confirmed_amount" 
+                                           class="form-control fw-bold" required 
+                                           onchange="calculateFinalDifference()">
                                 </div>
-                                <div class="col-4">
-                                    <label class="money-label">5円</label>
-                                    <input type="number" name="coin_5" id="coin_5" 
-                                           class="form-control money-input" min="0" value="0" 
-                                           onchange="calculateTotal()">
-                                </div>
-                                <div class="col-4">
-                                    <label class="money-label">1円</label>
-                                    <input type="number" name="coin_1" id="coin_1" 
-                                           class="form-control money-input" min="0" value="0" 
-                                           onchange="calculateTotal()">
-                                </div>
+                                <small class="text-muted">実際に確認・回収した金額</small>
                             </div>
-                            <div class="alert alert-warning py-2">
-                                <small>
-                                    <strong>硬貨計: </strong>
-                                    <span id="coins_total">¥0</span>
-                                </small>
+                            
+                            <!-- 最終差額 -->
+                            <div class="mb-3">
+                                <label class="form-label">最終差額</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">¥</span>
+                                    <input type="text" id="final_difference_display" class="form-control" readonly>
+                                </div>
+                                <small id="final_difference_note" class="text-muted">実際金額 - 予定金額</small>
+                            </div>
+                            
+                            <!-- メモ -->
+                            <div class="mb-3">
+                                <label class="form-label">メモ</label>
+                                <textarea name="memo" id="cash_memo" class="form-control" rows="4" 
+                                          placeholder="カウント結果、差額の理由、特記事項など"></textarea>
                             </div>
                         </div>
                     </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="fas fa-save me-2"></i>カウント・確認記録を保存
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
                     
                     <!-- 合計表示 -->
                     <div class="row mb-3">
