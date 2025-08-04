@@ -22,37 +22,18 @@ try {
     die("権限確認エラー: " . $e->getMessage());
 }
 
-// 必要なテーブルを作成
+// 既存テーブル構造を確認し、必要に応じて更新
 try {
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS cash_confirmations (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            confirmation_date DATE NOT NULL,
-            driver_id INT NOT NULL,
-            confirmed_amount INT NOT NULL DEFAULT 0,
-            calculated_amount INT NOT NULL DEFAULT 0,
-            difference INT NOT NULL DEFAULT 0,
-            change_stock INT NOT NULL DEFAULT 0,
-            memo TEXT,
-            confirmed_by INT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_date_driver (confirmation_date, driver_id)
-        )
-    ");
+    // cash_confirmationsテーブルにdriver_idとchange_stockカラムを追加（存在しない場合）
+    $stmt = $pdo->query("SHOW COLUMNS FROM cash_confirmations LIKE 'driver_id'");
+    if ($stmt->rowCount() == 0) {
+        $pdo->exec("ALTER TABLE cash_confirmations ADD COLUMN driver_id INT AFTER confirmation_date");
+        $pdo->exec("ALTER TABLE cash_confirmations ADD COLUMN change_stock INT DEFAULT 0 AFTER difference");
+        // 既存データのdriver_idを1に設定（デフォルト）
+        $pdo->exec("UPDATE cash_confirmations SET driver_id = 1 WHERE driver_id IS NULL");
+    }
     
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS driver_change_stocks (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            driver_id INT,
-            stock_amount INT NOT NULL DEFAULT 0,
-            notes TEXT,
-            updated_by INT,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_driver (driver_id)
-        )
-    ");
-
+    // cash_count_detailsテーブルを作成
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS cash_count_details (
             id INT PRIMARY KEY AUTO_INCREMENT,
@@ -76,11 +57,27 @@ try {
         )
     ");
     
+    // driver_change_stocksテーブルを作成
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS driver_change_stocks (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            driver_id INT,
+            stock_amount INT NOT NULL DEFAULT 0,
+            notes TEXT,
+            updated_by INT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_driver (driver_id)
+        )
+    ");
+    
 } catch (PDOException $e) {
-    // テーブル作成エラーは無視（既存の場合）
+    // テーブル操作エラーは無視して続行
 }
 
 // POST処理
+$success_message = '';
+$error_message = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
@@ -227,28 +224,6 @@ function getDailySales($pdo, $date) {
     }
 }
 
-function getDailySalesByDriver($pdo, $date) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT 
-                r.driver_id,
-                u.name as driver_name,
-                r.payment_method,
-                COUNT(*) as trip_count,
-                SUM(r.fare) as total_amount
-            FROM ride_records r
-            LEFT JOIN users u ON r.driver_id = u.id
-            WHERE DATE(r.ride_date) = ? AND u.is_active = TRUE
-            GROUP BY r.driver_id, u.name, r.payment_method
-            ORDER BY u.name, r.payment_method
-        ");
-        $stmt->execute([$date]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        return [];
-    }
-}
-
 function getDailyTotal($pdo, $date) {
     try {
         $stmt = $pdo->prepare("
@@ -344,7 +319,6 @@ function getMonthlySummary($pdo, $month) {
 
 // データ取得
 $daily_sales = getDailySales($pdo, $selected_date);
-$daily_sales_by_driver = getDailySalesByDriver($pdo, $selected_date);
 $daily_total = getDailyTotal($pdo, $selected_date);
 $daily_drivers = getDailyDrivers($pdo, $selected_date);
 $monthly_summary = getMonthlySummary($pdo, $selected_month);
@@ -383,12 +357,10 @@ foreach ($daily_sales as $sale) {
         .other-card { border-left: 4px solid #ff9800; }
         .total-card { border-left: 4px solid #4caf50; }
         .amount-display { font-size: 1.8rem; font-weight: bold; }
-        .change-stock-card { border-left: 4px solid #9c27b0; }
-        .accounting-memo { background-color: #f8f9fa; border-left: 4px solid #17a2b8; }
         .driver-cash-card { border-left: 4px solid #673ab7; }
         .cash-counter { background-color: #f8f9fa; }
         .money-input { text-align: center; font-weight: bold; }
-        .money-label { font-size: 0.9rem; color: #666; }
+        .money-label { font-size: 0.9rem; color: #666; text-align: center; display: block; margin-bottom: 5px; }
         @media print {
             .no-print { display: none !important; }
             .container-fluid { max-width: none !important; }
@@ -405,7 +377,7 @@ foreach ($daily_sales as $sale) {
         </a>
         <div class="navbar-nav ms-auto">
             <span class="navbar-text me-3">
-                <i class="fas fa-user-circle me-1"></i><?= htmlspecialchars($_SESSION['user_name'] ?? 'ユーザー') ?>
+                <i class="fas fa-user-circle me-1"></i><?php echo htmlspecialchars($_SESSION['user_name'] ?? 'ユーザー'); ?>
             </span>
             <a class="nav-link" href="dashboard.php">
                 <i class="fas fa-tachometer-alt me-1"></i>ダッシュボード
@@ -419,16 +391,16 @@ foreach ($daily_sales as $sale) {
 
 <div class="container-fluid py-4">
     <!-- アラート -->
-    <?php if (isset($success_message)): ?>
+    <?php if ($success_message): ?>
         <div class="alert alert-success alert-dismissible fade show no-print" role="alert">
-            <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($success_message) ?>
+            <i class="fas fa-check-circle me-2"></i><?php echo htmlspecialchars($success_message); ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
     
-    <?php if (isset($error_message)): ?>
+    <?php if ($error_message): ?>
         <div class="alert alert-danger alert-dismissible fade show no-print" role="alert">
-            <i class="fas fa-exclamation-circle me-2"></i><?= htmlspecialchars($error_message) ?>
+            <i class="fas fa-exclamation-circle me-2"></i><?php echo htmlspecialchars($error_message); ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
@@ -442,7 +414,7 @@ foreach ($daily_sales as $sale) {
                 </div>
                 <div class="card-body">
                     <form method="GET" class="d-flex gap-2">
-                        <input type="date" name="date" value="<?= $selected_date ?>" class="form-control">
+                        <input type="date" name="date" value="<?php echo $selected_date; ?>" class="form-control">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-search"></i>
                         </button>
@@ -457,8 +429,8 @@ foreach ($daily_sales as $sale) {
                 </div>
                 <div class="card-body">
                     <form method="GET" class="d-flex gap-2">
-                        <input type="month" name="month" value="<?= $selected_month ?>" class="form-control">
-                        <input type="hidden" name="date" value="<?= $selected_date ?>">
+                        <input type="month" name="month" value="<?php echo $selected_month; ?>" class="form-control">
+                        <input type="hidden" name="date" value="<?php echo $selected_date; ?>">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-search"></i>
                         </button>
@@ -475,8 +447,17 @@ foreach ($daily_sales as $sale) {
                 <div class="card-body text-center">
                     <i class="fas fa-money-bill-wave fa-2x text-danger mb-2"></i>
                     <h6 class="card-title">現金売上</h6>
-                    <div class="amount-display text-danger">¥<?= number_format($cash_sales) ?></div>
-                    <small class="text-muted"><?= count(array_filter($daily_sales, fn($s) => $s['payment_method'] === '現金')) > 0 ? array_filter($daily_sales, fn($s) => $s['payment_method'] === '現金')[0]['trip_count'] ?? 0 : 0 ?>回</small>
+                    <div class="amount-display text-danger">¥<?php echo number_format($cash_sales); ?></div>
+                    <small class="text-muted"><?php 
+                    $cash_count = 0;
+                    foreach($daily_sales as $sale) {
+                        if($sale['payment_method'] === '現金') {
+                            $cash_count = $sale['trip_count'];
+                            break;
+                        }
+                    }
+                    echo $cash_count;
+                    ?>回</small>
                 </div>
             </div>
         </div>
@@ -485,8 +466,17 @@ foreach ($daily_sales as $sale) {
                 <div class="card-body text-center">
                     <i class="fas fa-credit-card fa-2x text-primary mb-2"></i>
                     <h6 class="card-title">カード売上</h6>
-                    <div class="amount-display text-primary">¥<?= number_format($card_sales) ?></div>
-                    <small class="text-muted"><?= count(array_filter($daily_sales, fn($s) => $s['payment_method'] === 'カード')) > 0 ? array_filter($daily_sales, fn($s) => $s['payment_method'] === 'カード')[0]['trip_count'] ?? 0 : 0 ?>回</small>
+                    <div class="amount-display text-primary">¥<?php echo number_format($card_sales); ?></div>
+                    <small class="text-muted"><?php 
+                    $card_count = 0;
+                    foreach($daily_sales as $sale) {
+                        if($sale['payment_method'] === 'カード') {
+                            $card_count = $sale['trip_count'];
+                            break;
+                        }
+                    }
+                    echo $card_count;
+                    ?>回</small>
                 </div>
             </div>
         </div>
@@ -495,7 +485,7 @@ foreach ($daily_sales as $sale) {
                 <div class="card-body text-center">
                     <i class="fas fa-coins fa-2x text-warning mb-2"></i>
                     <h6 class="card-title">その他</h6>
-                    <div class="amount-display text-warning">¥<?= number_format($other_sales) ?></div>
+                    <div class="amount-display text-warning">¥<?php echo number_format($other_sales); ?></div>
                     <small class="text-muted">-</small>
                 </div>
             </div>
@@ -505,8 +495,8 @@ foreach ($daily_sales as $sale) {
                 <div class="card-body text-center">
                     <i class="fas fa-chart-line fa-2x text-success mb-2"></i>
                     <h6 class="card-title">合計売上</h6>
-                    <div class="amount-display text-success">¥<?= number_format($daily_total['total_amount']) ?></div>
-                    <small class="text-muted"><?= $daily_total['total_trips'] ?>回</small>
+                    <div class="amount-display text-success">¥<?php echo number_format($daily_total['total_amount']); ?></div>
+                    <small class="text-muted"><?php echo $daily_total['total_trips']; ?>回</small>
                 </div>
             </div>
         </div>
@@ -519,7 +509,7 @@ foreach ($daily_sales as $sale) {
             <div class="card driver-cash-card">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-users me-2"></i><?= date('Y/m/d', strtotime($selected_date)) ?> 運転者別現金確認
+                        <i class="fas fa-users me-2"></i><?php echo date('Y/m/d', strtotime($selected_date)); ?> 運転者別現金確認
                     </h5>
                 </div>
                 <div class="card-body">
@@ -535,7 +525,7 @@ foreach ($daily_sales as $sale) {
                             <div class="card border-primary">
                                 <div class="card-header bg-primary text-white">
                                     <h6 class="mb-0">
-                                        <i class="fas fa-user me-2"></i><?= htmlspecialchars($driver['name']) ?>
+                                        <i class="fas fa-user me-2"></i><?php echo htmlspecialchars($driver['name']); ?>
                                     </h6>
                                 </div>
                                 <div class="card-body">
@@ -544,19 +534,19 @@ foreach ($daily_sales as $sale) {
                                         <div class="row text-center">
                                             <div class="col-4">
                                                 <div class="text-danger">
-                                                    <strong>¥<?= number_format($driver['cash_sales']) ?></strong>
+                                                    <strong>¥<?php echo number_format($driver['cash_sales']); ?></strong>
                                                     <small class="d-block text-muted">現金売上</small>
                                                 </div>
                                             </div>
                                             <div class="col-4">
                                                 <div class="text-warning">
-                                                    <strong>¥<?= number_format($change_stock) ?></strong>
+                                                    <strong>¥<?php echo number_format($change_stock); ?></strong>
                                                     <small class="d-block text-muted">おつり在庫</small>
                                                 </div>
                                             </div>
                                             <div class="col-4">
                                                 <div class="text-success">
-                                                    <strong>¥<?= number_format($calculated_cash) ?></strong>
+                                                    <strong>¥<?php echo number_format($calculated_cash); ?></strong>
                                                     <small class="d-block text-muted">回収予定</small>
                                                 </div>
                                             </div>
@@ -566,7 +556,7 @@ foreach ($daily_sales as $sale) {
                                     <!-- 現金カウント -->
                                     <div class="mb-3">
                                         <button class="btn btn-outline-info btn-sm w-100 no-print" 
-                                                onclick="showCashCountModal(<?= $driver['id'] ?>, '<?= htmlspecialchars($driver['name']) ?>', <?= $calculated_cash ?>)">
+                                                onclick="showCashCountModal(<?php echo $driver['id']; ?>, '<?php echo htmlspecialchars($driver['name']); ?>', <?php echo $calculated_cash; ?>)">
                                             <i class="fas fa-calculator me-2"></i>現金カウント
                                             <?php if ($cash_count): ?>
                                                 <span class="badge bg-success ms-2">完了</span>
@@ -578,10 +568,10 @@ foreach ($daily_sales as $sale) {
                                     <?php if ($cash_confirmation): ?>
                                     <div class="alert alert-success py-2 mb-2">
                                         <small>
-                                            <i class="fas fa-check-circle me-1"></i>確認済み: ¥<?= number_format($cash_confirmation['confirmed_amount']) ?>
+                                            <i class="fas fa-check-circle me-1"></i>確認済み: ¥<?php echo number_format($cash_confirmation['confirmed_amount']); ?>
                                             <?php if ($cash_confirmation['difference'] != 0): ?>
-                                                <span class="text-<?= $cash_confirmation['difference'] > 0 ? 'primary' : 'danger' ?>">
-                                                    (<?= $cash_confirmation['difference'] > 0 ? '+' : '' ?><?= number_format($cash_confirmation['difference']) ?>)
+                                                <span class="text-<?php echo $cash_confirmation['difference'] > 0 ? 'primary' : 'danger'; ?>">
+                                                    (<?php echo $cash_confirmation['difference'] > 0 ? '+' : ''; ?><?php echo number_format($cash_confirmation['difference']); ?>)
                                                 </span>
                                             <?php endif; ?>
                                         </small>
@@ -592,15 +582,21 @@ foreach ($daily_sales as $sale) {
                                     <?php if ($cash_count): ?>
                                     <div class="alert alert-info py-2 mb-2">
                                         <small>
-                                            <i class="fas fa-coins me-1"></i>カウント: ¥<?= number_format($cash_count['total_amount']) ?>
+                                            <i class="fas fa-coins me-1"></i>カウント: ¥<?php echo number_format($cash_count['total_amount']); ?>
                                         </small>
                                     </div>
                                     <?php endif; ?>
 
                                     <!-- 現金確認ボタン -->
                                     <button class="btn btn-primary btn-sm w-100 no-print" 
-                                            onclick="showCashConfirmModal(<?= $driver['id'] ?>, '<?= htmlspecialchars($driver['name']) ?>', <?= $calculated_cash ?>, <?= $change_stock ?>, <?= $cash_count['total_amount'] ?? $calculated_cash ?>)">
+                                            onclick="showCashConfirmModal(<?php echo $driver['id']; ?>, '<?php echo htmlspecialchars($driver['name']); ?>', <?php echo $calculated_cash; ?>, <?php echo $change_stock; ?>, <?php echo $cash_count ? $cash_count['total_amount'] : $calculated_cash; ?>)">
                                         <i class="fas fa-check me-2"></i>現金確認
+                                    </button>
+
+                                    <!-- おつり在庫調整ボタン -->
+                                    <button class="btn btn-outline-secondary btn-sm w-100 mt-2 no-print" 
+                                            onclick="showChangeStockModal(<?php echo $driver['id']; ?>, '<?php echo htmlspecialchars($driver['name']); ?>', <?php echo $change_stock; ?>, '')">
+                                        <i class="fas fa-wallet me-2"></i>おつり調整
                                     </button>
                                 </div>
                             </div>
@@ -619,7 +615,7 @@ foreach ($daily_sales as $sale) {
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <i class="fas fa-chart-bar me-2"></i><?= date('Y年m月', strtotime($selected_month)) ?> 日別サマリー
+                    <i class="fas fa-chart-bar me-2"></i><?php echo date('Y年m月', strtotime($selected_month)); ?> 日別サマリー
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -657,33 +653,33 @@ foreach ($daily_sales as $sale) {
                                 $monthly_total['other_amount'] += $summary['other_amount'];
                                 $monthly_total['total_amount'] += $summary['total_amount'];
                                 ?>
-                                <tr class="<?= $is_weekend ? 'table-light' : '' ?>">
-                                    <td><?= $date->format('m/d') ?></td>
-                                    <td class="text-center <?= $is_weekend ? 'text-danger' : '' ?>"><?= $day_of_week ?></td>
-                                    <td class="text-end"><?= $summary['trip_count'] ?></td>
-                                    <td class="text-end">¥<?= number_format($summary['cash_amount']) ?></td>
-                                    <td class="text-end">¥<?= number_format($summary['card_amount']) ?></td>
-                                    <td class="text-end">¥<?= number_format($summary['other_amount']) ?></td>
-                                    <td class="text-end fw-bold">¥<?= number_format($summary['total_amount']) ?></td>
+                                <tr class="<?php echo $is_weekend ? 'table-light' : ''; ?>">
+                                    <td><?php echo $date->format('m/d'); ?></td>
+                                    <td class="text-center <?php echo $is_weekend ? 'text-danger' : ''; ?>"><?php echo $day_of_week; ?></td>
+                                    <td class="text-end"><?php echo $summary['trip_count']; ?></td>
+                                    <td class="text-end">¥<?php echo number_format($summary['cash_amount']); ?></td>
+                                    <td class="text-end">¥<?php echo number_format($summary['card_amount']); ?></td>
+                                    <td class="text-end">¥<?php echo number_format($summary['other_amount']); ?></td>
+                                    <td class="text-end fw-bold">¥<?php echo number_format($summary['total_amount']); ?></td>
                                 </tr>
                                 <?php endforeach; ?>
                             </tbody>
                             <tfoot class="table-primary">
                                 <tr>
                                     <th colspan="2">月計</th>
-                                    <th class="text-end"><?= $monthly_total['trip_count'] ?></th>
-                                    <th class="text-end">¥<?= number_format($monthly_total['cash_amount']) ?></th>
-                                    <th class="text-end">¥<?= number_format($monthly_total['card_amount']) ?></th>
-                                    <th class="text-end">¥<?= number_format($monthly_total['other_amount']) ?></th>
-                                    <th class="text-end">¥<?= number_format($monthly_total['total_amount']) ?></th>
+                                    <th class="text-end"><?php echo $monthly_total['trip_count']; ?></th>
+                                    <th class="text-end">¥<?php echo number_format($monthly_total['cash_amount']); ?></th>
+                                    <th class="text-end">¥<?php echo number_format($monthly_total['card_amount']); ?></th>
+                                    <th class="text-end">¥<?php echo number_format($monthly_total['other_amount']); ?></th>
+                                    <th class="text-end">¥<?php echo number_format($monthly_total['total_amount']); ?></th>
                                 </tr>
                                 <tr>
                                     <th colspan="2">1日平均</th>
-                                    <th class="text-end"><?= count($monthly_summary) > 0 ? number_format($monthly_total['trip_count'] / count($monthly_summary), 1) : 0 ?></th>
-                                    <th class="text-end">¥<?= count($monthly_summary) > 0 ? number_format($monthly_total['cash_amount'] / count($monthly_summary)) : 0 ?></th>
-                                    <th class="text-end">¥<?= count($monthly_summary) > 0 ? number_format($monthly_total['card_amount'] / count($monthly_summary)) : 0 ?></th>
-                                    <th class="text-end">¥<?= count($monthly_summary) > 0 ? number_format($monthly_total['other_amount'] / count($monthly_summary)) : 0 ?></th>
-                                    <th class="text-end">¥<?= count($monthly_summary) > 0 ? number_format($monthly_total['total_amount'] / count($monthly_summary)) : 0 ?></th>
+                                    <th class="text-end"><?php echo count($monthly_summary) > 0 ? number_format($monthly_total['trip_count'] / count($monthly_summary), 1) : 0; ?></th>
+                                    <th class="text-end">¥<?php echo count($monthly_summary) > 0 ? number_format($monthly_total['cash_amount'] / count($monthly_summary)) : 0; ?></th>
+                                    <th class="text-end">¥<?php echo count($monthly_summary) > 0 ? number_format($monthly_total['card_amount'] / count($monthly_summary)) : 0; ?></th>
+                                    <th class="text-end">¥<?php echo count($monthly_summary) > 0 ? number_format($monthly_total['other_amount'] / count($monthly_summary)) : 0; ?></th>
+                                    <th class="text-end">¥<?php echo count($monthly_summary) > 0 ? number_format($monthly_total['total_amount'] / count($monthly_summary)) : 0; ?></th>
                                 </tr>
                             </tfoot>
                         </table>
@@ -696,19 +692,19 @@ foreach ($daily_sales as $sale) {
 </div>
 
 <!-- 現金カウントモーダル -->
-<div class="modal fade" id="cashCountModal" tabindex="-1">
+<div class="modal fade" id="cashCountModal" tabindex="-1" aria-labelledby="cashCountModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">
+                <h5 class="modal-title" id="cashCountModalLabel">
                     <i class="fas fa-calculator me-2"></i>現金カウント
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="POST">
+            <form method="POST" id="cashCountForm">
                 <div class="modal-body cash-counter">
                     <input type="hidden" name="action" value="cash_count">
-                    <input type="hidden" name="date" value="<?= $selected_date ?>">
+                    <input type="hidden" name="date" value="<?php echo $selected_date; ?>">
                     <input type="hidden" name="driver_id" id="count_driver_id">
                     
                     <div class="row mb-3">
@@ -732,40 +728,36 @@ foreach ($daily_sales as $sale) {
                                 <i class="fas fa-money-bill-wave me-2"></i>紙幣
                             </h6>
                             <div class="row mb-2">
-                                <div class="col-4">
+                                <div class="col-3">
                                     <label class="money-label">1万円札</label>
                                     <input type="number" name="bill_10000" id="bill_10000" 
                                            class="form-control money-input" min="0" value="0" 
                                            onchange="calculateTotal()">
                                 </div>
-                                <div class="col-4">
+                                <div class="col-3">
                                     <label class="money-label">5千円札</label>
                                     <input type="number" name="bill_5000" id="bill_5000" 
                                            class="form-control money-input" min="0" value="0" 
                                            onchange="calculateTotal()">
                                 </div>
-                                <div class="col-4">
+                                <div class="col-3">
                                     <label class="money-label">2千円札</label>
                                     <input type="number" name="bill_2000" id="bill_2000" 
                                            class="form-control money-input" min="0" value="0" 
                                            onchange="calculateTotal()">
                                 </div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-4">
+                                <div class="col-3">
                                     <label class="money-label">千円札</label>
                                     <input type="number" name="bill_1000" id="bill_1000" 
                                            class="form-control money-input" min="0" value="0" 
                                            onchange="calculateTotal()">
                                 </div>
-                                <div class="col-8">
-                                    <div class="alert alert-info py-2">
-                                        <small>
-                                            <strong>紙幣計: </strong>
-                                            <span id="bills_total">¥0</span>
-                                        </small>
-                                    </div>
-                                </div>
+                            </div>
+                            <div class="alert alert-info py-2 mb-3">
+                                <small>
+                                    <strong>紙幣計: </strong>
+                                    <span id="bills_total">¥0</span>
+                                </small>
                             </div>
                         </div>
                         
@@ -864,19 +856,19 @@ foreach ($daily_sales as $sale) {
 </div>
 
 <!-- 現金確認モーダル -->
-<div class="modal fade" id="cashConfirmModal" tabindex="-1">
+<div class="modal fade" id="cashConfirmModal" tabindex="-1" aria-labelledby="cashConfirmModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">
+                <h5 class="modal-title" id="cashConfirmModalLabel">
                     <i class="fas fa-check-circle me-2"></i>現金確認
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="POST">
+            <form method="POST" id="cashConfirmForm">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="confirm_cash">
-                    <input type="hidden" name="date" value="<?= $selected_date ?>">
+                    <input type="hidden" name="date" value="<?php echo $selected_date; ?>">
                     <input type="hidden" name="driver_id" id="confirm_driver_id">
                     <input type="hidden" name="calculated_amount" id="confirm_calculated_amount">
                     <input type="hidden" name="change_stock" id="confirm_change_stock">
@@ -948,16 +940,16 @@ foreach ($daily_sales as $sale) {
 </div>
 
 <!-- おつり在庫調整モーダル -->
-<div class="modal fade" id="changeStockModal" tabindex="-1">
+<div class="modal fade" id="changeStockModal" tabindex="-1" aria-labelledby="changeStockModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">
+                <h5 class="modal-title" id="changeStockModalLabel">
                     <i class="fas fa-wallet me-2"></i>おつり在庫調整
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="POST">
+            <form method="POST" id="changeStockForm">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="update_change_stock">
                     <input type="hidden" name="driver_id" id="stock_driver_id">
@@ -996,6 +988,9 @@ foreach ($daily_sales as $sale) {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// グローバル変数
+let currentExpectedAmount = 0;
+
 // 現金カウント計算
 function calculateTotal() {
     // 紙幣計算
@@ -1037,8 +1032,7 @@ function calculateTotal() {
     document.getElementById('total_amount_display').textContent = '¥' + totalAmount.toLocaleString();
     
     // 差額計算
-    const expectedAmount = parseInt(document.getElementById('count_expected_amount').value.replace(/[¥,]/g, '')) || 0;
-    const difference = totalAmount - expectedAmount;
+    const difference = totalAmount - currentExpectedAmount;
     
     document.getElementById('difference_amount').textContent = (difference >= 0 ? '+' : '') + '¥' + Math.abs(difference).toLocaleString();
     
@@ -1083,32 +1077,40 @@ function calculateConfirmDifference() {
 
 // 現金カウントモーダル表示
 function showCashCountModal(driverId, driverName, expectedAmount) {
+    currentExpectedAmount = expectedAmount;
+    
     document.getElementById('count_driver_id').value = driverId;
     document.getElementById('count_driver_name').value = driverName;
-    document.getElementById('count_expected_amount').value = '¥' + expectedAmount.toLocaleString();
+    document.getElementById('count_expected_amount').value = expectedAmount.toLocaleString();
     
-    // 既存データがあれば読み込み
+    // フォームリセット
+    document.getElementById('cashCountForm').reset();
+    document.getElementById('count_driver_id').value = driverId;
+    
+    // 既存データがあれば読み込み（PHPで動的に生成される部分）
     <?php foreach ($daily_drivers as $driver): ?>
     <?php $cash_count = getCashCountDetails($pdo, $selected_date, $driver['id']); ?>
     <?php if ($cash_count): ?>
-    if (driverId === <?= $driver['id'] ?>) {
-        document.getElementById('bill_10000').value = <?= $cash_count['bill_10000'] ?>;
-        document.getElementById('bill_5000').value = <?= $cash_count['bill_5000'] ?>;
-        document.getElementById('bill_2000').value = <?= $cash_count['bill_2000'] ?>;
-        document.getElementById('bill_1000').value = <?= $cash_count['bill_1000'] ?>;
-        document.getElementById('coin_500').value = <?= $cash_count['coin_500'] ?>;
-        document.getElementById('coin_100').value = <?= $cash_count['coin_100'] ?>;
-        document.getElementById('coin_50').value = <?= $cash_count['coin_50'] ?>;
-        document.getElementById('coin_10').value = <?= $cash_count['coin_10'] ?>;
-        document.getElementById('coin_5').value = <?= $cash_count['coin_5'] ?>;
-        document.getElementById('coin_1').value = <?= $cash_count['coin_1'] ?>;
-        document.getElementById('count_memo').value = '<?= htmlspecialchars($cash_count['memo'] ?? '') ?>';
-        calculateTotal();
+    if (driverId === <?php echo $driver['id']; ?>) {
+        document.getElementById('bill_10000').value = <?php echo $cash_count['bill_10000']; ?>;
+        document.getElementById('bill_5000').value = <?php echo $cash_count['bill_5000']; ?>;
+        document.getElementById('bill_2000').value = <?php echo $cash_count['bill_2000']; ?>;
+        document.getElementById('bill_1000').value = <?php echo $cash_count['bill_1000']; ?>;
+        document.getElementById('coin_500').value = <?php echo $cash_count['coin_500']; ?>;
+        document.getElementById('coin_100').value = <?php echo $cash_count['coin_100']; ?>;
+        document.getElementById('coin_50').value = <?php echo $cash_count['coin_50']; ?>;
+        document.getElementById('coin_10').value = <?php echo $cash_count['coin_10']; ?>;
+        document.getElementById('coin_5').value = <?php echo $cash_count['coin_5']; ?>;
+        document.getElementById('coin_1').value = <?php echo $cash_count['coin_1']; ?>;
+        document.getElementById('count_memo').value = '<?php echo htmlspecialchars($cash_count['memo'] ?? ''); ?>';
     }
     <?php endif; ?>
     <?php endforeach; ?>
     
-    new bootstrap.Modal(document.getElementById('cashCountModal')).show();
+    calculateTotal();
+    
+    const modal = new bootstrap.Modal(document.getElementById('cashCountModal'));
+    modal.show();
 }
 
 // 現金確認モーダル表示
@@ -1126,7 +1128,8 @@ function showCashConfirmModal(driverId, driverName, calculatedAmount, changeStoc
     
     calculateConfirmDifference();
     
-    new bootstrap.Modal(document.getElementById('cashConfirmModal')).show();
+    const modal = new bootstrap.Modal(document.getElementById('cashConfirmModal'));
+    modal.show();
 }
 
 // おつり在庫調整モーダル表示
@@ -1136,16 +1139,14 @@ function showChangeStockModal(driverId, driverName, stockAmount, notes) {
     document.getElementById('stock_amount').value = stockAmount;
     document.getElementById('stock_notes').value = notes;
     
-    new bootstrap.Modal(document.getElementById('changeStockModal')).show();
+    const modal = new bootstrap.Modal(document.getElementById('changeStockModal'));
+    modal.show();
 }
 
 // ページ読み込み時の初期化
 document.addEventListener('DOMContentLoaded', function() {
-    // ツールチップ初期化
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
+    // 初期計算
+    calculateTotal();
 });
 </script>
 
