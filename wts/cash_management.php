@@ -283,7 +283,6 @@ function getMonthlySummary($pdo, $month) {
     $stmt->execute([$month]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
-}
 
 function getDailyDrivers($pdo, $date) {
 try {
