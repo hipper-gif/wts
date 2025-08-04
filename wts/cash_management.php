@@ -1,4 +1,4 @@
-// Ctrl+D で運転手データCSVエクスポート
+// Ctrl+D で現金カウントデータCSVエクスポート
             if (e.ctrlKey && e.key === 'd') {
                 e.preventDefault();
                 exportDriverDataCSV();
@@ -26,67 +26,30 @@
         // 運転手別データのCSVエクスポート
         function exportDriverDataCSV() {
             const data = [
-                ['順位', '運転手', '稼働日数', '総件数', '現金回収', 'カード売上', 'その他', '総売上', '平均単価', '日平均']
+                ['日付', '運転手', '回収予定', 'カウント合計', 'おつり在庫', '事務所入金', '差額', '備考']
             ];
             
-            <?php 
-            $rank = 1;
-            foreach ($monthly_driver_sales as $driverSale): 
-                $daily_avg = $driverSale->working_days > 0 ? $driverSale->total_amount / $driverSale->working_days : 0;
+            <?php foreach ($daily_drivers as $driver): 
+                $cash_count = getCashCount($pdo, $selected_date, $driver->id);
             ?>
             data.push([
-                '<?= $rank ?>',
-                '<?= addslashes($driverSale->driver_name) ?>',
-                '<?= $driverSale->working_days ?>',
-                '<?= $driverSale->trip_count ?>',
-                '<?= $driverSale->cash_amount ?>',
-                '<?= $driverSale->card_amount ?>',
-                '<?= $driverSale->other_amount ?>',
-                '<?= $driverSale->total_amount ?>',
-                '<?= $driverSale->avg_fare ?>',
-                '<?= round($daily_avg) ?>'
+                '<?= $selected_date ?>',
+                '<?= addslashes($driver->name) ?>',
+                '<?= $driver->cash_collected ?>',
+                '<?= $cash_count->total_cash ?? 0 ?>',
+                '<?= $cash_count->change_amount ?? 0 ?>',
+                '<?= $cash_count->net_amount ?? 0 ?>',
+                '<?= $cash_count->difference ?? 0 ?>',
+                '<?= addslashes($cash_count->memo ?? '') ?>'
             ]);
-            <?php 
-            $rank++;
-            endforeach; 
-            ?>
+            <?php endforeach; ?>
             
             const csvContent = data.map(row => row.join(',')).join('\n');
             const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.download = '運転手別売上_<?= $selected_month ?>.csv';
+            link.download = '現金カウント_<?= $selected_date ?>.csv';
             link.click();
-        }
-
-        // 運転手レポート印刷
-        function printDriverReport() {
-            const printContent = document.getElementById('driverSalesTable').outerHTML;
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-                <html>
-                <head>
-                    <title>運転手別売上レポート</title>
-                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 20px; }
-                        .table { font-size: 12px; }
-                        .badge { font-size: 10px; padding: 2px 6px; }
-                        @media print {
-                            body { margin: 0; }
-                            .table th, .table td { border: 1px solid #000 !important; padding: 4px; }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <h3>運転手別売上レポート（<?= $selected_month ?>）</h3>
-                    <p>出力日時: ${new Date().toLocaleString('ja-JP')}</p>
-                    ${printContent}
-                </body>
-                </html>
-            `);
-            printWindow.document.close();
-            printWindow.print();
         }        // 現金カウント計算（既存テーブル対応）
         function calculateTotal(driverId) {
             const bills10000 = parseInt(document.querySelector(`#driver${driverId} input[name="bills_10000"]`).value) || 0;
