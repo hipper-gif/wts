@@ -555,7 +555,8 @@ foreach ($daily_sales as $sale) {
 
                                     <!-- 現金カウント -->
                                     <div class="mb-3">
-                                        <button class="btn btn-outline-info btn-sm w-100 no-print" 
+                                        <button type="button" class="btn btn-outline-info btn-sm w-100 no-print" 
+                                                data-bs-toggle="modal" data-bs-target="#cashCountModal"
                                                 onclick="showCashCountModal(<?php echo $driver['id']; ?>, '<?php echo htmlspecialchars($driver['name']); ?>', <?php echo $calculated_cash; ?>)">
                                             <i class="fas fa-calculator me-2"></i>現金カウント
                                             <?php if ($cash_count): ?>
@@ -588,13 +589,15 @@ foreach ($daily_sales as $sale) {
                                     <?php endif; ?>
 
                                     <!-- 現金確認ボタン -->
-                                    <button class="btn btn-primary btn-sm w-100 no-print" 
+                                    <button type="button" class="btn btn-primary btn-sm w-100 no-print" 
+                                            data-bs-toggle="modal" data-bs-target="#cashConfirmModal"
                                             onclick="showCashConfirmModal(<?php echo $driver['id']; ?>, '<?php echo htmlspecialchars($driver['name']); ?>', <?php echo $calculated_cash; ?>, <?php echo $change_stock; ?>, <?php echo $cash_count ? $cash_count['total_amount'] : $calculated_cash; ?>)">
                                         <i class="fas fa-check me-2"></i>現金確認
                                     </button>
 
                                     <!-- おつり在庫調整ボタン -->
-                                    <button class="btn btn-outline-secondary btn-sm w-100 mt-2 no-print" 
+                                    <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-2 no-print" 
+                                            data-bs-toggle="modal" data-bs-target="#changeStockModal"
                                             onclick="showChangeStockModal(<?php echo $driver['id']; ?>, '<?php echo htmlspecialchars($driver['name']); ?>', <?php echo $change_stock; ?>, '')">
                                         <i class="fas fa-wallet me-2"></i>おつり調整
                                     </button>
@@ -1131,8 +1134,43 @@ function showChangeStockModal(driverId, driverName, stockAmount, notes) {
 
 // ページ読み込み時の初期化
 document.addEventListener('DOMContentLoaded', function() {
-    // 初期計算
-    calculateTotal();
+    console.log('DOM loaded, initializing...');
+    
+    // 初期計算実行
+    if (typeof calculateTotal === 'function') {
+        calculateTotal();
+    }
+    
+    // Bootstrap モーダルの初期化確認
+    const modals = ['cashCountModal', 'cashConfirmModal', 'changeStockModal'];
+    modals.forEach(modalId => {
+        const modalElement = document.getElementById(modalId);
+        if (modalElement) {
+            console.log(`Modal ${modalId} found`);
+        } else {
+            console.error(`Modal ${modalId} not found`);
+        }
+    });
+    
+    // テスト用のクリックイベントリスナー
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('[data-bs-toggle="modal"]')) {
+            console.log('Modal trigger clicked:', e.target);
+        }
+    });
+    
+    // フォーム送信時の処理
+    const forms = document.querySelectorAll('form[method="POST"]');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            console.log('Form submitted:', form.id || 'unnamed form');
+        });
+    });
+});
+
+// エラーハンドリング
+window.addEventListener('error', function(e) {
+    console.error('JavaScript Error:', e.error);
 });
 </script>
 
