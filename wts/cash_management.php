@@ -81,9 +81,11 @@ $error_message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
-            case 'cash_count':
+            case 'cash_count_and_confirm':
                 $date = $_POST['date'];
                 $driver_id = (int)$_POST['driver_id'];
+                $confirmed_amount = (int)$_POST['confirmed_amount'];
+                $memo = $_POST['memo'] ?? '';
                 
                 // 各金種の枚数
                 $bills = [
@@ -101,18 +103,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     '1' => (int)($_POST['coin_1'] ?? 0)
                 ];
                 
-                // 合計金額計算
-                $total_amount = 0;
+                // カウント合計金額計算
+                $count_total = 0;
                 foreach ($bills as $value => $count) {
-                    $total_amount += $value * $count;
+                    $count_total += $value * $count;
                 }
                 foreach ($coins as $value => $count) {
-                    $total_amount += $value * $count;
+                    $count_total += $value * $count;
                 }
                 
-                $memo = $_POST['memo'] ?? '';
+                // 運転者の売上・おつり在庫を取得
+                $stmt = $pdo->prepare("
+                    SELECT 
+                        SUM(CASE WHEN payment_method = '現金' THEN fare ELSE 0 END) as cash_sales
+                    FROM ride_records 
+                    WHERE DATE(ride_date) = ? AND driver_id = ?
+                ");
+                $stmt->execute([$date, $driver_id]);
+                $driver_data = $stmt->fetch(PDO::FETCH_ASSOC);
+                $cash_sales = $driver_data['cash_sales'] ?? 0;
+                
+                $change_stock = getDriverChangeStock($pdo, $driver_id);
+                $calculated_amount = $cash_sales - $change_stock;
+                $difference = $confirmed_amount - $calculated_amount;
                 
                 try {
+                    $pdo->beginTransaction();
+                    
+                    // カウント詳細を保存
                     $stmt = $pdo->prepare("
                         INSERT INTO cash_count_details 
                         (confirmation_date, driver_id, bill_10000, bill_5000, bill_2000, bill_1000, 
@@ -137,24 +155,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $date, $driver_id, 
                         $bills['10000'], $bills['5000'], $bills['2000'], $bills['1000'],
                         $coins['500'], $coins['100'], $coins['50'], $coins['10'], $coins['5'], $coins['1'],
-                        $total_amount, $memo
+                        $count_total, $memo
                     ]);
-                    $success_message = "現金カウント記録を保存しました";
-                } catch (PDOException $e) {
-                    $error_message = "保存エラー: " . $e->getMessage();
-                }
-                break;
-                
-            case 'confirm_cash':
-                $date = $_POST['date'];
-                $driver_id = (int)$_POST['driver_id'];
-                $confirmed_amount = (int)$_POST['confirmed_amount'];
-                $calculated_amount = (int)$_POST['calculated_amount'];
-                $change_stock = (int)$_POST['change_stock'];
-                $difference = $confirmed_amount - $calculated_amount;
-                $memo = $_POST['memo'] ?? '';
-                
-                try {
+                    
+                    // 現金確認を保存
                     $stmt = $pdo->prepare("
                         INSERT INTO cash_confirmations 
                         (confirmation_date, driver_id, confirmed_amount, calculated_amount, difference, change_stock, memo, confirmed_by)
@@ -169,8 +173,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         updated_at = CURRENT_TIMESTAMP
                     ");
                     $stmt->execute([$date, $driver_id, $confirmed_amount, $calculated_amount, $difference, $change_stock, $memo, $_SESSION['user_id']]);
-                    $success_message = "現金確認記録を保存しました";
+                    
+                    $pdo->commit();
+                    $success_message = "現金カウント・確認記録を保存しました";
                 } catch (PDOException $e) {
+                    $pdo->rollBack();
                     $error_message = "保存エラー: " . $e->getMessage();
                 }
                 break;
@@ -528,6 +535,60 @@ foreach ($daily_sales as $sale) {
                                         <i class="fas fa-user me-2"></i><?php echo htmlspecialchars($driver['name']); ?>
                                     </h6>
                                 </div>
+                    
+                    <!-- 最終確認セクション -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="alert alert-light border">
+                                <h6 class="text-success mb-3">
+                                    <i class="fas fa-check-double me-2"></i>最終確認
+                                </h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label class="form-label">最終確認金額 <span class="text-danger">*</span></label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">¥</span>
+                                            <input type="number" name="confirmed_amount" id="final_confirmed_amount" 
+                                                   class="form-control fw-bold" required 
+                                                   onchange="calculateFinalDifference()">
+                                        </div>
+                                        <small class="text-muted">実際に確認・回収した金額</small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">最終差額</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">¥</span>
+                                            <input type="text" id="final_difference_display" class="form-control" readonly>
+                                        </div>
+                                        <small id="final_difference_note" class="text-muted">実際金額 - 予定金額</small>
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <label class="form-label">メモ</label>
+                                        <textarea name="memo" id="cash_memo" class="form-control" rows="3" 
+                                                  placeholder="カウント結果、差額の理由、特記事項など"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="fas fa-save me-2"></i>カウント・確認記録を保存
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 現金確認モーダル（簡易版・削除予定） -->
+<div class="modal fade" id="cashConfirmModal" tabindex="-1" aria-labelledby="cashConfirmModalLabel" aria-hidden="true" style="display: none;">
+    <!-- 統合モーダルがあるため使用しない -->
+</div>
                                 <div class="card-body">
                                     <!-- 売上サマリー -->
                                     <div class="mb-3">
@@ -1216,43 +1277,66 @@ function showChangeStockModal(driverId, driverName, stockAmount, notes) {
 
 // ページ読み込み時の初期化
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded, initializing...');
+    console.log('DOM loaded, initializing cash management...');
     
-    // 初期計算実行
-    if (typeof calculateTotal === 'function') {
-        calculateTotal();
+    // 初期計算が必要な関数があれば実行
+    if (typeof calculateCashTotal === 'function') {
+        // 初期計算は行わない（モーダル表示時に実行）
     }
     
     // Bootstrap モーダルの初期化確認
-    const modals = ['cashCountModal', 'cashConfirmModal', 'changeStockModal'];
+    const modals = ['cashManagementModal', 'changeStockModal'];
     modals.forEach(modalId => {
         const modalElement = document.getElementById(modalId);
         if (modalElement) {
-            console.log(`Modal ${modalId} found`);
+            console.log(`Modal ${modalId} found and ready`);
+            
+            // モーダルイベントリスナー追加
+            modalElement.addEventListener('shown.bs.modal', function () {
+                console.log(`Modal ${modalId} has been shown`);
+            });
+            
+            modalElement.addEventListener('hidden.bs.modal', function () {
+                console.log(`Modal ${modalId} has been hidden`);
+            });
         } else {
             console.error(`Modal ${modalId} not found`);
         }
     });
     
-    // テスト用のクリックイベントリスナー
-    document.addEventListener('click', function(e) {
-        if (e.target.closest('[data-bs-toggle="modal"]')) {
-            console.log('Modal trigger clicked:', e.target);
-        }
-    });
-    
     // フォーム送信時の処理
-    const forms = document.querySelectorAll('form[method="POST"]');
-    forms.forEach(form => {
-        form.addEventListener('submit', function(e) {
-            console.log('Form submitted:', form.id || 'unnamed form');
+    const cashForm = document.getElementById('cashManagementForm');
+    if (cashForm) {
+        cashForm.addEventListener('submit', function(e) {
+            console.log('Cash management form submitted');
+            
+            // バリデーション
+            const confirmedAmount = document.getElementById('final_confirmed_amount').value;
+            if (!confirmedAmount || confirmedAmount === '' || parseInt(confirmedAmount) < 0) {
+                e.preventDefault();
+                alert('最終確認金額を正しく入力してください。');
+                return false;
+            }
         });
+    }
+    
+    // デバッグ用：ボタンクリックをログ
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('[onclick*="showCashManagementModal"]')) {
+            console.log('Cash management button clicked:', e.target);
+        }
     });
 });
 
 // エラーハンドリング
 window.addEventListener('error', function(e) {
     console.error('JavaScript Error:', e.error);
+    console.error('Error details:', {
+        message: e.message,
+        filename: e.filename,
+        lineno: e.lineno,
+        colno: e.colno
+    });
 });
 </script>
 
