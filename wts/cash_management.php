@@ -1877,16 +1877,26 @@ $calculated_cash_in_office = $daily_total->cash_amount - $total_change_stock;
                 ['日付', '件数', '現金', 'カード', 'その他', '合計']
             ];
             
-            <?php foreach ($monthly_summary as $day): ?>
-            data.push([
-                '<?= $day->date ?>',
-                '<?= $day->trips ?>',
-                '<?= $day->cash ?>',
-                '<?= $day->card ?>',
-                '<?= $day->other ?>',
-                '<?= $day->total ?>'
-            ]);
-            <?php endforeach; ?>
+            // PHPデータをJavaScriptに渡す
+            const salesData = [
+                <?php 
+                $csvSalesData = [];
+                foreach ($monthly_summary as $day): 
+                    $csvSalesData[] = sprintf(
+                        "['%s', %d, %d, %d, %d, %d]",
+                        $day->date,
+                        $day->trips,
+                        $day->cash,
+                        $day->card,
+                        $day->other,
+                        $day->total
+                    );
+                endforeach;
+                echo implode(',', $csvSalesData);
+                ?>
+            ];
+            
+            salesData.forEach(row => data.push(row));
             
             const csvContent = data.map(row => row.join(',')).join('\n');
             const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
