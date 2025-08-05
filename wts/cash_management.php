@@ -29,20 +29,29 @@
                 ['日付', '運転手', '回収予定', 'カウント合計', 'おつり在庫', '事務所入金', '差額', '備考']
             ];
             
-            <?php foreach ($daily_drivers as $driver): 
-                $cash_count = getCashCount($pdo, $selected_date, $driver->id);
-            ?>
-            data.push([
-                '<?= $selected_date ?>',
-                '<?= addslashes($driver->name) ?>',
-                '<?= $driver->cash_collected ?>',
-                '<?= $cash_count->total_cash ?? 0 ?>',
-                '<?= $cash_count->change_amount ?? 0 ?>',
-                '<?= $cash_count->net_amount ?? 0 ?>',
-                '<?= $cash_count->difference ?? 0 ?>',
-                '<?= addslashes($cash_count->memo ?? '') ?>'
-            ]);
-            <?php endforeach; ?>
+            // PHPデータをJavaScriptに渡す
+            const driversData = [
+                <?php 
+                $csvData = [];
+                foreach ($daily_drivers as $driver): 
+                    $cash_count = getCashCount($pdo, $selected_date, $driver->id);
+                    $csvData[] = sprintf(
+                        "['%s', '%s', %d, %d, %d, %d, %d, '%s']",
+                        $selected_date,
+                        addslashes($driver->name),
+                        $driver->cash_collected,
+                        $cash_count->total_cash ?? 0,
+                        $cash_count->change_amount ?? 0,
+                        $cash_count->net_amount ?? 0,
+                        $cash_count->difference ?? 0,
+                        addslashes($cash_count->memo ?? '')
+                    );
+                endforeach;
+                echo implode(',', $csvData);
+                ?>
+            ];
+            
+            driversData.forEach(row => data.push(row));
             
             const csvContent = data.map(row => row.join(',')).join('\n');
             const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1916,11 +1925,23 @@ $calculated_cash_in_office = $daily_total->cash_amount - $total_change_stock;
         
         // 通知機能（在庫不足の警告）
         function checkStockAlerts() {
-            <?php foreach ($driver_stocks as $stock): ?>
-            <?php if ($stock->stock_amount < 5000): ?>
-            console.warn('在庫不足警告: <?= $stock->driver_name ?>さんのおつり在庫が不足しています（¥<?= number_format($stock->stock_amount) ?>）');
-            <?php endif; ?>
-            <?php endforeach; ?>
+            const stockWarnings = [
+                <?php 
+                $warnings = [];
+                foreach ($driver_stocks as $stock): 
+                    if ($stock->stock_amount < 5000):
+                        $warnings[] = sprintf(
+                            "'在庫不足警告: %sさんのおつり在庫が不足しています（¥%s）'",
+                            addslashes($stock->driver_name),
+                            number_format($stock->stock_amount)
+                        );
+                    endif;
+                endforeach;
+                echo implode(',', $warnings);
+                ?>
+            ];
+            
+            stockWarnings.forEach(warning => console.warn(warning));
         }
         
         // ページ読み込み時に在庫チェック
