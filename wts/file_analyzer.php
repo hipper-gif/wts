@@ -395,6 +395,11 @@ $currentTime = date('Y-m-d H:i:s');
                     <i class="fas fa-file-code"></i> 拡張子別統計
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="raw-analysis-tab" data-bs-toggle="tab" data-bs-target="#raw-analysis" type="button">
+                    <i class="fas fa-robot"></i> RAW・AI分析
+                </button>
+            </li>
         </ul>
 
         <div class="tab-content" id="analysisTabContent">
@@ -580,6 +585,133 @@ $currentTime = date('Y-m-d H:i:s');
                     </div>
                 </div>
             </div>
+
+            <!-- RAWリンクとAI分析 -->
+            <div class="tab-pane fade" id="raw-analysis" role="tabpanel">
+                <div class="row">
+                    <!-- RAWリンク生成 -->
+                    <div class="col-md-6">
+                        <div class="card mt-3">
+                            <div class="card-header bg-primary text-white">
+                                <h5><i class="fas fa-link"></i> GitHubRAWリンク生成</h5>
+                            </div>
+                            <div class="card-body">
+                                <p>福祉輸送管理システムのGitHubRAWリンクを自動生成します。</p>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">GitHubリポジトリベースURL</label>
+                                    <input type="text" class="form-control" id="baseUrl" 
+                                           value="https://raw.githubusercontent.com/hipper-gif/wts/main/" readonly>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">生成されたRAWリンク</label>
+                                    <textarea class="form-control" id="rawLinks" rows="10" readonly></textarea>
+                                </div>
+
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-primary" onclick="generateRawLinks()">
+                                        <i class="fas fa-magic"></i> RAWリンク生成
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="copyToClipboard('rawLinks')">
+                                        <i class="fas fa-copy"></i> クリップボードにコピー
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI分析依頼 -->
+                    <div class="col-md-6">
+                        <div class="card mt-3">
+                            <div class="card-header bg-success text-white">
+                                <h5><i class="fas fa-robot"></i> Claude AI 分析依頼</h5>
+                            </div>
+                            <div class="card-body">
+                                <p>このシステム分析結果をClaude AIに送信して詳細分析を依頼できます。</p>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">分析依頼テンプレート</label>
+                                    <textarea class="form-control" id="analysisRequest" rows="8" readonly></textarea>
+                                </div>
+
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i>
+                                    <strong>使用方法:</strong><br>
+                                    1. 「分析依頼文生成」ボタンを押す<br>
+                                    2. 生成されたテキストをコピー<br>
+                                    3. Claude AIに貼り付けて送信
+                                </div>
+
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-success" onclick="generateAnalysisRequest()">
+                                        <i class="fas fa-brain"></i> 分析依頼文生成
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="copyToClipboard('analysisRequest')">
+                                        <i class="fas fa-copy"></i> クリップボードにコピー
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ファイルリスト詳細 -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5><i class="fas fa-database"></i> 分析用詳細ファイルリスト</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>ファイル名</th>
+                                        <th>パス</th>
+                                        <th>サイズ</th>
+                                        <th>カテゴリ</th>
+                                        <th>RAWリンク</th>
+                                        <th>分析対象</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($allFiles as $file): ?>
+                                    <?php 
+                                    $rawUrl = "https://raw.githubusercontent.com/hipper-gif/wts/main/" . $file['path'];
+                                    $isAnalysisTarget = in_array($file['extension'], ['php', 'html', 'js', 'css', 'md', 'txt']);
+                                    ?>
+                                    <tr>
+                                        <td><code><?= htmlspecialchars($file['name']) ?></code></td>
+                                        <td><small><?= htmlspecialchars($file['path']) ?></small></td>
+                                        <td><?= formatFileSize($file['size']) ?></td>
+                                        <td>
+                                            <span class="badge bg-secondary" style="font-size: 0.7rem;">
+                                                <?= $file['category'] ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-outline-primary btn-sm" 
+                                                    onclick="copyToClipboard('', '<?= $rawUrl ?>')" 
+                                                    title="RAWリンクをコピー">
+                                                <i class="fas fa-link"></i>
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <?php if ($isAnalysisTarget): ?>
+                                                <span class="badge bg-success">対象</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-secondary">除外</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         </div>
 
         <!-- フッター -->
@@ -592,5 +724,179 @@ $currentTime = date('Y-m-d H:i:s');
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // RAWリンク生成機能
+        function generateRawLinks() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const files = <?= json_encode($allFiles) ?>;
+            
+            let rawLinks = "福祉輸送管理システム - GitHubRAWリンク一覧\n";
+            rawLinks += "=" * 50 + "\n\n";
+            
+            // カテゴリ別にグループ化
+            const categories = {};
+            files.forEach(file => {
+                if (!categories[file.category]) {
+                    categories[file.category] = [];
+                }
+                categories[file.category].push(file);
+            });
+            
+            // カテゴリ別に出力
+            Object.keys(categories).forEach(category => {
+                rawLinks += `【${category}】\n`;
+                categories[category].forEach(file => {
+                    const rawUrl = baseUrl + file.path;
+                    rawLinks += `${file.name} (${formatFileSize(file.size)})\n`;
+                    rawLinks += `${rawUrl}\n\n`;
+                });
+                rawLinks += "\n";
+            });
+            
+            document.getElementById('rawLinks').value = rawLinks;
+        }
+        
+        // 分析依頼文生成機能
+        function generateAnalysisRequest() {
+            const files = <?= json_encode($allFiles) ?>;
+            const totalFiles = <?= $totalFiles ?>;
+            const totalDirectories = <?= $totalDirectories ?>;
+            const totalSize = <?= $totalSize ?>;
+            const categories = <?= json_encode($categoryStats) ?>;
+            
+            let request = "福祉輸送管理システム - 詳細分析依頼\n";
+            request += "=" * 40 + "\n\n";
+            
+            request += "【分析概要】\n";
+            request += `総ファイル数: ${totalFiles}ファイル\n`;
+            request += `ディレクトリ数: ${totalDirectories}ディレクトリ\n`;
+            request += `総サイズ: ${formatFileSize(totalSize)}\n`;
+            request += `分析日時: ${new Date().toLocaleString('ja-JP')}\n\n`;
+            
+            request += "【カテゴリ別統計】\n";
+            Object.keys(categories).forEach(category => {
+                const stats = categories[category];
+                request += `${category}: ${stats.count}ファイル (${formatFileSize(stats.size)})\n`;
+            });
+            request += "\n";
+            
+            request += "【分析対象ファイル一覧】\n";
+            files.filter(file => ['php', 'html', 'js', 'css', 'md'].includes(file.extension))
+                 .slice(0, 20) // 最初の20ファイルのみ
+                 .forEach(file => {
+                const rawUrl = `https://raw.githubusercontent.com/hipper-gif/wts/main/${file.path}`;
+                request += `${file.name} (${file.category}) - ${formatFileSize(file.size)}\n`;
+                request += `${rawUrl}\n\n`;
+            });
+            
+            request += "【分析依頼内容】\n";
+            request += "上記の福祉輸送管理システムについて、以下の観点から詳細分析をお願いします：\n\n";
+            request += "1. システム構成の評価\n";
+            request += "2. コード品質の分析\n";
+            request += "3. セキュリティ面のチェック\n";
+            request += "4. 不要ファイルの特定\n";
+            request += "5. 改善提案\n";
+            request += "6. 技術的な優位性の評価\n\n";
+            request += "特に、このシステムが97%完成とされていますが、実際の完成度と残り課題について客観的な評価をお願いします。";
+            
+            document.getElementById('analysisRequest').value = request;
+        }
+        
+        // クリップボードコピー機能
+        function copyToClipboard(elementId, directText = null) {
+            let textToCopy;
+            
+            if (directText) {
+                textToCopy = directText;
+            } else {
+                const element = document.getElementById(elementId);
+                textToCopy = element.value;
+            }
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                // 成功時の表示
+                showToast('クリップボードにコピーしました！');
+            }).catch(err => {
+                console.error('コピーに失敗しました:', err);
+                // フォールバック方法
+                const textArea = document.createElement('textarea');
+                textArea.value = textToCopy;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showToast('クリップボードにコピーしました！');
+            });
+        }
+        
+        // トースト通知表示
+        function showToast(message) {
+            // Bootstrap Toast要素を作成
+            const toastHtml = `
+                <div class="toast align-items-center text-white bg-success border-0" role="alert">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="fas fa-check-circle"></i> ${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                    </div>
+                </div>
+            `;
+            
+            // トーストコンテナがなければ作成
+            let toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+                document.body.appendChild(toastContainer);
+            }
+            
+            // トーストを追加
+            const toastElement = document.createElement('div');
+            toastElement.innerHTML = toastHtml;
+            toastContainer.appendChild(toastElement.firstElementChild);
+            
+            // Bootstrap Toastを初期化して表示
+            const toast = new bootstrap.Toast(toastContainer.lastElementChild);
+            toast.show();
+            
+            // 表示後に自動削除
+            setTimeout(() => {
+                if (toastContainer.lastElementChild) {
+                    toastContainer.removeChild(toastContainer.lastElementChild);
+                }
+            }, 3000);
+        }
+        
+        // ファイルサイズフォーマット関数（JavaScript版）
+        function formatFileSize(bytes) {
+            if (bytes >= 1048576) {
+                return (bytes / 1048576).toFixed(1) + ' MB';
+            } else if (bytes >= 1024) {
+                return (bytes / 1024).toFixed(1) + ' KB';
+            } else {
+                return bytes + ' B';
+            }
+        }
+        
+        // ページ読み込み完了時の初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初期RAWリンク生成
+            generateRawLinks();
+            
+            // タブ切り替え時のイベント
+            const tabElements = document.querySelectorAll('[data-bs-toggle="tab"]');
+            tabElements.forEach(tab => {
+                tab.addEventListener('shown.bs.tab', function(event) {
+                    if (event.target.id === 'raw-analysis-tab') {
+                        // RAW・AI分析タブが表示されたときの処理
+                        console.log('RAW・AI分析タブが表示されました');
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>
