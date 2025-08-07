@@ -1,517 +1,596 @@
 <?php
 /**
- * GitHub Repository File Analyzer
- * 福祉輸送管理システム - GitHubファイル分析ツール
- * 
- * このスクリプトはGitHub APIを使用してリポジトリのファイル一覧を取得し、
- * 各ファイルのrawリンクとファイル情報を分析・出力します。
+ * 福祉輸送管理システム - ファイル分析ツール（改良版）
+ * フォルダとフォルダ内のファイルを再帰的に分析
  */
 
-// GitHub API設定
-$github_token = ''; // セキュリティのため空にしています
-$repo_owner = 'hipper-gif';
-$repo_name = 'wts';
-$directory = 'wts'; // 対象ディレクトリ
+// 設定
+$target_directory = '.'; // 分析対象ディレクトリ（現在のディレクトリ）
+$exclude_patterns = [
+    '.git',
+    '.gitignore',
+    'node_modules',
+    'vendor',
+    '.env',
+    '*.log',
+    'thumbs.db',
+    '.DS_Store'
+];
 
-// フォームからのトークン入力を受け取る
-if (isset($_POST['github_token']) && !empty($_POST['github_token'])) {
-    $github_token = $_POST['github_token'];
-}
-
-// GitHub API URL
-$api_url = "https://api.github.com/repos/{$repo_owner}/{$repo_name}/contents/{$directory}";
-
-/**
- * cURLでGitHub APIにリクエストを送信
- */
-function makeGitHubRequest($url, $token) {
-    if (empty($token)) {
-        throw new Exception("GitHub APIトークンが設定されていません");
-    }
-    
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $token, // Bearerトークン形式に変更
-        'User-Agent: WTS-File-Analyzer/1.0',
-        'Accept: application/vnd.github+json',
-        'X-GitHub-Api-Version: 2022-11-28'
-    ]);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-    curl_setopt($ch, CURLOPT_VERBOSE, false); // デバッグ用
-    
-    $response = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error_msg = curl_error($ch);
-    curl_close($ch);
-    
-    if ($response === false) {
-        throw new Exception("cURL Error: " . $error_msg);
-    }
-    
-    if ($http_code !== 200) {
-        $decoded_response = json_decode($response, true);
-        $api_message = isset($decoded_response['message']) ? $decoded_response['message'] : 'Unknown error';
-        throw new Exception("GitHub API Error: HTTP {$http_code} - {$api_message}");
-    }
-    
-    return json_decode($response, true);
-}
+// 分析除外ファイル（自分自身も除外）
+$exclude_files = [
+    'file_analyzer.php',
+    basename(__FILE__)
+];
 
 /**
  * ファイルサイズを人間が読みやすい形式に変換
  */
-function formatBytes($size) {
-    if ($size == 0) return '0 B';
-    $units = ['B', 'KB', 'MB', 'GB'];
-    $i = floor(log($size) / log(1024));
-    return round($size / pow(1024, $i), 1) . ' ' . $units[$i];
-}
-
-/**
- * ファイル拡張子からファイルタイプを判定
- */
-function getFileType($filename) {
-    $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-    
-    $types = [
-        'php' => '🐘 PHP',
-        'html' => '🌐 HTML',
-        'css' => '🎨 CSS',
-        'js' => '⚡ JavaScript',
-        'json' => '📄 JSON',
-        'md' => '📝 Markdown',
-        'txt' => '📄 Text',
-        'sql' => '🗄️ SQL',
-        'htaccess' => '⚙️ Config',
-        '' => '📄 No Extension'
-    ];
-    
-    return $types[$extension] ?? '📄 Other';
-}
-
-/**
- * ファイル分類を行う
- */
-function categorizeFile($filename) {
-    $core_files = [
-        'index.php', 'dashboard.php', 'logout.php',
-        'pre_duty_call.php', 'post_duty_call.php', 'daily_inspection.php', 'periodic_inspection.php',
-        'departure.php', 'arrival.php', 'ride_records.php',
-        'cash_management.php', 'annual_report.php', 'accident_management.php',
-        'user_management.php', 'vehicle_management.php',
-        'emergency_audit_kit.php', 'adaptive_export_document.php', 'audit_data_manager.php'
-    ];
-    
-    $test_files = [
-        'debug_data.php', 'add_data.php', 'test_functions.php', 'check_new_tables.php',
-        'file_scanner.php', 'quick_edit.php'
-    ];
-    
-    $setup_files = [
-        'setup_audit_kit.php', 'setup_complete_system.php', 'simple_audit_setup.php',
-        'fix_table_structure.php', 'fix_user_permissions.php', 'fix_system_settings.php'
-    ];
-    
-    if (in_array($filename, $core_files)) {
-        return '🎯 Core System';
-    } elseif (in_array($filename, $test_files)) {
-        return '🧪 Test/Debug';
-    } elseif (in_array($filename, $setup_files)) {
-        return '🔧 Setup/Fix';
-    } elseif (strpos($filename, 'fix_') === 0) {
-        return '🔧 Fix Script';
-    } elseif (strpos($filename, 'check_') === 0) {
-        return '🔍 Check Script';
-    } elseif (strpos($filename, 'backup_') === 0) {
-        return '💾 Backup';
-    } elseif (strpos($filename, 'temp_') === 0) {
-        return '⏳ Temporary';
-    } elseif (preg_match('/[\p{Han}\p{Hiragana}\p{Katakana}]/u', $filename)) {
-        return '🇯🇵 Japanese Tool';
+function formatFileSize($bytes) {
+    if ($bytes >= 1048576) {
+        return number_format($bytes / 1048576, 1) . ' MB';
+    } elseif ($bytes >= 1024) {
+        return number_format($bytes / 1024, 1) . ' KB';
     } else {
-        return '📄 Other';
+        return $bytes . ' B';
     }
 }
 
-try {
-    echo "<!DOCTYPE html>\n";
-    echo "<html lang='ja'>\n";
-    echo "<head>\n";
-    echo "    <meta charset='UTF-8'>\n";
-    echo "    <meta name='viewport' content='width=device-width, initial-scale=1.0'>\n";
-    echo "    <title>GitHub Repository File Analyzer</title>\n";
-    echo "    <style>\n";
-    echo "        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 20px; background: #f6f8fa; }\n";
-    echo "        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }\n";
-    echo "        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 30px; }\n";
-    echo "        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }\n";
-    echo "        .stat-card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 15px; text-align: center; }\n";
-    echo "        .stat-number { font-size: 2em; font-weight: bold; color: #0366d6; }\n";
-    echo "        .file-table { width: 100%; border-collapse: collapse; margin-top: 20px; }\n";
-    echo "        .file-table th, .file-table td { padding: 12px; text-align: left; border-bottom: 1px solid #e1e4e8; }\n";
-    echo "        .file-table th { background: #f6f8fa; font-weight: 600; position: sticky; top: 0; }\n";
-    echo "        .file-table tr:hover { background: #f6f8fa; }\n";
-    echo "        .category { padding: 4px 8px; border-radius: 4px; font-size: 0.85em; white-space: nowrap; }\n";
-    echo "        .core-system { background: #e6ffed; color: #28a745; }\n";
-    echo "        .test-debug { background: #fff3cd; color: #856404; }\n";
-    echo "        .setup-fix { background: #cce5ff; color: #0366d6; }\n";
-    echo "        .japanese-tool { background: #ffebee; color: #d73a49; }\n";
-    echo "        .other { background: #f1f3f4; color: #586069; }\n";
-    echo "        .file-size { color: #586069; font-family: monospace; }\n";
-    echo "        .raw-link { color: #0366d6; text-decoration: none; font-family: monospace; font-size: 0.9em; }\n";
-    echo "        .raw-link:hover { text-decoration: underline; }\n";
-    echo "        .filter-buttons { margin: 20px 0; }\n";
-    echo "        .filter-btn { padding: 8px 16px; margin: 5px; border: 1px solid #d1d5da; background: white; border-radius: 6px; cursor: pointer; }\n";
-    echo "        .filter-btn.active { background: #0366d6; color: white; }\n";
-    echo "        .summary { background: #f6f8fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }\n";
-    echo "        .token-form { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin-bottom: 20px; }\n";
-    echo "        .form-group { margin-bottom: 15px; }\n";
-    echo "        .form-control { width: 100%; padding: 10px; border: 1px solid #d1d5da; border-radius: 6px; font-family: monospace; }\n";
-    echo "        .btn { padding: 10px 20px; background: #0366d6; color: white; border: none; border-radius: 6px; cursor: pointer; }\n";
-    echo "        .btn:hover { background: #0256cc; }\n";
-    echo "    </style>\n";
-    echo "</head>\n";
-    echo "<body>\n";
-    
-    echo "<div class='container'>\n";
-    echo "    <div class='header'>\n";
-    echo "        <h1>🔍 GitHub Repository File Analyzer</h1>\n";
-    echo "        <p>福祉輸送管理システム - リポジトリファイル分析ツール</p>\n";
-    echo "        <p><strong>Repository:</strong> {$repo_owner}/{$repo_name}/{$directory}</p>\n";
-    echo "    </div>\n";
-    
-    // APIトークンが設定されていない場合はフォームを表示
-    if (empty($github_token)) {
-        echo "    <div class='token-form'>\n";
-        echo "        <h3>🔑 GitHub Personal Access Token が必要です</h3>\n";
-        echo "        <p>リポジトリにアクセスするために、GitHub Personal Access Token を入力してください。</p>\n";
-        echo "        <form method='POST'>\n";
-        echo "            <div class='form-group'>\n";
-        echo "                <label for='github_token'>GitHub Personal Access Token:</label>\n";
-        echo "                <input type='password' id='github_token' name='github_token' class='form-control' placeholder='ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' required>\n";
-        echo "            </div>\n";
-        echo "            <button type='submit' class='btn'>🔍 ファイル分析を開始</button>\n";
-        echo "        </form>\n";
-        echo "        <div style='margin-top: 15px; font-size: 0.9em; color: #586069;'>\n";
-        echo "            <p><strong>セキュリティについて:</strong></p>\n";
-        echo "            <ul>\n";
-        echo "                <li>トークンはサーバーに保存されません</li>\n";
-        echo "                <li>セッション終了時に自動的に削除されます</li>\n";
-        echo "                <li>読み取り権限のみのトークンを使用してください</li>\n";
-        echo "            </ul>\n";
-        echo "        </div>\n";
-        echo "    </div>\n";
-        echo "</div>\n";
-        echo "</body>\n";
-        echo "</html>\n";
-        return;
-    }
-    
-    echo "    <div class='summary'>\n";
-    echo "        <h2>📊 分析結果サマリー</h2>\n";
-    echo "        <p>このツールはGitHub APIを使用してリポジトリ内のファイルを分析し、各ファイルの詳細情報とrawリンクを生成します。</p>\n";
-    echo "    </div>\n";
-    
-    // GitHub APIからファイル一覧を取得
-    echo "    <p>🔄 GitHub APIからファイル一覧を取得中...</p>\n";
-    flush();
-    
-    $files = makeGitHubRequest($api_url, $github_token);
-    
-    // 統計情報の計算
-    $total_files = count($files);
-    $total_size = 0;
-    $categories = [];
-    $file_types = [];
-    $core_files = 0;
-    $test_files = 0;
-    $setup_files = 0;
-    $other_files = 0;
-    
-    foreach ($files as $file) {
-        if ($file['type'] === 'file') {
-            $total_size += $file['size'];
-            
-            $category = categorizeFile($file['name']);
-            $categories[$category] = ($categories[$category] ?? 0) + 1;
-            
-            $file_type = getFileType($file['name']);
-            $file_types[$file_type] = ($file_types[$file_type] ?? 0) + 1;
-            
-            if (strpos($category, 'Core') !== false) $core_files++;
-            elseif (strpos($category, 'Test') !== false) $test_files++;
-            elseif (strpos($category, 'Setup') !== false || strpos($category, 'Fix') !== false) $setup_files++;
-            else $other_files++;
+/**
+ * ファイル拡張子を取得
+ */
+function getFileExtension($filename) {
+    return strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+}
+
+/**
+ * 除外パターンに一致するかチェック
+ */
+function isExcluded($path, $excludePatterns) {
+    foreach ($excludePatterns as $pattern) {
+        if (fnmatch($pattern, basename($path)) || fnmatch($pattern, $path)) {
+            return true;
         }
     }
+    return false;
+}
+
+/**
+ * ディレクトリを再帰的にスキャン
+ */
+function scanDirectoryRecursive($dir, $excludePatterns, $excludeFiles, $currentDepth = 0, $maxDepth = 10) {
+    $files = [];
+    $directories = [];
     
-    // 統計カード表示
-    echo "    <div class='stats'>\n";
-    echo "        <div class='stat-card'>\n";
-    echo "            <div class='stat-number'>{$total_files}</div>\n";
-    echo "            <div>総ファイル数</div>\n";
-    echo "        </div>\n";
-    echo "        <div class='stat-card'>\n";
-    echo "            <div class='stat-number'>" . formatBytes($total_size) . "</div>\n";
-    echo "            <div>総ファイルサイズ</div>\n";
-    echo "        </div>\n";
-    echo "        <div class='stat-card'>\n";
-    echo "            <div class='stat-number'>{$core_files}</div>\n";
-    echo "            <div>コアシステムファイル</div>\n";
-    echo "        </div>\n";
-    echo "        <div class='stat-card'>\n";
-    echo "            <div class='stat-number'>" . ($test_files + $setup_files + $other_files) . "</div>\n";
-    echo "            <div>補助・保守ファイル</div>\n";
-    echo "        </div>\n";
-    echo "    </div>\n";
-    
-    // フィルターボタン
-    echo "    <div class='filter-buttons'>\n";
-    echo "        <button class='filter-btn active' onclick=\"filterFiles('all')\">🗂️ すべて ({$total_files})</button>\n";
-    foreach ($categories as $category => $count) {
-        $category_class = strtolower(str_replace([' ', '/'], ['_', '_'], $category));
-        echo "        <button class='filter-btn' onclick=\"filterFiles('{$category_class}')\">{$category} ({$count})</button>\n";
+    if ($currentDepth > $maxDepth) {
+        return ['files' => $files, 'directories' => $directories];
     }
-    echo "    </div>\n";
     
-    // ファイル一覧テーブル
-    echo "    <table class='file-table' id='fileTable'>\n";
-    echo "        <thead>\n";
-    echo "            <tr>\n";
-    echo "                <th>📁 ファイル名</th>\n";
-    echo "                <th>📂 カテゴリー</th>\n";
-    echo "                <th>📄 タイプ</th>\n";
-    echo "                <th>📏 サイズ</th>\n";
-    echo "                <th>🔗 Raw Link</th>\n";
-    echo "            </tr>\n";
-    echo "        </thead>\n";
-    echo "        <tbody>\n";
+    if (!is_dir($dir) || !is_readable($dir)) {
+        return ['files' => $files, 'directories' => $directories];
+    }
     
-    $all_raw_links = []; // rawリンク一覧用
+    $items = scandir($dir);
+    if ($items === false) {
+        return ['files' => $files, 'directories' => $directories];
+    }
     
-    foreach ($files as $file) {
-        if ($file['type'] === 'file') {
-            $filename = htmlspecialchars($file['name']);
-            $size = formatBytes($file['size']);
-            $category = categorizeFile($file['name']);
-            $file_type = getFileType($file['name']);
-            
-            // カテゴリーのCSSクラス
-            $category_class = '';
-            if (strpos($category, 'Core') !== false) $category_class = 'core-system';
-            elseif (strpos($category, 'Test') !== false || strpos($category, 'Debug') !== false) $category_class = 'test-debug';
-            elseif (strpos($category, 'Setup') !== false || strpos($category, 'Fix') !== false || strpos($category, 'Check') !== false) $category_class = 'setup-fix';
-            elseif (strpos($category, 'Japanese') !== false) $category_class = 'japanese-tool';
-            else $category_class = 'other';
-            
-            // Raw リンクの生成
-            $raw_link = "https://raw.githubusercontent.com/{$repo_owner}/{$repo_name}/main/{$directory}/{$filename}";
-            
-            // rawリンク一覧に追加
-            $all_raw_links[] = [
-                'filename' => $file['name'],
-                'raw_link' => $raw_link,
-                'category' => $category,
-                'size' => $file['size']
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+            continue;
+        }
+        
+        $fullPath = $dir . DIRECTORY_SEPARATOR . $item;
+        $relativePath = ltrim(str_replace('.', '', $fullPath), '/\\');
+        
+        // 除外パターンチェック
+        if (isExcluded($fullPath, $excludePatterns) || in_array($item, $excludeFiles)) {
+            continue;
+        }
+        
+        if (is_dir($fullPath)) {
+            // ディレクトリの場合
+            $dirInfo = [
+                'name' => $item,
+                'path' => $relativePath,
+                'full_path' => $fullPath,
+                'depth' => $currentDepth,
+                'items_count' => 0,
+                'total_size' => 0
             ];
             
-            // データ属性用のカテゴリークラス
-            $data_category = strtolower(str_replace([' ', '/'], ['_', '_'], $category));
+            // ディレクトリ内をスキャン
+            $subResult = scanDirectoryRecursive($fullPath, $excludePatterns, $excludeFiles, $currentDepth + 1, $maxDepth);
+            $dirInfo['files'] = $subResult['files'];
+            $dirInfo['subdirectories'] = $subResult['directories'];
+            $dirInfo['items_count'] = count($subResult['files']) + count($subResult['directories']);
             
-            echo "            <tr data-category='{$data_category}'>\n";
-            echo "                <td><strong>{$filename}</strong></td>\n";
-            echo "                <td><span class='category {$category_class}'>{$category}</span></td>\n";
-            echo "                <td>{$file_type}</td>\n";
-            echo "                <td class='file-size'>{$size}</td>\n";
-            echo "                <td><a href='{$raw_link}' target='_blank' class='raw-link'>📥 Raw Link</a></td>\n";
-            echo "            </tr>\n";
+            // 総サイズ計算
+            foreach ($subResult['files'] as $file) {
+                $dirInfo['total_size'] += $file['size'];
+            }
+            foreach ($subResult['directories'] as $subdir) {
+                $dirInfo['total_size'] += $subdir['total_size'];
+            }
+            
+            $directories[] = $dirInfo;
+            
+        } else {
+            // ファイルの場合
+            if (!is_readable($fullPath)) {
+                continue;
+            }
+            
+            $fileInfo = [
+                'name' => $item,
+                'path' => $relativePath,
+                'full_path' => $fullPath,
+                'size' => filesize($fullPath),
+                'extension' => getFileExtension($item),
+                'modified' => filemtime($fullPath),
+                'depth' => $currentDepth
+            ];
+            
+            // ファイル分析
+            $fileInfo['type'] = analyzeFileType($fileInfo);
+            $fileInfo['category'] = categorizeFile($fileInfo);
+            
+            $files[] = $fileInfo;
         }
     }
     
-    echo "        </tbody>\n";
-    echo "    </table>\n";
-    
-    // Raw Links 一覧セクション
-    echo "    <div style='margin-top: 30px; background: #f8f9fa; padding: 20px; border-radius: 8px;'>\n";
-    echo "        <h3>📋 全ファイル Raw Links 一覧（コピー用）</h3>\n";
-    echo "        <p>以下のテキストをコピーして、ChatGPTなどのAIツールに貼り付けて分析を依頼できます。</p>\n";
-    
-    // カテゴリー別Raw Links
-    $categories_links = [];
-    foreach ($all_raw_links as $link) {
-        $categories_links[$link['category']][] = $link;
-    }
-    
-    echo "        <div style='margin: 15px 0;'>\n";
-    echo "            <button onclick='copyAllLinks()' class='btn' style='margin-right: 10px;'>📋 全リンクをコピー</button>\n";
-    echo "            <button onclick='copyCoreLinks()' class='btn' style='margin-right: 10px;'>🎯 コアファイルのみコピー</button>\n";
-    echo "            <button onclick='copyAnalysisRequest()' class='btn'>🤖 分析依頼文をコピー</button>\n";
-    echo "        </div>\n";
-    
-    // 全リンク表示
-    echo "        <div style='margin-top: 20px;'>\n";
-    echo "            <h4>🎯 コアシステムファイル（" . count(array_filter($all_raw_links, function($l) { return strpos($l['category'], 'Core') !== false; })) . "個）</h4>\n";
-    echo "            <textarea id='coreLinks' readonly style='width: 100%; height: 200px; font-family: monospace; font-size: 0.9em; border: 1px solid #d1d5da; border-radius: 6px; padding: 10px;'>";
-    foreach ($all_raw_links as $link) {
-        if (strpos($link['category'], 'Core') !== false) {
-            echo $link['raw_link'] . "\n";
-        }
-    }
-    echo "</textarea>\n";
-    echo "        </div>\n";
-    
-    echo "        <div style='margin-top: 20px;'>\n";
-    echo "            <h4>📄 全ファイルリンク（" . count($all_raw_links) . "個）</h4>\n";
-    echo "            <textarea id='allLinks' readonly style='width: 100%; height: 300px; font-family: monospace; font-size: 0.9em; border: 1px solid #d1d5da; border-radius: 6px; padding: 10px;'>";
-    foreach ($all_raw_links as $link) {
-        echo "# " . $link['filename'] . " (" . $link['category'] . " - " . formatBytes($link['size']) . ")\n";
-        echo $link['raw_link'] . "\n\n";
-    }
-    echo "</textarea>\n";
-    echo "        </div>\n";
-    
-    // 分析依頼用テンプレート
-    echo "        <div style='margin-top: 20px;'>\n";
-    echo "            <h4>🤖 AI分析依頼テンプレート</h4>\n";
-    echo "            <textarea id='analysisRequest' readonly style='width: 100%; height: 200px; font-family: monospace; font-size: 0.9em; border: 1px solid #d1d5da; border-radius: 6px; padding: 10px;'>";
-    echo "福祉輸送管理システムのGitHubファイル分析をお願いします。\n\n";
-    echo "【分析対象】\n";
-    echo "- 総ファイル数: " . count($all_raw_links) . "個\n";
-    echo "- コアシステム: " . count(array_filter($all_raw_links, function($l) { return strpos($l['category'], 'Core') !== false; })) . "個\n";
-    echo "- 保守・テストファイル: " . count(array_filter($all_raw_links, function($l) { return strpos($l['category'], 'Test') !== false || strpos($l['category'], 'Setup') !== false || strpos($l['category'], 'Fix') !== false; })) . "個\n\n";
-    echo "【分析希望項目】\n";
-    echo "1. システムの実装完成度（各ファイルの機能実装状況）\n";
-    echo "2. 削除候補ファイルの特定（テスト・デバッグ・重複ファイル等）\n";
-    echo "3. コードの品質・セキュリティ問題\n";
-    echo "4. ファイル間の依存関係\n";
-    echo "5. システム全体の技術的評価\n\n";
-    echo "【Raw Links】\n";
-    foreach ($all_raw_links as $link) {
-        echo $link['raw_link'] . "\n";
-    }
-    echo "</textarea>\n";
-    echo "        </div>\n";
-    echo "    </div>\n";
-    
-    // ファイル分類統計
-    echo "    <div style='margin-top: 30px;'>\n";
-    echo "        <h3>📊 ファイル分類統計</h3>\n";
-    echo "        <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-top: 15px;'>\n";
-    
-    foreach ($categories as $category => $count) {
-        $percentage = round(($count / $total_files) * 100, 1);
-        echo "            <div style='background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #0366d6;'>\n";
-        echo "                <div style='font-weight: bold;'>{$category}</div>\n";
-        echo "                <div style='color: #586069;'>{$count} ファイル ({$percentage}%)</div>\n";
-        echo "            </div>\n";
-    }
-    
-    echo "        </div>\n";
-    echo "    </div>\n";
-    
-    // 重要な発見事項
-    echo "    <div style='margin-top: 30px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px;'>\n";
-    echo "        <h3>⚠️ 重要な発見事項</h3>\n";
-    echo "        <ul>\n";
-    echo "            <li><strong>コアシステムファイル:</strong> {$core_files}個のメイン機能ファイルが存在</li>\n";
-    echo "            <li><strong>保守・補助ファイル:</strong> " . ($total_files - $core_files) . "個の保守・テスト・修正用ファイルが存在</li>\n";
-    echo "            <li><strong>システム完成度:</strong> コアシステムファイルの存在から、システムは高い完成度と推測</li>\n";
-    echo "            <li><strong>保守性:</strong> 多数の修正・セットアップツールにより、高い保守性を確保</li>\n";
-    echo "        </ul>\n";
-    echo "    </div>\n";
-    
-    echo "</div>\n";
-    
-    // JavaScript for filtering and copying
-    echo "<script>\n";
-    echo "function filterFiles(category) {\n";
-    echo "    const rows = document.querySelectorAll('#fileTable tbody tr');\n";
-    echo "    const buttons = document.querySelectorAll('.filter-btn');\n";
-    echo "    \n";
-    echo "    buttons.forEach(btn => btn.classList.remove('active'));\n";
-    echo "    event.target.classList.add('active');\n";
-    echo "    \n";
-    echo "    rows.forEach(row => {\n";
-    echo "        if (category === 'all' || row.dataset.category === category) {\n";
-    echo "            row.style.display = '';\n";
-    echo "        } else {\n";
-    echo "            row.style.display = 'none';\n";
-    echo "        }\n";
-    echo "    });\n";
-    echo "}\n\n";
-    
-    echo "function copyToClipboard(text) {\n";
-    echo "    navigator.clipboard.writeText(text).then(function() {\n";
-    echo "        showCopyMessage('コピーしました！');\n";
-    echo "    }, function(err) {\n";
-    echo "        console.error('コピーに失敗しました: ', err);\n";
-    echo "        showCopyMessage('コピーに失敗しました', true);\n";
-    echo "    });\n";
-    echo "}\n\n";
-    
-    echo "function showCopyMessage(message, isError = false) {\n";
-    echo "    const msg = document.createElement('div');\n";
-    echo "    msg.textContent = message;\n";
-    echo "    msg.style.cssText = `\n";
-    echo "        position: fixed; top: 20px; right: 20px; z-index: 1000;\n";
-    echo "        padding: 10px 20px; border-radius: 5px;\n";
-    echo "        background: ${isError ? '#dc3545' : '#28a745'}; color: white;\n";
-    echo "        font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);\n";
-    echo "    `;\n";
-    echo "    document.body.appendChild(msg);\n";
-    echo "    setTimeout(() => msg.remove(), 3000);\n";
-    echo "}\n\n";
-    
-    echo "function copyAllLinks() {\n";
-    echo "    const textarea = document.getElementById('allLinks');\n";
-    echo "    copyToClipboard(textarea.value);\n";
-    echo "}\n\n";
-    
-    echo "function copyCoreLinks() {\n";
-    echo "    const textarea = document.getElementById('coreLinks');\n";
-    echo "    copyToClipboard(textarea.value);\n";
-    echo "}\n\n";
-    
-    echo "function copyAnalysisRequest() {\n";
-    echo "    const textarea = document.getElementById('analysisRequest');\n";
-    echo "    copyToClipboard(textarea.value);\n";
-    echo "}\n\n";
-    
-    echo "// テキストエリアのクリック時に全選択\n";
-    echo "document.addEventListener('DOMContentLoaded', function() {\n";
-    echo "    const textareas = document.querySelectorAll('textarea');\n";
-    echo "    textareas.forEach(textarea => {\n";
-    echo "        textarea.addEventListener('click', function() {\n";
-    echo "            this.select();\n";
-    echo "        });\n";
-    echo "    });\n";
-    echo "});\n";
-    echo "</script>\n";
-    
-    echo "</body>\n";
-    echo "</html>\n";
-    
-} catch (Exception $e) {
-    echo "<div style='color: red; padding: 20px; background: #ffe6e6; border-radius: 5px; margin: 20px;'>\n";
-    echo "<h3>❌ エラーが発生しました</h3>\n";
-    echo "<p><strong>エラー詳細:</strong> " . htmlspecialchars($e->getMessage()) . "</p>\n";
-    echo "<h4>考えられる原因:</h4>\n";
-    echo "<ul>\n";
-    echo "<li>GitHub APIトークンが無効または期限切れ</li>\n";
-    echo "<li>リポジトリが存在しないまたはアクセス権限がない</li>\n";
-    echo "<li>ネットワーク接続の問題</li>\n";
-    echo "<li>GitHub APIの利用制限に達している</li>\n";
-    echo "</ul>\n";
-    echo "<h4>解決方法:</h4>\n";
-    echo "<ol>\n";
-    echo "<li>GitHub Personal Access Tokenが正しく設定されているか確認</li>\n";
-    echo "<li>トークンにリポジトリへの読み取り権限があるか確認</li>\n";
-    echo "<li>リポジトリ名・オーナー名が正しいか確認</li>\n";
-    echo "<li>しばらく時間をおいてから再試行</li>\n";
-    echo "</ol>\n";
-    echo "</div>\n";
+    return ['files' => $files, 'directories' => $directories];
 }
+
+/**
+ * ファイルタイプを分析
+ */
+function analyzeFileType($fileInfo) {
+    $ext = $fileInfo['extension'];
+    
+    $types = [
+        'php' => 'PHP スクリプト',
+        'html' => 'HTML ファイル',
+        'htm' => 'HTML ファイル',
+        'css' => 'CSS スタイルシート',
+        'js' => 'JavaScript',
+        'json' => 'JSON データ',
+        'xml' => 'XML ファイル',
+        'txt' => 'テキストファイル',
+        'md' => 'Markdown',
+        'sql' => 'SQL スクリプト',
+        'htaccess' => 'Apache 設定',
+        'log' => 'ログファイル',
+        'ini' => '設定ファイル',
+        'conf' => '設定ファイル',
+        'yml' => 'YAML 設定',
+        'yaml' => 'YAML 設定',
+        'jpg' => '画像ファイル',
+        'jpeg' => '画像ファイル',
+        'png' => '画像ファイル',
+        'gif' => '画像ファイル',
+        'svg' => 'SVG 画像',
+        'pdf' => 'PDF ドキュメント',
+        'zip' => '圧縮ファイル',
+        'tar' => '圧縮ファイル',
+        'gz' => '圧縮ファイル'
+    ];
+    
+    return $types[$ext] ?? '不明なファイル';
+}
+
+/**
+ * ファイルカテゴリを分類
+ */
+function categorizeFile($fileInfo) {
+    $name = strtolower($fileInfo['name']);
+    $ext = $fileInfo['extension'];
+    
+    // システムファイル
+    if (in_array($ext, ['php', 'html', 'css', 'js'])) {
+        if (strpos($name, 'index') !== false) {
+            return '🔐 認証システム';
+        } elseif (strpos($name, 'dashboard') !== false) {
+            return '📊 ダッシュボード';
+        } elseif (strpos($name, 'user') !== false || strpos($name, 'vehicle') !== false) {
+            return '👥 マスタ管理';
+        } elseif (strpos($name, 'pre_duty') !== false || strpos($name, 'post_duty') !== false || strpos($name, 'inspection') !== false) {
+            return '🎯 点呼・点検システム';
+        } elseif (strpos($name, 'departure') !== false || strpos($name, 'arrival') !== false || strpos($name, 'ride') !== false) {
+            return '🚀 運行管理システム';
+        } elseif (strpos($name, 'cash') !== false || strpos($name, 'annual') !== false || strpos($name, 'accident') !== false) {
+            return '💰 集金・報告システム';
+        } elseif (strpos($name, 'audit') !== false || strpos($name, 'emergency') !== false || strpos($name, 'export') !== false) {
+            return '🚨 緊急監査対応';
+        } elseif (strpos($name, 'fix') !== false || strpos($name, 'check') !== false || strpos($name, 'debug') !== false) {
+            return '🔧 保守・修正ツール';
+        }
+        return '📄 システムファイル';
+    }
+    
+    // 設定ファイル
+    if (in_array($ext, ['ini', 'conf', 'htaccess', 'yml', 'yaml', 'json'])) {
+        return '⚙️ 設定ファイル';
+    }
+    
+    // ドキュメント
+    if (in_array($ext, ['md', 'txt', 'pdf'])) {
+        return '📚 ドキュメント';
+    }
+    
+    // 画像
+    if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'svg'])) {
+        return '🖼️ 画像ファイル';
+    }
+    
+    return '📋 その他';
+}
+
+// メイン処理
+$analysisResult = scanDirectoryRecursive($target_directory, $exclude_patterns, $exclude_files);
+$allFiles = $analysisResult['files'];
+$allDirectories = $analysisResult['directories'];
+
+// 統計計算
+$totalFiles = count($allFiles);
+$totalDirectories = count($allDirectories);
+$totalSize = array_sum(array_column($allFiles, 'size'));
+
+// カテゴリ別統計
+$categoryStats = [];
+foreach ($allFiles as $file) {
+    $category = $file['category'];
+    if (!isset($categoryStats[$category])) {
+        $categoryStats[$category] = ['count' => 0, 'size' => 0];
+    }
+    $categoryStats[$category]['count']++;
+    $categoryStats[$category]['size'] += $file['size'];
+}
+
+// 拡張子別統計
+$extensionStats = [];
+foreach ($allFiles as $file) {
+    $ext = $file['extension'] ?: '(拡張子なし)';
+    if (!isset($extensionStats[$ext])) {
+        $extensionStats[$ext] = ['count' => 0, 'size' => 0];
+    }
+    $extensionStats[$ext]['count']++;
+    $extensionStats[$ext]['size'] += $file['size'];
+}
+
+// ファイルをサイズ順でソート
+usort($allFiles, function($a, $b) {
+    return $b['size'] - $a['size'];
+});
+
+// 現在時刻
+$currentTime = date('Y-m-d H:i:s');
 ?>
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福祉輸送管理システム - ファイル分析レポート</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .analysis-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+        }
+        .stat-card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .file-item {
+            border-left: 3px solid #dee2e6;
+            margin-bottom: 0.5rem;
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border-radius: 0 5px 5px 0;
+        }
+        .directory-item {
+            border-left: 3px solid #28a745;
+            background: #e8f5e9;
+        }
+        .category-badge {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .depth-indicator {
+            margin-left: 1rem;
+            border-left: 2px dashed #ccc;
+            padding-left: 1rem;
+        }
+        .progress-custom {
+            height: 8px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- ヘッダー -->
+    <div class="analysis-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1><i class="fas fa-search"></i> ファイル分析レポート</h1>
+                    <p class="mb-0">福祉輸送管理システム - 完全ディレクトリ分析</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <h5><i class="fas fa-clock"></i> <?= $currentTime ?></h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mt-4">
+        <!-- 統計サマリー -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stat-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-file fa-2x text-primary mb-2"></i>
+                        <h3 class="text-primary"><?= number_format($totalFiles) ?></h3>
+                        <p class="mb-0">総ファイル数</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-folder fa-2x text-success mb-2"></i>
+                        <h3 class="text-success"><?= number_format($totalDirectories) ?></h3>
+                        <p class="mb-0">ディレクトリ数</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-hdd fa-2x text-warning mb-2"></i>
+                        <h3 class="text-warning"><?= formatFileSize($totalSize) ?></h3>
+                        <p class="mb-0">総サイズ</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-chart-pie fa-2x text-info mb-2"></i>
+                        <h3 class="text-info"><?= count($categoryStats) ?></h3>
+                        <p class="mb-0">カテゴリ数</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- タブナビゲーション -->
+        <ul class="nav nav-tabs" id="analysisTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tree-tab" data-bs-toggle="tab" data-bs-target="#tree" type="button">
+                    <i class="fas fa-sitemap"></i> ディレクトリツリー
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="files-tab" data-bs-toggle="tab" data-bs-target="#files" type="button">
+                    <i class="fas fa-list"></i> ファイル一覧
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="categories-tab" data-bs-toggle="tab" data-bs-target="#categories" type="button">
+                    <i class="fas fa-tags"></i> カテゴリ別統計
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="extensions-tab" data-bs-toggle="tab" data-bs-target="#extensions" type="button">
+                    <i class="fas fa-file-code"></i> 拡張子別統計
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="analysisTabContent">
+            <!-- ディレクトリツリー -->
+            <div class="tab-pane fade show active" id="tree" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5><i class="fas fa-sitemap"></i> ディレクトリ構造</h5>
+                    </div>
+                    <div class="card-body">
+                        <?php
+                        function displayDirectoryTree($directories, $files, $depth = 0) {
+                            // 現在の深度のディレクトリを表示
+                            foreach ($directories as $dir) {
+                                if ($dir['depth'] === $depth) {
+                                    echo '<div class="directory-item">';
+                                    echo str_repeat('<div class="depth-indicator">', $depth);
+                                    echo '<i class="fas fa-folder"></i> <strong>' . htmlspecialchars($dir['name']) . '</strong>';
+                                    echo ' <span class="badge bg-success">' . $dir['items_count'] . ' items</span>';
+                                    echo ' <span class="badge bg-info">' . formatFileSize($dir['total_size']) . '</span>';
+                                    echo str_repeat('</div>', $depth);
+                                    echo '</div>';
+                                    
+                                    // サブディレクトリがあれば再帰表示
+                                    if (!empty($dir['subdirectories'])) {
+                                        displayDirectoryTree($dir['subdirectories'], $dir['files'], $depth + 1);
+                                    }
+                                    
+                                    // このディレクトリ内のファイルを表示
+                                    foreach ($dir['files'] as $file) {
+                                        echo '<div class="file-item">';
+                                        echo str_repeat('<div class="depth-indicator">', $depth + 1);
+                                        echo '<i class="fas fa-file"></i> ' . htmlspecialchars($file['name']);
+                                        echo ' <span class="badge category-badge bg-secondary">' . $file['category'] . '</span>';
+                                        echo ' <span class="badge bg-light text-dark">' . formatFileSize($file['size']) . '</span>';
+                                        echo str_repeat('</div>', $depth + 1);
+                                        echo '</div>';
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // ルートディレクトリのファイルを表示
+                        foreach ($allFiles as $file) {
+                            if ($file['depth'] === 0) {
+                                echo '<div class="file-item">';
+                                echo '<i class="fas fa-file"></i> ' . htmlspecialchars($file['name']);
+                                echo ' <span class="badge category-badge bg-secondary">' . $file['category'] . '</span>';
+                                echo ' <span class="badge bg-light text-dark">' . formatFileSize($file['size']) . '</span>';
+                                echo '</div>';
+                            }
+                        }
+                        
+                        // ディレクトリツリーを表示
+                        displayDirectoryTree($allDirectories, [], 0);
+                        ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ファイル一覧 -->
+            <div class="tab-pane fade" id="files" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5><i class="fas fa-list"></i> 全ファイル一覧（サイズ順）</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>ファイル名</th>
+                                        <th>パス</th>
+                                        <th>カテゴリ</th>
+                                        <th>サイズ</th>
+                                        <th>タイプ</th>
+                                        <th>更新日時</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($allFiles as $file): ?>
+                                    <tr>
+                                        <td>
+                                            <i class="fas fa-file text-muted"></i>
+                                            <strong><?= htmlspecialchars($file['name']) ?></strong>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted"><?= htmlspecialchars($file['path']) ?></small>
+                                        </td>
+                                        <td>
+                                            <span class="badge category-badge bg-secondary"><?= $file['category'] ?></span>
+                                        </td>
+                                        <td><?= formatFileSize($file['size']) ?></td>
+                                        <td><small><?= $file['type'] ?></small></td>
+                                        <td><small><?= date('Y/m/d H:i', $file['modified']) ?></small></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- カテゴリ別統計 -->
+            <div class="tab-pane fade" id="categories" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5><i class="fas fa-tags"></i> カテゴリ別統計</h5>
+                    </div>
+                    <div class="card-body">
+                        <?php
+                        // カテゴリをサイズ順でソート
+                        uasort($categoryStats, function($a, $b) {
+                            return $b['size'] - $a['size'];
+                        });
+                        ?>
+                        <?php foreach ($categoryStats as $category => $stats): ?>
+                        <?php $percentage = ($stats['size'] / $totalSize) * 100; ?>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge category-badge bg-secondary"><?= $category ?></span>
+                                <small><?= $stats['count'] ?> ファイル (<?= formatFileSize($stats['size']) ?>)</small>
+                            </div>
+                            <div class="progress progress-custom">
+                                <div class="progress-bar" role="progressbar" style="width: <?= $percentage ?>%" 
+                                     aria-valuenow="<?= $percentage ?>" aria-valuemin="0" aria-valuemax="100">
+                                </div>
+                            </div>
+                            <small class="text-muted"><?= number_format($percentage, 1) ?>%</small>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 拡張子別統計 -->
+            <div class="tab-pane fade" id="extensions" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5><i class="fas fa-file-code"></i> 拡張子別統計</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>拡張子</th>
+                                        <th>ファイル数</th>
+                                        <th>総サイズ</th>
+                                        <th>平均サイズ</th>
+                                        <th>比率</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
+                                    // 拡張子をファイル数順でソート
+                                    uasort($extensionStats, function($a, $b) {
+                                        return $b['count'] - $a['count'];
+                                    });
+                                    ?>
+                                    <?php foreach ($extensionStats as $ext => $stats): ?>
+                                    <?php 
+                                    $percentage = ($stats['count'] / $totalFiles) * 100;
+                                    $avgSize = $stats['size'] / $stats['count'];
+                                    ?>
+                                    <tr>
+                                        <td><code>.<?= htmlspecialchars($ext) ?></code></td>
+                                        <td><?= $stats['count'] ?></td>
+                                        <td><?= formatFileSize($stats['size']) ?></td>
+                                        <td><?= formatFileSize($avgSize) ?></td>
+                                        <td>
+                                            <div class="progress progress-custom" style="width: 100px;">
+                                                <div class="progress-bar bg-info" style="width: <?= $percentage ?>%"></div>
+                                            </div>
+                                            <small><?= number_format($percentage, 1) ?>%</small>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- フッター -->
+        <div class="text-center mt-4 mb-4">
+            <p class="text-muted">
+                <i class="fas fa-info-circle"></i> 
+                福祉輸送管理システム - ファイル分析ツール v2.0
+            </p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
