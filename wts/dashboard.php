@@ -213,14 +213,14 @@ try {
     $today_arrivals = $stmt->fetchColumn();
     
     // 今日の乗車記録数と売上
-    $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(fare_amount), 0) as revenue FROM ride_records WHERE ride_date = ?");
+    $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(total_fare), 0) as revenue FROM ride_records WHERE ride_date = ?");
     $stmt->execute([$today]);
     $result = $stmt->fetch();
     $today_ride_records = $result ? $result['count'] : 0;
     $today_total_revenue = $result ? $result['revenue'] : 0;
 
     // 当月の乗車記録数と売上
-    $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(fare_amount), 0) as revenue FROM ride_records WHERE ride_date >= ?");
+    $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(total_fare), 0) as revenue FROM ride_records WHERE ride_date >= ?");
     $stmt->execute([$current_month_start]);
     $result = $stmt->fetch();
     $month_ride_records = $result ? $result['count'] : 0;
