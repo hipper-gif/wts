@@ -1,0 +1,36 @@
+name: 🚀 開発環境デプロイ（自動）
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy-development:
+    name: 開発環境デプロイ
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📂 ファイル取得
+      uses: actions/checkout@v4
+    
+    - name: 🚀 開発環境にデプロイ
+      uses: SamKirkland/FTP-Deploy-Action@4.3.3
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        local-dir: ./wts/
+        # 🎯 開発環境パス
+        server-dir: /twinklemark.xsrv.jp/public_html/Smiley/taxi/wts/
+        exclude: |
+          **/.git*
+          **/.gitignore
+          **/README.md
+          **/.github/**
+          **/node_modules/**
+        dry-run: false
+        log-level: verbose
+    
+    - name: ✅ デプロイ完了通知
+      run: |
+        echo "🎉 開発環境デプロイ完了！"
+        echo "📱 URL: https://twinklemark.xsrv.jp/Smiley/taxi/wts/"
