@@ -692,30 +692,47 @@ $payment_methods = ['現金', 'カード', 'その他'];
             }
         }
 
-        /* ✅ スマートフォン最適化：モーダル */
+        /* ✅ スマートフォン最適化：モーダル表示問題を修正 */
         @media (max-width: 576px) {
             .modal-dialog {
                 margin: 0;
                 max-width: 100%;
                 height: 100vh;
+                display: flex;
+                flex-direction: column;
             }
             
             .modal-content {
                 height: 100vh;
                 border-radius: 0;
                 border: none;
-            }
-            
-            .modal-body {
-                padding: 16px;
-                overflow-y: auto;
-                /* セーフエリア対応 */
-                padding-bottom: calc(16px + env(safe-area-inset-bottom));
+                display: flex;
+                flex-direction: column;
             }
             
             .modal-header {
+                flex-shrink: 0;
                 padding: 16px;
+                border-bottom: 1px solid #dee2e6;
+                /* ノッチ対応 */
                 padding-top: calc(16px + env(safe-area-inset-top));
+            }
+            
+            .modal-body {
+                flex: 1;
+                overflow-y: auto;
+                padding: 16px;
+                /* 下部余白を確実に確保 */
+                padding-bottom: 20px;
+            }
+            
+            .modal-footer {
+                flex-shrink: 0; /* フッターを固定サイズに */
+                padding: 16px;
+                border-top: 1px solid #dee2e6;
+                background-color: #fff; /* 背景色を明示的に指定 */
+                /* セーフエリア対応 */
+                padding-bottom: calc(16px + env(safe-area-inset-bottom));
             }
             
             /* よく使う場所のドロップダウンを大きく */
@@ -758,6 +775,20 @@ $payment_methods = ['現金', 'カード', 'その他'];
             
             .amount-display {
                 font-size: 1.1em;
+            }
+
+            /* ✅ 運転者・車両選択エリアの調整 */
+            .default-info-banner {
+                padding: 12px;
+                margin-bottom: 12px;
+            }
+            
+            .default-info-banner .default-info-item small {
+                font-size: 0.7rem;
+            }
+            
+            .default-info-banner .default-info-item strong {
+                font-size: 0.85rem;
             }
         }
     </style>
@@ -1033,22 +1064,19 @@ $payment_methods = ['現金', 'カード', 'その他'];
                     <input type="hidden" name="is_return_trip" id="modalIsReturnTrip" value="0">
                     <input type="hidden" name="original_ride_id" id="modalOriginalRideId">
                     
-                    <!-- ✅ 隠しフィールド（デフォルト設定済み） -->
-                    <input type="hidden" id="modalDriverId" name="driver_id" value="<?php echo $default_driver_id; ?>">
-                    <input type="hidden" id="modalVehicleId" name="vehicle_id" value="<?php echo $default_vehicle_id; ?>">
-                    
                     <div class="modal-body">
-                        <!-- ✅ デフォルト選択情報を上部に表示 -->
-                        <?php if ($user_is_driver): ?>
+                        <!-- ✅ 運転者・車両選択：最小化表示 + 変更ボタン -->
                         <div class="default-info-banner">
-                            <div class="row">
-                                <div class="col-6 default-info-item">
+                            <div class="row align-items-center">
+                                <div class="col-4 default-info-item">
                                     <small class="text-muted">運転者</small><br>
-                                    <strong><?php echo htmlspecialchars($user_name); ?></strong>
+                                    <strong id="selectedDriverName">
+                                        <?php echo htmlspecialchars($user_name); ?>
+                                    </strong>
                                 </div>
-                                <div class="col-6 default-info-item">
+                                <div class="col-4 default-info-item">
                                     <small class="text-muted">車両</small><br>
-                                    <strong id="defaultVehicleDisplay">
+                                    <strong id="selectedVehicleName">
                                         <?php if ($default_vehicle_info): ?>
                                             <?php echo htmlspecialchars($default_vehicle_info['vehicle_number']); ?>
                                         <?php else: ?>
@@ -1056,9 +1084,52 @@ $payment_methods = ['現金', 'カード', 'その他'];
                                         <?php endif; ?>
                                     </strong>
                                 </div>
+                                <div class="col-4 text-end">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleDriverVehicleSelection()" id="editDriverVehicleBtn">
+                                        <i class="fas fa-edit me-1"></i>変更
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- ✅ 変更時に表示される選択エリア -->
+                            <div id="driverVehicleSelection" style="display: none;" class="mt-3">
+                                <div class="row g-2">
+                                    <div class="col-md-6 mb-2">
+                                        <label class="form-label-sm">運転者選択</label>
+                                        <select class="form-select form-select-sm" id="modalDriverId" name="driver_id" required>
+                                            <option value="">運転者を選択</option>
+                                            <?php foreach ($drivers as $driver): ?>
+                                                <option value="<?php echo $driver['id']; ?>" 
+                                                    <?php echo ($driver['id'] == $default_driver_id) ? 'selected' : ''; ?>>
+                                                    <?php echo htmlspecialchars($driver['name']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <label class="form-label-sm">車両選択</label>
+                                        <select class="form-select form-select-sm" id="modalVehicleId" name="vehicle_id" required>
+                                            <option value="">車両を選択</option>
+                                            <?php foreach ($vehicles as $vehicle): ?>
+                                                <option value="<?php echo $vehicle['id']; ?>" 
+                                                    <?php echo ($vehicle['id'] == $default_vehicle_id) ? 'selected' : ''; ?>
+                                                    data-vehicle-number="<?php echo htmlspecialchars($vehicle['vehicle_number']); ?>">
+                                                    <?php echo htmlspecialchars($vehicle['vehicle_number'] . ' - ' . $vehicle['vehicle_name']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <button type="button" class="btn btn-success btn-sm me-2" onclick="applyDriverVehicleSelection()">
+                                        <i class="fas fa-check me-1"></i>適用
+                                    </button>
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="cancelDriverVehicleSelection()">
+                                        <i class="fas fa-times me-1"></i>キャンセル
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <?php endif; ?>
 
                         <!-- 復路情報表示 -->
                         <div id="returnTripInfo" class="return-trip-info" style="display: none;"></div>
@@ -1194,9 +1265,74 @@ $payment_methods = ['現金', 'カード', 'その他'];
         const currentUserId = <?php echo $user_id; ?>;
         const userIsDriver = <?php echo $user_is_driver ? 'true' : 'false'; ?>;
         
-        // ✅ デフォルト値の設定
+        // ✅ デフォルト値の設定（初期値として保持）
         const defaultDriverId = <?php echo $default_driver_id ? $default_driver_id : 'null'; ?>;
         const defaultVehicleId = <?php echo $default_vehicle_id ? $default_vehicle_id : 'null'; ?>;
+        
+        // 現在選択されている値を保持
+        let currentDriverId = defaultDriverId;
+        let currentVehicleId = defaultVehicleId;
+
+        // ✅ 運転者・車両選択の制御
+        function toggleDriverVehicleSelection() {
+            const selectionArea = document.getElementById('driverVehicleSelection');
+            const editBtn = document.getElementById('editDriverVehicleBtn');
+            
+            if (selectionArea.style.display === 'none') {
+                selectionArea.style.display = 'block';
+                editBtn.innerHTML = '<i class="fas fa-times me-1"></i>閉じる';
+                editBtn.className = 'btn btn-outline-secondary btn-sm';
+            } else {
+                selectionArea.style.display = 'none';
+                editBtn.innerHTML = '<i class="fas fa-edit me-1"></i>変更';
+                editBtn.className = 'btn btn-outline-primary btn-sm';
+            }
+        }
+
+        function applyDriverVehicleSelection() {
+            const driverSelect = document.getElementById('modalDriverId');
+            const vehicleSelect = document.getElementById('modalVehicleId');
+            const driverNameDisplay = document.getElementById('selectedDriverName');
+            const vehicleNameDisplay = document.getElementById('selectedVehicleName');
+            
+            // 選択された値を取得
+            const selectedDriverId = driverSelect.value;
+            const selectedVehicleId = vehicleSelect.value;
+            
+            if (!selectedDriverId || !selectedVehicleId) {
+                alert('運転者と車両の両方を選択してください。');
+                return;
+            }
+            
+            // 現在の選択を更新
+            currentDriverId = selectedDriverId;
+            currentVehicleId = selectedVehicleId;
+            
+            // 表示名を更新
+            const selectedDriverText = driverSelect.options[driverSelect.selectedIndex].text;
+            const selectedVehicleNumber = vehicleSelect.options[vehicleSelect.selectedIndex].getAttribute('data-vehicle-number');
+            
+            driverNameDisplay.textContent = selectedDriverText;
+            vehicleNameDisplay.textContent = selectedVehicleNumber;
+            
+            // 選択エリアを閉じる
+            toggleDriverVehicleSelection();
+            
+            // バイブレーション
+            if (navigator.vibrate) navigator.vibrate(100);
+        }
+
+        function cancelDriverVehicleSelection() {
+            const driverSelect = document.getElementById('modalDriverId');
+            const vehicleSelect = document.getElementById('modalVehicleId');
+            
+            // 現在の値に戻す
+            driverSelect.value = currentDriverId;
+            vehicleSelect.value = currentVehicleId;
+            
+            // 選択エリアを閉じる
+            toggleDriverVehicleSelection();
+        }
 
         // 新規登録モーダル表示
         function showAddModal() {
@@ -1216,13 +1352,27 @@ $payment_methods = ['現金', 'カード', 'その他'];
             document.getElementById('modalPaymentMethod').value = '現金';
             document.getElementById('modalTransportCategory').value = '通院';
             
-            // ✅ デフォルト値の自動設定
+            // ✅ デフォルト値の設定
+            currentDriverId = defaultDriverId;
+            currentVehicleId = defaultVehicleId;
+            
             if (defaultDriverId) {
                 document.getElementById('modalDriverId').value = defaultDriverId;
             }
             if (defaultVehicleId) {
                 document.getElementById('modalVehicleId').value = defaultVehicleId;
             }
+            
+            // 表示名をリセット
+            document.getElementById('selectedDriverName').textContent = '<?php echo htmlspecialchars($user_name); ?>';
+            document.getElementById('selectedVehicleName').textContent = '<?php echo $default_vehicle_info ? htmlspecialchars($default_vehicle_info['vehicle_number']) : '未設定'; ?>';
+            
+            // 選択エリアを閉じる
+            const selectionArea = document.getElementById('driverVehicleSelection');
+            const editBtn = document.getElementById('editDriverVehicleBtn');
+            selectionArea.style.display = 'none';
+            editBtn.innerHTML = '<i class="fas fa-edit me-1"></i>変更';
+            editBtn.className = 'btn btn-outline-primary btn-sm';
             
             // 乗車人数ボタンのリセット
             resetPassengerButtons();
@@ -1250,6 +1400,19 @@ $payment_methods = ['現金', 'カード', 'その他'];
             document.getElementById('modalTransportCategory').value = record.transport_category;
             document.getElementById('modalPaymentMethod').value = record.payment_method;
             document.getElementById('modalNotes').value = record.notes || '';
+            
+            // ✅ 現在の選択値を更新
+            currentDriverId = record.driver_id;
+            currentVehicleId = record.vehicle_id;
+            
+            // ✅ 表示名を更新
+            const driverSelect = document.getElementById('modalDriverId');
+            const vehicleSelect = document.getElementById('modalVehicleId');
+            const selectedDriverText = driverSelect.options[driverSelect.selectedIndex]?.text || '不明';
+            const selectedVehicleNumber = vehicleSelect.options[vehicleSelect.selectedIndex]?.getAttribute('data-vehicle-number') || '不明';
+            
+            document.getElementById('selectedDriverName').textContent = selectedDriverText;
+            document.getElementById('selectedVehicleName').textContent = selectedVehicleNumber;
             
             // 乗車人数ボタンの設定
             setPassengerCount(record.passenger_count);
@@ -1290,6 +1453,19 @@ $payment_methods = ['現金', 'カード', 'その他'];
             document.getElementById('modalTransportCategory').value = record.transport_category;
             document.getElementById('modalPaymentMethod').value = record.payment_method;
             document.getElementById('modalNotes').value = '';
+            
+            // ✅ 現在の選択値を更新
+            currentDriverId = record.driver_id;
+            currentVehicleId = record.vehicle_id;
+            
+            // ✅ 表示名を更新
+            const driverSelect = document.getElementById('modalDriverId');
+            const vehicleSelect = document.getElementById('modalVehicleId');
+            const selectedDriverText = driverSelect.options[driverSelect.selectedIndex]?.text || '不明';
+            const selectedVehicleNumber = vehicleSelect.options[vehicleSelect.selectedIndex]?.getAttribute('data-vehicle-number') || '不明';
+            
+            document.getElementById('selectedDriverName').textContent = selectedDriverText;
+            document.getElementById('selectedVehicleName').textContent = selectedVehicleNumber;
             
             // 乗車人数ボタンの設定
             setPassengerCount(record.passenger_count);
@@ -1500,21 +1676,22 @@ $payment_methods = ['現金', 'カード', 'その他'];
             const action = document.getElementById('modalAction').value;
             const isReturnTrip = document.getElementById('modalIsReturnTrip').value === '1';
             
-            // ✅ バリデーション：デフォルト値がない場合の警告
-            const driverId = document.getElementById('modalDriverId').value;
-            const vehicleId = document.getElementById('modalVehicleId').value;
-            
-            if (!driverId) {
-                alert('運転者が設定されていません。システム管理者にお問い合わせください。');
+            // ✅ バリデーション：運転者・車両の確認（現在の選択値を使用）
+            if (!currentDriverId) {
+                alert('運転者が設定されていません。運転者を選択してください。');
                 e.preventDefault();
                 return;
             }
             
-            if (!vehicleId) {
-                alert('車両が設定されていません。システム管理者にお問い合わせください。');
+            if (!currentVehicleId) {
+                alert('車両が設定されていません。車両を選択してください。');
                 e.preventDefault();
                 return;
             }
+            
+            // 隠しフィールドに現在の選択値を設定（確実な送信のため）
+            document.getElementById('modalDriverId').value = currentDriverId;
+            document.getElementById('modalVehicleId').value = currentVehicleId;
             
             let message = '';
             if (action === 'add' && isReturnTrip) {
@@ -1523,6 +1700,15 @@ $payment_methods = ['現金', 'カード', 'その他'];
                 message = '乗車記録を登録しますか？';
             } else {
                 message = '乗車記録を更新しますか？';
+            }
+            
+            if (!confirm(message)) {
+                e.preventDefault();
+            }
+        });
+    </script>
+</body>
+</html>';
             }
             
             if (!confirm(message)) {
