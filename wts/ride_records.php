@@ -1237,11 +1237,11 @@ $payment_methods = ['現金', 'カード', 'その他'];
                             </div>
                         </div>
 
-                        <!-- 備考欄：必要時のみ表示 -->
+                        <!-- ✅ 備考欄：他のフィールドと統一 -->
                         <div class="compact-form-section">
                             <label class="form-label-sm">備考（任意）</label>
-                            <textarea class="form-control" id="modalNotes" name="notes" rows="2" 
-                                      placeholder="特記事項があれば入力してください"></textarea>
+                            <textarea class="form-control form-control-sm" id="modalNotes" name="notes" rows="2" 
+                                      style="resize: none;" placeholder="特記事項があれば入力してください"></textarea>
                         </div>
                     </div>
                     
