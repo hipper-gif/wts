@@ -43,6 +43,23 @@ $error_message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = $_POST['action'] ?? 'add';
+
+// ✅ 追加：データ保存時の自動計算（47行目付近に追加）
+$fare = $_POST['fare'];
+$charge = $_POST['charge'] ?? 0;
+$total_fare = $fare + $charge;
+$payment_method = $_POST['payment_method'];
+
+// 支払い方法別金額計算
+$cash_amount = ($payment_method === '現金') ? $total_fare : 0;
+$card_amount = ($payment_method === 'カード') ? $total_fare : 0;
+
+$insert_sql = "INSERT INTO ride_records 
+    (driver_id, vehicle_id, ride_date, ride_time, passenger_count, 
+     pickup_location, dropoff_location, fare, charge, total_fare, 
+     cash_amount, card_amount, transport_category, payment_method, 
+     notes, is_return_trip, original_ride_id, created_at) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
         
         if ($action === 'add') {
             // 新規追加
@@ -203,15 +220,18 @@ $rides_stmt->execute($params);
 $rides = $rides_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 日次集計
+// ✅ 修正版：ride_records.php の集計処理（174-185行目）
 $summary_sql = "SELECT 
     COUNT(*) as total_rides,
     SUM(r.passenger_count) as total_passengers,
-    SUM(r.fare + r.charge) as total_revenue,
-    AVG(r.fare + r.charge) as avg_fare,
+    SUM(COALESCE(r.total_fare, r.fare + r.charge)) as total_revenue,
+    AVG(COALESCE(r.total_fare, r.fare + r.charge)) as avg_fare,
     COUNT(CASE WHEN r.payment_method = '現金' THEN 1 END) as cash_count,
     COUNT(CASE WHEN r.payment_method = 'カード' THEN 1 END) as card_count,
-    SUM(CASE WHEN r.payment_method = '現金' THEN r.fare + r.charge ELSE 0 END) as cash_total,
-    SUM(CASE WHEN r.payment_method = 'カード' THEN r.fare + r.charge ELSE 0 END) as card_total
+    SUM(COALESCE(r.cash_amount, 
+        CASE WHEN r.payment_method = '現金' THEN COALESCE(r.total_fare, r.fare + r.charge) ELSE 0 END)) as cash_total,
+    SUM(COALESCE(r.card_amount, 
+        CASE WHEN r.payment_method = 'カード' THEN COALESCE(r.total_fare, r.fare + r.charge) ELSE 0 END)) as card_total
     FROM ride_records r 
     WHERE " . implode(' AND ', $where_conditions);
 $summary_stmt = $pdo->prepare($summary_sql);
