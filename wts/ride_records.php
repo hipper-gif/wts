@@ -1202,12 +1202,12 @@ $payment_methods = ['現金', 'カード', 'その他'];
                                 <div class="col-8">
                                     <label class="form-label-sm">運賃</label>
                                     <input type="number" class="form-control fare-input" id="modalFare" name="fare" 
-                                           placeholder="0" min="0" step="100" required>
+                                           placeholder="金額を入力" min="0" step="10" required>
                                 </div>
                                 <div class="col-4">
                                     <label class="form-label-sm">追加</label>
                                     <input type="number" class="form-control" id="modalCharge" name="charge" 
-                                           value="0" min="0" step="100">
+                                           value="0" min="0" step="10">
                                 </div>
                             </div>
                         </div>
