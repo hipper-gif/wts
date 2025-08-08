@@ -1,4 +1,4 @@
-name: エックスサーバー自動デプロイ（削除対応版）
+name: エックスサーバー自動デプロイ
 on:
   push:
     branches: [ main ]
@@ -12,16 +12,17 @@ jobs:
     - name: ファイル取得
       uses: actions/checkout@v4
     
-    - name: エックスサーバーにアップロード（削除対応）
+    - name: エックスサーバーにアップロード
       uses: SamKirkland/FTP-Deploy-Action@4.3.3
       with:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
         local-dir: ./wts/
-        server-dir: /tw1nkle.com/public_html/Smiley/taxi/wts/
-        # 🎯 追加: 削除機能を有効化
-        dangerous-clean-slate: true  # ⚠️ サーバー側を完全同期
+        # 🎯 新しいデプロイ先
+        server-dir: /twinklemark.xsrv.jp/public_html/Smiley/taxi/wts/
+        # ⚠️ 初回のみ：削除したファイルを確実に反映
+        dangerous-clean-slate: true
         exclude: |
           **/.git*
           **/.gitignore
