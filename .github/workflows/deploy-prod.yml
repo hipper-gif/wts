@@ -1,0 +1,56 @@
+name: 🔥 本番環境デプロイ（手動のみ）
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: '本番デプロイを実行しますか？'
+        required: true
+        default: 'no'
+        type: choice
+        options:
+        - 'no'
+        - 'yes'
+      message:
+        description: 'デプロイ理由・メモ'
+        required: false
+        default: ''
+
+jobs:
+  deploy-production:
+    name: 本番環境デプロイ
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: ⚠️ 確認チェック
+      if: github.event.inputs.confirmation != 'yes'
+      run: |
+        echo "❌ デプロイがキャンセルされました"
+        echo "確認欄で 'yes' を選択してください"
+        exit 1
+    
+    - name: 📂 ファイル取得
+      uses: actions/checkout@v4
+    
+    - name: 🔥 本番環境にデプロイ
+      uses: SamKirkland/FTP-Deploy-Action@4.3.3
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        local-dir: ./wts/
+        # 🎯 本番環境パス
+        server-dir: /tw1nkle.com/public_html/Smiley/taxi/wts/
+        exclude: |
+          **/.git*
+          **/.gitignore
+          **/README.md
+          **/.github/**
+          **/node_modules/**
+        dry-run: false
+        log-level: verbose
+    
+    - name: ✅ 本番デプロイ完了通知
+      run: |
+        echo "🎉 本番環境デプロイ完了！"
+        echo "🌐 URL: https://tw1nkle.com/Smiley/taxi/wts/"
+        echo "📝 デプロイ理由: ${{ github.event.inputs.message }}"
