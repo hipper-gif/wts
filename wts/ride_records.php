@@ -714,12 +714,15 @@ $payment_methods = ['現金', 'カード', 'その他'];
                 border: none;
                 display: flex;
                 flex-direction: column;
+                background-color: #fff; /* 背景色を確実に設定 */
+                z-index: 1060; /* モーダルより上位に */
             }
             
             .modal-header {
                 flex-shrink: 0;
                 padding: 16px;
                 border-bottom: 1px solid #dee2e6;
+                background-color: #fff; /* 背景色を明示 */
                 /* ノッチ対応 */
                 padding-top: calc(16px + env(safe-area-inset-top));
             }
@@ -728,8 +731,11 @@ $payment_methods = ['現金', 'カード', 'その他'];
                 flex: 1;
                 overflow-y: auto;
                 padding: 16px;
+                background-color: #fff; /* 背景色を明示 */
                 /* 下部余白を確実に確保 */
                 padding-bottom: 20px;
+                position: relative; /* 位置を確実に指定 */
+                z-index: 1061; /* より上位のz-index */
             }
             
             .modal-footer {
@@ -739,16 +745,34 @@ $payment_methods = ['現金', 'カード', 'その他'];
                 background-color: #fff; /* 背景色を明示的に指定 */
                 /* セーフエリア対応 */
                 padding-bottom: calc(16px + env(safe-area-inset-bottom));
+                position: relative; /* 位置を確実に指定 */
+                z-index: 1061; /* より上位のz-index */
+            }
+
+            /* ✅ モーダル背景の確実な制御 */
+            .modal-backdrop {
+                background-color: rgba(0, 0, 0, 0.8) !important; /* より濃い背景 */
+                z-index: 1055 !important; /* 確実に後ろに */
+            }
+
+            /* ✅ モーダル全体のz-index調整 */
+            .modal {
+                z-index: 1060 !important;
             }
             
             /* よく使う場所のドロップダウンを大きく */
             .location-suggestions {
                 max-height: 30vh;
+                z-index: 1070; /* モーダルより上位に */
+                background-color: #fff;
+                border: 1px solid #dee2e6;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             }
             
             .location-suggestion {
                 padding: 16px;
                 font-size: 1rem;
+                background-color: #fff; /* 背景色を確実に設定 */
             }
 
             .passenger-btn {
@@ -787,6 +811,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
             .default-info-banner {
                 padding: 12px;
                 margin-bottom: 12px;
+                background-color: #fff; /* 背景色確保 */
             }
             
             .default-info-banner .default-info-item small {
@@ -798,18 +823,27 @@ $payment_methods = ['現金', 'カード', 'その他'];
             }
 
             /* ✅ 備考欄のスマートフォン対応 */
+            .compact-form-section {
+                background-color: #fff; /* 背景色を確実に設定 */
+                position: relative;
+            }
+
             .compact-form-section:last-child {
                 margin-bottom: 0;
+                padding-bottom: 10px; /* 追加の余白 */
             }
             
             .form-control-sm {
                 font-size: 0.85rem;
                 padding: 8px 10px;
+                background-color: #fff; /* 背景色を確実に設定 */
+                border: 1px solid #ced4da;
             }
             
             .form-control-sm[rows] {
                 min-height: 60px;
                 resize: none;
+                background-color: #fff !important; /* 重要度を上げて確実に適用 */
             }
         }
     </style>
