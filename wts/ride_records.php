@@ -397,6 +397,12 @@ $payment_methods = ['現金', 'カード', 'その他'];
             padding: 6px 8px;
         }
 
+        /* ✅ 備考欄の特別対応 */
+        .form-control-sm[rows] {
+            min-height: auto;
+            line-height: 1.4;
+        }
+
         /* ✅ 乗車人数ボタン */
         .passenger-control {
             text-align: center;
@@ -789,6 +795,21 @@ $payment_methods = ['現金', 'カード', 'その他'];
             
             .default-info-banner .default-info-item strong {
                 font-size: 0.85rem;
+            }
+
+            /* ✅ 備考欄のスマートフォン対応 */
+            .compact-form-section:last-child {
+                margin-bottom: 0;
+            }
+            
+            .form-control-sm {
+                font-size: 0.85rem;
+                padding: 8px 10px;
+            }
+            
+            .form-control-sm[rows] {
+                min-height: 60px;
+                resize: none;
             }
         }
     </style>
@@ -1237,11 +1258,12 @@ $payment_methods = ['現金', 'カード', 'その他'];
                             </div>
                         </div>
 
-                        <!-- ✅ 備考欄：他のフィールドと統一 -->
+                        <!-- ✅ 備考欄：レイアウト修正 -->
                         <div class="compact-form-section">
-                            <label class="form-label-sm">備考（任意）</label>
-                            <textarea class="form-control form-control-sm" id="modalNotes" name="notes" rows="2" 
-                                      style="resize: none;" placeholder="特記事項があれば入力してください"></textarea>
+                            <label class="form-label-sm" for="modalNotes">備考（任意）</label>
+                            <textarea class="form-control form-control-sm" id="modalNotes" name="notes" 
+                                      rows="2" style="resize: none; width: 100%; box-sizing: border-box;" 
+                                      placeholder="特記事項があれば入力してください"></textarea>
                         </div>
                     </div>
                     
