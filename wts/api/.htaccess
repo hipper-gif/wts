@@ -1,0 +1,48 @@
+# API用 .htaccess
+# 福祉輸送管理システム APIディレクトリ
+
+# セキュリティヘッダー
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options DENY
+Header always set X-XSS-Protection "1; mode=block"
+
+# Content-Type強制
+<Files "*.php">
+    Header set Content-Type "application/json; charset=UTF-8"
+</Files>
+
+# 直接アクセス制限（Ajax以外からのアクセスを制限）
+RewriteEngine On
+
+# AjaxリクエストかContent-Typeが適切な場合のみ許可
+RewriteCond %{REQUEST_METHOD} POST
+RewriteCond %{HTTP_X_REQUESTED_WITH} !^XMLHttpRequest$ [NC]
+RewriteCond %{CONTENT_TYPE} !^application/x-www-form-urlencoded [NC]
+RewriteCond %{CONTENT_TYPE} !^multipart/form-data [NC]
+RewriteRule ^.*$ - [F,L]
+
+# ログファイルへのアクセス禁止
+<Files "*.log">
+    Require all denied
+</Files>
+
+# バックアップファイルへのアクセス禁止
+<FilesMatch "\.(bak|backup|old|tmp)$">
+    Require all denied
+</FilesMatch>
+
+# エラーページ設定
+ErrorDocument 403 "API Access Forbidden"
+ErrorDocument 404 "API Endpoint Not Found"
+ErrorDocument 500 "Internal API Error"
+
+# キャッシュ無効化（APIレスポンス用）
+<IfModule mod_headers.c>
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+</IfModule>
+
+# PHP設定（エラー非表示）
+php_flag display_errors Off
+php_flag log_errors On
