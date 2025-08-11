@@ -58,7 +58,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $arrival_mileage = $_POST['arrival_mileage'];
         $fuel_cost = $_POST['fuel_cost'] ?? 0;
         $highway_cost = $_POST['highway_cost'] ?? 0;
+        $toll_cost = $_POST['toll_cost'] ?? 0;
         $other_cost = $_POST['other_cost'] ?? 0;
+        $remarks = $_POST['remarks'] ?? '';
 
         // 出庫メーターを取得して走行距離を計算
         $departure_mileage = 0;
@@ -76,8 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 入庫記録保存
         $stmt = $pdo->prepare("
             INSERT INTO arrival_records 
-            (departure_record_id, driver_id, vehicle_id, arrival_date, arrival_time, arrival_mileage, total_distance, fuel_cost, highway_cost, other_cost, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            (departure_record_id, driver_id, vehicle_id, arrival_date, arrival_time, arrival_mileage, total_distance, fuel_cost, highway_cost, toll_cost, other_cost, remarks, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ");
         
         $stmt->execute([
@@ -90,14 +92,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $total_distance,
             $fuel_cost,
             $highway_cost,
-            $other_cost
+            $toll_cost,
+            $other_cost,
+            $remarks
         ]);
 
         // 車両の走行距離を更新
         $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ?");
         $stmt->execute([$arrival_mileage, $vehicle_id]);
 
-        $success_message = "入庫記録を保存しました。";
+        // 最後に保存した入庫記録IDをセッションに保存（編集用）
+        $_SESSION['last_arrival_id'] = $pdo->lastInsertId();
+        $_SESSION['last_driver_id'] = $driver_id;
+        $_SESSION['last_vehicle_id'] = $vehicle_id;
         
         // リダイレクトしてフォーム再送信を防ぐ
         header("Location: arrival.php?success=1");
@@ -133,6 +140,12 @@ $success_message = isset($_GET['success']) ? "入庫記録を保存しました�
         .unreturned-list { max-height: 300px; overflow-y: auto; }
         .unreturned-item { cursor: pointer; transition: all 0.3s; }
         .unreturned-item:hover { background-color: #e3f2fd; transform: translateX(5px); }
+        .edit-actions { margin-top: 15px; }
+        .edit-actions .btn { margin-right: 10px; margin-bottom: 5px; }
+        @media (max-width: 768px) {
+            .edit-actions { display: flex; flex-direction: column; gap: 10px; }
+            .edit-actions .btn { width: 100%; margin-right: 0; }
+        }
     </style>
 </head>
 <body>
@@ -154,6 +167,23 @@ $success_message = isset($_GET['success']) ? "入庫記録を保存しました�
         <?php if (isset($success_message)): ?>
             <div class="alert alert-success alert-dismissible fade show">
                 <i class="fas fa-check-circle"></i> <?= htmlspecialchars($success_message) ?>
+                
+                <!-- 編集・遷移ボタンエリア -->
+                <div class="edit-actions">
+                    <?php if (isset($_SESSION['last_arrival_id'])): ?>
+                        <button class="btn btn-warning btn-sm" onclick="editArrivalRecord(<?= $_SESSION['last_arrival_id'] ?>)">
+                            <i class="fas fa-edit"></i> この記録を修正
+                        </button>
+                    <?php endif; ?>
+                    
+                    <!-- 乗務後点呼直接遷移ボタン -->
+                    <?php if (isset($_SESSION['last_driver_id']) && isset($_SESSION['last_vehicle_id'])): ?>
+                        <button class="btn btn-success btn-sm" onclick="goToPostDutyCall(<?= $_SESSION['last_driver_id'] ?>, <?= $_SESSION['last_vehicle_id'] ?>)">
+                            <i class="fas fa-clipboard-check"></i> 乗務後点呼へ
+                        </button>
+                    <?php endif; ?>
+                </div>
+                
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
@@ -257,22 +287,34 @@ $success_message = isset($_GET['success']) ? "入庫記録を保存しました�
 
                     <div class="row">
                         <!-- 燃料代 -->
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label for="fuel_cost" class="form-label">燃料代(円)</label>
                             <input type="number" class="form-control" id="fuel_cost" name="fuel_cost" value="0">
                         </div>
 
                         <!-- 高速代 -->
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label for="highway_cost" class="form-label">高速代(円)</label>
                             <input type="number" class="form-control" id="highway_cost" name="highway_cost" value="0">
                         </div>
 
+                        <!-- 通行料 -->
+                        <div class="col-md-3 mb-3">
+                            <label for="toll_cost" class="form-label">通行料(円)</label>
+                            <input type="number" class="form-control" id="toll_cost" name="toll_cost" value="0">
+                        </div>
+
                         <!-- その他費用 -->
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label for="other_cost" class="form-label">その他費用(円)</label>
                             <input type="number" class="form-control" id="other_cost" name="other_cost" value="0">
                         </div>
+                    </div>
+
+                    <!-- 備考 -->
+                    <div class="mb-3">
+                        <label for="remarks" class="form-label">備考</label>
+                        <textarea class="form-control" id="remarks" name="remarks" rows="2" placeholder="特記事項があれば記載してください"></textarea>
                     </div>
 
                     <div class="text-center">
@@ -285,16 +327,110 @@ $success_message = isset($_GET['success']) ? "入庫記録を保存しました�
         </div>
     </div>
 
+    <!-- 編集モーダル -->
+    <div class="modal fade" id="editArrivalModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit"></i> 入庫記録の修正</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                
+                <div class="modal-body">
+                    <!-- 修正不可情報（参考表示） -->
+                    <div class="alert alert-info">
+                        <strong>出庫情報（修正不可）</strong><br>
+                        運転者: <span id="edit-driver-name"></span> | 車両: <span id="edit-vehicle-number"></span><br>
+                        出庫記録ID: #<span id="edit-departure-id"></span> | 出庫メーター: <span id="edit-departure-mileage"></span>km
+                    </div>
+                    
+                    <form id="editArrivalForm">
+                        <input type="hidden" id="edit-arrival-id" name="arrival_id">
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">入庫日 <span class="text-danger">*</span></label>
+                                <input type="date" id="edit-arrival-date" name="arrival_date" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">入庫時刻 <span class="text-danger">*</span></label>
+                                <input type="time" id="edit-arrival-time" name="arrival_time" class="form-control" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label class="form-label">入庫メーター(km) <span class="text-danger">*</span></label>
+                                <input type="number" id="edit-arrival-mileage" name="arrival_mileage" class="form-control" required>
+                                <small class="text-muted">出庫時: <span id="edit-departure-mileage-hint"></span>km以上</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">走行距離(km)（自動計算）</label>
+                                <input type="number" id="edit-total-distance" name="total_distance" class="form-control" readonly>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-3">
+                                <label class="form-label">燃料代(円)</label>
+                                <input type="number" id="edit-fuel-cost" name="fuel_cost" class="form-control" min="0">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">高速代(円)</label>
+                                <input type="number" id="edit-highway-cost" name="highway_cost" class="form-control" min="0">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">通行料(円)</label>
+                                <input type="number" id="edit-toll-cost" name="toll_cost" class="form-control" min="0">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">その他費用(円)</label>
+                                <input type="number" id="edit-other-cost" name="other_cost" class="form-control" min="0">
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label class="form-label">備考</label>
+                                <textarea id="edit-remarks" name="remarks" class="form-control" rows="2"></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">修正理由 <span class="text-danger">*</span></label>
+                                <select id="edit-reason" name="edit_reason" class="form-select" required>
+                                    <option value="">選択してください</option>
+                                    <option value="メーター読み間違い">メーター読み間違い</option>
+                                    <option value="時刻入力ミス">時刻入力ミス</option>
+                                    <option value="費用修正">費用修正</option>
+                                    <option value="日付修正">日付修正</option>
+                                    <option value="その他">その他</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn btn-warning" onclick="updateArrivalRecord()">
+                        <i class="fas fa-save"></i> 修正を保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        let departureMileage = 0;
+
         // 未入庫項目選択時の処理
-        function selectDeparture(departureId, driverName, vehicleNumber, departureMileage, vehicleId, driverId) {
+        function selectDeparture(departureId, driverName, vehicleNumber, departureMileageValue, vehicleId, driverId) {
             document.getElementById('departure_record_id').value = departureId;
             document.getElementById('driver_id').value = driverId;
             document.getElementById('vehicle_id').value = vehicleId;
             
             // 出庫メーターを保存
-            window.departureMileage = departureMileage;
+            departureMileage = departureMileageValue;
             
             // 走行距離を再計算
             calculateDistance();
@@ -309,7 +445,6 @@ $success_message = isset($_GET['success']) ? "入庫記録を保存しました�
         // 走行距離自動計算
         function calculateDistance() {
             const arrivalMileage = parseInt(document.getElementById('arrival_mileage').value) || 0;
-            const departureMileage = window.departureMileage || 0;
             const totalDistance = arrivalMileage - departureMileage;
             
             if (totalDistance >= 0) {
@@ -319,8 +454,29 @@ $success_message = isset($_GET['success']) ? "入庫記録を保存しました�
             }
         }
 
+        // 編集モーダル用の走行距離計算
+        function calculateEditDistance() {
+            const arrivalMileage = parseInt(document.getElementById('edit-arrival-mileage').value) || 0;
+            const editDepartureMileage = parseInt(document.getElementById('edit-departure-mileage-hint').textContent) || 0;
+            const totalDistance = arrivalMileage - editDepartureMileage;
+            
+            if (totalDistance >= 0) {
+                document.getElementById('edit-total-distance').value = totalDistance;
+            } else {
+                document.getElementById('edit-total-distance').value = '';
+            }
+        }
+
         // 入庫メーター変更時に走行距離を再計算
         document.getElementById('arrival_mileage').addEventListener('input', calculateDistance);
+
+        // 編集モーダルの入庫メーター変更時
+        document.addEventListener('DOMContentLoaded', function() {
+            const editArrivalMileage = document.getElementById('edit-arrival-mileage');
+            if (editArrivalMileage) {
+                editArrivalMileage.addEventListener('input', calculateEditDistance);
+            }
+        });
 
         // 現在時刻を自動設定
         document.addEventListener('DOMContentLoaded', function() {
@@ -329,6 +485,82 @@ $success_message = isset($_GET['success']) ? "入庫記録を保存しました�
                               now.getMinutes().toString().padStart(2, '0');
             document.getElementById('arrival_time').value = timeString;
         });
+
+        // 編集モーダル表示
+        function editArrivalRecord(arrivalId) {
+            fetch(`api/get_arrival_record.php?id=${arrivalId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const record = data.record;
+                        
+                        // 基本情報の設定
+                        document.getElementById('edit-arrival-id').value = record.id;
+                        document.getElementById('edit-arrival-date').value = record.arrival_date;
+                        document.getElementById('edit-arrival-time').value = record.arrival_time;
+                        document.getElementById('edit-arrival-mileage').value = record.arrival_mileage;
+                        document.getElementById('edit-fuel-cost').value = record.fuel_cost || 0;
+                        document.getElementById('edit-highway-cost').value = record.highway_cost || 0;
+                        document.getElementById('edit-toll-cost').value = record.toll_cost || 0;
+                        document.getElementById('edit-other-cost').value = record.other_cost || 0;
+                        document.getElementById('edit-remarks').value = record.remarks || '';
+                        
+                        // 参考情報の設定
+                        document.getElementById('edit-driver-name').textContent = record.driver_name;
+                        document.getElementById('edit-vehicle-number').textContent = record.vehicle_number;
+                        document.getElementById('edit-departure-id').textContent = record.departure_record_id;
+                        document.getElementById('edit-departure-mileage').textContent = record.departure_mileage;
+                        document.getElementById('edit-departure-mileage-hint').textContent = record.departure_mileage;
+                        
+                        // 走行距離計算
+                        calculateEditDistance();
+                        
+                        // モーダル表示
+                        new bootstrap.Modal(document.getElementById('editArrivalModal')).show();
+                    } else {
+                        alert('❌ データの取得に失敗しました: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('❌ エラーが発生しました: ' + error.message);
+                });
+        }
+
+        // 修正保存
+        function updateArrivalRecord() {
+            const formData = new FormData(document.getElementById('editArrivalForm'));
+            
+            fetch('api/edit_arrival_record.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ 入庫記録を修正しました');
+                    bootstrap.Modal.getInstance(document.getElementById('editArrivalModal')).hide();
+                    location.reload();
+                } else {
+                    alert('❌ エラー: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('❌ エラーが発生しました: ' + error.message);
+            });
+        }
+
+        // 乗務後点呼への直接遷移
+        function goToPostDutyCall(driverId, vehicleId) {
+            const params = new URLSearchParams({
+                auto_flow: '1',
+                from: 'arrival',
+                driver_id: driverId,
+                vehicle_id: vehicleId,
+                duty_date: new Date().toISOString().split('T')[0]
+            });
+            
+            window.location.href = `post_duty_call.php?${params.toString()}`;
+        }
     </script>
 </body>
 </html>
