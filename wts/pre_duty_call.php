@@ -326,35 +326,27 @@ if ($existing_call) {
             color: white;
         }
 
-        /* 🚀 自動遷移専用ボタンスタイル */
-        .btn-next-step {
-            background: linear-gradient(135deg, #17a2b8 0%, #007bff 100%);
+        .next-step-card {
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            border: 2px solid #2196f3;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(33, 150, 243, 0.2);
+        }
+
+        .btn-next-flow {
+            background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
             border: none;
             color: white;
             padding: 0.75rem 2rem;
             border-radius: 25px;
             font-weight: 600;
-            position: relative;
+            transition: all 0.3s ease;
         }
 
-        .btn-next-step:hover {
+        .btn-next-flow:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(23, 162, 184, 0.3);
+            box-shadow: 0 5px 15px rgba(33, 150, 243, 0.4);
             color: white;
-        }
-
-        .btn-next-step::after {
-            content: '→';
-            margin-left: 0.5rem;
-            font-weight: bold;
-        }
-
-        .next-step-info {
-            background: #e3f2fd;
-            border: 1px solid #2196f3;
-            border-radius: 10px;
-            padding: 1rem;
-            margin: 1rem 0;
         }
 
         .required-mark {
@@ -719,41 +711,39 @@ if ($existing_call) {
 
         <!-- 保存・遷移ボタン -->
         <div class="text-center mb-4">
-            <?php if ($auto_flow): ?>
-            <!-- 🚀 自動遷移モード用ボタン -->
-            <button type="submit" class="btn btn-next-step btn-lg me-3">
-                <i class="fas fa-rocket me-2"></i>
-                <?= $existing_call ? '更新して次へ進む' : '登録して次へ進む' ?>
-            </button>
-            <button type="button" class="btn btn-outline-secondary btn-lg" onclick="exitAutoFlow()">
-                <i class="fas fa-pause me-2"></i>連続業務を中止
-            </button>
-            <?php else: ?>
-            <!-- 通常モード用ボタン -->
             <button type="submit" class="btn btn-save btn-lg">
                 <i class="fas fa-save me-2"></i>
                 <?= $existing_call ? '更新する' : '登録する' ?>
             </button>
+            
+            <!-- 🚀 既存データがある場合：出庫処理への直接リンクも表示 -->
+            <?php if ($existing_call): ?>
+            <div class="mt-3">
+                <a href="departure.php?driver_id=<?= $existing_call['driver_id'] ?>" 
+                   class="btn btn-outline-primary btn-lg">
+                    <i class="fas fa-car me-2"></i>出庫処理へ進む
+                </a>
+            </div>
             <?php endif; ?>
         </div>
     </form>
 
     <!-- 🚀 自動遷移モード：クイックアクションボタン -->
-    <?php if ($auto_flow): ?>
+    <?php if (!$existing_call): ?>
     <div class="row mt-4">
         <div class="col-12">
             <div class="card border-info">
                 <div class="card-header bg-info text-white">
-                    <h6 class="mb-0"><i class="fas fa-lightning-bolt me-2"></i>クイックアクション</h6>
+                    <h6 class="mb-0"><i class="fas fa-lightning-bolt me-2"></i>朝の業務を効率化</h6>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted">朝の定型業務を効率的に進めるためのショートカット</p>
+                    <p class="text-muted">定型的な朝の準備作業をスピードアップ</p>
                     <div class="d-grid gap-2 d-md-flex justify-content-md-start">
                         <button type="button" class="btn btn-success" onclick="quickComplete()">
                             <i class="fas fa-magic me-2"></i>標準設定で完了
                         </button>
                         <button type="button" class="btn btn-outline-info" onclick="showQuickSettings()">
-                            <i class="fas fa-cog me-2"></i>設定変更
+                            <i class="fas fa-cog me-2"></i>設定内容確認
                         </button>
                     </div>
                 </div>
@@ -764,7 +754,6 @@ if ($existing_call) {
 </div>
 
 <!-- 🚀 クイック設定モーダル -->
-<?php if ($auto_flow): ?>
 <div class="modal fade" id="quickSettingsModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -779,24 +768,23 @@ if ($existing_call) {
                 <ul class="list-group list-group-flush">
                     <li class="list-group-item">✓ 全15項目の確認事項をチェック</li>
                     <li class="list-group-item">✓ アルコール値: 0.000 mg/L</li>
-                    <li class="list-group-item">✓ 点呼者: 現在のログインユーザー</li>
+                    <li class="list-group-item">✓ 点呼者: リストの最初のユーザー</li>
                     <li class="list-group-item">✓ 点呼時刻: 現在時刻</li>
                 </ul>
                 <div class="alert alert-info mt-3">
                     <i class="fas fa-info-circle me-2"></i>
-                    設定後、自動的に次のステップ（出庫処理）に進みます。
+                    設定後、保存ボタンで登録してから出庫処理に進んでください。
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
                 <button type="button" class="btn btn-success" onclick="executeQuickComplete()">
-                    <i class="fas fa-check me-2"></i>この内容で実行
+                    <i class="fas fa-check me-2"></i>この内容で設定
                 </button>
             </div>
         </div>
     </div>
 </div>
-<?php endif; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
