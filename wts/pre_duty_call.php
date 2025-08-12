@@ -158,23 +158,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // 🚀 自動遷移モードの場合
             if ($auto_flow) {
-                // 日常点検が完了しているかチェック
+                // 日常点検が完了しているかチェック（既存DBに合わせて修正）
                 $stmt = $pdo->prepare("
                     SELECT id FROM daily_inspections 
-                    WHERE vehicle_id = ? AND inspection_date = ? 
-                    AND is_completed = TRUE
+                    WHERE vehicle_id = ? AND inspection_date = ?
                     LIMIT 1
                 ");
                 $stmt->execute([$vehicle_id, $today]);
                 $inspection_completed = $stmt->fetch();
 
                 if ($inspection_completed) {
-                    // 両方完了している場合、出庫処理へ自動遷移
+                    // 日常点検が存在する場合、出庫処理へ自動遷移
                     $redirect_url = "departure.php?auto_flow=1&driver_id={$driver_id}&vehicle_id={$vehicle_id}";
                     header("Location: {$redirect_url}");
                     exit;
                 } else {
-                    // 日常点検が未完了の場合、日常点検へ遷移
+                    // 日常点検が未実施の場合、日常点検へ遷移
                     $redirect_url = "daily_inspection.php?auto_flow=1&driver_id={$driver_id}&vehicle_id={$vehicle_id}";
                     header("Location: {$redirect_url}");
                     exit;
@@ -201,7 +200,7 @@ if ($existing_call) {
                CASE WHEN di.id IS NOT NULL THEN 1 ELSE 0 END as inspection_completed
         FROM vehicles v
         LEFT JOIN daily_inspections di ON v.id = di.vehicle_id 
-            AND di.inspection_date = ? AND di.is_completed = TRUE
+            AND di.inspection_date = ?
         WHERE v.is_active = TRUE
         ORDER BY v.vehicle_number
     ");
@@ -487,14 +486,14 @@ if ($existing_call) {
         
         <div class="d-grid gap-2 d-md-flex justify-content-md-center">
             <?php
-            // 日常点検の完了状況をチェック
+            // 日常点検の完了状況をチェック（既存DBに合わせて修正）
             $stmt = $pdo->prepare("
                 SELECT id FROM daily_inspections 
                 WHERE vehicle_id = (
                     SELECT vehicle_id FROM pre_duty_calls 
                     WHERE driver_id = ? AND call_date = ? 
                     LIMIT 1
-                ) AND inspection_date = ? AND is_completed = TRUE
+                ) AND inspection_date = ?
                 LIMIT 1
             ");
             $stmt->execute([$driver_id, $today, $today]);
