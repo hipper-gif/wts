@@ -150,32 +150,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 運転者一覧取得（職務フラグのみ使用）
-// usersテーブルの実際のカラム名を確認して修正
+// 運転者一覧取得（正しいカラム名を使用）
 try {
-    // まずテーブル構造を確認
-    $check_columns_sql = "SHOW COLUMNS FROM users";
-    $check_stmt = $pdo->prepare($check_columns_sql);
-    $check_stmt->execute();
-    $columns = $check_stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // nameカラムが存在するかチェック
-    $name_column_exists = false;
-    foreach ($columns as $column) {
-        if ($column['Field'] === 'name') {
-            $name_column_exists = true;
-            break;
-        }
-    }
-    
-    // 適切なカラム名を使用してクエリを実行
-    if ($name_column_exists) {
-        $drivers_sql = "SELECT id, name FROM users WHERE is_driver = 1 AND (is_active = 1 OR active = 1) ORDER BY name";
-    } else {
-        // nameカラムがない場合はlogin_idを使用
-        $drivers_sql = "SELECT id, login_id as name FROM users WHERE is_driver = 1 AND (is_active = 1 OR active = 1) ORDER BY login_id";
-    }
-    
+    $drivers_sql = "SELECT id, NAME as name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY NAME";
     $drivers_stmt = $pdo->prepare($drivers_sql);
     $drivers_stmt->execute();
     $drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -184,9 +161,9 @@ try {
     $drivers = [];
 }
 
-// 車両一覧取得
+// 車両一覧取得（正しいカラム名を使用）
 try {
-    $vehicles_sql = "SELECT id, name as vehicle_number, name as vehicle_name FROM vehicles ORDER BY name";
+    $vehicles_sql = "SELECT id, vehicle_number, vehicle_name FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
     $vehicles_stmt = $pdo->prepare($vehicles_sql);
     $vehicles_stmt->execute();
     $vehicles = $vehicles_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -258,26 +235,18 @@ if ($search_vehicle) {
 }
 
 try {
-    // nameカラムの存在に応じてクエリを調整
-    if ($name_column_exists) {
-        $rides_sql = "SELECT r.*, u.name as driver_name, v.name as vehicle_number, v.name as vehicle_name,
-            COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0)) as total_amount,
-            CASE WHEN r.is_return_trip = 1 THEN '復路' ELSE '往路' END as trip_type
-            FROM ride_records r 
-            LEFT JOIN users u ON r.driver_id = u.id 
-            LEFT JOIN vehicles v ON r.vehicle_id = v.id 
-            WHERE " . implode(' AND ', $where_conditions) . "
-            ORDER BY r.ride_time DESC";
-    } else {
-        $rides_sql = "SELECT r.*, u.login_id as driver_name, v.name as vehicle_number, v.name as vehicle_name,
-            COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0)) as total_amount,
-            CASE WHEN r.is_return_trip = 1 THEN '復路' ELSE '往路' END as trip_type
-            FROM ride_records r 
-            LEFT JOIN users u ON r.driver_id = u.id 
-            LEFT JOIN vehicles v ON r.vehicle_id = v.id 
-            WHERE " . implode(' AND ', $where_conditions) . "
-            ORDER BY r.ride_time DESC";
-    }
+    // 正しいカラム名を使用してクエリを実行
+    $rides_sql = "SELECT r.*, 
+        u.NAME as driver_name, 
+        v.vehicle_number, 
+        v.vehicle_name,
+        COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0)) as total_amount,
+        CASE WHEN r.is_return_trip = 1 THEN '復路' ELSE '往路' END as trip_type
+        FROM ride_records r 
+        LEFT JOIN users u ON r.driver_id = u.id 
+        LEFT JOIN vehicles v ON r.vehicle_id = v.id 
+        WHERE " . implode(' AND ', $where_conditions) . "
+        ORDER BY r.ride_time DESC";
     
     $rides_stmt = $pdo->prepare($rides_sql);
     $rides_stmt->execute($params);
@@ -625,7 +594,7 @@ $payment_methods = ['現金', 'カード', 'その他'];
                         <?php foreach ($vehicles as $vehicle): ?>
                             <option value="<?php echo $vehicle['id']; ?>" 
                                 <?php echo ($search_vehicle == $vehicle['id']) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($vehicle['vehicle_number']); ?>
+                                <?php echo htmlspecialchars($vehicle['vehicle_number'] . ' - ' . $vehicle['vehicle_name']); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -653,80 +622,71 @@ $payment_methods = ['現金', 'カード', 'その他'];
         <?php endif; ?>
 
         <div class="row">
-            <!-- 乗車記録一覧セクション -->
-            <div class="section-header">
-                <div class="section-title">
-                    <i class="fas fa-clipboard-list"></i> 乗車記録一覧 (<?= htmlspecialchars($search_date) ?>)
+            <!-- 乗車記録一覧 -->
+            <div class="col-lg-8">
+                <!-- 乗車記録一覧セクション -->
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="fas fa-clipboard-list"></i> 乗車記録一覧 (<?= htmlspecialchars($search_date) ?>)
+                    </div>
                 </div>
-            </div>
-            
-            <div class="card">
-                <div class="card-body">
-                    <?php if (empty($rides)): ?>
-                        <p class="text-muted text-center py-4">
-                            <i class="fas fa-info-circle me-2"></i>
-                            該当する乗車記録がありません。
-                        </p>
-                    <?php else: ?>
-                        <?php foreach ($rides as $ride): ?>
-                            <div class="ride-record <?php echo $ride['is_return_trip'] ? 'return-trip' : ''; ?>">
-                                <div class="row align-items-center">
-                                    <div class="col-md-8">
-                                        <div class="d-flex align-items-center mb-2">
-                                            <strong class="me-2"><?php echo substr($ride['ride_time'], 0, 5); ?></strong>
-                                            <span class="badge trip-type-badge <?php echo $ride['is_return_trip'] ? 'bg-success' : 'bg-primary'; ?>">
-                                                <?php echo $ride['trip_type']; ?>
-                                            </span>
-                                            <small class="text-muted ms-2">
-                                                <?php echo htmlspecialchars($ride['driver_name']); ?> / <?php echo htmlspecialchars($ride['vehicle_number']); ?>
+                
+                <div class="card">
+                    <div class="card-body">
+                        <?php if (empty($rides)): ?>
+                            <p class="text-muted text-center py-4">
+                                <i class="fas fa-info-circle me-2"></i>
+                                該当する乗車記録がありません。
+                            </p>
+                        <?php else: ?>
+                            <?php foreach ($rides as $ride): ?>
+                                <div class="ride-record <?php echo $ride['is_return_trip'] ? 'return-trip' : ''; ?>">
+                                    <div class="row align-items-center">
+                                        <div class="col-md-8">
+                                            <div class="d-flex align-items-center mb-2">
+                                                <strong class="me-2"><?php echo substr($ride['ride_time'], 0, 5); ?></strong>
+                                                <span class="badge trip-type-badge <?php echo $ride['is_return_trip'] ? 'bg-success' : 'bg-primary'; ?>">
+                                                    <?php echo $ride['trip_type']; ?>
+                                                </span>
+                                                <small class="text-muted">
+                                                <?php echo $ride['passenger_count']; ?>名 / 
+                                                <?php echo htmlspecialchars($ride['transportation_type'] ?? 'その他'); ?> / 
+                                                <?php echo htmlspecialchars($ride['payment_method']); ?>
+                                                <?php if ($ride['notes']): ?>
+                                                    <br><i class="fas fa-sticky-note me-1"></i><?php echo htmlspecialchars($ride['notes']); ?>
+                                                <?php endif; ?>
                                             </small>
                                         </div>
-                                        <div class="mb-1">
-                                            <i class="fas fa-map-marker-alt text-success me-1"></i>
-                                            <strong><?php echo htmlspecialchars($ride['pickup_location']); ?></strong>
-                                            <i class="fas fa-arrow-right mx-2 text-muted"></i>
-                                            <i class="fas fa-map-marker-alt text-danger me-1"></i>
-                                            <strong><?php echo htmlspecialchars($ride['dropoff_location']); ?></strong>
-                                        </div>
-                                        <small class="text-muted">
-                                            <?php echo $ride['passenger_count']; ?>名 / 
-                                            <?php echo htmlspecialchars($ride['transportation_type'] ?? 'その他'); ?> / 
-                                            <?php echo htmlspecialchars($ride['payment_method']); ?>
-                                            <?php if ($ride['notes']): ?>
-                                                <br><i class="fas fa-sticky-note me-1"></i><?php echo htmlspecialchars($ride['notes']); ?>
-                                            <?php endif; ?>
-                                        </small>
-                                    </div>
-                                    <div class="col-md-4 text-end">
-                                        <div class="amount-display mb-2">
-                                            ¥<?php echo number_format($ride['total_amount']); ?>
-                                        </div>
-                                        <div class="btn-group" role="group">
-                                            <?php if (!$ride['is_return_trip']): ?>
-                                                <button type="button" class="btn return-btn btn-sm" 
-                                                        onclick="createReturnTrip(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
-                                                        title="復路作成">
-                                                    <i class="fas fa-route me-1"></i>復路作成
+                                        <div class="col-md-4 text-end">
+                                            <div class="amount-display mb-2">
+                                                ¥<?php echo number_format($ride['total_amount']); ?>
+                                            </div>
+                                            <div class="btn-group" role="group">
+                                                <?php if (!$ride['is_return_trip']): ?>
+                                                    <button type="button" class="btn return-btn btn-sm" 
+                                                            onclick="createReturnTrip(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
+                                                            title="復路作成">
+                                                        <i class="fas fa-route me-1"></i>復路作成
+                                                    </button>
+                                                <?php endif; ?>
+                                                <button type="button" class="btn btn-warning btn-sm" 
+                                                        onclick="editRecord(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
+                                                        title="編集">
+                                                    <i class="fas fa-edit"></i>
                                                 </button>
-                                            <?php endif; ?>
-                                            <button type="button" class="btn btn-warning btn-sm" 
-                                                    onclick="editRecord(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
-                                                    title="編集">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button type="button" class="btn btn-danger btn-sm" 
-                                                    onclick="deleteRecord(<?php echo $ride['id']; ?>)"
-                                                    title="削除">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
+                                                <button type="button" class="btn btn-danger btn-sm" 
+                                                        onclick="deleteRecord(<?php echo $ride['id']; ?>)"
+                                                        title="削除">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
                 </div>
-            </div>
             </div>
 
             <!-- サイドバー（集計情報） -->
@@ -1104,6 +1064,15 @@ $payment_methods = ['現金', 'カード', 'その他'];
         });
     </script>
 </body>
-</html>覧 -->
-            <div class="col-lg-8">
-                <!-- 乗車記録一
+</html>uted ms-2">
+                                                    <?php echo htmlspecialchars($ride['driver_name']); ?> / <?php echo htmlspecialchars($ride['vehicle_number']); ?>
+                                                </small>
+                                            </div>
+                                            <div class="mb-1">
+                                                <i class="fas fa-map-marker-alt text-success me-1"></i>
+                                                <strong><?php echo htmlspecialchars($ride['pickup_location']); ?></strong>
+                                                <i class="fas fa-arrow-right mx-2 text-muted"></i>
+                                                <i class="fas fa-map-marker-alt text-danger me-1"></i>
+                                                <strong><?php echo htmlspecialchars($ride['dropoff_location']); ?></strong>
+                                            </div>
+                                            <small class="text-m
