@@ -1,4 +1,14 @@
-<?php
+// ログインユーザーが運転者かどうかを確認（職務フラグのみ使用）
+try {
+    $user_is_driver_sql = "SELECT is_driver FROM users WHERE id = ?";
+    $user_is_driver_stmt = $pdo->prepare($user_is_driver_sql);
+    $user_is_driver_stmt->execute([$user_id]);
+    $user_info = $user_is_driver_stmt->fetch(PDO::FETCH_ASSOC);
+    $user_is_driver = ($user_info && $user_info['is_driver'] == 1);
+} catch (Exception $e) {
+    error_log("ユーザー情報取得エラー: " . $e->getMessage());
+    $user_is_driver = false;
+}<?php
 session_start();
 
 // データベース接続
@@ -25,12 +35,30 @@ $user_permission_stmt = $pdo->prepare($user_permission_sql);
 $user_permission_stmt->execute([$user_id]);
 $user_permission = $user_permission_stmt->fetchColumn() ?: 'User';
 
-// ログインユーザーが運転者かどうかを確認（職務フラグのみ使用）
-$user_is_driver_sql = "SELECT is_driver FROM users WHERE id = ?";
-$user_is_driver_stmt = $pdo->prepare($user_is_driver_sql);
-$user_is_driver_stmt->execute([$user_id]);
-$user_info = $user_is_driver_stmt->fetch(PDO::FETCH_ASSOC);
-$user_is_driver = ($user_info['is_driver'] == 1);
+// 🔥 デバッグ: テーブル構造確認（本番環境では削除）
+try {
+    // vehiclesテーブルの構造確認
+    $vehicles_columns_sql = "SHOW COLUMNS FROM vehicles";
+    $vehicles_columns_stmt = $pdo->prepare($vehicles_columns_sql);
+    $vehicles_columns_stmt->execute();
+    $vehicles_columns = $vehicles_columns_stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // ride_recordsテーブルの構造確認
+    $rides_columns_sql = "SHOW COLUMNS FROM ride_records";
+    $rides_columns_stmt = $pdo->prepare($rides_columns_sql);
+    $rides_columns_stmt->execute();
+    $rides_columns = $rides_columns_stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // usersテーブルの構造確認
+    $users_columns_sql = "SHOW COLUMNS FROM users";
+    $users_columns_stmt = $pdo->prepare($users_columns_sql);
+    $users_columns_stmt->execute();
+    $users_columns = $users_columns_stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+} catch (Exception $e) {
+    // エラーが発生しても処理を続行
+    error_log("テーブル構造確認エラー: " . $e->getMessage());
+}
 
 // 今日の日付
 $today = date('Y-m-d');
@@ -145,8 +173,20 @@ $drivers_stmt = $pdo->prepare($drivers_sql);
 $drivers_stmt->execute();
 $drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// 車両一覧取得
-$vehicles_sql = "SELECT id, vehicle_number, vehicle_name FROM vehicles WHERE status = 'active' ORDER BY vehicle_number";
+// 車両一覧取得（シンプル版）
+$vehicles_sql = "SELECT id, 
+    CASE 
+        WHEN vehicle_number IS NOT NULL THEN vehicle_number
+        WHEN name IS NOT NULL THEN name
+        ELSE CONCAT('車両', id)
+    END as vehicle_number,
+    CASE 
+        WHEN vehicle_name IS NOT NULL THEN vehicle_name
+        WHEN name IS NOT NULL THEN name
+        ELSE CONCAT('車両', id)
+    END as vehicle_name
+    FROM vehicles 
+    ORDER BY id";
 $vehicles_stmt = $pdo->prepare($vehicles_sql);
 $vehicles_stmt->execute();
 $vehicles = $vehicles_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -208,48 +248,93 @@ if ($search_vehicle) {
     $params[] = $search_vehicle;
 }
 
-// 🔥 total_fare計算を統一（福祉輸送管理システム料金統一仕様に準拠）
-$rides_sql = "SELECT r.*, u.name as driver_name, v.vehicle_number, v.vehicle_name,
-    COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0)) as total_amount,
-    CASE WHEN r.is_return_trip = 1 THEN '復路' ELSE '往路' END as trip_type
-    FROM ride_records r 
-    JOIN users u ON r.driver_id = u.id 
-    JOIN vehicles v ON r.vehicle_id = v.id 
-    WHERE " . implode(' AND ', $where_conditions) . "
-    ORDER BY r.ride_time DESC";
-$rides_stmt = $pdo->prepare($rides_sql);
-$rides_stmt->execute($params);
-$rides = $rides_stmt->fetchAll(PDO::FETCH_ASSOC);
+// 🔥 乗車記録一覧取得（エラーハンドリング強化）
+try {
+    $rides_sql = "SELECT 
+        r.id, r.ride_time, r.passenger_count, r.pickup_location, r.dropoff_location,
+        r.fare, COALESCE(r.charge, 0) as charge, r.transport_category, r.payment_method, 
+        r.notes, r.is_return_trip, r.ride_date, r.driver_id, r.vehicle_id,
+        COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0)) as total_amount,
+        u.name as driver_name,
+        CASE 
+            WHEN v.vehicle_number IS NOT NULL THEN v.vehicle_number
+            WHEN v.name IS NOT NULL THEN v.name
+            ELSE CONCAT('車両', v.id)
+        END as vehicle_number,
+        CASE 
+            WHEN v.vehicle_name IS NOT NULL THEN v.vehicle_name
+            WHEN v.name IS NOT NULL THEN v.name
+            ELSE CONCAT('車両', v.id)
+        END as vehicle_name,
+        CASE WHEN r.is_return_trip = 1 THEN '復路' ELSE '往路' END as trip_type
+        FROM ride_records r 
+        LEFT JOIN users u ON r.driver_id = u.id 
+        LEFT JOIN vehicles v ON r.vehicle_id = v.id 
+        WHERE " . implode(' AND ', $where_conditions) . "
+        ORDER BY r.ride_time DESC";
+    
+    $rides_stmt = $pdo->prepare($rides_sql);
+    $rides_stmt->execute($params);
+    $rides = $rides_stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+} catch (Exception $e) {
+    error_log("乗車記録取得エラー: " . $e->getMessage());
+    $rides = [];
+    $error_message = "乗車記録の取得でエラーが発生しました。";
+}
 
-// 🔥 日次集計も total_fare を使用（福祉輸送管理システム料金統一仕様に準拠）
-$summary_sql = "SELECT 
-    COUNT(*) as total_rides,
-    SUM(r.passenger_count) as total_passengers,
-    SUM(COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0))) as total_revenue,
-    AVG(COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0))) as avg_fare,
-    COUNT(CASE WHEN r.payment_method = '現金' THEN 1 END) as cash_count,
-    COUNT(CASE WHEN r.payment_method = 'カード' THEN 1 END) as card_count,
-    SUM(CASE WHEN r.payment_method = '現金' THEN COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0)) ELSE 0 END) as cash_total,
-    SUM(CASE WHEN r.payment_method = 'カード' THEN COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0)) ELSE 0 END) as card_total
-    FROM ride_records r 
-    WHERE " . implode(' AND ', $where_conditions);
-$summary_stmt = $pdo->prepare($summary_sql);
-$summary_stmt->execute($params);
-$summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
+// 🔥 日次集計（エラーハンドリング強化）
+try {
+    $summary_sql = "SELECT 
+        COUNT(*) as total_rides,
+        SUM(r.passenger_count) as total_passengers,
+        SUM(COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0))) as total_revenue,
+        AVG(COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0))) as avg_fare,
+        COUNT(CASE WHEN r.payment_method = '現金' THEN 1 END) as cash_count,
+        COUNT(CASE WHEN r.payment_method = 'カード' THEN 1 END) as card_count,
+        SUM(CASE WHEN r.payment_method = '現金' THEN COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0)) ELSE 0 END) as cash_total,
+        SUM(CASE WHEN r.payment_method = 'カード' THEN COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0)) ELSE 0 END) as card_total
+        FROM ride_records r 
+        WHERE " . implode(' AND ', $where_conditions);
+    
+    $summary_stmt = $pdo->prepare($summary_sql);
+    $summary_stmt->execute($params);
+    $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
+    
+} catch (Exception $e) {
+    error_log("集計データ取得エラー: " . $e->getMessage());
+    $summary = [
+        'total_rides' => 0,
+        'total_passengers' => 0,
+        'total_revenue' => 0,
+        'avg_fare' => 0,
+        'cash_count' => 0,
+        'card_count' => 0,
+        'cash_total' => 0,
+        'card_total' => 0
+    ];
+}
 
-// 🔥 輸送分類別集計も total_fare を使用
-$category_sql = "SELECT 
-    r.transport_category,
-    COUNT(*) as count,
-    SUM(r.passenger_count) as passengers,
-    SUM(COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0))) as revenue
-    FROM ride_records r 
-    WHERE " . implode(' AND ', $where_conditions) . "
-    GROUP BY r.transport_category 
-    ORDER BY count DESC";
-$category_stmt = $pdo->prepare($category_sql);
-$category_stmt->execute($params);
-$categories = $category_stmt->fetchAll(PDO::FETCH_ASSOC);
+// 🔥 輸送分類別集計（エラーハンドリング強化）
+try {
+    $category_sql = "SELECT 
+        r.transport_category,
+        COUNT(*) as count,
+        SUM(r.passenger_count) as passengers,
+        SUM(COALESCE(r.total_fare, r.fare + COALESCE(r.charge, 0))) as revenue
+        FROM ride_records r 
+        WHERE " . implode(' AND ', $where_conditions) . "
+        GROUP BY r.transport_category 
+        ORDER BY count DESC";
+    
+    $category_stmt = $pdo->prepare($category_sql);
+    $category_stmt->execute($params);
+    $categories = $category_stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+} catch (Exception $e) {
+    error_log("分類別集計取得エラー: " . $e->getMessage());
+    $categories = [];
+}
 
 // 輸送分類・支払方法の選択肢
 $transport_categories = ['通院', '外出等', '退院', '転院', '施設入所', 'その他'];
