@@ -1,359 +1,206 @@
 <?php
+// includes/cash_functions.php
+// 【緊急修正版】料金カラム使用の統一
+// 修正日: 2025年8月28日
+// 修正内容: fare_amount → total_fare, cash_amount/card_amount の活用
+
 /**
- * 集金管理共通関数 - 修正版
- * 
- * ✅ 正しいカラム使用:
- * - total_fare: 合計料金（メイン集計対象）
- * - cash_amount: 現金支払分
- * - card_amount: カード支払分
- * - payment_method: '現金' または 'カード'
- * 
- * ❌ 使用禁止:
- * - fare_amount: 存在しないカラム（エラーの原因）
+ * 当日の現金売上を取得
+ * ✅ 修正: total_fare, cash_amount 使用
  */
+function getTodayCashRevenue($pdo, $date = null) {
+    if (!$date) {
+        $date = date('Y-m-d');
+    }
+    
+    $stmt = $pdo->prepare("
+        SELECT 
+            COUNT(*) as ride_count,
+            COALESCE(SUM(total_fare), 0) as total_revenue,
+            COALESCE(SUM(cash_amount), 0) as cash_revenue,
+            COALESCE(SUM(card_amount), 0) as card_revenue,
+            COALESCE(AVG(total_fare), 0) as average_fare
+        FROM ride_records 
+        WHERE ride_date = ?
+    ");
+    
+    $stmt->execute([$date]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+}
 
-// 日次売上データ取得
-function getDailySales($pdo, $date) {
+/**
+ * 月次売上集計取得
+ * ✅ 修正: total_fare, cash_amount 使用
+ */
+function getMonthlyCashRevenue($pdo, $year = null, $month = null) {
+    if (!$year) $year = date('Y');
+    if (!$month) $month = date('n');
+    
+    $stmt = $pdo->prepare("
+        SELECT 
+            DATE(ride_date) as date,
+            COUNT(*) as daily_ride_count,
+            COALESCE(SUM(total_fare), 0) as daily_total,
+            COALESCE(SUM(cash_amount), 0) as daily_cash,
+            COALESCE(SUM(card_amount), 0) as daily_card,
+            COALESCE(AVG(total_fare), 0) as daily_average
+        FROM ride_records 
+        WHERE YEAR(ride_date) = ? AND MONTH(ride_date) = ?
+        GROUP BY DATE(ride_date)
+        ORDER BY ride_date DESC
+    ");
+    
+    $stmt->execute([$year, $month]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * 現金カウントデータ保存
+ * ✅ 新規追加: 金種別データ保存機能
+ */
+function saveCashCount($pdo, $data) {
     try {
+        $pdo->beginTransaction();
+        
+        // 既存データの削除（同日の場合）
         $stmt = $pdo->prepare("
-            SELECT 
-                payment_method,
-                COUNT(*) as count,
-                SUM(total_fare) as total_amount,
-                AVG(total_fare) as avg_amount
-            FROM ride_records 
-            WHERE DATE(ride_date) = ? 
-            GROUP BY payment_method
+            DELETE FROM cash_count_details 
+            WHERE confirmation_date = ? AND driver_id = ?
         ");
-        $stmt->execute([$date]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("getDailySales error: " . $e->getMessage());
-        return [];
-    }
-}
-
-// 日次合計取得
-function getDailyTotal($pdo, $date) {
-    try {
+        $stmt->execute([$data['confirmation_date'], $data['driver_id']]);
+        
+        // 新規データ挿入
         $stmt = $pdo->prepare("
-            SELECT 
-                COUNT(*) as total_rides,
-                SUM(total_fare) as total_amount,
-                SUM(cash_amount) as cash_amount,
-                SUM(card_amount) as card_amount,
-                SUM(CASE WHEN payment_method NOT IN ('現金', 'カード') THEN total_fare ELSE 0 END) as other_amount
-            FROM ride_records 
-            WHERE DATE(ride_date) = ?
-        ");
-        $stmt->execute([$date]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        // NULL値を0に変換
-        if ($result) {
-            foreach ($result as $key => $value) {
-                if ($value === null) {
-                    $result[$key] = 0;
-                }
-            }
-        }
-        
-        return $result ?: [
-            'total_rides' => 0,
-            'total_amount' => 0,
-            'cash_amount' => 0,
-            'card_amount' => 0,
-            'other_amount' => 0
-        ];
-    } catch (PDOException $e) {
-        error_log("getDailyTotal error: " . $e->getMessage());
-        return [
-            'total_rides' => 0,
-            'total_amount' => 0,
-            'cash_amount' => 0,
-            'card_amount' => 0,
-            'other_amount' => 0
-        ];
-    }
-}
-
-// 月次集計データ取得
-function getMonthlySummary($pdo, $month) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT 
-                DATE(ride_date) as date,
-                COUNT(*) as rides,
-                SUM(total_fare) as total,
-                SUM(cash_amount) as cash,
-                SUM(card_amount) as card
-            FROM ride_records 
-            WHERE DATE_FORMAT(ride_date, '%Y-%m') = ?
-            GROUP BY DATE(ride_date)
-            ORDER BY date
-        ");
-        $stmt->execute([$month]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("getMonthlySummary error: " . $e->getMessage());
-        return [];
-    }
-}
-
-// 集金確認記録取得
-function getCashConfirmation($pdo, $date) {
-    try {
-        // テーブル存在確認
-        $stmt = $pdo->prepare("SHOW TABLES LIKE 'cash_confirmations'");
-        $stmt->execute();
-        if (!$stmt->fetch()) {
-            // テーブルが存在しない場合はnullを返す
-            return null;
-        }
-        
-        $stmt = $pdo->prepare("
-            SELECT cc.*, u.name as confirmed_by_name
-            FROM cash_confirmations cc
-            LEFT JOIN users u ON cc.confirmed_by = u.id
-            WHERE cc.confirmation_date = ?
-        ");
-        $stmt->execute([$date]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("getCashConfirmation error: " . $e->getMessage());
-        return null;
-    }
-}
-
-// 期間別売上統計
-function getPeriodStatistics($pdo, $start_date, $end_date) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT 
-                COUNT(*) as total_rides,
-                SUM(total_fare) as total_amount,
-                AVG(total_fare) as avg_amount,
-                MIN(total_fare) as min_amount,
-                MAX(total_fare) as max_amount,
-                SUM(cash_amount) as cash_amount,
-                SUM(card_amount) as card_amount
-            FROM ride_records 
-            WHERE DATE(ride_date) BETWEEN ? AND ?
-        ");
-        $stmt->execute([$start_date, $end_date]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        // NULL値を0に変換
-        if ($result) {
-            foreach ($result as $key => $value) {
-                if ($value === null) {
-                    $result[$key] = 0;
-                }
-            }
-        }
-        
-        return $result;
-    } catch (PDOException $e) {
-        error_log("getPeriodStatistics error: " . $e->getMessage());
-        return [
-            'total_rides' => 0,
-            'total_amount' => 0,
-            'avg_amount' => 0,
-            'min_amount' => 0,
-            'max_amount' => 0,
-            'cash_amount' => 0,
-            'card_amount' => 0
-        ];
-    }
-}
-
-// 月次比較データ
-function getMonthlyComparison($pdo, $months = 6) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT 
-                DATE_FORMAT(ride_date, '%Y-%m') as month,
-                COUNT(*) as rides,
-                SUM(total_fare) as total,
-                SUM(cash_amount) as cash,
-                SUM(card_amount) as card
-            FROM ride_records 
-            WHERE ride_date >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
-            GROUP BY DATE_FORMAT(ride_date, '%Y-%m')
-            ORDER BY month DESC
-        ");
-        $stmt->execute([$months]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("getMonthlyComparison error: " . $e->getMessage());
-        return [];
-    }
-}
-
-// 簡易版日次集計（最小限の情報）
-function getSimpleDailyTotal($pdo, $date) {
-    try {
-        // まず基本的なクエリで試行
-        $stmt = $pdo->prepare("
-            SELECT 
-                COUNT(*) as total_rides,
-                COALESCE(SUM(total_fare), 0) as total_amount
-            FROM ride_records 
-            WHERE DATE(ride_date) = ?
-        ");
-        $stmt->execute([$date]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        // 現金・カード別集計（cash_amount, card_amountがある場合）
-        try {
-            $stmt = $pdo->prepare("
-                SELECT 
-                    COALESCE(SUM(cash_amount), 0) as cash_amount,
-                    COALESCE(SUM(card_amount), 0) as card_amount
-                FROM ride_records 
-                WHERE DATE(ride_date) = ?
-            ");
-            $stmt->execute([$date]);
-            $payment_result = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($payment_result) {
-                $result['cash_amount'] = $payment_result['cash_amount'];
-                $result['card_amount'] = $payment_result['card_amount'];
-            }
-        } catch (PDOException $e) {
-            // cash_amount, card_amountがない場合はpayment_methodで計算
-            $stmt = $pdo->prepare("
-                SELECT 
-                    COALESCE(SUM(CASE WHEN payment_method = '現金' THEN total_fare ELSE 0 END), 0) as cash_amount,
-                    COALESCE(SUM(CASE WHEN payment_method = 'カード' THEN total_fare ELSE 0 END), 0) as card_amount
-                FROM ride_records 
-                WHERE DATE(ride_date) = ?
-            ");
-            $stmt->execute([$date]);
-            $payment_result = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($payment_result) {
-                $result['cash_amount'] = $payment_result['cash_amount'];
-                $result['card_amount'] = $payment_result['card_amount'];
-            } else {
-                $result['cash_amount'] = 0;
-                $result['card_amount'] = 0;
-            }
-        }
-        
-        return $result;
-    } catch (PDOException $e) {
-        error_log("getSimpleDailyTotal error: " . $e->getMessage());
-        return [
-            'total_rides' => 0,
-            'total_amount' => 0,
-            'cash_amount' => 0,
-            'card_amount' => 0
-        ];
-    }
-}
-
-// 運転者別売上集計
-function getDriverSales($pdo, $date) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT 
-                r.driver_id,
-                u.name as driver_name,
-                COUNT(*) as rides,
-                SUM(r.total_fare) as total_amount,
-                SUM(r.cash_amount) as cash_amount,
-                SUM(r.card_amount) as card_amount
-            FROM ride_records r
-            LEFT JOIN users u ON r.driver_id = u.id
-            WHERE DATE(r.ride_date) = ?
-            GROUP BY r.driver_id, u.name
-            ORDER BY total_amount DESC
-        ");
-        $stmt->execute([$date]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("getDriverSales error: " . $e->getMessage());
-        return [];
-    }
-}
-
-// 金額フォーマット
-function formatAmount($amount) {
-    return '¥' . number_format($amount ?? 0);
-}
-
-// 差額の表示クラス
-function getDifferenceClass($difference) {
-    if ($difference > 0) return 'difference-positive';
-    if ($difference < 0) return 'difference-negative';
-    return '';
-}
-
-// 支払方法アイコン
-function getPaymentIcon($payment_method) {
-    switch ($payment_method) {
-        case '現金':
-            return 'fa-money-bill';
-        case 'カード':
-            return 'fa-credit-card';
-        default:
-            return 'fa-ellipsis-h';
-    }
-}
-
-// 集金確認テーブル作成（存在しない場合）
-function createCashConfirmationTable($pdo) {
-    try {
-        $sql = "
-            CREATE TABLE IF NOT EXISTS cash_confirmations (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                confirmation_date DATE NOT NULL,
-                expected_cash DECIMAL(10,2) DEFAULT 0,
-                actual_cash DECIMAL(10,2) DEFAULT 0,
-                difference DECIMAL(10,2) DEFAULT 0,
-                confirmed_by INT,
-                notes TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY unique_date (confirmation_date),
-                KEY idx_confirmed_by (confirmed_by),
-                FOREIGN KEY (confirmed_by) REFERENCES users(id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        ";
-        $pdo->exec($sql);
-        return true;
-    } catch (PDOException $e) {
-        error_log("createCashConfirmationTable error: " . $e->getMessage());
-        return false;
-    }
-}
-
-// 集金確認記録保存
-function saveCashConfirmation($pdo, $date, $expected_cash, $actual_cash, $user_id, $notes = '') {
-    try {
-        // テーブルが存在しない場合は作成
-        createCashConfirmationTable($pdo);
-        
-        $difference = $actual_cash - $expected_cash;
-        
-        $stmt = $pdo->prepare("
-            INSERT INTO cash_confirmations 
-            (confirmation_date, expected_cash, actual_cash, difference, confirmed_by, notes) 
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-            expected_cash = VALUES(expected_cash),
-            actual_cash = VALUES(actual_cash),
-            difference = VALUES(difference),
-            confirmed_by = VALUES(confirmed_by),
-            notes = VALUES(notes),
-            updated_at = CURRENT_TIMESTAMP
+            INSERT INTO cash_count_details (
+                confirmation_date, driver_id,
+                bill_5000, bill_1000, 
+                coin_500, coin_100, coin_50, coin_10,
+                total_amount, memo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         
-        return $stmt->execute([$date, $expected_cash, $actual_cash, $difference, $user_id, $notes]);
-    } catch (PDOException $e) {
-        error_log("saveCashConfirmation error: " . $e->getMessage());
-        return false;
+        $stmt->execute([
+            $data['confirmation_date'],
+            $data['driver_id'],
+            $data['bill_5000'] ?? 0,
+            $data['bill_1000'] ?? 0,
+            $data['coin_500'] ?? 0,
+            $data['coin_100'] ?? 0,
+            $data['coin_50'] ?? 0,
+            $data['coin_10'] ?? 0,
+            $data['total_amount'] ?? 0,
+            $data['memo'] ?? ''
+        ]);
+        
+        $pdo->commit();
+        return ['success' => true, 'message' => '集金データを保存しました'];
+        
+    } catch (Exception $e) {
+        $pdo->rollback();
+        return ['success' => false, 'message' => '保存エラー: ' . $e->getMessage()];
     }
+}
+
+/**
+ * 基準おつりとの差異計算
+ * ✅ 新規追加: 運用特化機能
+ */
+function calculateCashDifference($counted_total, $system_cash_amount) {
+    $base_change = 18000; // 基準おつり
+    $deposit_amount = $counted_total - $base_change; // 入金額
+    $expected_total = $base_change + $system_cash_amount; // 予想金額
+    $actual_difference = $counted_total - $expected_total; // 実際差額
+    
+    return [
+        'counted_total' => $counted_total,
+        'base_change' => $base_change,
+        'deposit_amount' => $deposit_amount,
+        'system_cash_amount' => $system_cash_amount,
+        'expected_total' => $expected_total,
+        'actual_difference' => $actual_difference
+    ];
+}
+
+/**
+ * 金種別基準値取得
+ * ✅ 新規追加: 基準おつり管理
+ */
+function getBaseChangeBreakdown() {
+    return [
+        'bill_5000' => ['count' => 1, 'amount' => 5000],
+        'bill_1000' => ['count' => 10, 'amount' => 10000],
+        'coin_500' => ['count' => 3, 'amount' => 1500],
+        'coin_100' => ['count' => 11, 'amount' => 1100],
+        'coin_50' => ['count' => 5, 'amount' => 250],
+        'coin_10' => ['count' => 15, 'amount' => 150],
+        'total' => ['count' => 45, 'amount' => 18000]
+    ];
+}
+
+/**
+ * 現金カウント履歴取得
+ * ✅ 新規追加: 履歴管理機能
+ */
+function getCashCountHistory($pdo, $limit = 10) {
+    $stmt = $pdo->prepare("
+        SELECT 
+            c.*,
+            u.name as driver_name,
+            DATE_FORMAT(c.confirmation_date, '%m/%d') as formatted_date
+        FROM cash_count_details c
+        LEFT JOIN users u ON c.driver_id = u.id
+        ORDER BY c.confirmation_date DESC, c.created_at DESC
+        LIMIT ?
+    ");
+    
+    $stmt->execute([$limit]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * 集金バック管理
+ * ✅ 新規追加: A/Bバック管理機能
+ */
+function getCashBagStatus($pdo, $date = null) {
+    if (!$date) $date = date('Y-m-d');
+    
+    // 仮想的なバック管理（将来的にテーブル追加予定）
+    return [
+        'bag_a' => [
+            'status' => 'available',
+            'last_used' => $date,
+            'base_amount' => 18000
+        ],
+        'bag_b' => [
+            'status' => 'in_use',
+            'last_used' => $date,
+            'base_amount' => 18000
+        ]
+    ];
+}
+
+/**
+ * 当月の集金統計取得
+ * ✅ 修正: total_fare 使用
+ */
+function getMonthlyStatistics($pdo, $year = null, $month = null) {
+    if (!$year) $year = date('Y');
+    if (!$month) $month = date('n');
+    
+    $stmt = $pdo->prepare("
+        SELECT 
+            COUNT(*) as total_rides,
+            COUNT(DISTINCT ride_date) as working_days,
+            COALESCE(SUM(total_fare), 0) as total_revenue,
+            COALESCE(SUM(cash_amount), 0) as total_cash,
+            COALESCE(SUM(card_amount), 0) as total_card,
+            COALESCE(AVG(total_fare), 0) as average_fare,
+            COALESCE(SUM(cash_amount) / NULLIF(COUNT(DISTINCT ride_date), 0), 0) as daily_cash_average
+        FROM ride_records 
+        WHERE YEAR(ride_date) = ? AND MONTH(ride_date) = ?
+    ");
+    
+    $stmt->execute([$year, $month]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 ?>
