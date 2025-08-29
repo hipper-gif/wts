@@ -1,32 +1,5 @@
-// 挿入
-        $stmt = $pdo->prepare("
-            INSERT INTO cash_count_details (
-                confirmation_date, driver_id, 
-                bill_10000, bill_5000, bill_1000, coin_500, coin_100, coin_50, coin_10,
-                total_amount, memo, created_at, updated_at
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
-            )
-        ");
-        
-        $result = $stmt->execute([
-            $data['confirmation_date'],
-            $data['driver_<?php
+<?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
-// OPTIONSリクエストの処理
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
-
-// エラー表示を有効化
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 session_start();
 
 // ログインチェック
@@ -54,71 +27,40 @@ try {
         throw new Exception('必須フィールドが不足しています');
     }
     
-    // 既存データの確認と削除（UNIQUE制約対応）
-    $check_stmt = $pdo->prepare("
-        SELECT id FROM cash_count_details 
-        WHERE confirmation_date = ? AND driver_id = ?
+    // データベースに保存
+    $stmt = $pdo->prepare("
+        INSERT INTO cash_count_details (
+            confirmation_date, driver_id, 
+            bill_10000, bill_5000, bill_1000, coin_500, coin_100, coin_50, coin_10,
+            total_amount, memo, created_at, updated_at
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
+        ) ON DUPLICATE KEY UPDATE
+            bill_10000 = VALUES(bill_10000),
+            bill_5000 = VALUES(bill_5000),
+            bill_1000 = VALUES(bill_1000),
+            coin_500 = VALUES(coin_500),
+            coin_100 = VALUES(coin_100),
+            coin_50 = VALUES(coin_50),
+            coin_10 = VALUES(coin_10),
+            total_amount = VALUES(total_amount),
+            memo = VALUES(memo),
+            updated_at = NOW()
     ");
-    $check_stmt->execute([$data['confirmation_date'], $data['driver_id']]);
-    $existing = $check_stmt->fetch();
     
-    if ($existing) {
-        // 既存データを更新
-        $stmt = $pdo->prepare("
-            UPDATE cash_count_details SET
-                bill_5000 = ?,
-                bill_1000 = ?,
-                coin_500 = ?,
-                coin_100 = ?,
-                coin_50 = ?,
-                coin_10 = ?,
-                total_amount = ?,
-                memo = ?,
-                updated_at = NOW()
-            WHERE confirmation_date = ? AND driver_id = ?
-        ");
-        
-        $stmt->execute([
-            $data['bill_5000'] ?? 0,
-            $data['bill_1000'] ?? 0,
-            $data['coin_500'] ?? 0,
-            $data['coin_100'] ?? 0,
-            $data['coin_50'] ?? 0,
-            $data['coin_10'] ?? 0,
-            $data['total_amount'] ?? 0,
-            $data['memo'] ?? '',
-            $data['confirmation_date'],
-            $data['driver_id']
-        ]);
-        
-        $message = '集金データを更新しました';
-    } else {
-        // 新規データを挿入
-        $stmt = $pdo->prepare("
-            INSERT INTO cash_count_details (
-                confirmation_date, driver_id, 
-                bill_5000, bill_1000, coin_500, coin_100, coin_50, coin_10,
-                total_amount, memo, created_at, updated_at
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
-            )
-        ");
-        
-        $stmt->execute([
-            $data['confirmation_date'],
-            $data['driver_id'],
-            $data['bill_5000'] ?? 0,
-            $data['bill_1000'] ?? 0,
-            $data['coin_500'] ?? 0,
-            $data['coin_100'] ?? 0,
-            $data['coin_50'] ?? 0,
-            $data['coin_10'] ?? 0,
-            $data['total_amount'] ?? 0,
-            $data['memo'] ?? ''
-        ]);
-        
-        $message = '集金データを新規保存しました';
-    }
+    $stmt->execute([
+        $data['confirmation_date'],
+        $data['driver_id'],
+           $data['bill_10000'] ?? 0, 
+        $data['bill_5000'] ?? 0,
+        $data['bill_1000'] ?? 0,
+        $data['coin_500'] ?? 0,
+        $data['coin_100'] ?? 0,
+        $data['coin_50'] ?? 0,
+        $data['coin_10'] ?? 0,
+        $data['total_amount'] ?? 0,
+        $data['memo'] ?? ''
+    ]);
     
     echo json_encode([
         'success' => true,
