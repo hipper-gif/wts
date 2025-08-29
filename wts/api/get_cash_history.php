@@ -15,6 +15,15 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once '../config/database.php';
 
+// 関数型データベース接続に対応
+try {
+    $pdo = getDBConnection();
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'データベース接続エラー']);
+    exit;
+}
+
 try {
     // パラメータ取得
     $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
