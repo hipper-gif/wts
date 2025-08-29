@@ -65,3 +65,18 @@ try {
         'message' => '集金データを正常に保存しました',
         'data' => $data
     ]);
+
+} catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'データベースエラー: ' . $e->getMessage()
+    ]);
+} catch (Exception $e) {
+    http_response_code(400);
+    echo json_encode([
+        'success' => false,
+        'message' => $e->getMessage()
+    ]);
+}
+?>
