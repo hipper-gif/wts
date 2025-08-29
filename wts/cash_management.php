@@ -143,6 +143,8 @@
 <?php
 // セッション・認証処理
 session_start();
+
+// データベース接続
 require_once 'config/database.php';
 require_once 'includes/cash_functions.php';
 
@@ -157,9 +159,26 @@ $user = (object)[
     'permission_level' => $_SESSION['permission_level'] ?? 'User'
 ];
 
-// 当日データ取得（✅ 修正済み関数使用）
-$today_data = getTodayCashRevenue($pdo);
-$base_change = getBaseChangeBreakdown();
+// 関数型データベース接続に対応
+try {
+    $pdo = getDBConnection(); // 関数呼び出しでPDO取得
+    
+    // 当日データ取得（✅ 修正済み関数使用）
+    $today_data = getTodayCashRevenue($pdo);
+    $base_change = getBaseChangeBreakdown();
+    
+} catch (Exception $e) {
+    // エラー時のデフォルト値
+    $today_data = [
+        'ride_count' => 0,
+        'total_revenue' => 0,
+        'cash_revenue' => 0,
+        'card_revenue' => 0,
+        'average_fare' => 0
+    ];
+    $base_change = getBaseChangeBreakdown();
+    error_log('集金管理データ取得エラー: ' . $e->getMessage());
+}
 ?>
 
 <!-- ✅ 統一ヘッダー適用 -->
