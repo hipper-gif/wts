@@ -40,26 +40,35 @@ echo "<h3>Step 2: データベース接続テスト</h3>\n";
 try {
     require_once 'config/database.php';
     
-    if (isset($pdo) && $pdo instanceof PDO) {
-        echo "✅ \$pdo 変数が正しく設定されています<br>\n";
+    // 関数型接続に対応
+    if (function_exists('getDBConnection')) {
+        echo "✅ getDBConnection() 関数が存在します<br>\n";
         
-        // 接続テスト
-        $stmt = $pdo->query("SELECT 1 as test");
-        $result = $stmt->fetch();
+        $pdo = getDBConnection();
         
-        if ($result['test'] == 1) {
-            echo "✅ データベース接続成功<br>\n";
+        if ($pdo instanceof PDO) {
+            echo "✅ PDO接続オブジェクト取得成功<br>\n";
             
-            // サーバー情報取得
-            $version = $pdo->getAttribute(PDO::ATTR_SERVER_VERSION);
-            echo "📋 MySQL バージョン: {$version}<br>\n";
+            // 接続テスト
+            $stmt = $pdo->query("SELECT 1 as test");
+            $result = $stmt->fetch();
             
+            if ($result['test'] == 1) {
+                echo "✅ データベース接続成功<br>\n";
+                
+                // サーバー情報取得
+                $version = $pdo->getAttribute(PDO::ATTR_SERVER_VERSION);
+                echo "📋 MySQL バージョン: {$version}<br>\n";
+                
+            } else {
+                echo "❌ データベースクエリ実行エラー<br>\n";
+            }
         } else {
-            echo "❌ データベースクエリ実行エラー<br>\n";
+            echo "❌ PDOオブジェクトの取得に失敗<br>\n";
         }
     } else {
-        echo "❌ \$pdo 変数が正しく設定されていません<br>\n";
-        echo "config/database.php の内容を確認してください<br>\n";
+        echo "❌ getDBConnection() 関数が定義されていません<br>\n";
+        echo "config/database.php の関数定義を確認してください<br>\n";
     }
     
 } catch (PDOException $e) {
