@@ -12,8 +12,25 @@ $pdo = getDBConnection();
 $current_user_id = $_SESSION['user_id'];
 $current_user_name = $_SESSION['user_name'] ?? '不明';
 
+// 運転者リスト取得
+$driver_list = getDriverList($pdo);
+
 // 今日の日付
 $today = date('Y-m-d');
+
+// 選択された運転者（デフォルトはログインユーザー）
+$selected_driver_id = $_GET['driver_id'] ?? $current_user_id;
+
+// 運転者リスト取得
+function getDriverList($pdo) {
+    $stmt = $pdo->prepare("
+        SELECT id, NAME as name FROM users 
+        WHERE is_driver = 1 AND is_active = 1
+        ORDER BY NAME
+    ");
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
 // システム売上取得（運転者別）
 function getSystemRevenue($pdo, $date, $driver_id = null) {
@@ -40,11 +57,12 @@ function getSystemRevenue($pdo, $date, $driver_id = null) {
 // 今日のシステム売上
 $system_revenue = getSystemRevenue($pdo, $today);
 
-// 現在のユーザーの今日のシステム売上
-$user_system_revenue = getSystemRevenue($pdo, $today, $current_user_id);
+// 選択された運転者のシステム売上
+$user_system_revenue = getSystemRevenue($pdo, $today, $selected_driver_id);
 
-// 基準おつり定義
+// 基準おつり定義（1万円札を追加）
 $base_change = [
+    'bill_10000' => ['count' => 0, 'unit' => 10000],  // 1万円札を追加
     'bill_5000' => ['count' => 1, 'unit' => 5000],
     'bill_1000' => ['count' => 10, 'unit' => 1000],
     'coin_500' => ['count' => 3, 'unit' => 500],
@@ -55,13 +73,18 @@ $base_change = [
 
 $base_total = 18000;
 
-// 既存の集金データ取得
+// 既存の集金データ取得（選択された運転者の）
 $existing_data = null;
 $stmt = $pdo->prepare("SELECT * FROM cash_count_details WHERE confirmation_date = ? AND driver_id = ?");
-$stmt->execute([$today, $current_user_id]);
+$stmt->execute([$today, $selected_driver_id]);
 $existing_data = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// 月次売上データ取得
+// 月次売上データ取得（月選択用のパラメータ追加）
+$selected_month = $_GET['month'] ?? date('Y-m');
+$month_parts = explode('-', $selected_month);
+$year = $month_parts[0];
+$month = $month_parts[1];
+
 $monthly_sql = "SELECT 
     DATE_FORMAT(ride_date, '%Y-%m-%d') as date,
     SUM(total_fare) as daily_total,
@@ -69,11 +92,11 @@ $monthly_sql = "SELECT
     SUM(card_amount) as card_total,
     COUNT(*) as ride_count
     FROM ride_records 
-    WHERE ride_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    WHERE YEAR(ride_date) = ? AND MONTH(ride_date) = ?
     GROUP BY DATE(ride_date)
     ORDER BY date DESC";
 $monthly_stmt = $pdo->prepare($monthly_sql);
-$monthly_stmt->execute();
+$monthly_stmt->execute([$year, $month]);
 $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
@@ -239,6 +262,32 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
             <!-- 日次集計タブ -->
             <div class="tab-pane fade show active" id="daily" role="tabpanel">
                 <div class="row mt-4">
+                    <div class="col-md-12">
+                        <!-- 運転者選択 -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h5><i class="fas fa-user-cog"></i> 運転者選択</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <select class="form-select" id="driver_select" onchange="changeDriver()">
+                                            <?php foreach ($driver_list as $driver): ?>
+                                            <option value="<?php echo $driver['id']; ?>" 
+                                                    <?php echo $driver['id'] == $selected_driver_id ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars($driver['name']); ?>
+                                                <?php echo $driver['id'] == $current_user_id ? ' (あなた)' : ''; ?>
+                                            </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-2">
                     <div class="col-md-6">
                         <div class="card">
                             <div class="card-header">
@@ -324,7 +373,7 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
                         
                         <form id="cashCountForm">
                             <input type="hidden" id="confirmation_date" value="<?php echo $today; ?>">
-                            <input type="hidden" id="driver_id" value="<?php echo $current_user_id; ?>">
+                            <input type="hidden" id="driver_id" value="<?php echo $selected_driver_id; ?>">
                             
                             <!-- 金種別入力 -->
                             <?php foreach ($base_change as $key => $info): ?>
@@ -334,6 +383,7 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
                                         <strong>
                                             <?php
                                             $labels = [
+                                                'bill_10000' => '1万円札',
                                                 'bill_5000' => '5千円札',
                                                 'bill_1000' => '千円札',
                                                 'coin_500' => '500円玉',
@@ -431,7 +481,23 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
             <!-- 月次統計タブ -->
             <div class="tab-pane fade" id="monthly" role="tabpanel">
                 <div class="mt-4">
-                    <h4><i class="fas fa-chart-line"></i> 直近30日の売上実績</h4>
+                    <!-- 月選択ボタン -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-primary" onclick="changeMonth('<?php echo date('Y-m'); ?>')">
+                                    <i class="fas fa-calendar"></i> 今月 (<?php echo date('n月'); ?>)
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="changeMonth('<?php echo date('Y-m', strtotime('-1 month')); ?>')">
+                                    <i class="fas fa-calendar-minus"></i> 先月 (<?php echo date('n月', strtotime('-1 month')); ?>)
+                                </button>
+                                <input type="month" class="form-control" style="max-width: 200px; margin-left: 10px;" 
+                                       value="<?php echo $selected_month; ?>" onchange="changeMonth(this.value)">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h4><i class="fas fa-chart-line"></i> <?php echo $year; ?>年<?php echo $month; ?>月の売上実績</h4>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover">
                             <thead class="table-dark">
@@ -445,7 +511,18 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($monthly_data as $row): ?>
+                                <?php 
+                                $month_total = 0;
+                                $month_cash_total = 0;
+                                $month_card_total = 0;
+                                $month_ride_count = 0;
+                                
+                                foreach ($monthly_data as $row): 
+                                    $month_total += $row['daily_total'];
+                                    $month_cash_total += $row['cash_total'];
+                                    $month_card_total += $row['card_total'];
+                                    $month_ride_count += $row['ride_count'];
+                                ?>
                                 <tr>
                                     <td><?php echo date('m/d(D)', strtotime($row['date'])); ?></td>
                                     <td class="text-end">¥<?php echo number_format($row['daily_total']); ?></td>
@@ -465,6 +542,21 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <tr>
                                     <td colspan="6" class="text-center text-muted">データがありません</td>
                                 </tr>
+                                <?php else: ?>
+                                <!-- 月合計行 -->
+                                <tr class="table-warning">
+                                    <th>月合計</th>
+                                    <th class="text-end">¥<?php echo number_format($month_total); ?></th>
+                                    <th class="text-end">¥<?php echo number_format($month_cash_total); ?></th>
+                                    <th class="text-end">¥<?php echo number_format($month_card_total); ?></th>
+                                    <th class="text-center"><?php echo $month_ride_count; ?>回</th>
+                                    <th class="text-center">
+                                        <?php 
+                                        $overall_cash_rate = $month_total > 0 ? ($month_cash_total / $month_total) * 100 : 0;
+                                        echo number_format($overall_cash_rate, 1) . '%'; 
+                                        ?>
+                                    </th>
+                                </tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -483,9 +575,33 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
         const baseTotal = <?php echo $base_total; ?>;
         const systemCashSales = <?php echo $user_system_revenue['cash_total'] ?? 0; ?>;
         
+        // 運転者変更時の処理
+        function changeDriver() {
+            const selectedDriverId = document.getElementById('driver_select').value;
+            const url = new URL(window.location);
+            url.searchParams.set('driver_id', selectedDriverId);
+            window.location.href = url.toString();
+        }
+        
+        // 月変更時の処理
+        function changeMonth(month) {
+            const url = new URL(window.location);
+            url.searchParams.set('month', month);
+            url.hash = '#monthly'; // 月次統計タブを維持
+            window.location.href = url.toString();
+        }
+        
         // ページ読み込み時に計算
         document.addEventListener('DOMContentLoaded', function() {
             calculateTotals();
+            
+            // 運転者IDを現在選択されたものに更新
+            document.getElementById('driver_id').value = <?php echo $selected_driver_id; ?>;
+            
+            // URLのハッシュに基づいてタブを表示
+            if (window.location.hash === '#monthly') {
+                document.getElementById('monthly-tab').click();
+            }
         });
         
         // 金種枚数調整
@@ -543,6 +659,10 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
         document.getElementById('cashCountForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
+            const submitBtn = document.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 保存中...';
+            
             const formData = {
                 confirmation_date: document.getElementById('confirmation_date').value,
                 driver_id: document.getElementById('driver_id').value,
@@ -561,6 +681,8 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
             });
             formData.total_amount = totalAmount;
             
+            console.log('送信データ:', formData); // デバッグ用
+            
             // 保存処理（Ajax）
             fetch('api/save_cash_count.php', {
                 method: 'POST',
@@ -569,17 +691,45 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
                 },
                 body: JSON.stringify(formData)
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('レスポンスステータス:', response.status); // デバッグ用
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                return response.text(); // まずテキストで取得
+            })
+            .then(text => {
+                console.log('レスポンステキスト:', text); // デバッグ用
+                
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    throw new Error('JSONパースエラー: ' + text.substring(0, 100));
+                }
+            })
             .then(data => {
+                console.log('パース後データ:', data); // デバッグ用
+                
                 if (data.success) {
-                    alert('集金データを保存しました！');
+                    alert('✅ ' + data.message);
+                    // 成功時にページをリロードして最新データを表示
+                    window.location.reload();
                 } else {
-                    alert('保存エラー: ' + (data.message || '不明なエラー'));
+                    alert('❌ 保存エラー: ' + (data.message || '不明なエラー'));
+                    if (data.debug) {
+                        console.error('詳細デバッグ情報:', data.debug);
+                    }
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('保存中にエラーが発生しました');
+                console.error('通信エラー:', error);
+                alert('❌ 保存中にエラーが発生しました: ' + error.message);
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-save"></i> 保存する';
             });
         });
     </script>
