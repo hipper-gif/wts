@@ -1,451 +1,299 @@
-/* 福祉輸送管理システム - 統一ヘッダーCSS */
-/* 作成日: 2025年8月28日 */
-/* 目的: 全画面でのヘッダー統一・Font Awesomeアイコン対応 */
+/* 福祉輸送管理システム - 統一ヘッダースタイル */
+/* 最終更新: 2025年8月29日 */
 
-:root {
-    /* カラーパレット */
-    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --secondary-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    --success-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    --danger-gradient: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
-    
-    /* システムカラー */
-    --system-primary: #667eea;
-    --system-secondary: #764ba2;
-    --success-color: #11998e;
-    --warning-color: #ffc107;
-    --danger-color: #dc3545;
-    --info-color: #17a2b8;
-    
-    /* UI要素 */
-    --shadow-light: 0 2px 10px rgba(0,0,0,0.1);
-    --shadow-medium: 0 4px 15px rgba(0,0,0,0.15);
-    --shadow-heavy: 0 8px 30px rgba(0,0,0,0.2);
-    --border-radius: 15px;
-    --border-radius-small: 10px;
-    
-    /* レスポンシブブレークポイント */
-    --mobile-small: 375px;
-    --mobile-standard: 393px;
-    --mobile-large: 430px;
+/* システムヘッダー（固定） */
+.header-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1030;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
-
-/* ========================================= */
-/* システムヘッダー（最上位） */
-/* ========================================= */
 
 .system-header {
-    background: var(--primary-gradient);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 15px 0;
-    box-shadow: var(--shadow-medium);
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-}
-
-.system-header .container-fluid {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    padding: 8px 0;
+    min-height: 50px;
 }
 
 .system-title {
-    font-size: 20px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    font-size: 1.4rem;
+    margin: 0;
+    font-weight: 600;
 }
 
 .system-title i {
-    font-size: 24px;
-    color: #fff3cd;
+    margin-right: 8px;
+    color: #ffd700;
 }
 
 .user-info {
-    font-size: 14px;
+    font-size: 0.9rem;
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: rgba(255,255,255,0.2);
-    padding: 8px 15px;
-    border-radius: var(--border-radius-small);
+    gap: 5px;
 }
 
 .user-info i {
-    font-size: 16px;
+    font-size: 0.8rem;
 }
 
-/* ========================================= */
-/* 機能ヘッダー（各機能固有） */
-/* ========================================= */
-
-.function-header {
-    background: var(--secondary-gradient);
+.page-header {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
     color: white;
-    padding: 20px 0;
-    box-shadow: var(--shadow-light);
+    padding: 10px 0;
+    min-height: 45px;
 }
 
-.function-title {
-    font-size: 24px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 5px;
-}
-
-.function-title i {
-    font-size: 28px;
-    color: #fff3cd;
-}
-
-.function-subtitle {
-    font-size: 14px;
-    opacity: 0.9;
-    margin-left: 40px;
-}
-
-/* ========================================= */
-/* セクションヘッダー（画面内セクション） */
-/* ========================================= */
-
-.section-header {
-    background: white;
-    border-left: 5px solid var(--system-primary);
-    padding: 15px 20px;
-    margin: 20px 0 15px 0;
-    border-radius: 0 var(--border-radius-small) var(--border-radius-small) 0;
-    box-shadow: var(--shadow-light);
-}
-
-.section-header h3 {
+.page-title {
+    font-size: 1.2rem;
     margin: 0;
-    color: var(--system-primary);
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    font-weight: 500;
 }
 
-.section-header h3 i {
-    color: var(--system-secondary);
-    font-size: 20px;
+.page-title i {
+    margin-right: 8px;
+    font-size: 1.1rem;
 }
 
-/* ========================================= */
-/* Bootstrapタブスタイル統一 */
-/* ========================================= */
+/* コンテンツ位置調整 */
+body {
+    padding-top: 100px; /* ヘッダー分の余白 */
+}
 
+/* タブメニュー調整 */
 .nav-tabs {
-    border-bottom: 2px solid var(--system-primary);
-    margin-bottom: 20px;
+    margin-top: 10px;
+    border: none;
 }
 
 .nav-tabs .nav-link {
-    color: var(--system-primary);
+    border: 1px solid #dee2e6;
+    border-radius: 10px 10px 0 0;
+    margin-right: 5px;
+    color: #495057;
     font-weight: 500;
-    border: none;
-    border-bottom: 3px solid transparent;
     padding: 12px 20px;
+    background: #f8f9fa;
     transition: all 0.3s ease;
 }
 
 .nav-tabs .nav-link:hover {
-    color: var(--system-secondary);
-    border-bottom-color: var(--system-secondary);
-    background: rgba(102, 126, 234, 0.05);
+    background: #e9ecef;
+    border-color: #adb5bd;
 }
 
 .nav-tabs .nav-link.active {
-    color: var(--system-secondary);
-    background: rgba(102, 126, 234, 0.1);
-    border-bottom-color: var(--system-secondary);
-    font-weight: bold;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: #667eea;
 }
 
 .nav-tabs .nav-link i {
+    margin-right: 5px;
+}
+
+/* カード共通スタイル */
+.card {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.card-header {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border: none;
+    font-weight: 600;
+    padding: 15px 20px;
+}
+
+.card-header h5 {
+    margin: 0;
+}
+
+.card-header i {
     margin-right: 8px;
 }
 
-/* ========================================= */
-/* 共通ボタンスタイル */
-/* ========================================= */
+/* 統計表示スタイル */
+.stat-item {
+    padding: 10px 0;
+}
+
+.stat-item h3 {
+    margin: 0 0 5px 0;
+    font-weight: 700;
+}
+
+.stat-item p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+/* アラート調整 */
+.alert {
+    border: none;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.alert-info {
+    background: linear-gradient(135deg, #54a0ff 0%, #2e86de 100%);
+    color: white;
+}
+
+.alert i {
+    margin-right: 8px;
+}
+
+/* ボタンスタイル */
+.btn {
+    border-radius: 8px;
+    font-weight: 500;
+    padding: 10px 20px;
+    transition: all 0.3s ease;
+}
 
 .btn-primary {
-    background: var(--primary-gradient);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border: none;
-    border-radius: var(--border-radius-small);
-    padding: 12px 24px;
-    font-weight: 500;
-    box-shadow: var(--shadow-light);
-    transition: all 0.3s ease;
 }
 
 .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-medium);
+    background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
-.btn-success {
-    background: var(--success-gradient);
-    border: none;
-    border-radius: var(--border-radius-small);
-    box-shadow: var(--shadow-light);
+.btn-lg {
+    padding: 12px 30px;
+    font-size: 1.1rem;
 }
 
-.btn-warning {
-    background: var(--warning-gradient);
-    border: none;
-    color: white;
-    border-radius: var(--border-radius-small);
-    box-shadow: var(--shadow-light);
-}
-
-.btn-danger {
-    background: var(--danger-gradient);
-    border: none;
-    border-radius: var(--border-radius-small);
-    box-shadow: var(--shadow-light);
-}
-
-/* ========================================= */
-/* カード要素統一スタイル */
-/* ========================================= */
-
-.card-unified {
-    background: white;
-    border: none;
-    border-radius: var(--border-radius);
-    box-shadow: var(--shadow-light);
+/* テーブルスタイル */
+.table {
+    border-radius: 10px;
     overflow: hidden;
-    transition: all 0.3s ease;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
-.card-unified:hover {
-    box-shadow: var(--shadow-medium);
-    transform: translateY(-2px);
+.table-dark {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-.card-header-unified {
-    background: var(--primary-gradient);
-    color: white;
-    padding: 15px 20px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+.table-striped > tbody > tr:nth-of-type(odd) > td {
+    background-color: rgba(102, 126, 234, 0.05);
 }
 
-.card-body-unified {
-    padding: 20px;
+.table-hover > tbody > tr:hover > td {
+    background-color: rgba(102, 126, 234, 0.1);
 }
 
-/* ========================================= */
-/* フォーム要素統一スタイル */
-/* ========================================= */
-
-.form-control {
-    border-radius: var(--border-radius-small);
-    border: 2px solid #e9ecef;
-    padding: 12px 15px;
-    transition: all 0.3s ease;
-}
-
-.form-control:focus {
-    border-color: var(--system-primary);
-    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
-}
-
-.form-label {
-    font-weight: 600;
-    color: var(--system-primary);
-    margin-bottom: 8px;
-}
-
-/* ========================================= */
-/* アイコン統一スタイル */
-/* ========================================= */
-
-.icon-primary {
-    color: var(--system-primary);
-}
-
-.icon-success {
-    color: var(--success-color);
-}
-
-.icon-warning {
-    color: var(--warning-color);
-}
-
-.icon-danger {
-    color: var(--danger-color);
-}
-
-.icon-info {
-    color: var(--info-color);
-}
-
-/* ========================================= */
-/* レスポンシブ対応 */
-/* ========================================= */
-
-/* iPhone 14 Pro Max (430px) */
-@media (max-width: 430px) {
+/* モバイル対応 */
+@media (max-width: 768px) {
     .system-title {
-        font-size: 18px;
+        font-size: 1.1rem;
     }
     
-    .function-title {
-        font-size: 20px;
-    }
-    
-    .function-subtitle {
-        font-size: 12px;
-        margin-left: 32px;
+    .page-title {
+        font-size: 1rem;
     }
     
     .user-info {
-        font-size: 12px;
-        padding: 6px 12px;
+        font-size: 0.8rem;
     }
     
-    .nav-tabs .nav-link {
-        padding: 10px 15px;
-        font-size: 14px;
-    }
-}
-
-/* iPhone 14 Pro (393px) */
-@media (max-width: 393px) {
-    .system-header .container-fluid {
-        flex-direction: column;
-        gap: 10px;
-    }
-    
-    .system-title {
-        font-size: 16px;
-    }
-    
-    .function-title {
-        font-size: 18px;
-        text-align: center;
-    }
-    
-    .function-subtitle {
-        text-align: center;
-        margin-left: 0;
-    }
-}
-
-/* iPhone SE (375px) */
-@media (max-width: 375px) {
-    .system-header {
-        padding: 10px 0;
-    }
-    
-    .function-header {
-        padding: 15px 0;
+    body {
+        padding-top: 90px;
     }
     
     .nav-tabs .nav-link {
         padding: 8px 12px;
-        font-size: 12px;
+        font-size: 0.9rem;
+        margin-right: 2px;
+    }
+    
+    .card-header {
+        padding: 12px 15px;
+    }
+    
+    .card-header h5 {
+        font-size: 1rem;
+    }
+    
+    .btn {
+        padding: 8px 16px;
+    }
+    
+    .btn-lg {
+        padding: 10px 24px;
+        font-size: 1rem;
+    }
+}
+
+/* 小さな画面（iPhone SE等） */
+@media (max-width: 375px) {
+    .system-title {
+        font-size: 1rem;
+    }
+    
+    .page-title {
+        font-size: 0.9rem;
+    }
+    
+    body {
+        padding-top: 80px;
+    }
+    
+    .nav-tabs .nav-link {
+        padding: 6px 8px;
+        font-size: 0.8rem;
     }
     
     .nav-tabs .nav-link i {
-        margin-right: 5px;
-        font-size: 14px;
+        display: none; /* アイコンを隠してスペース確保 */
     }
 }
 
-/* ========================================= */
-/* ユーティリティクラス */
-/* ========================================= */
-
-.gradient-text {
-    background: var(--primary-gradient);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    font-weight: bold;
-}
-
-.shadow-unified {
-    box-shadow: var(--shadow-light);
-}
-
-.shadow-hover:hover {
-    box-shadow: var(--shadow-medium);
-    transform: translateY(-2px);
-    transition: all 0.3s ease;
-}
-
-.border-radius-unified {
-    border-radius: var(--border-radius);
-}
-
-.border-radius-small-unified {
-    border-radius: var(--border-radius-small);
-}
-
-/* ========================================= */
-/* アニメーション */
-/* ========================================= */
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.fade-in-up {
-    animation: fadeInUp 0.6s ease-out;
-}
-
-@keyframes pulse {
-    0% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.05);
-    }
-    100% {
-        transform: scale(1);
-    }
-}
-
-.pulse-animation {
-    animation: pulse 2s infinite;
-}
-
-/* ========================================= */
-/* Dark Mode対応（将来実装予定） */
-/* ========================================= */
-
+/* ダークモード対応（将来的な拡張） */
 @media (prefers-color-scheme: dark) {
-    .card-unified {
-        background: #2d3748;
+    .card {
+        background-color: #2d3748;
         color: white;
     }
     
-    .form-control {
-        background: #4a5568;
-        border-color: #718096;
+    .table {
+        background-color: #2d3748;
         color: white;
     }
     
-    .section-header {
-        background: #2d3748;
-        color: white;
+    .table-striped > tbody > tr:nth-of-type(odd) > td {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+}
+
+/* プリント用スタイル */
+@media print {
+    .header-container,
+    .nav-buttons,
+    .nav-tabs,
+    .btn {
+        display: none !important;
+    }
+    
+    body {
+        padding-top: 0 !important;
+        background: white !important;
+        color: black !important;
+    }
+    
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
     }
 }
