@@ -16,6 +16,15 @@ if (!isset($_SESSION['user_id'])) {
 require_once '../config/database.php';
 require_once '../includes/cash_functions.php';
 
+// 関数型データベース接続に対応
+try {
+    $pdo = getDBConnection();
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'データベース接続エラー']);
+    exit;
+}
+
 // POSTデータのみ受付
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
