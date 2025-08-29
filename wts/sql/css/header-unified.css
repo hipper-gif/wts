@@ -1,0 +1,451 @@
+/* 福祉輸送管理システム - 統一ヘッダーCSS */
+/* 作成日: 2025年8月28日 */
+/* 目的: 全画面でのヘッダー統一・Font Awesomeアイコン対応 */
+
+:root {
+    /* カラーパレット */
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --secondary-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    --success-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    --danger-gradient: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
+    
+    /* システムカラー */
+    --system-primary: #667eea;
+    --system-secondary: #764ba2;
+    --success-color: #11998e;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --info-color: #17a2b8;
+    
+    /* UI要素 */
+    --shadow-light: 0 2px 10px rgba(0,0,0,0.1);
+    --shadow-medium: 0 4px 15px rgba(0,0,0,0.15);
+    --shadow-heavy: 0 8px 30px rgba(0,0,0,0.2);
+    --border-radius: 15px;
+    --border-radius-small: 10px;
+    
+    /* レスポンシブブレークポイント */
+    --mobile-small: 375px;
+    --mobile-standard: 393px;
+    --mobile-large: 430px;
+}
+
+/* ========================================= */
+/* システムヘッダー（最上位） */
+/* ========================================= */
+
+.system-header {
+    background: var(--primary-gradient);
+    color: white;
+    padding: 15px 0;
+    box-shadow: var(--shadow-medium);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.system-header .container-fluid {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.system-title {
+    font-size: 20px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.system-title i {
+    font-size: 24px;
+    color: #fff3cd;
+}
+
+.user-info {
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.2);
+    padding: 8px 15px;
+    border-radius: var(--border-radius-small);
+}
+
+.user-info i {
+    font-size: 16px;
+}
+
+/* ========================================= */
+/* 機能ヘッダー（各機能固有） */
+/* ========================================= */
+
+.function-header {
+    background: var(--secondary-gradient);
+    color: white;
+    padding: 20px 0;
+    box-shadow: var(--shadow-light);
+}
+
+.function-title {
+    font-size: 24px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 5px;
+}
+
+.function-title i {
+    font-size: 28px;
+    color: #fff3cd;
+}
+
+.function-subtitle {
+    font-size: 14px;
+    opacity: 0.9;
+    margin-left: 40px;
+}
+
+/* ========================================= */
+/* セクションヘッダー（画面内セクション） */
+/* ========================================= */
+
+.section-header {
+    background: white;
+    border-left: 5px solid var(--system-primary);
+    padding: 15px 20px;
+    margin: 20px 0 15px 0;
+    border-radius: 0 var(--border-radius-small) var(--border-radius-small) 0;
+    box-shadow: var(--shadow-light);
+}
+
+.section-header h3 {
+    margin: 0;
+    color: var(--system-primary);
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-header h3 i {
+    color: var(--system-secondary);
+    font-size: 20px;
+}
+
+/* ========================================= */
+/* Bootstrapタブスタイル統一 */
+/* ========================================= */
+
+.nav-tabs {
+    border-bottom: 2px solid var(--system-primary);
+    margin-bottom: 20px;
+}
+
+.nav-tabs .nav-link {
+    color: var(--system-primary);
+    font-weight: 500;
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 12px 20px;
+    transition: all 0.3s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--system-secondary);
+    border-bottom-color: var(--system-secondary);
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.nav-tabs .nav-link.active {
+    color: var(--system-secondary);
+    background: rgba(102, 126, 234, 0.1);
+    border-bottom-color: var(--system-secondary);
+    font-weight: bold;
+}
+
+.nav-tabs .nav-link i {
+    margin-right: 8px;
+}
+
+/* ========================================= */
+/* 共通ボタンスタイル */
+/* ========================================= */
+
+.btn-primary {
+    background: var(--primary-gradient);
+    border: none;
+    border-radius: var(--border-radius-small);
+    padding: 12px 24px;
+    font-weight: 500;
+    box-shadow: var(--shadow-light);
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-medium);
+}
+
+.btn-success {
+    background: var(--success-gradient);
+    border: none;
+    border-radius: var(--border-radius-small);
+    box-shadow: var(--shadow-light);
+}
+
+.btn-warning {
+    background: var(--warning-gradient);
+    border: none;
+    color: white;
+    border-radius: var(--border-radius-small);
+    box-shadow: var(--shadow-light);
+}
+
+.btn-danger {
+    background: var(--danger-gradient);
+    border: none;
+    border-radius: var(--border-radius-small);
+    box-shadow: var(--shadow-light);
+}
+
+/* ========================================= */
+/* カード要素統一スタイル */
+/* ========================================= */
+
+.card-unified {
+    background: white;
+    border: none;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-light);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.card-unified:hover {
+    box-shadow: var(--shadow-medium);
+    transform: translateY(-2px);
+}
+
+.card-header-unified {
+    background: var(--primary-gradient);
+    color: white;
+    padding: 15px 20px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.card-body-unified {
+    padding: 20px;
+}
+
+/* ========================================= */
+/* フォーム要素統一スタイル */
+/* ========================================= */
+
+.form-control {
+    border-radius: var(--border-radius-small);
+    border: 2px solid #e9ecef;
+    padding: 12px 15px;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    border-color: var(--system-primary);
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+.form-label {
+    font-weight: 600;
+    color: var(--system-primary);
+    margin-bottom: 8px;
+}
+
+/* ========================================= */
+/* アイコン統一スタイル */
+/* ========================================= */
+
+.icon-primary {
+    color: var(--system-primary);
+}
+
+.icon-success {
+    color: var(--success-color);
+}
+
+.icon-warning {
+    color: var(--warning-color);
+}
+
+.icon-danger {
+    color: var(--danger-color);
+}
+
+.icon-info {
+    color: var(--info-color);
+}
+
+/* ========================================= */
+/* レスポンシブ対応 */
+/* ========================================= */
+
+/* iPhone 14 Pro Max (430px) */
+@media (max-width: 430px) {
+    .system-title {
+        font-size: 18px;
+    }
+    
+    .function-title {
+        font-size: 20px;
+    }
+    
+    .function-subtitle {
+        font-size: 12px;
+        margin-left: 32px;
+    }
+    
+    .user-info {
+        font-size: 12px;
+        padding: 6px 12px;
+    }
+    
+    .nav-tabs .nav-link {
+        padding: 10px 15px;
+        font-size: 14px;
+    }
+}
+
+/* iPhone 14 Pro (393px) */
+@media (max-width: 393px) {
+    .system-header .container-fluid {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .system-title {
+        font-size: 16px;
+    }
+    
+    .function-title {
+        font-size: 18px;
+        text-align: center;
+    }
+    
+    .function-subtitle {
+        text-align: center;
+        margin-left: 0;
+    }
+}
+
+/* iPhone SE (375px) */
+@media (max-width: 375px) {
+    .system-header {
+        padding: 10px 0;
+    }
+    
+    .function-header {
+        padding: 15px 0;
+    }
+    
+    .nav-tabs .nav-link {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+    
+    .nav-tabs .nav-link i {
+        margin-right: 5px;
+        font-size: 14px;
+    }
+}
+
+/* ========================================= */
+/* ユーティリティクラス */
+/* ========================================= */
+
+.gradient-text {
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: bold;
+}
+
+.shadow-unified {
+    box-shadow: var(--shadow-light);
+}
+
+.shadow-hover:hover {
+    box-shadow: var(--shadow-medium);
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
+}
+
+.border-radius-unified {
+    border-radius: var(--border-radius);
+}
+
+.border-radius-small-unified {
+    border-radius: var(--border-radius-small);
+}
+
+/* ========================================= */
+/* アニメーション */
+/* ========================================= */
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in-up {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.pulse-animation {
+    animation: pulse 2s infinite;
+}
+
+/* ========================================= */
+/* Dark Mode対応（将来実装予定） */
+/* ========================================= */
+
+@media (prefers-color-scheme: dark) {
+    .card-unified {
+        background: #2d3748;
+        color: white;
+    }
+    
+    .form-control {
+        background: #4a5568;
+        border-color: #718096;
+        color: white;
+    }
+    
+    .section-header {
+        background: #2d3748;
+        color: white;
+    }
+}
