@@ -1,4 +1,8 @@
 <?php
+// デバッグのための一時的なエラー表示設定
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+
 header('Content-Type: application/json');
 session_start();
 
@@ -70,9 +74,13 @@ try {
 
 } catch (PDOException $e) {
     http_response_code(500);
+    // デバッグのため、詳細なエラーメッセージを返す
     echo json_encode([
         'success' => false,
-        'message' => 'データベースエラー: ' . $e->getMessage()
+        'message' => 'データベースエラーが発生しました。',
+        'error_details' => $e->getMessage(),
+        'error_code' => $e->getCode(),
+        'error_trace' => $e->getTraceAsString()
     ]);
 } catch (Exception $e) {
     http_response_code(400);
