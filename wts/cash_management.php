@@ -1,6 +1,6 @@
 <?php
-// CSPヘッダーを追加して 'unsafe-eval' を許可する
-header("Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval'; style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; font-src 'self' https://cdnjs.cloudflare.com;");
+// CSPヘッダーを包括的なものに修正し、インラインスクリプトとデータURI画像を許可する
+header("Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline' 'unsafe-eval'; style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:;");
 session_start();
 require_once 'config/database.php';
 
