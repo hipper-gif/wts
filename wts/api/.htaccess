@@ -44,5 +44,5 @@ ErrorDocument 500 "Internal API Error"
 </IfModule>
 
 # PHP設定（エラー非表示）
-# php_flag display_errors Off
+php_flag display_errors Off
 php_flag log_errors On
