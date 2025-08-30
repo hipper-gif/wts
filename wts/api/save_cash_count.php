@@ -9,8 +9,8 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// 絶対パスでデータベース設定ファイルを読み込む
-require_once '/home/twinklemark/twinklemark.xsrv.jp/public_html/Smiley/taxi/wts/config/database.php';
+// __DIR__ を使用して、このファイルの場所を基準にデータベース設定ファイルを読み込む
+require_once dirname(__DIR__) . '/config/database.php';
 
 try {
     $pdo = getDBConnection();
