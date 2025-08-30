@@ -1,8 +1,4 @@
 <?php
-// デバッグのための一時的なエラー表示設定
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
-
 header('Content-Type: application/json');
 session_start();
 
@@ -13,7 +9,8 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-require_once '../config/database.php';
+// 絶対パスでデータベース設定ファイルを読み込む
+require_once '/home/twinklemark/twinklemark.xsrv.jp/public_html/Smiley/taxi/wts/config/database.php';
 
 try {
     $pdo = getDBConnection();
@@ -74,13 +71,9 @@ try {
 
 } catch (PDOException $e) {
     http_response_code(500);
-    // デバッグのため、詳細なエラーメッセージを返す
     echo json_encode([
         'success' => false,
-        'message' => 'データベースエラーが発生しました。',
-        'error_details' => $e->getMessage(),
-        'error_code' => $e->getCode(),
-        'error_trace' => $e->getTraceAsString()
+        'message' => 'データベースエラー: ' . $e->getMessage()
     ]);
 } catch (Exception $e) {
     http_response_code(400);
