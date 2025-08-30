@@ -1,6 +1,6 @@
 <?php
-// CSPヘッダーを包括的なものに修正し、インラインスクリプトとデータURI画像を許可する
-header("Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline' 'unsafe-eval'; style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:;");
+// CSPヘッダーを修正版に変更
+header("Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data: https:;");
 session_start();
 require_once 'config/database.php';
 
@@ -13,15 +13,6 @@ if (!isset($_SESSION['user_id'])) {
 $pdo = getDBConnection();
 $current_user_id = $_SESSION['user_id'];
 $current_user_name = $_SESSION['user_name'] ?? '不明';
-
-// 運転者リスト取得
-$driver_list = getDriverList($pdo);
-
-// 今日の日付
-$today = date('Y-m-d');
-
-// 選択された運転者（デフォルトはログインユーザー）
-$selected_driver_id = $_GET['driver_id'] ?? $current_user_id;
 
 // 運転者リスト取得
 function getDriverList($pdo) {
@@ -56,15 +47,16 @@ function getSystemRevenue($pdo, $date, $driver_id = null) {
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
-// 今日のシステム売上
-$system_revenue = getSystemRevenue($pdo, $today);
+$driver_list = getDriverList($pdo);
+$today = date('Y-m-d');
+$selected_driver_id = $_GET['driver_id'] ?? $current_user_id;
 
-// 選択された運転者のシステム売上
+$system_revenue = getSystemRevenue($pdo, $today);
 $user_system_revenue = getSystemRevenue($pdo, $today, $selected_driver_id);
 
 // 基準おつり定義（1万円札を追加）
 $base_change = [
-    'bill_10000' => ['count' => 0, 'unit' => 10000],  // 1万円札を追加
+    'bill_10000' => ['count' => 0, 'unit' => 10000],
     'bill_5000' => ['count' => 1, 'unit' => 5000],
     'bill_1000' => ['count' => 10, 'unit' => 1000],
     'coin_500' => ['count' => 3, 'unit' => 500],
@@ -75,13 +67,13 @@ $base_change = [
 
 $base_total = 18000;
 
-// 既存の集金データ取得（選択された運転者の）
+// 既存の集金データ取得
 $existing_data = null;
 $stmt = $pdo->prepare("SELECT * FROM cash_count_details WHERE confirmation_date = ? AND driver_id = ?");
 $stmt->execute([$today, $selected_driver_id]);
 $existing_data = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// 月次売上データ取得（月選択用のパラメータ追加）
+// 月次売上データ取得
 $selected_month = $_GET['month'] ?? date('Y-m');
 $month_parts = explode('-', $selected_month);
 $year = $month_parts[0];
@@ -273,7 +265,7 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
                             <div class="card-body">
                                 <div class="row">
                                     <div class="col-md-4">
-                                        <select class="form-select" id="driver_select" onchange="changeDriver()">
+                                        <select class="form-select" id="driver_select">
                                             <?php foreach ($driver_list as $driver): ?>
                                             <option value="<?php echo $driver['id']; ?>" 
                                                     <?php echo $driver['id'] == $selected_driver_id ? 'selected' : ''; ?>>
@@ -329,20 +321,20 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
                     <div class="col-md-6">
                         <div class="card">
                             <div class="card-header">
-                                <h5><i class="fas fa-user-check"></i> あなたの売上実績</h5>
+                                <h5><i class="fas fa-user-check"></i> 選択運転者の売上実績</h5>
                             </div>
                             <div class="card-body">
                                 <div class="row text-center">
                                     <div class="col-6">
                                         <div class="stat-item">
                                             <h3 class="text-primary">¥<?php echo number_format($user_system_revenue['total_revenue'] ?? 0); ?></h3>
-                                            <p class="text-muted">あなたの総売上</p>
+                                            <p class="text-muted">選択運転者の総売上</p>
                                         </div>
                                     </div>
                                     <div class="col-6">
                                         <div class="stat-item">
                                             <h3 class="text-success"><?php echo $user_system_revenue['ride_count'] ?? 0; ?>回</h3>
-                                            <p class="text-muted">あなたの回数</p>
+                                            <p class="text-muted">選択運転者の回数</p>
                                         </div>
                                     </div>
                                     <div class="col-6">
@@ -370,7 +362,7 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
                     <div class="col-md-8">
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle"></i>
-                            あなたの集金をカウントしてください。基準おつり（¥18,000）との差額を自動計算します。
+                            選択された運転者の集金をカウントしてください。基準おつり（¥18,000）との差額を自動計算します。
                         </div>
                         
                         <form id="cashCountForm">
@@ -400,16 +392,19 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
                                     </div>
                                     
                                     <div class="count-control">
-                                        <button type="button" class="btn btn-outline-danger count-btn" onclick="adjustCount('<?php echo $key; ?>', -1)">
+                                        <button type="button" class="btn btn-outline-danger count-btn" 
+                                                data-denomination="<?php echo $key; ?>" 
+                                                data-delta="-1">
                                             <i class="fas fa-minus"></i>
                                         </button>
                                         <input type="number" 
                                                class="form-control count-input" 
                                                id="<?php echo $key; ?>" 
                                                value="<?php echo $existing_data[$key] ?? $info['count']; ?>"
-                                               min="0"
-                                               onchange="calculateTotals()">
-                                        <button type="button" class="btn btn-outline-success count-btn" onclick="adjustCount('<?php echo $key; ?>', 1)">
+                                               min="0">
+                                        <button type="button" class="btn btn-outline-success count-btn"
+                                                data-denomination="<?php echo $key; ?>"
+                                                data-delta="1">
                                             <i class="fas fa-plus"></i>
                                         </button>
                                     </div>
@@ -487,14 +482,16 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
                     <div class="row mb-3">
                         <div class="col-12">
                             <div class="btn-group" role="group">
-                                <button type="button" class="btn btn-outline-primary" onclick="changeMonth('<?php echo date('Y-m'); ?>')">
+                                <button type="button" class="btn btn-outline-primary" 
+                                        data-month="<?php echo date('Y-m'); ?>">
                                     <i class="fas fa-calendar"></i> 今月 (<?php echo date('n月'); ?>)
                                 </button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="changeMonth('<?php echo date('Y-m', strtotime('-1 month')); ?>')">
+                                <button type="button" class="btn btn-outline-secondary" 
+                                        data-month="<?php echo date('Y-m', strtotime('-1 month')); ?>">
                                     <i class="fas fa-calendar-minus"></i> 先月 (<?php echo date('n月', strtotime('-1 month')); ?>)
                                 </button>
                                 <input type="month" class="form-control" style="max-width: 200px; margin-left: 10px;" 
-                                       value="<?php echo $selected_month; ?>" onchange="changeMonth(this.value)">
+                                       value="<?php echo $selected_month; ?>" id="month_selector">
                             </div>
                         </div>
                     </div>
@@ -568,172 +565,20 @@ $monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 
+    <!-- データをJavaScriptに渡すための隠しスクリプト -->
+    <script id="app-data" type="application/json">
+    {
+        "baseChange": <?php echo json_encode($base_change); ?>,
+        "baseTotal": <?php echo $base_total; ?>,
+        "systemCashSales": <?php echo $user_system_revenue['cash_total'] ?? 0; ?>,
+        "selectedDriverId": <?php echo $selected_driver_id; ?>
+    }
+    </script>
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <script>
-        // 基準値とシステム売上
-        const baseChange = <?php echo json_encode($base_change); ?>;
-        const baseTotal = <?php echo $base_total; ?>;
-        const systemCashSales = <?php echo $user_system_revenue['cash_total'] ?? 0; ?>;
-        
-        // 運転者変更時の処理
-        function changeDriver() {
-            const selectedDriverId = document.getElementById('driver_select').value;
-            const url = new URL(window.location);
-            url.searchParams.set('driver_id', selectedDriverId);
-            window.location.href = url.toString();
-        }
-        
-        // 月変更時の処理
-        function changeMonth(month) {
-            const url = new URL(window.location);
-            url.searchParams.set('month', month);
-            url.hash = '#monthly'; // 月次統計タブを維持
-            window.location.href = url.toString();
-        }
-        
-        // ページ読み込み時に計算
-        document.addEventListener('DOMContentLoaded', function() {
-            calculateTotals();
-            
-            // 運転者IDを現在選択されたものに更新
-            document.getElementById('driver_id').value = <?php echo $selected_driver_id; ?>;
-            
-            // URLのハッシュに基づいてタブを表示
-            if (window.location.hash === '#monthly') {
-                document.getElementById('monthly-tab').click();
-            }
-        });
-        
-        // 金種枚数調整
-        function adjustCount(denomination, delta) {
-            const input = document.getElementById(denomination);
-            const currentValue = parseInt(input.value) || 0;
-            const newValue = Math.max(0, currentValue + delta);
-            input.value = newValue;
-            calculateTotals();
-            
-            // ハプティックフィードバック（モバイル）
-            if (navigator.vibrate) {
-                navigator.vibrate(10);
-            }
-        }
-        
-        // 合計計算
-        function calculateTotals() {
-            let totalAmount = 0;
-            
-            Object.keys(baseChange).forEach(denomination => {
-                const count = parseInt(document.getElementById(denomination).value) || 0;
-                const baseCount = baseChange[denomination].count;
-                const unit = baseChange[denomination].unit;
-                const amount = count * unit;
-                const diff = count - baseCount;
-                
-                // 金額表示
-                document.getElementById('amount_' + denomination).textContent = '¥' + amount.toLocaleString();
-                
-                // 差異表示
-                const diffElement = document.getElementById('diff_' + denomination);
-                const diffText = diff === 0 ? '±0' : (diff > 0 ? '+' + diff : diff.toString());
-                diffElement.textContent = diffText + '枚';
-                diffElement.className = 'difference ' + (diff > 0 ? 'positive' : diff < 0 ? 'negative' : '');
-                
-                totalAmount += amount;
-            });
-            
-            // サマリー更新
-            const depositAmount = totalAmount - baseTotal;
-            const expectedAmount = baseTotal + systemCashSales;
-            const actualDifference = totalAmount - expectedAmount;
-            
-            document.getElementById('count_total').textContent = '¥' + totalAmount.toLocaleString();
-            document.getElementById('deposit_amount').textContent = '¥' + depositAmount.toLocaleString();
-            document.getElementById('actual_difference').textContent = '¥' + actualDifference.toLocaleString();
-            
-            // 差額の色分け
-            const diffElement = document.getElementById('actual_difference');
-            diffElement.style.color = actualDifference === 0 ? '#fff' : actualDifference > 0 ? '#28a745' : '#dc3545';
-        }
-        
-        // フォーム送信
-        document.getElementById('cashCountForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const submitBtn = document.querySelector('button[type="submit"]');
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 保存中...';
-            
-            const formData = {
-                confirmation_date: document.getElementById('confirmation_date').value,
-                driver_id: document.getElementById('driver_id').value,
-                memo: document.getElementById('memo').value
-            };
-            
-            // 金種データ追加
-            Object.keys(baseChange).forEach(denomination => {
-                formData[denomination] = parseInt(document.getElementById(denomination).value) || 0;
-            });
-            
-            // 合計金額計算
-            let totalAmount = 0;
-            Object.keys(baseChange).forEach(denomination => {
-                totalAmount += formData[denomination] * baseChange[denomination].unit;
-            });
-            formData.total_amount = totalAmount;
-            
-            console.log('送信データ:', formData); // デバッグ用
-            
-            // 保存処理（Ajax）
-            fetch('api/save_cash_count.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData)
-            })
-            .then(response => {
-                console.log('レスポンスステータス:', response.status); // デバッグ用
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                return response.text(); // まずテキストで取得
-            })
-            .then(text => {
-                console.log('レスポンステキスト:', text); // デバッグ用
-                
-                try {
-                    return JSON.parse(text);
-                } catch (e) {
-                    throw new Error('JSONパースエラー: ' + text.substring(0, 100));
-                }
-            })
-            .then(data => {
-                console.log('パース後データ:', data); // デバッグ用
-                
-                if (data.success) {
-                    alert('✅ ' + data.message);
-                    // 成功時にページをリロードして最新データを表示
-                    window.location.reload();
-                } else {
-                    alert('❌ 保存エラー: ' + (data.message || '不明なエラー'));
-                    if (data.debug) {
-                        console.error('詳細デバッグ情報:', data.debug);
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('通信エラー:', error);
-                alert('❌ 保存中にエラーが発生しました: ' + error.message);
-            })
-            .finally(() => {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i class="fas fa-save"></i> 保存する';
-            });
-        });
-    </script>
+    <!-- 外部JavaScriptファイル -->
+    <script src="js/cash-management.js"></script>
 </body>
 </html>
