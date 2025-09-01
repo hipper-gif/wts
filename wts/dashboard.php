@@ -198,13 +198,14 @@ try {
     $stmt->execute([$today]);
     $today_arrivals = $stmt->fetchColumn();
     
-    $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(fare), 0) as revenue FROM ride_records WHERE ride_date = ?");
+    // 乗車記録の統計データ取得を修正
+    $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(total_fare), 0) as revenue FROM ride_records WHERE ride_date = ?");
     $stmt->execute([$today]);
     $result = $stmt->fetch();
     $today_ride_records = $result ? $result['count'] : 0;
     $today_total_revenue = $result ? $result['revenue'] : 0;
 
-    $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(fare_amount), 0) as revenue FROM ride_records WHERE ride_date >= ?");
+    $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(total_fare), 0) as revenue FROM ride_records WHERE ride_date >= ?");
     $stmt->execute([$current_month_start]);
     $result = $stmt->fetch();
     $month_ride_records = $result ? $result['count'] : 0;
@@ -215,13 +216,25 @@ try {
     
 } catch (Exception $e) {
     error_log("Dashboard alert error: " . $e->getMessage());
+    // エラーがあっても処理を続行し、デフォルト値を設定
+    $today_pre_duty_calls = 0;
+    $today_post_duty_calls = 0;
+    $today_departures = 0;
+    $today_arrivals = 0;
+    $today_ride_records = 0;
+    $today_total_revenue = 0;
+    $month_ride_records = 0;
+    $month_total_revenue = 0;
+    $month_avg_revenue = 0;
 }
 
 // アラートを優先度でソート
-usort($alerts, function($a, $b) {
-    $priority_order = ['critical' => 0, 'high' => 1, 'medium' => 2, 'low' => 3];
-    return $priority_order[$a['priority']] - $priority_order[$b['priority']];
-});
+if (!empty($alerts)) {
+    usort($alerts, function($a, $b) {
+        $priority_order = ['critical' => 0, 'high' => 1, 'medium' => 2, 'low' => 3];
+        return $priority_order[$a['priority']] - $priority_order[$b['priority']];
+    });
+}
 
 // 統計データ配列
 $stats_today = [
@@ -238,7 +251,7 @@ $stats_today = [
         'color' => 'success'
     ],
     [
-        'value' => $today_departures - $today_arrivals,
+        'value' => max(0, $today_departures - $today_arrivals),
         'label' => '未入庫',
         'icon' => 'exclamation-triangle',
         'color' => ($today_departures - $today_arrivals > 0) ? 'danger' : 'success'
@@ -251,7 +264,6 @@ $stats_today = [
     ]
 ];
 ?>
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -432,7 +444,7 @@ $stats_today = [
         }
         
         .next-action {
-            background: linear-gradient(135deg, var(--light-gray) 0%, var(--medium-gray) 100%);
+            background: linear-gradient(135deg, var(--light-gray) 0%, #e2e8f0 100%);
             padding: 1.5rem;
             border-radius: var(--border-radius);
             border-left: 4px solid var(--primary-start);
@@ -440,17 +452,39 @@ $stats_today = [
     </style>
 </head>
 <body>
-    <!-- 統一システムヘッダー -->
-    <?= renderSystemHeader($user_name, $user_role_display, 'dashboard') ?>
-    
-    <!-- ページヘッダー -->
-    <?= renderPageHeader('tachometer-alt', 'ダッシュボード', 'システム全体の状況') ?>
+    <?php
+    // 統一システムヘッダー（ヘッダー関数が存在する場合のみ実行）
+    if (function_exists('renderSystemHeader')) {
+        echo renderSystemHeader($user_name, $user_role_display, 'dashboard');
+        echo renderPageHeader('tachometer-alt', 'ダッシュボード', 'システム全体の状況');
+    } else {
+        // フォールバック：従来のヘッダー
+        ?>
+        <div class="header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 1rem;">
+            <div class="container">
+                <h1><i class="fas fa-taxi me-2"></i>福祉輸送管理システム</h1>
+                <div class="user-info">
+                    <?= htmlspecialchars($user_name) ?> (<?= htmlspecialchars($user_role_display) ?>) 
+                    | <?= date('Y年n月j日 (D)') ?> <?= $current_time ?>
+                    <a href="logout.php" class="btn btn-outline-light btn-sm ms-3">ログアウト</a>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+    ?>
     
     <div class="container-fluid mt-4">
         <!-- 業務漏れアラート -->
         <?php if (!empty($alerts)): ?>
         <div class="alerts-section">
-            <?= renderSectionHeader('exclamation-triangle', '重要なお知らせ・業務漏れ確認') ?>
+            <?php 
+            if (function_exists('renderSectionHeader')) {
+                echo renderSectionHeader('exclamation-triangle', '重要なお知らせ・業務漏れ確認');
+            } else {
+                echo '<h4><i class="fas fa-exclamation-triangle me-2 text-danger"></i>重要なお知らせ・業務漏れ確認</h4>';
+            }
+            ?>
             <?php foreach ($alerts as $alert): ?>
             <div class="alert alert-item alert-<?= $alert['priority'] ?> <?= $alert['priority'] === 'critical' ? 'pulse' : '' ?>">
                 <div class="row align-items-center">
@@ -475,11 +509,52 @@ $stats_today = [
         <?php endif; ?>
         
         <!-- 今日の業務状況 -->
-        <?= renderSectionHeader('chart-bar', '今日の業務状況') ?>
-        <?= renderStatsCards($stats_today) ?>
+        <?php 
+        if (function_exists('renderSectionHeader')) {
+            echo renderSectionHeader('chart-bar', '今日の業務状況');
+            echo renderStatsCards($stats_today);
+        } else {
+            // フォールバック：従来の統計表示
+            ?>
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-bar me-2"></i>今日の業務状況</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 col-md-3">
+                            <h3 class="text-primary"><?= $today_departures ?></h3>
+                            <p class="small">今日の出庫</p>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <h3 class="text-success"><?= $today_ride_records ?></h3>
+                            <p class="small">今日の乗車</p>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <h3 class="text-<?= ($today_departures - $today_arrivals > 0) ? 'danger' : 'success' ?>">
+                                <?= max(0, $today_departures - $today_arrivals) ?>
+                            </h3>
+                            <p class="small">未入庫</p>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <h3 class="text-info"><?= $today_pre_duty_calls ?>/<?= $today_post_duty_calls ?></h3>
+                            <p class="small">乗務前/後点呼</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php
+        }
+        ?>
         
         <!-- 売上情報 -->
-        <?= renderSectionHeader('yen-sign', '売上実績') ?>
+        <?php 
+        if (function_exists('renderSectionHeader')) {
+            echo renderSectionHeader('yen-sign', '売上実績');
+        } else {
+            echo '<h5><i class="fas fa-yen-sign me-2"></i>売上実績</h5>';
+        }
+        ?>
         <div class="row mb-4">
             <div class="col-md-4">
                 <div class="card revenue-card">
@@ -511,7 +586,13 @@ $stats_today = [
         </div>
         
         <!-- クイックアクション -->
-        <?= renderSectionHeader('route', '業務メニュー') ?>
+        <?php 
+        if (function_exists('renderSectionHeader')) {
+            echo renderSectionHeader('route', '業務メニュー');
+        } else {
+            echo '<h5><i class="fas fa-route me-2"></i>業務メニュー</h5>';
+        }
+        ?>
         <div class="row">
             <!-- 運転者向け：1日の流れに沿った業務 -->
             <div class="col-lg-6">
@@ -627,14 +708,14 @@ $stats_today = [
                             </div>
                         </a>
                         
-                        <a href="master_menu.php" class="quick-action-btn">
+                        <a href="user_management.php" class="quick-action-btn">
                             <div class="quick-action-content">
                                 <div class="quick-action-icon" style="color: #fd7e14;">
                                     <i class="fas fa-cogs"></i>
                                 </div>
                                 <div class="quick-action-text">
-                                    <h6>マスタ管理</h6>
-                                    <small>システム設定</small>
+                                    <h6>システム管理</h6>
+                                    <small>ユーザー・車両管理</small>
                                 </div>
                             </div>
                         </a>
@@ -645,12 +726,30 @@ $stats_today = [
         </div>
 
         <!-- 今日の業務進捗ガイド -->
-        <?= renderSectionHeader('tasks', '今日の業務進捗ガイド') ?>
+        <?php 
+        if (function_exists('renderSectionHeader')) {
+            echo renderSectionHeader('tasks', '今日の業務進捗ガイド');
+        } else {
+            echo '<h5><i class="fas fa-tasks me-2"></i>今日の業務進捗ガイド</h5>';
+        }
+        ?>
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-8">
                         <div class="row text-center">
+                            <div class="col-3">
+                                <div class="progress-step <?= $today_departures > 0 ? 'completed' : 'pending' ?>">
+                                    <i class="fas fa-tools"></i>
+                                    <small>点検・点呼</small>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="progress-step <?= $today_departures > 0 ? 'completed' : 'pending' ?>">
+                                    <i class="fas fa-sign-out-alt"></i>
+                                    <small>出庫</small>
+                                </div>
+                            </div>
                             <div class="col-3">
                                 <div class="progress-step <?= $today_ride_records > 0 ? 'completed' : 'pending' ?>">
                                     <i class="fas fa-users"></i>
@@ -732,28 +831,36 @@ $stats_today = [
             });
 
             // ヘッダー関数の存在確認（デバッグ用）
-            console.log('統一ヘッダーシステム適用済み');
+            console.log('統一ヘッダーシステム: ' + (typeof renderSystemHeader !== 'undefined' ? '適用済み' : 'フォールバック使用'));
             
             // 統計カードのアニメーション
-            const statCards = document.querySelectorAll('.stat-card');
+            const statCards = document.querySelectorAll('.stat-card, .card');
             statCards.forEach((card, index) => {
                 setTimeout(() => {
-                    card.classList.add('fade-in-up');
+                    card.style.animation = 'fadeInUp 0.6s ease-out';
                 }, index * 100);
             });
         });
+
+        // CSS変数が使用可能かチェック
+        if (CSS.supports('color', 'var(--primary-start)')) {
+            console.log('CSS変数サポート: OK');
+        } else {
+            console.log('CSS変数サポート: 古いブラウザ');
+        }
     </script>
+
+    <style>
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
 </body>
-</html> $today_departures > 0 ? 'completed' : 'pending' ?>">
-                                    <i class="fas fa-tools"></i>
-                                    <small>点検・点呼</small>
-                                </div>
-                            </div>
-                            <div class="col-3">
-                                <div class="progress-step <?= $today_departures > 0 ? 'completed' : 'pending' ?>">
-                                    <i class="fas fa-sign-out-alt"></i>
-                                    <small>出庫</small>
-                                </div>
-                            </div>
-                            <div class="col-3">
-                                <div class="progress-step <?=
+</html>
