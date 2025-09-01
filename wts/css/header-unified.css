@@ -648,23 +648,6 @@ body {
     }
 }
 
-/* ===== ダークモード対応（将来拡張） ===== */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --primary: #ffffff;
-        --primary-light: #f5f5f5;
-        --bg-primary: #171717;
-        --bg-secondary: #0a0a0a;
-        --bg-tertiary: #262626;
-        --text-primary: #fafafa;
-        --text-secondary: #a3a3a3;
-        --text-muted: #737373;
-        --border-light: #262626;
-        --border-medium: #404040;
-        --border-dark: #525252;
-    }
-}
-
 /* ===== プリント対応 ===== */
 @media print {
     .header-container,
