@@ -1,559 +1,656 @@
-<?php
-/**
- * 福祉輸送管理システム - 改良版統一ヘッダー関数
- * 
- * 最終更新: 2025年9月1日
- * 改良点: ダッシュボード戻りナビゲーション・モダンなデザイン・UX向上
- * 
- * 使用方法:
- * require_once 'includes/header.php';
- * echo renderSystemHeader($user_name, $user_role, 'dashboard');
- * echo renderPageHeader('tools', '日常点検', '車両の安全確認');
- */
+/* ===== 福祉輸送管理システム - 改良版統一ヘッダースタイル ===== */
+/* 最終更新: 2025年9月1日 */
+/* 改良点: モダンな色彩・ダッシュボード戻り・UX向上 */
 
-/**
- * システムヘッダーを生成（最上部の固定ヘッダー）
- * 
- * @param string $user_name ユーザー名
- * @param string $user_role ユーザー権限
- * @param string $current_page 現在のページ（'dashboard', 'inspection', etc.）
- * @param bool $show_dashboard_link ダッシュボード戻りリンクを表示するか
- * @return string HTML
- */
-function renderSystemHeader($user_name, $user_role, $current_page = '', $show_dashboard_link = true) {
-    // ダッシュボードページでは戻りリンクを表示しない
-    $is_dashboard = $current_page === 'dashboard';
-    $show_dashboard_link = $show_dashboard_link && !$is_dashboard;
+/* ===== CSS変数定義（色彩統一） ===== */
+:root {
+    /* プライマリーカラー（福祉系の安心感あるブルーグリーン） */
+    --primary-start: #0ea5e9;
+    --primary-end: #06b6d4;
+    --primary-hover: #0284c7;
     
-    // ダッシュボード戻りリンク
-    $dashboard_link = '';
-    if ($show_dashboard_link) {
-        $dashboard_link = '<a href="dashboard.php" class="dashboard-link">
-            <i class="fas fa-tachometer-alt"></i>ダッシュボード
-        </a>';
-    }
+    /* セカンダリーカラー（温かみのあるブルーグレー） */
+    --secondary-start: #475569;
+    --secondary-end: #64748b;
     
-    // システムタイトルのクラス調整
-    $title_class = $show_dashboard_link ? 'system-title with-dashboard-link' : 'system-title';
+    /* アクセントカラー（安心感のあるグリーン） */
+    --accent-start: #10b981;
+    --accent-end: #059669;
     
-    $html = '
-    <div class="header-container">
-        <div class="system-header">
-            <div class="container-fluid">
-                ' . $dashboard_link . '
-                <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <h1 class="' . $title_class . '">
-                            <i class="fas fa-taxi"></i>福祉輸送管理システム
-                        </h1>
-                    </div>
-                    <div class="col-md-4 text-end">
-                        <div class="user-info">
-                            <i class="fas fa-user-circle"></i>
-                            <span>' . htmlspecialchars($user_name) . '</span>
-                            <span class="text-warning">(' . htmlspecialchars($user_role) . ')</span>
-                            <a href="logout.php" class="logout-link ms-3">
-                                <i class="fas fa-sign-out-alt"></i>ログアウト
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>';
+    /* ニュートラルカラー */
+    --white: #ffffff;
+    --light-gray: #f8fafc;
+    --medium-gray: #e2e8f0;
+    --dark-gray: #334155;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
     
-    return $html;
+    /* シャドウ */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    
+    /* サイズ */
+    --header-height: 60px;
+    --subheader-height: 50px;
+    --border-radius: 8px;
+    --border-radius-lg: 12px;
 }
 
-/**
- * ページヘッダーを生成（機能名・サブタイトル）
- * 
- * @param string $icon Font Awesomeアイコンクラス（faを除く）
- * @param string $title メインタイトル
- * @param string $subtitle サブタイトル（オプション）
- * @param array $breadcrumb パンくずリスト（オプション）
- * @return string HTML
- */
-function renderPageHeader($icon, $title, $subtitle = '', $breadcrumb = []) {
-    $subtitle_html = $subtitle ? '<small class="ms-2 opacity-75">' . htmlspecialchars($subtitle) . '</small>' : '';
-    
-    // パンくずリスト生成
-    $breadcrumb_html = '';
-    if (!empty($breadcrumb)) {
-        $breadcrumb_html = '<nav aria-label="breadcrumb" class="mt-2">
-            <ol class="breadcrumb mb-0">';
-        
-        foreach ($breadcrumb as $index => $item) {
-            $is_last = $index === count($breadcrumb) - 1;
-            if ($is_last) {
-                $breadcrumb_html .= '<li class="breadcrumb-item active" aria-current="page">' . 
-                    htmlspecialchars($item['text']) . '</li>';
-            } else {
-                $breadcrumb_html .= '<li class="breadcrumb-item">
-                    <a href="' . htmlspecialchars($item['url']) . '" class="text-white">
-                        ' . htmlspecialchars($item['text']) . '
-                    </a>
-                </li>';
-            }
-        }
-        
-        $breadcrumb_html .= '</ol></nav>';
-    }
-    
-    $html = '
-    <div class="page-header">
-        <div class="container-fluid">
-            <div class="row align-items-center">
-                <div class="col">
-                    <h2 class="page-title">
-                        <i class="fas fa-' . htmlspecialchars($icon) . '"></i>
-                        ' . htmlspecialchars($title) . 
-                        $subtitle_html . '
-                    </h2>
-                    ' . $breadcrumb_html . '
-                </div>
-            </div>
-        </div>
-    </div>';
-    
-    return $html;
+/* ===== ベースレイアウト ===== */
+* {
+    box-sizing: border-box;
 }
 
-/**
- * セクションヘッダーを生成（情報ブロック単位）
- * 
- * @param string $icon Font Awesomeアイコンクラス（faを除く）
- * @param string $title セクションタイトル
- * @param string $badge バッジテキスト（オプション）
- * @param array $actions アクションボタン配列（オプション）
- * @return string HTML
- */
-function renderSectionHeader($icon, $title, $badge = '', $actions = []) {
-    $badge_html = $badge ? '<span class="status-badge info ms-2">' . htmlspecialchars($badge) . '</span>' : '';
-    
-    // アクションボタン生成
-    $actions_html = '';
-    if (!empty($actions)) {
-        $actions_html = '<div class="ms-auto">';
-        foreach ($actions as $action) {
-            $btn_class = $action['class'] ?? 'btn-primary btn-sm';
-            $actions_html .= '<a href="' . htmlspecialchars($action['url']) . '" 
-                class="btn ' . $btn_class . ' me-2">
-                <i class="fas fa-' . htmlspecialchars($action['icon']) . '"></i>
-                ' . htmlspecialchars($action['text']) . '
-            </a>';
-        }
-        $actions_html .= '</div>';
-    }
-    
-    $html = '
-    <div class="card mb-4">
-        <div class="card-header">
-            <div class="d-flex align-items-center">
-                <h5>
-                    <i class="fas fa-' . htmlspecialchars($icon) . '"></i>
-                    ' . htmlspecialchars($title) . 
-                    $badge_html . '
-                </h5>
-                ' . $actions_html . '
-            </div>
-        </div>
-    </div>';
-    
-    return $html;
+body {
+    font-family: 'Hiragino Kaku Gothic ProN', 'ヒラギノ角ゴ ProN W3', 'メイリオ', Meiryo, sans-serif;
+    background-color: var(--light-gray);
+    color: var(--text-primary);
+    padding-top: 110px; /* ヘッダー分の余白 */
+    line-height: 1.6;
 }
 
-/**
- * タブナビゲーションを生成
- * 
- * @param array $tabs タブ配列 [['id' => 'tab1', 'title' => 'タイトル', 'icon' => 'アイコン']]
- * @param string $active_tab アクティブなタブID
- * @return string HTML
- */
-function renderTabNavigation($tabs, $active_tab) {
-    $html = '<ul class="nav nav-tabs" id="mainTabs" role="tablist">';
-    
-    foreach ($tabs as $tab) {
-        $tab_id = $tab['id'];
-        $is_active = $tab_id === $active_tab;
-        $active_class = $is_active ? ' active' : '';
-        $active_attr = $is_active ? ' aria-selected="true"' : ' aria-selected="false"';
-        
-        $html .= '<li class="nav-item" role="presentation">
-            <button class="nav-link' . $active_class . '" id="' . $tab_id . '-tab" 
-                data-bs-toggle="tab" data-bs-target="#' . $tab_id . '" 
-                type="button" role="tab"' . $active_attr . '>
-                <i class="fas fa-' . htmlspecialchars($tab['icon']) . '"></i>
-                ' . htmlspecialchars($tab['title']) . '
-            </button>
-        </li>';
-    }
-    
-    $html .= '</ul>';
-    return $html;
+/* ===== システムヘッダー（最上部固定） ===== */
+.header-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1030;
+    background: var(--white);
+    box-shadow: var(--shadow-md);
+    border-bottom: 1px solid var(--medium-gray);
 }
 
-/**
- * 統計カードを生成
- * 
- * @param array $stats 統計データ配列
- * @return string HTML
- */
-function renderStatsCards($stats) {
-    $html = '<div class="row mb-4">';
-    
-    foreach ($stats as $stat) {
-        $value = $stat['value'] ?? '0';
-        $label = $stat['label'] ?? '';
-        $icon = $stat['icon'] ?? 'chart-bar';
-        $color = $stat['color'] ?? 'primary';
-        $trend = $stat['trend'] ?? '';
-        
-        // トレンド表示
-        $trend_html = '';
-        if ($trend) {
-            $trend_class = $trend['type'] === 'up' ? 'text-success' : 'text-danger';
-            $trend_icon = $trend['type'] === 'up' ? 'arrow-up' : 'arrow-down';
-            $trend_html = '<small class="' . $trend_class . ' ms-2">
-                <i class="fas fa-' . $trend_icon . '"></i> ' . $trend['value'] . '
-            </small>';
-        }
-        
-        $html .= '<div class="col-6 col-md-3 mb-3">
-            <div class="stat-card">
-                <div class="stat-item">
-                    <i class="fas fa-' . htmlspecialchars($icon) . '"></i>
-                    <h3>' . htmlspecialchars($value) . $trend_html . '</h3>
-                    <p>' . htmlspecialchars($label) . '</p>
-                </div>
-            </div>
-        </div>';
-    }
-    
-    $html .= '</div>';
-    return $html;
+.system-header {
+    background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
+    color: var(--white);
+    padding: 0;
+    min-height: var(--header-height);
+    position: relative;
 }
 
-/**
- * アラートメッセージを生成
- * 
- * @param string $type アラートタイプ（success, info, warning, danger）
- * @param string $title タイトル
- * @param string $message メッセージ
- * @param bool $dismissible 閉じるボタンを表示するか
- * @return string HTML
- */
-function renderAlert($type, $title, $message, $dismissible = true) {
-    $icons = [
-        'success' => 'check-circle',
-        'info' => 'info-circle',
-        'warning' => 'exclamation-triangle',
-        'danger' => 'exclamation-circle'
-    ];
-    
-    $icon = $icons[$type] ?? 'info-circle';
-    $dismiss_html = '';
-    $dismiss_class = '';
-    
-    if ($dismissible) {
-        $dismiss_class = ' alert-dismissible fade show';
-        $dismiss_html = '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
-    }
-    
-    $html = '<div class="alert alert-' . $type . $dismiss_class . '" role="alert">
-        <div class="d-flex align-items-start">
-            <i class="fas fa-' . $icon . ' me-3 mt-1"></i>
-            <div class="flex-grow-1">
-                <h6 class="alert-heading mb-1">' . htmlspecialchars($title) . '</h6>
-                <p class="mb-0">' . htmlspecialchars($message) . '</p>
-            </div>
-            ' . $dismiss_html . '
-        </div>
-    </div>';
-    
-    return $html;
+.system-header .container-fluid {
+    padding: 12px 20px;
 }
 
-/**
- * データテーブルを生成
- * 
- * @param array $headers ヘッダー配列
- * @param array $data データ配列
- * @param array $options オプション設定
- * @return string HTML
- */
-function renderDataTable($headers, $data, $options = []) {
-    $striped = $options['striped'] ?? true;
-    $hover = $options['hover'] ?? true;
-    $responsive = $options['responsive'] ?? true;
-    
-    $table_classes = ['table'];
-    if ($striped) $table_classes[] = 'table-striped';
-    if ($hover) $table_classes[] = 'table-hover';
-    
-    $wrapper_start = $responsive ? '<div class="table-responsive">' : '';
-    $wrapper_end = $responsive ? '</div>' : '';
-    
-    $html = $wrapper_start . '<table class="' . implode(' ', $table_classes) . '">';
-    
-    // ヘッダー生成
-    $html .= '<thead><tr>';
-    foreach ($headers as $header) {
-        $width = isset($header['width']) ? ' style="width: ' . $header['width'] . '"' : '';
-        $html .= '<th scope="col"' . $width . '>' . htmlspecialchars($header['text']) . '</th>';
-    }
-    $html .= '</tr></thead>';
-    
-    // データ生成
-    $html .= '<tbody>';
-    if (empty($data)) {
-        $html .= '<tr><td colspan="' . count($headers) . '" class="text-center text-muted py-4">
-            <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-            データがありません
-        </td></tr>';
-    } else {
-        foreach ($data as $row) {
-            $html .= '<tr>';
-            foreach ($row as $cell) {
-                $html .= '<td>' . $cell . '</td>';
-            }
-            $html .= '</tr>';
-        }
-    }
-    $html .= '</tbody></table>' . $wrapper_end;
-    
-    return $html;
+/* システムタイトル */
+.system-title {
+    font-size: 1.3rem;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: 0.025em;
 }
 
-/**
- * フォームヘルパー - 入力フィールド生成
- * 
- * @param string $type 入力タイプ
- * @param string $name フィールド名
- * @param string $label ラベル
- * @param string $value 値
- * @param array $options オプション
- * @return string HTML
- */
-function renderFormField($type, $name, $label, $value = '', $options = []) {
-    $required = $options['required'] ?? false;
-    $placeholder = $options['placeholder'] ?? '';
-    $help_text = $options['help'] ?? '';
-    $class = $options['class'] ?? '';
-    
-    $required_attr = $required ? ' required' : '';
-    $required_mark = $required ? ' <span class="text-danger">*</span>' : '';
-    
-    $field_id = 'field_' . $name;
-    
-    $html = '<div class="mb-3 ' . $class . '">
-        <label for="' . $field_id . '" class="form-label">
-            ' . htmlspecialchars($label) . $required_mark . '
-        </label>';
-    
-    switch ($type) {
-        case 'textarea':
-            $rows = $options['rows'] ?? 3;
-            $html .= '<textarea class="form-control" id="' . $field_id . '" name="' . $name . '" 
-                rows="' . $rows . '" placeholder="' . htmlspecialchars($placeholder) . '"' . $required_attr . '>' . 
-                htmlspecialchars($value) . '</textarea>';
-            break;
-            
-        case 'select':
-            $options_list = $options['options'] ?? [];
-            $html .= '<select class="form-select" id="' . $field_id . '" name="' . $name . '"' . $required_attr . '>';
-            
-            if ($placeholder) {
-                $html .= '<option value="">' . htmlspecialchars($placeholder) . '</option>';
-            }
-            
-            foreach ($options_list as $option_value => $option_text) {
-                $selected = $value === $option_value ? ' selected' : '';
-                $html .= '<option value="' . htmlspecialchars($option_value) . '"' . $selected . '>' . 
-                    htmlspecialchars($option_text) . '</option>';
-            }
-            $html .= '</select>';
-            break;
-            
-        default:
-            $html .= '<input type="' . $type . '" class="form-control" id="' . $field_id . '" 
-                name="' . $name . '" value="' . htmlspecialchars($value) . '" 
-                placeholder="' . htmlspecialchars($placeholder) . '"' . $required_attr . '>';
-            break;
-    }
-    
-    if ($help_text) {
-        $html .= '<div class="form-text">' . htmlspecialchars($help_text) . '</div>';
-    }
-    
-    $html .= '</div>';
-    return $html;
+.system-title i {
+    margin-right: 10px;
+    color: #fbbf24;
+    font-size: 1.4rem;
 }
 
-/**
- * モーダルウィンドウを生成
- * 
- * @param string $id モーダルID
- * @param string $title タイトル
- * @param string $content 内容
- * @param array $buttons ボタン配列
- * @param string $size サイズ（sm, lg, xl）
- * @return string HTML
- */
-function renderModal($id, $title, $content, $buttons = [], $size = '') {
-    $size_class = $size ? ' modal-' . $size : '';
-    
-    $html = '<div class="modal fade" id="' . $id . '" tabindex="-1" aria-labelledby="' . $id . 'Label" aria-hidden="true">
-        <div class="modal-dialog' . $size_class . '">
-            <div class="modal-content">
-                <div class="modal-header bg-gradient-primary text-white">
-                    <h1 class="modal-title fs-5" id="' . $id . 'Label">
-                        ' . htmlspecialchars($title) . '
-                    </h1>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    ' . $content . '
-                </div>';
-    
-    if (!empty($buttons)) {
-        $html .= '<div class="modal-footer">';
-        foreach ($buttons as $button) {
-            $class = $button['class'] ?? 'btn-secondary';
-            $dismiss = isset($button['dismiss']) && $button['dismiss'] ? ' data-bs-dismiss="modal"' : '';
-            $onclick = isset($button['onclick']) ? ' onclick="' . htmlspecialchars($button['onclick']) . '"' : '';
-            
-            $html .= '<button type="button" class="btn ' . $class . '"' . $dismiss . $onclick . '>
-                ' . htmlspecialchars($button['text']) . '
-            </button>';
-        }
-        $html .= '</div>';
-    }
-    
-    $html .= '</div></div></div>';
-    return $html;
+/* ダッシュボード戻りボタン */
+.dashboard-link {
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--white);
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    margin-right: 15px;
 }
 
-/**
- * 完全なHTMLページヘッダーを生成（head部分含む）
- * 
- * @param string $page_title ページタイトル
- * @param array $options オプション設定
- * @return string HTML
- */
-function renderHTMLHead($page_title, $options = []) {
-    $description = $options['description'] ?? '福祉輸送管理システム';
-    $additional_css = $options['additional_css'] ?? [];
-    $additional_js = $options['additional_js'] ?? [];
-    
-    $html = '<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="' . htmlspecialchars($description) . '">
-    <title>' . htmlspecialchars($page_title) . ' - 福祉輸送管理システム</title>
-    
-    <!-- Bootstrap 5.3.0 -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <!-- Font Awesome 6.0.0 -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
-    <!-- 統一ヘッダーCSS -->
-    <link rel="stylesheet" href="css/header-unified.css">';
-    
-    // 追加CSS
-    foreach ($additional_css as $css) {
-        $html .= '<link rel="stylesheet" href="' . htmlspecialchars($css) . '">';
-    }
-    
-    $html .= '</head>
-<body class="fade-in-up">';
-    
-    return $html;
+.dashboard-link:hover {
+    background: rgba(255, 255, 255, 0.25);
+    color: var(--white);
+    transform: scale(1.05);
+    text-decoration: none;
 }
 
-/**
- * HTMLフッターを生成（JavaScriptファイル含む）
- * 
- * @param array $options オプション設定
- * @return string HTML
- */
-function renderHTMLFooter($options = []) {
-    $additional_js = $options['additional_js'] ?? [];
-    
-    $html = '
-    <!-- Bootstrap 5.3.0 JavaScript -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>';
-    
-    // 追加JavaScript
-    foreach ($additional_js as $js) {
-        $html .= '<script src="' . htmlspecialchars($js) . '"></script>';
-    }
-    
-    $html .= '
-    <!-- 共通JavaScript -->
-    <script>
-        // ツールチップ初期化
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll(\'[data-bs-toggle="tooltip"]\'));
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
-        
-        // アラート自動非表示
-        setTimeout(function() {
-            var alerts = document.querySelectorAll(\'.alert-dismissible\');
-            alerts.forEach(function(alert) {
-                var bsAlert = new bootstrap.Alert(alert);
-                bsAlert.close();
-            });
-        }, 5000);
-        
-        // フェードインアニメーション
-        document.addEventListener(\'DOMContentLoaded\', function() {
-            document.body.classList.add(\'fade-in-up\');
-        });
-    </script>
-</body>
-</html>';
-    
-    return $html;
+.dashboard-link i {
+    margin-right: 6px;
 }
 
-/**
- * 使用例・サンプル実装
- */
-function renderSampleUsage() {
-    return '
-    <!-- 使用例 -->
-    <?php
-    require_once "includes/header.php";
-    
-    // HTMLヘッダー出力
-    echo renderHTMLHead("日常点検", [
-        "description" => "車両の日常点検を行います"
-    ]);
-    
-    // システムヘッダー（ダッシュボード戻りリンク付き）
-    echo renderSystemHeader($_SESSION["user_name"], $_SESSION["user_role"], "inspection");
-    
-    // ページヘッダー
-    echo renderPageHeader("tools", "日常点検", "車両の安全確認");
-    
-    // 統計カード表示
-    $stats = [
-        ["value" => "5", "label" => "今日の点検", "icon" => "check-circle", "color" => "success"],
-        ["value" => "2", "label" => "要注意", "icon" => "exclamation-triangle", "color" => "warning"]
-    ];
-    echo renderStatsCards($stats);
-    
-    // アラート表示
-    echo renderAlert("info", "重要なお知らせ", "定期点検の実施をお忘れなく");
-    
-    // HTMLフッター
-    echo renderHTMLFooter();
-    ?>
-    ';
+/* ユーザー情報 */
+.user-info {
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
 }
-?>
+
+.user-info i {
+    font-size: 0.8rem;
+    opacity: 0.9;
+}
+
+.logout-link {
+    color: var(--white);
+    text-decoration: none;
+    opacity: 0.9;
+    transition: opacity 0.3s ease;
+}
+
+.logout-link:hover {
+    color: var(--white);
+    opacity: 1;
+    text-decoration: none;
+}
+
+/* ===== ページヘッダー（機能名・サブタイトル） ===== */
+.page-header {
+    background: linear-gradient(135deg, var(--secondary-start) 0%, var(--secondary-end) 100%);
+    color: var(--white);
+    padding: 12px 0;
+    min-height: var(--subheader-height);
+}
+
+.page-title {
+    font-size: 1.1rem;
+    margin: 0;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+}
+
+.page-title i {
+    margin-right: 8px;
+    font-size: 1.2rem;
+    color: #fbbf24;
+}
+
+/* ===== ナビゲーションタブ ===== */
+.nav-tabs {
+    margin-top: 15px;
+    border: none;
+    background: var(--white);
+    padding: 0 20px;
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+}
+
+.nav-tabs .nav-link {
+    border: none;
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+    margin-right: 4px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    padding: 12px 20px;
+    background: transparent;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.nav-tabs .nav-link::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    height: 3px;
+    background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
+    transition: all 0.3s ease;
+    transform: translateX(-50%);
+}
+
+.nav-tabs .nav-link:hover {
+    background: rgba(14, 165, 233, 0.05);
+    color: var(--primary-hover);
+}
+
+.nav-tabs .nav-link:hover::before {
+    width: 80%;
+}
+
+.nav-tabs .nav-link.active {
+    background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
+    color: var(--white);
+    box-shadow: var(--shadow-md);
+}
+
+.nav-tabs .nav-link.active::before {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.nav-tabs .nav-link i {
+    margin-right: 6px;
+}
+
+/* ===== カード共通スタイル ===== */
+.card {
+    border: 1px solid var(--medium-gray);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 24px;
+    overflow: hidden;
+    background: var(--white);
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.card-header {
+    background: linear-gradient(135deg, var(--accent-start) 0%, var(--accent-end) 100%);
+    color: var(--white);
+    border: none;
+    font-weight: 600;
+    padding: 16px 24px;
+    position: relative;
+}
+
+.card-header::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+}
+
+.card-header h5 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.card-header i {
+    margin-right: 8px;
+    color: #fbbf24;
+}
+
+.card-body {
+    padding: 24px;
+}
+
+/* ===== 統計表示スタイル ===== */
+.stat-card {
+    text-align: center;
+    padding: 20px;
+    border-radius: var(--border-radius-lg);
+    background: var(--white);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s ease;
+    border-left: 4px solid var(--primary-start);
+}
+
+.stat-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-3px);
+}
+
+.stat-item {
+    padding: 8px 0;
+}
+
+.stat-item h3 {
+    margin: 0 0 8px 0;
+    font-weight: 700;
+    font-size: 2rem;
+    color: var(--primary-start);
+}
+
+.stat-item p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.stat-item i {
+    font-size: 2.5rem;
+    color: var(--primary-start);
+    margin-bottom: 12px;
+    opacity: 0.8;
+}
+
+/* ===== アラート調整 ===== */
+.alert {
+    border: none;
+    border-radius: var(--border-radius);
+    margin-bottom: 20px;
+    padding: 16px 20px;
+    box-shadow: var(--shadow-sm);
+}
+
+.alert-info {
+    background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+    color: var(--white);
+}
+
+.alert-success {
+    background: linear-gradient(135deg, var(--accent-start) 0%, var(--accent-end) 100%);
+    color: var(--white);
+}
+
+.alert-warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: var(--white);
+}
+
+.alert i {
+    margin-right: 8px;
+}
+
+/* ===== ボタンスタイル ===== */
+.btn {
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    padding: 12px 24px;
+    transition: all 0.3s ease;
+    border: none;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0.025em;
+}
+
+.btn i {
+    margin-right: 6px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
+    color: var(--white);
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, var(--primary-hover) 0%, var(--primary-start) 100%);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    color: var(--white);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, var(--accent-start) 0%, var(--accent-end) 100%);
+    color: var(--white);
+}
+
+.btn-success:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    color: var(--white);
+}
+
+.btn-lg {
+    padding: 14px 32px;
+    font-size: 1.1rem;
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 0.9rem;
+}
+
+/* ===== テーブルスタイル ===== */
+.table {
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    background: var(--white);
+}
+
+.table thead th {
+    background: linear-gradient(135deg, var(--secondary-start) 0%, var(--secondary-end) 100%);
+    color: var(--white);
+    font-weight: 600;
+    border: none;
+    padding: 16px;
+}
+
+.table tbody td {
+    padding: 12px 16px;
+    border-top: 1px solid var(--medium-gray);
+    vertical-align: middle;
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) > td {
+    background-color: rgba(14, 165, 233, 0.03);
+}
+
+.table-hover > tbody > tr:hover > td {
+    background-color: rgba(14, 165, 233, 0.08);
+}
+
+/* ===== フォームスタイル ===== */
+.form-control {
+    border-radius: var(--border-radius);
+    border: 2px solid var(--medium-gray);
+    padding: 12px 16px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    border-color: var(--primary-start);
+    box-shadow: 0 0 0 0.2rem rgba(14, 165, 233, 0.25);
+}
+
+.form-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+/* ===== モバイル対応 ===== */
+@media (max-width: 768px) {
+    body {
+        padding-top: 100px;
+    }
+    
+    .system-title {
+        font-size: 1.1rem;
+    }
+    
+    .dashboard-link {
+        padding: 6px 10px;
+        font-size: 0.8rem;
+        margin-right: 10px;
+    }
+    
+    .page-title {
+        font-size: 1rem;
+    }
+    
+    .user-info {
+        font-size: 0.8rem;
+    }
+    
+    .nav-tabs {
+        padding: 0 15px;
+    }
+    
+    .nav-tabs .nav-link {
+        padding: 10px 12px;
+        font-size: 0.9rem;
+        margin-right: 2px;
+    }
+    
+    .card-header {
+        padding: 14px 18px;
+    }
+    
+    .card-body {
+        padding: 18px;
+    }
+    
+    .btn {
+        padding: 10px 18px;
+        font-size: 0.95rem;
+    }
+    
+    .btn-lg {
+        padding: 12px 24px;
+        font-size: 1rem;
+    }
+    
+    .stat-item h3 {
+        font-size: 1.6rem;
+    }
+    
+    .stat-item i {
+        font-size: 2rem;
+    }
+}
+
+/* 小さな画面（iPhone SE等） */
+@media (max-width: 375px) {
+    body {
+        padding-top: 90px;
+    }
+    
+    .system-title {
+        font-size: 1rem;
+    }
+    
+    .dashboard-link {
+        padding: 5px 8px;
+        font-size: 0.75rem;
+        margin-right: 8px;
+    }
+    
+    .page-title {
+        font-size: 0.9rem;
+    }
+    
+    .nav-tabs .nav-link {
+        padding: 8px 8px;
+        font-size: 0.8rem;
+    }
+    
+    .nav-tabs .nav-link i {
+        display: none; /* アイコンを隠してスペース確保 */
+    }
+}
+
+/* ===== ダークモード対応 ===== */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --white: #1e293b;
+        --light-gray: #0f172a;
+        --medium-gray: #334155;
+        --text-primary: #f8fafc;
+        --text-secondary: #cbd5e1;
+    }
+    
+    .card {
+        background-color: var(--white);
+        border-color: var(--medium-gray);
+    }
+    
+    .table {
+        background-color: var(--white);
+    }
+    
+    .table tbody td {
+        border-color: var(--medium-gray);
+    }
+    
+    .form-control {
+        background-color: var(--white);
+        border-color: var(--medium-gray);
+        color: var(--text-primary);
+    }
+}
+
+/* ===== プリント用スタイル ===== */
+@media print {
+    .header-container,
+    .nav-buttons,
+    .nav-tabs,
+    .btn,
+    .dashboard-link {
+        display: none !important;
+    }
+    
+    body {
+        padding-top: 0 !important;
+        background: white !important;
+        color: black !important;
+    }
+    
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+        break-inside: avoid;
+    }
+    
+    .card-header {
+        background: #f5f5f5 !important;
+        color: black !important;
+    }
+}
+
+/* ===== 追加のユーティリティクラス ===== */
+.bg-gradient-primary {
+    background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
+}
+
+.bg-gradient-secondary {
+    background: linear-gradient(135deg, var(--secondary-start) 0%, var(--secondary-end) 100%);
+}
+
+.bg-gradient-success {
+    background: linear-gradient(135deg, var(--accent-start) 0%, var(--accent-end) 100%);
+}
+
+.text-gradient {
+    background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ===== アニメーション ===== */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in-up {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+/* ===== 状態表示 ===== */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+}
+
+.status-badge i {
+    margin-right: 4px;
+    font-size: 0.8rem;
+}
+
+.status-badge.success {
+    background: linear-gradient(135deg, var(--accent-start) 0%, var(--accent-end) 100%);
+    color: var(--white);
+}
+
+.status-badge.warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: var(--white);
+}
+
+.status-badge.info {
+    background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
+    color: var(--white);
+}
