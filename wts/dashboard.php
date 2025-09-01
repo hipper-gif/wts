@@ -443,7 +443,7 @@ $stats_today = [
             font-size: 0.75rem;
         }
         
-        /* 業務進捗ガイド */
+        /* 業務進捗ガイド（視認性改善） */
         .progress-step {
             padding: 1rem;
             border-radius: var(--border-radius);
@@ -452,14 +452,15 @@ $stats_today = [
         }
         
         .progress-step.completed {
-            background: var(--gradient-accent);
+            background: var(--success);
             color: white;
+            border: 1px solid var(--success);
         }
         
         .progress-step.pending {
-            background: var(--light-gray);
+            background: var(--bg-primary);
             color: var(--text-secondary);
-            border: 2px dashed var(--medium-gray);
+            border: 2px dashed var(--border-medium);
         }
         
         .progress-step i {
@@ -474,10 +475,25 @@ $stats_today = [
         }
         
         .next-action {
-            background: linear-gradient(135deg, var(--light-gray) 0%, #e2e8f0 100%);
+            background: var(--bg-primary);
             padding: 1.5rem;
             border-radius: var(--border-radius);
-            border-left: 4px solid var(--primary-start);
+            border-left: 4px solid var(--accent);
+            border: 1px solid var(--border-light);
+        }
+        
+        .next-action h6 {
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+        
+        .next-action p {
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .next-action small {
+            color: var(--text-secondary);
         }
     </style>
 </head>
