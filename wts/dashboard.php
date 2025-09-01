@@ -343,15 +343,45 @@ $stats_today = [
             }
         }
         
-        /* 売上カード */
+        /* 売上カード（見やすい配色に修正） */
         .revenue-card {
-            background: var(--gradient-accent);
-            color: white;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--success);
+            border-left: 4px solid var(--success);
+        }
+        
+        .revenue-card h6 {
+            color: var(--success);
+            font-weight: 600;
+        }
+        
+        .revenue-card h2 {
+            color: var(--success);
+        }
+        
+        .revenue-card small {
+            color: var(--text-secondary);
         }
         
         .revenue-month-card {
-            background: var(--gradient-special);
-            color: white;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--accent);
+            border-left: 4px solid var(--accent);
+        }
+        
+        .revenue-month-card h6 {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        
+        .revenue-month-card h2 {
+            color: var(--accent);
+        }
+        
+        .revenue-month-card small {
+            color: var(--text-secondary);
         }
         
         /* クイックアクション */
@@ -561,7 +591,7 @@ $stats_today = [
                     <div class="card-body text-center">
                         <h6 class="mb-2"><i class="fas fa-yen-sign me-2"></i>今日の売上</h6>
                         <h2 class="mb-1">¥<?= number_format($today_total_revenue) ?></h2>
-                        <small style="color: rgba(255,255,255,0.8);"><?= $today_ride_records ?>回の乗車</small>
+                        <small><?= $today_ride_records ?>回の乗車</small>
                     </div>
                 </div>
             </div>
@@ -570,7 +600,7 @@ $stats_today = [
                     <div class="card-body text-center">
                         <h6 class="mb-2"><i class="fas fa-calendar-alt me-2"></i>今月の売上</h6>
                         <h2 class="mb-1">¥<?= number_format($month_total_revenue) ?></h2>
-                        <small style="color: rgba(255,255,255,0.8);"><?= $month_ride_records ?>回の乗車</small>
+                        <small><?= $month_ride_records ?>回の乗車</small>
                     </div>
                 </div>
             </div>
