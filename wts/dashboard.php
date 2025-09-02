@@ -550,4 +550,105 @@ if ($current_hour >= 17) {
                 </a>
             </div>
             <div class="col-6 col-md-3 mb-3">
-                <a href="data_management.php" class="car
+                <a href="data_management.php" class="card menu-card text-decoration-none h-100">
+                    <div class="card-body">
+                        <i class="fas fa-database text-info"></i>
+                        <h6>データ管理</h6>
+                        <small class="text-muted">データ修正・分析</small>
+                    </div>
+                </a>
+            </div>
+            <?php } ?>
+        </div>
+
+        <!-- フッター -->
+        <div class="text-center text-muted mt-4 mb-2">
+            <small>最終更新: <?php echo date('H:i:s'); ?></small>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- JavaScript -->
+    <script>
+    function startMorningFlow() {
+        if (confirm('始業フローを開始しますか？\n1.日常点検 → 2.乗務前点呼 → 3.出庫処理')) {
+            sessionStorage.setItem('workflow_mode', 'morning');
+            sessionStorage.setItem('workflow_step', '1');
+            location.href = 'daily_inspection.php?workflow=morning';
+        }
+    }
+
+    function startEveningFlow() {
+        if (confirm('終業フローを開始しますか？\n1.入庫処理 → 2.乗務後点呼 → 3.集金管理')) {
+            sessionStorage.setItem('workflow_mode', 'evening');
+            sessionStorage.setItem('workflow_step', '1');
+            location.href = 'arrival.php?workflow=evening';
+        }
+    }
+
+    // リアルタイム更新機能
+    function updateDashboard() {
+        fetch('api/dashboard_stats.php')
+            .then(function(response) { 
+                return response.json(); 
+            })
+            .then(function(data) {
+                if (data.today_revenue !== undefined) {
+                    var revenueElement = document.querySelector('.revenue-card h2');
+                    if (revenueElement) {
+                        revenueElement.textContent = '¥' + data.today_revenue.toLocaleString();
+                    }
+                }
+            })
+            .catch(function(error) { 
+                console.error('ダッシュボード更新エラー:', error); 
+            });
+    }
+
+    // 30秒ごとに自動更新
+    setInterval(updateDashboard, 30000);
+
+    // ワークフロー継続チェック
+    document.addEventListener('DOMContentLoaded', function() {
+        var workflowMode = sessionStorage.getItem('workflow_mode');
+        var workflowStep = sessionStorage.getItem('workflow_step');
+        
+        if (workflowMode && workflowStep) {
+            showWorkflowProgress(workflowMode, workflowStep);
+        }
+    });
+
+    function showWorkflowProgress(mode, step) {
+        var workflows = {
+            morning: ['日常点検', '乗務前点呼', '出庫処理'],
+            evening: ['入庫処理', '乗務後点呼', '集金管理']
+        };
+        
+        var steps = workflows[mode];
+        var currentStep = parseInt(step);
+        
+        if (currentStep <= steps.length) {
+            var banner = document.createElement('div');
+            banner.className = 'alert alert-info alert-dismissible fade show';
+            banner.innerHTML = 
+                '<i class="fas fa-info-circle me-2"></i>' +
+                '<strong>ワークフロー継続中</strong><br>' +
+                '次のステップ: ' + currentStep + '. ' + steps[currentStep - 1] +
+                '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+            
+            var container = document.querySelector('.container-fluid');
+            if (container) {
+                container.insertBefore(banner, container.firstChild);
+            }
+        }
+    }
+
+    // エラーハンドリング
+    window.addEventListener('error', function(e) {
+        console.error('Dashboard Error:', e);
+    });
+    </script>
+</body>
+</html>
