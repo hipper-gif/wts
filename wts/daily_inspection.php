@@ -8,13 +8,11 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// モード判定を追加
-$mode = $_GET['mode'] ?? 'normal';
-
-if ($mode === 'historical') {
-    include 'includes/historical_daily_inspection.php';
-    exit;
-}
+// 編集モード判定
+$edit_mode = isset($_GET['edit']) && $_GET['edit'] === '1';
+$edit_date = $_GET['date'] ?? $today;
+$edit_inspector_id = $_GET['inspector_id'] ?? null;
+$edit_vehicle_id = $_GET['vehicle_id'] ?? null;
 
 $pdo = getDBConnection();
 $user_id = $_SESSION['user_id'];
@@ -42,13 +40,16 @@ try {
     $drivers = [];
 }
 
-// 特定日の点検記録があるかチェック（日付指定対応）
-$target_date = $_GET['date'] ?? $today;
+// 編集用の点検記録があるかチェック
 $existing_inspection = null;
-if (($_GET['inspector_id'] ?? null) && ($_GET['vehicle_id'] ?? null)) {
+if ($edit_mode && $edit_inspector_id && $edit_vehicle_id) {
     $stmt = $pdo->prepare("SELECT * FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
-    $stmt->execute([$_GET['inspector_id'], $_GET['vehicle_id'], $target_date]);
+    $stmt->execute([$edit_inspector_id, $edit_vehicle_id, $edit_date]);
     $existing_inspection = $stmt->fetch();
+    
+    if (!$existing_inspection) {
+        $error_message = '指定された日付・運転者・車両の点検記録が見つかりません。';
+    }
 }
 
 // フォーム送信処理
@@ -178,6 +179,9 @@ function renderSystemHeader($user_name, $user_role, $back_url = 'dashboard.php')
                     </div>
                 </div>
                 <div class=\"col-auto\">
+                    <a href=\"pre_duty_call.php\" class=\"btn btn-light btn-sm me-2\">
+                        <i class=\"fas fa-clipboard-check me-1\"></i>乗務前点呼
+                    </a>
                     <a href=\"{$back_url}\" class=\"btn btn-outline-light btn-sm me-2\">
                         <i class=\"fas fa-arrow-left me-1\"></i>ダッシュボード
                     </a>
@@ -297,36 +301,18 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
         }
 
         /* モード切り替え */
-        .mode-switch {
-            text-align: center;
+        .edit-mode-section {
             margin: 2rem 0;
         }
 
-        .mode-switch .btn {
-            min-width: 180px;
-            margin: 0 0.5rem;
-            padding: 0.75rem 1.5rem;
+        .edit-mode-badge {
+            background: #ffc107;
+            color: #212529;
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
             font-weight: 600;
-            border-radius: 25px;
-        }
-
-        .mode-switch .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .mode-switch .btn-outline-success {
-            border: 2px solid #28a745;
-            color: #28a745;
-            background: transparent;
-        }
-
-        .mode-switch .btn-outline-success:hover {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            border-color: #28a745;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.3);
+            margin-left: 1rem;
         }
 
         /* フォームカード */
@@ -474,6 +460,11 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
                 min-width: 140px;
                 margin: 0.25rem;
             }
+            
+            .edit-mode-badge {
+                display: block;
+                margin: 0.5rem 0 0 0;
+            }
         }
 
         /* アニメーション効果 */
@@ -513,20 +504,91 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
     <div class="function-header">
         <div class="function-title">
             <i class="fas fa-tools"></i> 日常点検
+            <?php if ($edit_mode): ?>
+            <span class="edit-mode-badge">編集モード</span>
+            <?php endif; ?>
         </div>
         <div class="function-subtitle">
-            <?= date('Y年n月j日 (D)', strtotime($target_date)) ?> - 17項目チェック
+            <?php if ($edit_mode): ?>
+                <?= date('Y年n月j日 (D)', strtotime($edit_date)) ?> の記録を編集中
+            <?php else: ?>
+                <?= date('Y年n月j日 (D)') ?> - 17項目チェック
+            <?php endif; ?>
         </div>
     </div>
 
-    <!-- モード切り替え -->
-    <div class="mode-switch">
-        <a href="daily_inspection.php" class="btn btn-primary">
-            <i class="fas fa-edit"></i> 通常入力
-        </a>
-        <a href="daily_inspection.php?mode=historical" class="btn btn-outline-success">
-            <i class="fas fa-history"></i> 過去データ入力
-        </a>
+    <!-- 編集モード切り替え -->
+    <?php if (!$edit_mode): ?>
+    <div class="edit-mode-section">
+        <div class="container">
+            <div class="alert alert-info">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <i class="fas fa-edit me-2"></i>
+                        <strong>既存の点検記録を修正したい場合</strong>
+                        <br>
+                        <small>過去に入力した点検記録に間違いがあった場合、以下から修正できます</small>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#editModal">
+                            <i class="fas fa-search me-1"></i>記録を検索・修正
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- 編集用検索モーダル -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-search me-2"></i>点検記録の検索
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="editSearchForm">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">点検日</label>
+                            <input type="date" class="form-control" id="searchDate" name="search_date" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">運転者</label>
+                            <select class="form-select" id="searchInspector" name="search_inspector" required>
+                                <option value="">運転者を選択</option>
+                                <?php foreach ($drivers as $driver): ?>
+                                <option value="<?= $driver['id'] ?>">
+                                    <?= htmlspecialchars($driver['name']) ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">車両</label>
+                            <select class="form-select" id="searchVehicle" name="search_vehicle" required>
+                                <option value="">車両を選択</option>
+                                <?php foreach ($vehicles as $vehicle): ?>
+                                <option value="<?= $vehicle['id'] ?>">
+                                    <?= htmlspecialchars($vehicle['vehicle_number']) ?>
+                                    <?= $vehicle['model'] ? ' (' . htmlspecialchars($vehicle['model']) . ')' : '' ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fas fa-search me-1"></i>記録を検索
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <div class="container">
@@ -568,7 +630,13 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
                                 <i class="fas fa-calendar-alt"></i> 点検日 <span class="text-danger">*</span>
                             </label>
                             <input type="date" class="form-control" name="inspection_date" 
-                                   value="<?= $existing_inspection ? $existing_inspection['inspection_date'] : $target_date ?>" required>
+                                   value="<?= $existing_inspection ? $existing_inspection['inspection_date'] : ($edit_mode ? $edit_date : $today) ?>" 
+                                   <?= $edit_mode ? 'readonly' : '' ?> required>
+                            <?php if ($edit_mode): ?>
+                            <div class="form-text text-warning">
+                                <i class="fas fa-lock me-1"></i>編集モードでは点検日は変更できません
+                            </div>
+                            <?php endif; ?>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">
@@ -581,25 +649,36 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
                             <label class="form-label">
                                 <i class="fas fa-user-cog"></i> 点検者（運転手） <span class="text-danger">*</span>
                             </label>
-                            <select class="form-select" name="inspector_id" required>
+                            <select class="form-select" name="inspector_id" <?= $edit_mode ? 'disabled' : '' ?> required>
                                 <option value="">運転者を選択</option>
                                 <?php foreach ($drivers as $driver): ?>
                                 <option value="<?= $driver['id'] ?>" 
-                                    <?= ($driver['id'] == $user_id) ? 'selected' : '' ?>>
+                                    <?php if ($existing_inspection && $existing_inspection['driver_id'] == $driver['id']): ?>
+                                        selected
+                                    <?php elseif (!$existing_inspection && $driver['id'] == $user_id): ?>
+                                        selected
+                                    <?php endif; ?>>
                                     <?= htmlspecialchars($driver['name']) ?>
                                 </option>
                                 <?php endforeach; ?>
                             </select>
+                            <?php if ($edit_mode): ?>
+                            <input type="hidden" name="inspector_id" value="<?= $existing_inspection['driver_id'] ?>">
+                            <div class="form-text text-warning">
+                                <i class="fas fa-lock me-1"></i>編集モードでは運転者は変更できません
+                            </div>
+                            <?php else: ?>
                             <div class="form-text">
                                 <i class="fas fa-info-circle me-1"></i>
                                 日常点検は運転手が実施します
                             </div>
+                            <?php endif; ?>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">
                                 <i class="fas fa-car"></i> 車両 <span class="text-danger">*</span>
                             </label>
-                            <select class="form-select" name="vehicle_id" required onchange="updateMileage()">
+                            <select class="form-select" name="vehicle_id" <?= $edit_mode ? 'disabled' : '' ?> required onchange="updateMileage()">
                                 <option value="">車両を選択してください</option>
                                 <?php foreach ($vehicles as $vehicle): ?>
                                 <option value="<?= $vehicle['id'] ?>" 
@@ -610,6 +689,12 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
                                 </option>
                                 <?php endforeach; ?>
                             </select>
+                            <?php if ($edit_mode): ?>
+                            <input type="hidden" name="vehicle_id" value="<?= $existing_inspection['vehicle_id'] ?>">
+                            <div class="form-text text-warning">
+                                <i class="fas fa-lock me-1"></i>編集モードでは車両は変更できません
+                            </div>
+                            <?php endif; ?>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">
@@ -799,10 +884,18 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
             
             <!-- 保存ボタン -->
             <div class="text-center mb-4">
-                <button type="submit" class="btn btn-success btn-lg px-5 py-3">
-                    <i class="fas fa-save me-2"></i>
-                    <?= $existing_inspection ? '更新する' : '登録する' ?>
+                <?php if ($edit_mode): ?>
+                <a href="daily_inspection.php" class="btn btn-secondary btn-lg px-4 py-3 me-3">
+                    <i class="fas fa-times me-2"></i>編集をキャンセル
+                </a>
+                <button type="submit" class="btn btn-warning btn-lg px-5 py-3">
+                    <i class="fas fa-save me-2"></i>修正を保存
                 </button>
+                <?php else: ?>
+                <button type="submit" class="btn btn-success btn-lg px-5 py-3">
+                    <i class="fas fa-save me-2"></i>登録する
+                </button>
+                <?php endif; ?>
             </div>
         </form>
         
@@ -933,6 +1026,24 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
                     setAllResults('否');
                 });
             }
+        });
+        
+        // 編集検索フォームの処理
+        document.getElementById('editSearchForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const searchDate = document.getElementById('searchDate').value;
+            const searchInspector = document.getElementById('searchInspector').value;
+            const searchVehicle = document.getElementById('searchVehicle').value;
+            
+            if (!searchDate || !searchInspector || !searchVehicle) {
+                alert('すべての項目を選択してください。');
+                return;
+            }
+            
+            // 編集用URLに移動
+            const editUrl = `daily_inspection.php?edit=1&date=${searchDate}&inspector_id=${searchInspector}&vehicle_id=${searchVehicle}`;
+            window.location.href = editUrl;
         });
         
         // フォーム送信前の確認
