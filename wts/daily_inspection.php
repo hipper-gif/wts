@@ -226,7 +226,7 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
 
         /* システムヘッダー統一デザイン */
         .system-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #2c5aa0 0%, #1e3d72 100%);
             color: white;
             padding: 1rem 0;
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
@@ -251,21 +251,22 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
         }
 
         .user-role {
-            color: #e3f2fd;
+            color: #b8d4ff;
         }
 
         .current-time {
             margin-left: 1rem;
-            color: #fff3e0;
+            color: #c8e0ff;
         }
 
         /* 機能ヘッダー */
         .function-header {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            background: linear-gradient(135deg, #2c5aa0 0%, #1e4a7a 100%);
             color: white;
             padding: 1.5rem 0;
             text-align: center;
             margin-bottom: 2rem;
+            box-shadow: 0 2px 15px rgba(44, 90, 160, 0.2);
         }
 
         .function-title {
@@ -281,11 +282,12 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
 
         /* セクションヘッダー */
         .section-header {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            background: linear-gradient(135deg, #2c5aa0 0%, #1e4a7a 100%);
             color: white;
             padding: 1rem 1.5rem;
             margin: 2rem 0 0 0;
             border-radius: 10px 10px 0 0;
+            box-shadow: 0 2px 10px rgba(44, 90, 160, 0.15);
         }
 
         .section-title {
@@ -313,6 +315,7 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
             font-size: 0.8rem;
             font-weight: 600;
             margin-left: 1rem;
+            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
         }
 
         /* フォームカード */
@@ -339,10 +342,10 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
         }
 
         .inspection-item:hover {
-            background: #e3f2fd;
-            border-color: #2196f3;
+            background: #f0f7ff;
+            border-color: #2c5aa0;
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.15);
+            box-shadow: 0 4px 15px rgba(44, 90, 160, 0.15);
         }
 
         .inspection-item.ok {
@@ -358,9 +361,9 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
         }
 
         .inspection-item.skip {
-            background: #fff3cd;
-            border-color: #ffc107;
-            box-shadow: 0 2px 10px rgba(255, 193, 7, 0.15);
+            background: #fff8e1;
+            border-color: #ff9800;
+            box-shadow: 0 2px 10px rgba(255, 152, 0, 0.15);
         }
 
         /* ボタン */
@@ -396,8 +399,8 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
 
         /* 走行距離情報 */
         .mileage-info {
-            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
-            border: 2px solid #2196f3;
+            background: linear-gradient(135deg, #f0f7ff 0%, #e3f2fd 100%);
+            border: 2px solid #2c5aa0;
             border-radius: 10px;
             padding: 1rem;
             margin-bottom: 1rem;
@@ -430,11 +433,19 @@ function renderSectionHeader($icon, $title, $subtitle = '') {
         .alert-success {
             background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
             color: #155724;
+            border-left: 4px solid #28a745;
         }
 
         .alert-danger {
             background: linear-gradient(135deg, #f8d7da 0%, #f1b0b7 100%);
             color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        .alert-info {
+            background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+            color: #0c5460;
+            border-left: 4px solid #2c5aa0;
         }
 
         /* レスポンシブ対応 */
