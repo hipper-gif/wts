@@ -7,6 +7,7 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
     exit;
 }
+
 // モード判定を追加
 $mode = $_GET['mode'] ?? 'normal';
 
@@ -14,9 +15,11 @@ if ($mode === 'historical') {
     include 'includes/historical_daily_inspection.php';
     exit;
 }
+
 $pdo = getDBConnection();
 $user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'];
+$user_name = $_SESSION['user_name'] ?? '未設定';
+$user_role = $_SESSION['permission_level'] ?? 'User';
 $today = date('Y-m-d');
 
 $success_message = '';
@@ -52,9 +55,9 @@ if (($_GET['inspector_id'] ?? null) && ($_GET['vehicle_id'] ?? null)) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $inspector_id = $_POST['inspector_id'];
     $vehicle_id = $_POST['vehicle_id'];
-    $inspection_date = $_POST['inspection_date'] ?? $today; // 日付入力対応
+    $inspection_date = $_POST['inspection_date'] ?? $today;
     $mileage = $_POST['mileage'];
-    $inspection_time = $_POST['inspection_time'] ?? date('H:i'); // 時間入力対応
+    $inspection_time = $_POST['inspection_time'] ?? date('H:i');
     
     // 点検者の確認（統一された権限チェック）
     $stmt = $pdo->prepare("SELECT is_driver FROM users WHERE id = ? AND is_active = TRUE");
@@ -155,6 +158,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+// ヘッダー統一用関数
+function renderSystemHeader($user_name, $user_role, $back_url = 'dashboard.php') {
+    return "
+    <div class=\"system-header\">
+        <div class=\"container-fluid\">
+            <div class=\"row align-items-center\">
+                <div class=\"col\">
+                    <div class=\"system-title\">
+                        <i class=\"fas fa-truck-medical me-2\"></i>
+                        福祉輸送管理システム
+                    </div>
+                    <div class=\"user-info\">
+                        <i class=\"fas fa-user me-1\"></i>
+                        <span class=\"user-name\">{$user_name}</span>
+                        <span class=\"user-role\">（{$user_role}）</span>
+                        <span class=\"current-time\">" . date('Y年n月j日 H:i') . "</span>
+                    </div>
+                </div>
+                <div class=\"col-auto\">
+                    <a href=\"{$back_url}\" class=\"btn btn-outline-light btn-sm me-2\">
+                        <i class=\"fas fa-arrow-left me-1\"></i>ダッシュボード
+                    </a>
+                    <a href=\"logout.php\" class=\"btn btn-outline-light btn-sm\">
+                        <i class=\"fas fa-sign-out-alt me-1\"></i>ログアウト
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>";
+}
+
+function renderSectionHeader($icon, $title, $subtitle = '') {
+    $subtitleHtml = $subtitle ? "<div class=\"section-subtitle\">{$subtitle}</div>" : '';
+    return "
+    <div class=\"section-header\">
+        <div class=\"section-title\">
+            <i class=\"fas fa-{$icon} me-2\"></i>{$title}
+        </div>
+        {$subtitleHtml}
+    </div>";
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -162,146 +207,320 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>日常点検 - 福祉輸送管理システム</title>
+    
+    <!-- 必須CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
     <style>
+        /* システム全体の基本設定 */
         body {
-            background-color: #f8f9fa;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
         }
-        
-        .header {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+
+        /* システムヘッダー統一デザイン */
+        .system-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 1rem 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
         }
-        
-        .form-card {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+
+        .system-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.2rem;
+        }
+
+        .user-info {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .user-name {
+            font-weight: 600;
+        }
+
+        .user-role {
+            color: #e3f2fd;
+        }
+
+        .current-time {
+            margin-left: 1rem;
+            color: #fff3e0;
+        }
+
+        /* 機能ヘッダー */
+        .function-header {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 1.5rem 0;
+            text-align: center;
             margin-bottom: 2rem;
         }
-        
-        .form-card-header {
+
+        .function-title {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .function-subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        /* セクションヘッダー */
+        .section-header {
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
             padding: 1rem 1.5rem;
-            border-radius: 15px 15px 0 0;
+            margin: 2rem 0 0 0;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
             margin: 0;
         }
-        
-        .form-card-body {
-            padding: 1.5rem;
+
+        .section-subtitle {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-top: 0.25rem;
         }
-        
+
+        /* モード切り替え */
+        .mode-switch {
+            text-align: center;
+            margin: 2rem 0;
+        }
+
+        .mode-switch .btn {
+            min-width: 180px;
+            margin: 0 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            border-radius: 25px;
+        }
+
+        .mode-switch .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .mode-switch .btn-outline-success {
+            border: 2px solid #28a745;
+            color: #28a745;
+            background: transparent;
+        }
+
+        .mode-switch .btn-outline-success:hover {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border-color: #28a745;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.3);
+        }
+
+        /* フォームカード */
+        .form-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .form-card-body {
+            padding: 2rem;
+        }
+
+        /* 点検項目 */
         .inspection-item {
             background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1.25rem;
             margin-bottom: 1rem;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
         }
-        
+
         .inspection-item:hover {
             background: #e3f2fd;
             border-color: #2196f3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.15);
         }
-        
+
         .inspection-item.ok {
             background: #e8f5e8;
             border-color: #28a745;
+            box-shadow: 0 2px 10px rgba(40, 167, 69, 0.15);
         }
-        
+
         .inspection-item.ng {
             background: #f8e6e6;
             border-color: #dc3545;
+            box-shadow: 0 2px 10px rgba(220, 53, 69, 0.15);
         }
-        
+
         .inspection-item.skip {
             background: #fff3cd;
             border-color: #ffc107;
+            box-shadow: 0 2px 10px rgba(255, 193, 7, 0.15);
         }
-        
+
+        /* ボタン */
         .btn-result {
-            min-width: 80px;
+            min-width: 85px;
             margin: 0 0.25rem;
+            font-weight: 600;
+            border-radius: 20px;
+            transition: all 0.2s ease;
         }
-        
+
         .btn-result.active {
-            font-weight: 600;
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
-        
-        .section-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #495057;
+
+        .btn-result:hover {
+            transform: translateY(-2px);
+        }
+
+        /* 操作ボタン */
+        .control-buttons {
+            text-align: center;
             margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid #e9ecef;
         }
-        
-        .required-mark {
-            color: #dc3545;
+
+        .control-buttons .btn {
+            margin: 0 0.5rem;
+            min-width: 120px;
+            border-radius: 20px;
+            font-weight: 600;
         }
-        
-        .optional-mark {
-            color: #6c757d;
-            font-size: 0.9rem;
-        }
-        
+
+        /* 走行距離情報 */
         .mileage-info {
-            background: #e3f2fd;
-            border: 1px solid #2196f3;
-            border-radius: 8px;
-            padding: 0.75rem;
-            margin-bottom: 1rem;
-        }
-        
-        .navigation-links {
-            background: #fff;
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            border: 2px solid #2196f3;
             border-radius: 10px;
             padding: 1rem;
-            margin-top: 2rem;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 1rem;
         }
-        
+
+        /* ナビゲーションリンク */
+        .navigation-links {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-top: 3rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+        }
+
+        .navigation-links .btn {
+            border-radius: 20px;
+            font-weight: 600;
+            min-width: 140px;
+        }
+
+        /* アラート */
+        .alert {
+            border-radius: 12px;
+            border: none;
+            padding: 1rem 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+        }
+
+        .alert-danger {
+            background: linear-gradient(135deg, #f8d7da 0%, #f1b0b7 100%);
+            color: #721c24;
+        }
+
+        /* レスポンシブ対応 */
         @media (max-width: 768px) {
-            .form-card-body {
-                padding: 1rem;
+            .system-title {
+                font-size: 1.2rem;
             }
+            
+            .function-title {
+                font-size: 1.6rem;
+            }
+            
+            .form-card-body {
+                padding: 1.5rem;
+            }
+            
             .btn-result {
-                min-width: 60px;
+                min-width: 65px;
                 font-size: 0.9rem;
             }
+            
+            .mode-switch .btn {
+                min-width: 140px;
+                margin: 0.25rem;
+            }
+        }
+
+        /* アニメーション効果 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .form-card {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        .form-card:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .form-card:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .form-card:nth-child(4) {
+            animation-delay: 0.3s;
         }
     </style>
 </head>
 <body>
-    <!-- ヘッダー -->
-    <div class="header">
-        <div class="container">
-            <div class="row align-items-center">
-                <div class="col">
-                    <h1><i class="fas fa-tools me-2"></i>日常点検</h1>
-                    <small><?= date('Y年n月j日 (D)', strtotime($target_date)) ?></small>
-                </div>
-                <div class="col-auto">
-                    <a href="dashboard.php" class="btn btn-outline-light btn-sm me-2">
-                        <i class="fas fa-arrow-left me-1"></i>ダッシュボード
-                    </a>
-                    <a href="pre_duty_call.php" class="btn btn-light btn-sm">
-                        <i class="fas fa-clipboard-check me-1"></i>乗務前点呼へ
-                    </a>
-                </div>
-            </div>
+    <!-- システムヘッダー -->
+    <?= renderSystemHeader($user_name, $user_role, 'dashboard.php') ?>
+
+    <!-- 機能ヘッダー -->
+    <div class="function-header">
+        <div class="function-title">
+            <i class="fas fa-tools"></i> 日常点検
+        </div>
+        <div class="function-subtitle">
+            <?= date('Y年n月j日 (D)', strtotime($target_date)) ?> - 17項目チェック
         </div>
     </div>
-    <!-- 既存のタイトル部分の下に追加 -->
-<div class="mode-switch mb-4">
-    <div class="btn-group" role="group">
+
+    <!-- モード切り替え -->
+    <div class="mode-switch">
         <a href="daily_inspection.php" class="btn btn-primary">
             <i class="fas fa-edit"></i> 通常入力
         </a>
@@ -309,8 +528,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <i class="fas fa-history"></i> 過去データ入力
         </a>
     </div>
-</div>
-    <div class="container mt-4">
+
+    <div class="container">
         <!-- アラート -->
         <?php if ($success_message): ?>
         <div class="alert alert-success alert-dismissible fade show">
@@ -330,40 +549,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         <form method="POST" id="inspectionForm">
             <!-- 基本情報 -->
+            <?= renderSectionHeader('info-circle', '基本情報', '点検日・点検者・車両の基本情報を入力') ?>
             <div class="form-card">
-                <h5 class="form-card-header">
-                    <i class="fas fa-info-circle me-2"></i>基本情報
-                    <div class="float-end">
-                        <button type="button" class="btn btn-outline-light btn-sm me-2" id="allOkBtn">
+                <div class="form-card-body">
+                    <!-- 操作ボタン -->
+                    <div class="control-buttons">
+                        <button type="button" class="btn btn-outline-success btn-sm me-2" id="allOkBtn">
                             <i class="fas fa-check-circle me-1"></i>全て可
                         </button>
-                        <button type="button" class="btn btn-outline-light btn-sm" id="allNgBtn">
+                        <button type="button" class="btn btn-outline-danger btn-sm" id="allNgBtn">
                             <i class="fas fa-times-circle me-1"></i>全て否
                         </button>
                     </div>
-                </h5>
-                <div class="form-card-body">
+                    
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">点検日 <span class="required-mark">*</span></label>
+                            <label class="form-label">
+                                <i class="fas fa-calendar-alt"></i> 点検日 <span class="text-danger">*</span>
+                            </label>
                             <input type="date" class="form-control" name="inspection_date" 
                                    value="<?= $existing_inspection ? $existing_inspection['inspection_date'] : $target_date ?>" required>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">点検時間</label>
+                            <label class="form-label">
+                                <i class="fas fa-clock"></i> 点検時間
+                            </label>
                             <input type="time" class="form-control" name="inspection_time" 
                                    value="<?= $existing_inspection ? $existing_inspection['inspection_time'] : date('H:i') ?>">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">点検者（運転手） <span class="required-mark">*</span></label>
+                            <label class="form-label">
+                                <i class="fas fa-user-cog"></i> 点検者（運転手） <span class="text-danger">*</span>
+                            </label>
                             <select class="form-select" name="inspector_id" required>
-<option value="">運転者を選択</option>
-<?php foreach ($drivers as $driver): ?>
-    <option value="<?php echo $driver['id']; ?>" 
-        <?php echo ($driver['id'] == $user_id) ? 'selected' : ''; ?>>
-        <?php echo htmlspecialchars($driver['name']); ?>
-    </option>
-<?php endforeach; ?>
+                                <option value="">運転者を選択</option>
+                                <?php foreach ($drivers as $driver): ?>
+                                <option value="<?= $driver['id'] ?>" 
+                                    <?= ($driver['id'] == $user_id) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($driver['name']) ?>
+                                </option>
+                                <?php endforeach; ?>
                             </select>
                             <div class="form-text">
                                 <i class="fas fa-info-circle me-1"></i>
@@ -371,7 +596,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">車両 <span class="required-mark">*</span></label>
+                            <label class="form-label">
+                                <i class="fas fa-car"></i> 車両 <span class="text-danger">*</span>
+                            </label>
                             <select class="form-select" name="vehicle_id" required onchange="updateMileage()">
                                 <option value="">車両を選択してください</option>
                                 <?php foreach ($vehicles as $vehicle): ?>
@@ -385,7 +612,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">走行距離</label>
+                            <label class="form-label">
+                                <i class="fas fa-tachometer-alt"></i> 走行距離
+                            </label>
                             <div class="input-group">
                                 <input type="number" class="form-control" name="mileage" id="mileage"
                                        value="<?= $existing_inspection ? $existing_inspection['mileage'] : '' ?>"
@@ -402,13 +631,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             
             <!-- 運転室内点検 -->
+            <?= renderSectionHeader('car', '運転室内点検', 'ブレーキ・エンジン・ワイパー等の点検') ?>
             <div class="form-card">
-                <h5 class="form-card-header">
-                    <i class="fas fa-car me-2"></i>運転室内点検
-                </h5>
                 <div class="form-card-body">
-                    <div class="section-title">必須項目</div>
-                    
                     <?php
                     $cabin_items = [
                         'foot_brake_result' => ['label' => 'フットブレーキの踏み代・効き', 'required' => true],
@@ -425,8 +650,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="row align-items-center">
                             <div class="col-md-6">
                                 <strong><?= htmlspecialchars($item['label']) ?></strong>
-                                <?php if (!$item['required']): ?>
-                                <span class="optional-mark">※走行距離・運行状態により省略可</span>
+                                <?php if ($item['required']): ?>
+                                <span class="text-danger ms-1">*必須</span>
+                                <?php else: ?>
+                                <span class="text-muted ms-1">※走行距離・運行状態により省略可</span>
                                 <?php endif; ?>
                             </div>
                             <div class="col-md-6 text-end">
@@ -453,10 +680,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             
             <!-- エンジンルーム内点検 -->
+            <?= renderSectionHeader('cog', 'エンジンルーム内点検', 'オイル・冷却水・ベルト等の点検') ?>
             <div class="form-card">
-                <h5 class="form-card-header">
-                    <i class="fas fa-cog me-2"></i>エンジンルーム内点検
-                </h5>
                 <div class="form-card-body">
                     <?php
                     $engine_items = [
@@ -474,8 +699,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="row align-items-center">
                             <div class="col-md-6">
                                 <strong><?= htmlspecialchars($item['label']) ?></strong>
-                                <?php if (!$item['required']): ?>
-                                <span class="optional-mark">※走行距離・運行状態により省略可</span>
+                                <?php if ($item['required']): ?>
+                                <span class="text-danger ms-1">*必須</span>
+                                <?php else: ?>
+                                <span class="text-muted ms-1">※走行距離・運行状態により省略可</span>
                                 <?php endif; ?>
                             </div>
                             <div class="col-md-6 text-end">
@@ -502,10 +729,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             
             <!-- 灯火類とタイヤ点検 -->
+            <?= renderSectionHeader('lightbulb', '灯火類とタイヤ点検', 'ライト・レンズ・タイヤの点検') ?>
             <div class="form-card">
-                <h5 class="form-card-header">
-                    <i class="fas fa-lightbulb me-2"></i>灯火類とタイヤ点検
-                </h5>
                 <div class="form-card-body">
                     <?php
                     $lights_tire_items = [
@@ -522,8 +747,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="row align-items-center">
                             <div class="col-md-6">
                                 <strong><?= htmlspecialchars($item['label']) ?></strong>
-                                <?php if (!$item['required']): ?>
-                                <span class="optional-mark">※走行距離・運行状態により省略可</span>
+                                <?php if ($item['required']): ?>
+                                <span class="text-danger ms-1">*必須</span>
+                                <?php else: ?>
+                                <span class="text-muted ms-1">※走行距離・運行状態により省略可</span>
                                 <?php endif; ?>
                             </div>
                             <div class="col-md-6 text-end">
@@ -550,18 +777,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             
             <!-- 不良個所・備考 -->
+            <?= renderSectionHeader('exclamation-triangle', '不良個所及び処置・備考', '点検結果の詳細記録') ?>
             <div class="form-card">
-                <h5 class="form-card-header">
-                    <i class="fas fa-exclamation-triangle me-2"></i>不良個所及び処置・備考
-                </h5>
                 <div class="form-card-body">
                     <div class="mb-3">
-                        <label class="form-label">不良個所及び処置</label>
+                        <label class="form-label">
+                            <i class="fas fa-exclamation-circle"></i> 不良個所及び処置
+                        </label>
                         <textarea class="form-control" name="defect_details" rows="3" 
                                   placeholder="点検で「否」となった項目の詳細と処置内容を記入"><?= $existing_inspection ? htmlspecialchars($existing_inspection['defect_details']) : '' ?></textarea>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">備考</label>
+                        <label class="form-label">
+                            <i class="fas fa-sticky-note"></i> 備考
+                        </label>
                         <textarea class="form-control" name="remarks" rows="2" 
                                   placeholder="その他特記事項があれば記入"><?= $existing_inspection ? htmlspecialchars($existing_inspection['remarks']) : '' ?></textarea>
                     </div>
@@ -570,7 +799,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- 保存ボタン -->
             <div class="text-center mb-4">
-                <button type="submit" class="btn btn-success btn-lg">
+                <button type="submit" class="btn btn-success btn-lg px-5 py-3">
                     <i class="fas fa-save me-2"></i>
                     <?= $existing_inspection ? '更新する' : '登録する' ?>
                 </button>
@@ -580,22 +809,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- ナビゲーションリンク -->
         <div class="navigation-links">
             <div class="row text-center">
-                <div class="col-md-4 mb-2">
-                    <h6 class="text-muted mb-2">次の作業</h6>
-                    <a href="pre_duty_call.php" class="btn btn-outline-primary btn-sm">
+                <div class="col-md-4 mb-3">
+                    <h6 class="text-muted mb-3">
+                        <i class="fas fa-arrow-right me-1"></i>次の作業
+                    </h6>
+                    <a href="pre_duty_call.php" class="btn btn-outline-primary">
                         <i class="fas fa-clipboard-check me-1"></i>乗務前点呼
                     </a>
                 </div>
-                <div class="col-md-4 mb-2">
-                    <h6 class="text-muted mb-2">他の点検</h6>
-                    <a href="periodic_inspection.php" class="btn btn-outline-info btn-sm">
+                <div class="col-md-4 mb-3">
+                    <h6 class="text-muted mb-3">
+                        <i class="fas fa-tools me-1"></i>他の点検
+                    </h6>
+                    <a href="periodic_inspection.php" class="btn btn-outline-info">
                         <i class="fas fa-wrench me-1"></i>定期点検
                     </a>
                 </div>
-                <div class="col-md-4 mb-2">
-                    <h6 class="text-muted mb-2">記録管理</h6>
-                    <a href="daily_inspection_history.php" class="btn btn-outline-secondary btn-sm">
-                        <i class="fas fa-history me-1"></i>履歴・編集
+                <div class="col-md-4 mb-3">
+                    <h6 class="text-muted mb-3">
+                        <i class="fas fa-history me-1"></i>記録管理
+                    </h6>
+                    <a href="dashboard.php" class="btn btn-outline-secondary">
+                        <i class="fas fa-chart-bar me-1"></i>記録一覧
                     </a>
                 </div>
             </div>
@@ -646,9 +881,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        // 一括選択機能
+        // 一括選択機能（必須項目のみ）
         function setAllResults(value) {
-            // 省略選択項目以外（必須項目）のみ対象
             const requiredItems = [
                 'foot_brake_result', 'parking_brake_result', 'brake_fluid_result',
                 'lights_result', 'lens_result', 'tire_pressure_result', 'tire_damage_result'
@@ -661,16 +895,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     updateInspectionItemStyle(itemName, value);
                 }
             });
-        }
-        
-        // 全て可
-        function setAllOk() {
-            setAllResults('可');
-        }
-        
-        // 全て否
-        function setAllNg() {
-            setAllResults('否');
         }
         
         // 初期化処理
@@ -699,11 +923,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const allNgBtn = document.getElementById('allNgBtn');
             
             if (allOkBtn) {
-                allOkBtn.addEventListener('click', setAllOk);
+                allOkBtn.addEventListener('click', function() {
+                    setAllResults('可');
+                });
             }
             
             if (allNgBtn) {
-                allNgBtn.addEventListener('click', setAllNg);
+                allNgBtn.addEventListener('click', function() {
+                    setAllResults('否');
+                });
             }
         });
         
@@ -749,6 +977,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             }
+        });
+        
+        // ページ読み込み時のスムーズアニメーション
+        window.addEventListener('load', function() {
+            document.body.style.opacity = '0';
+            document.body.style.transition = 'opacity 0.3s ease';
+            setTimeout(function() {
+                document.body.style.opacity = '1';
+            }, 100);
         });
     </script>
 </body>
