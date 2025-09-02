@@ -23,7 +23,7 @@ try {
     die('データベース接続エラー: ' . $e->getMessage());
 }
 
-// ユーザー情報取得（permission_level統一）
+// ユーザー情報取得
 $stmt = $pdo->prepare("SELECT name, permission_level FROM users WHERE id = ? AND is_active = TRUE");
 $stmt->execute([$_SESSION['user_id']]);
 $user = $stmt->fetch();
@@ -41,7 +41,7 @@ $today = date('Y-m-d');
 $current_month = date('Y-m');
 $last_month = date('Y-m', strtotime('-1 month'));
 
-// 売上統計取得関数
+// 売上統計取得
 function getRevenueStats($pdo, $date_condition, $params = []) {
     $sql = "SELECT 
                 COUNT(*) as trip_count,
@@ -56,13 +56,9 @@ function getRevenueStats($pdo, $date_condition, $params = []) {
     return $stmt->fetch();
 }
 
-// 今日の売上
+// 統計データ取得
 $today_stats = getRevenueStats($pdo, "ride_date = ?", [$today]);
-
-// 今月の売上
 $current_month_stats = getRevenueStats($pdo, "DATE_FORMAT(ride_date, '%Y-%m') = ?", [$current_month]);
-
-// 先月の売上
 $last_month_stats = getRevenueStats($pdo, "DATE_FORMAT(ride_date, '%Y-%m') = ?", [$last_month]);
 
 // 先月比較計算
@@ -75,106 +71,86 @@ $stmt = $pdo->prepare("SELECT COUNT(DISTINCT ride_date) as working_days FROM rid
 $stmt->execute([$current_month]);
 $working_days_result = $stmt->fetch();
 $working_days = $working_days_result['working_days'] ?: 1;
-
 $avg_daily_revenue = $current_month_stats['total_revenue'] / $working_days;
 
 // 業務状況統計
-function getBusinessStats($pdo, $today) {
-    $stats = [];
-    
-    // 出庫数
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE departure_date = ?");
-    $stmt->execute([$today]);
-    $stats['departures'] = $stmt->fetchColumn();
-    
-    // 入庫数
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE arrival_date = ?");
-    $stmt->execute([$today]);
-    $stats['arrivals'] = $stmt->fetchColumn();
-    
-    // 乗務前点呼
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM pre_duty_calls WHERE call_date = ?");
-    $stmt->execute([$today]);
-    $stats['pre_calls'] = $stmt->fetchColumn();
-    
-    // 乗務後点呼
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM post_duty_calls WHERE call_date = ?");
-    $stmt->execute([$today]);
-    $stats['post_calls'] = $stmt->fetchColumn();
-    
-    // 日常点検
+$business_stats = [];
+
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE departure_date = ?");
+$stmt->execute([$today]);
+$business_stats['departures'] = $stmt->fetchColumn();
+
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE arrival_date = ?");
+$stmt->execute([$today]);
+$business_stats['arrivals'] = $stmt->fetchColumn();
+
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM pre_duty_calls WHERE call_date = ?");
+$stmt->execute([$today]);
+$business_stats['pre_calls'] = $stmt->fetchColumn();
+
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM post_duty_calls WHERE call_date = ?");
+$stmt->execute([$today]);
+$business_stats['post_calls'] = $stmt->fetchColumn();
+
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM daily_inspections WHERE inspection_date = ?");
+$stmt->execute([$today]);
+$business_stats['inspections'] = $stmt->fetchColumn();
+
+// アラート検出
+$alerts = [];
+$current_hour = intval(date('H'));
+
+if ($current_hour >= 8) {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM daily_inspections WHERE inspection_date = ?");
     $stmt->execute([$today]);
-    $stats['inspections'] = $stmt->fetchColumn();
-    
-    return $stats;
+    if ($stmt->fetchColumn() == 0) {
+        $alerts[] = [
+            'level' => 'high',
+            'title' => '日常点検未実施',
+            'message' => '本日の日常点検が完了していません',
+            'action' => 'daily_inspection.php'
+        ];
+    }
 }
 
-$business_stats = getBusinessStats($pdo, $today);
-
-// アラート検出機能
-function detectAlerts($pdo, $today) {
-    $alerts = [];
-    $current_hour = intval(date('H'));
-    
-    // 朝の業務フロー漏れチェック
-    if ($current_hour >= 8) {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM daily_inspections WHERE inspection_date = ?");
-        $stmt->execute([$today]);
-        if ($stmt->fetchColumn() == 0) {
-            $alerts[] = [
-                'level' => 'high',
-                'title' => '日常点検未実施',
-                'message' => '本日の日常点検が完了していません',
-                'action' => 'daily_inspection.php'
-            ];
-        }
+if ($current_hour >= 8) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM pre_duty_calls WHERE call_date = ?");
+    $stmt->execute([$today]);
+    if ($stmt->fetchColumn() == 0) {
+        $alerts[] = [
+            'level' => 'high',
+            'title' => '乗務前点呼未実施',
+            'message' => '本日の乗務前点呼が完了していません',
+            'action' => 'pre_duty_call.php'
+        ];
     }
-    
-    if ($current_hour >= 8) {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM pre_duty_calls WHERE call_date = ?");
-        $stmt->execute([$today]);
-        if ($stmt->fetchColumn() == 0) {
-            $alerts[] = [
-                'level' => 'high',
-                'title' => '乗務前点呼未実施',
-                'message' => '本日の乗務前点呼が完了していません',
-                'action' => 'pre_duty_call.php'
-            ];
-        }
-    }
-    
-    if ($current_hour >= 9) {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE departure_date = ?");
-        $stmt->execute([$today]);
-        if ($stmt->fetchColumn() == 0) {
-            $alerts[] = [
-                'level' => 'medium',
-                'title' => '出庫処理未実施',
-                'message' => '本日の出庫処理が完了していません',
-                'action' => 'departure.php'
-            ];
-        }
-    }
-    
-    // 夕方の業務フロー漏れチェック
-    if ($current_hour >= 17) {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE arrival_date = ?");
-        $stmt->execute([$today]);
-        if ($stmt->fetchColumn() == 0) {
-            $alerts[] = [
-                'level' => 'medium',
-                'title' => '入庫処理未完了',
-                'message' => '本日の入庫処理が完了していません',
-                'action' => 'arrival.php'
-            ];
-        }
-    }
-    
-    return $alerts;
 }
 
-$alerts = detectAlerts($pdo, $today);
+if ($current_hour >= 9) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE departure_date = ?");
+    $stmt->execute([$today]);
+    if ($stmt->fetchColumn() == 0) {
+        $alerts[] = [
+            'level' => 'medium',
+            'title' => '出庫処理未実施',
+            'message' => '本日の出庫処理が完了していません',
+            'action' => 'departure.php'
+        ];
+    }
+}
+
+if ($current_hour >= 17) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE arrival_date = ?");
+    $stmt->execute([$today]);
+    if ($stmt->fetchColumn() == 0) {
+        $alerts[] = [
+            'level' => 'medium',
+            'title' => '入庫処理未完了',
+            'message' => '本日の入庫処理が完了していません',
+            'action' => 'arrival.php'
+        ];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -189,9 +165,7 @@ $alerts = detectAlerts($pdo, $today);
     <!-- Font Awesome 6.0.0 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
-    <!-- 統一CSS -->
     <style>
-    /* システムヘッダー */
     .header-container {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -210,18 +184,17 @@ $alerts = detectAlerts($pdo, $today);
         font-size: 14px;
     }
     
-    .dashboard-link, .logout-link {
+    .logout-link {
         color: white;
         text-decoration: none;
-        margin-right: 15px;
+        margin-left: 15px;
     }
     
-    .dashboard-link:hover, .logout-link:hover {
+    .logout-link:hover {
         color: #f8f9fa;
         text-decoration: underline;
     }
     
-    /* カード・アラートスタイル */
     .revenue-card {
         background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
         color: white;
@@ -253,14 +226,6 @@ $alerts = detectAlerts($pdo, $today);
         border-radius: 8px;
     }
     
-    .alert-low {
-        background-color: #17a2b8;
-        color: white;
-        border: none;
-        border-radius: 8px;
-    }
-    
-    /* ワークフロー */
     .workflow-card {
         border: 2px solid #e9ecef;
         border-radius: 12px;
@@ -308,7 +273,6 @@ $alerts = detectAlerts($pdo, $today);
         transform: translateY(-1px);
     }
     
-    /* メニューカード */
     .menu-card {
         border-radius: 12px;
         border: none;
@@ -359,7 +323,7 @@ $alerts = detectAlerts($pdo, $today);
                             <i class="fas fa-user-circle"></i>
                             <span><?php echo htmlspecialchars($user_name); ?></span>
                             <span class="text-muted">(<?php echo htmlspecialchars($user_permission); ?>)</span>
-                            <a href="logout.php" class="logout-link ms-3">
+                            <a href="logout.php" class="logout-link">
                                 <i class="fas fa-sign-out-alt"></i>ログアウト
                             </a>
                         </div>
@@ -371,22 +335,22 @@ $alerts = detectAlerts($pdo, $today);
 
     <div class="container-fluid">
         <!-- アラートエリア -->
-        <?php if (!empty($alerts)): ?>
+        <?php if (!empty($alerts)) { ?>
         <div class="alert-area mb-4">
-            <?php foreach ($alerts as $alert): ?>
+            <?php foreach ($alerts as $alert) { ?>
             <div class="alert alert-<?php echo $alert['level']; ?> d-flex align-items-center">
                 <i class="fas fa-exclamation-triangle me-2"></i>
                 <div>
                     <strong><?php echo htmlspecialchars($alert['title']); ?></strong><br>
                     <small><?php echo htmlspecialchars($alert['message']); ?></small>
-                    <?php if (isset($alert['action'])): ?>
+                    <?php if (isset($alert['action'])) { ?>
                     <a href="<?php echo htmlspecialchars($alert['action']); ?>" class="btn btn-sm btn-light ms-3">対応する</a>
-                    <?php endif; ?>
+                    <?php } ?>
                 </div>
             </div>
-            <?php endforeach; ?>
+            <?php } ?>
         </div>
-        <?php endif; ?>
+        <?php } ?>
 
         <!-- 売上カード -->
         <div class="row mb-4">
@@ -398,9 +362,9 @@ $alerts = detectAlerts($pdo, $today);
                                 <h5><i class="fas fa-yen-sign"></i> 今日の売上</h5>
                                 <h2>¥<?php echo number_format($today_stats['total_revenue']); ?></h2>
                                 <small><?php echo $today_stats['trip_count']; ?>回の乗車</small>
-                                <?php if ($today_stats['trip_count'] > 0): ?>
+                                <?php if ($today_stats['trip_count'] > 0) { ?>
                                 <br><small>平均 ¥<?php echo number_format($today_stats['total_revenue'] / $today_stats['trip_count']); ?>/回</small>
-                                <?php endif; ?>
+                                <?php } ?>
                             </div>
                             <div class="col-md-4">
                                 <h5><i class="fas fa-calendar-alt"></i> 今月の売上</h5>
@@ -550,7 +514,7 @@ $alerts = detectAlerts($pdo, $today);
             </div>
 
             <!-- 管理者限定メニュー -->
-            <?php if ($user_permission === 'Admin'): ?>
+            <?php if ($user_permission === 'Admin') { ?>
             <div class="col-6 col-md-3 mb-3">
                 <a href="user_management.php" class="card menu-card text-decoration-none h-100">
                     <div class="card-body">
@@ -565,4 +529,23 @@ $alerts = detectAlerts($pdo, $today);
                     <div class="card-body">
                         <i class="fas fa-car-side text-secondary"></i>
                         <h6>車両管理</h6>
-                        <small clas
+                        <small class="text-muted">車両情報管理</small>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-md-3 mb-3">
+                <a href="accident_management.php" class="card menu-card text-decoration-none h-100">
+                    <div class="card-body">
+                        <i class="fas fa-exclamation-triangle text-danger"></i>
+                        <h6>事故管理</h6>
+                        <small class="text-muted">事故記録・報告</small>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-md-3 mb-3">
+                <a href="data_management.php" class="card menu-card text-decoration-none h-100">
+                    <div class="card-body">
+                        <i class="fas fa-database text-info"></i>
+                        <h6>データ管理</h6>
+                        <small class="text-muted">データ修正・分析</small>
+              
