@@ -8,17 +8,17 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// 編集モード判定
-$edit_mode = isset($_GET['edit']) && $_GET['edit'] === '1';
-$edit_date = $_GET['date'] ?? $today;
-$edit_inspector_id = $_GET['inspector_id'] ?? null;
-$edit_vehicle_id = $_GET['vehicle_id'] ?? null;
-
 $pdo = getDBConnection();
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'] ?? '未設定';
 $user_role = $_SESSION['permission_level'] ?? 'User';
 $today = date('Y-m-d');
+
+// 編集モード判定
+$edit_mode = isset($_GET['edit']) && $_GET['edit'] === '1';
+$edit_date = $_GET['date'] ?? $today;
+$edit_inspector_id = $_GET['inspector_id'] ?? null;
+$edit_vehicle_id = $_GET['vehicle_id'] ?? null;
 
 $success_message = '';
 $error_message = '';
