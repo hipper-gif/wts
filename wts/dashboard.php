@@ -1,268 +1,233 @@
 <?php
 session_start();
 
-// データベース接続設定
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'twinklemark_wts');
-define('DB_USER', 'twinklemark_taxi');
-define('DB_PASS', 'Smiley2525');
-define('DB_CHARSET', 'utf8mb4');
-
-// データベース接続
-try {
-    $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
-    $pdo = new PDO($dsn, DB_USER, DB_PASS, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false
-    ]);
-} catch (PDOException $e) {
-    die("データベース接続エラー: " . $e->getMessage());
-}
-
-// 統一ヘッダーシステム読み込み
-require_once 'includes/header.php';
-
-// ログインチェック
+// セッション確認
 if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
     exit;
 }
 
-// ユーザー情報取得
+// データベース接続 (config/database.php または直接接続)
 try {
-    $stmt = $pdo->prepare("SELECT name, permission_level, is_driver, is_caller, is_manager FROM users WHERE id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $user_data = $stmt->fetch();
-    
-    if (!$user_data) {
-        session_destroy();
-        header('Location: index.php');
-        exit;
-    }
-    
-    $user_name = $user_data['name'];
-    $user_permission_level = $user_data['permission_level'];
-    $is_admin = ($user_permission_level === 'Admin');
-    
-    // 表示用の役職名を生成
-    $user_role_display = '';
-    if ($is_admin) {
-        $user_role_display = 'システム管理者';
-    } else {
-        $roles = [];
-        if ($user_data['is_driver']) $roles[] = '運転者';
-        if ($user_data['is_caller']) $roles[] = '点呼者';
-        if ($user_data['is_manager']) $roles[] = '管理者';
-        $user_role_display = !empty($roles) ? implode('・', $roles) : '一般ユーザー';
-    }
-    
+    $pdo = new PDO(
+        'mysql:host=localhost;dbname=twinklemark_wts;charset=utf8',
+        'twinklemark_wtsuser',
+        'Smiley2525',
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false
+        ]
+    );
 } catch (PDOException $e) {
-    error_log("User data fetch error: " . $e->getMessage());
-    session_destroy();
-    header('Location: index.php');
+    die('データベース接続エラー: ' . $e->getMessage());
+}
+
+// ユーザー情報取得（permission_level統一）
+$stmt = $pdo->prepare("SELECT name, permission_level FROM users WHERE id = ? AND is_active = TRUE");
+$stmt->execute([$_SESSION['user_id']]);
+$user = $stmt->fetch();
+
+if (!$user) {
+    header('Location: index.php?error=user_not_found');
     exit;
 }
 
+$user_name = $user['name'];
+$user_permission = $user['permission_level'];
+
+// 今日の日付
 $today = date('Y-m-d');
-$current_time = date('H:i');
-$current_hour = date('H');
-$current_month_start = date('Y-m-01');
+$current_month = date('Y-m');
+$last_month = date('Y-m', strtotime('-1 month'));
 
-// 業務漏れチェック機能
-$alerts = [];
-
-try {
-    // 1. 乗務前点呼未実施で乗車記録がある運転者をチェック
-    $stmt = $pdo->prepare("
-        SELECT DISTINCT r.driver_id, u.name as driver_name, COUNT(r.id) as ride_count
-        FROM ride_records r
-        JOIN users u ON r.driver_id = u.id
-        LEFT JOIN pre_duty_calls pdc ON r.driver_id = pdc.driver_id AND r.ride_date = pdc.call_date AND pdc.is_completed = TRUE
-        WHERE r.ride_date = ? AND pdc.id IS NULL
-        GROUP BY r.driver_id, u.name
-    ");
-    $stmt->execute([$today]);
-    $no_pre_duty_with_rides = $stmt->fetchAll();
+// 売上統計取得関数
+function getRevenueStats($pdo, $date_condition, $params = []) {
+    $sql = "SELECT 
+                COUNT(*) as trip_count,
+                COALESCE(SUM(total_fare), 0) as total_revenue,
+                COALESCE(SUM(cash_amount), 0) as cash_amount,
+                COALESCE(SUM(card_amount), 0) as card_amount
+            FROM ride_records 
+            WHERE $date_condition";
     
-    foreach ($no_pre_duty_with_rides as $driver) {
-        $alerts[] = [
-            'type' => 'danger',
-            'priority' => 'critical',
-            'icon' => 'fas fa-exclamation-triangle',
-            'title' => '乗務前点呼未実施',
-            'message' => "運転者「{$driver['driver_name']}」が乗務前点呼を行わずに乗車記録（{$driver['ride_count']}件）を登録しています。",
-            'action' => 'pre_duty_call.php',
-            'action_text' => '乗務前点呼を実施'
-        ];
-    }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetch();
+}
 
-    // 2. 出庫処理または日常点検未実施で乗車記録がある車両をチェック
-    $stmt = $pdo->prepare("
-        SELECT DISTINCT r.vehicle_id, v.vehicle_number, r.driver_id, u.name as driver_name, 
-               COUNT(r.id) as ride_count,
-               MAX(CASE WHEN dr.id IS NULL THEN 0 ELSE 1 END) as has_departure,
-               MAX(CASE WHEN di.id IS NULL THEN 0 ELSE 1 END) as has_daily_inspection
-        FROM ride_records r
-        JOIN vehicles v ON r.vehicle_id = v.id
-        JOIN users u ON r.driver_id = u.id
-        LEFT JOIN departure_records dr ON r.vehicle_id = dr.vehicle_id AND r.ride_date = dr.departure_date AND r.driver_id = dr.driver_id
-        LEFT JOIN daily_inspections di ON r.vehicle_id = di.vehicle_id AND r.ride_date = di.inspection_date AND r.driver_id = di.driver_id
-        WHERE r.ride_date = ?
-        GROUP BY r.vehicle_id, v.vehicle_number, r.driver_id, u.name
-        HAVING has_departure = 0 OR has_daily_inspection = 0
-    ");
-    $stmt->execute([$today]);
-    $incomplete_prep_with_rides = $stmt->fetchAll();
-    
-    foreach ($incomplete_prep_with_rides as $vehicle) {
-        $missing_items = [];
-        if (!$vehicle['has_departure']) $missing_items[] = '出庫処理';
-        if (!$vehicle['has_daily_inspection']) $missing_items[] = '日常点検';
-        
-        $alerts[] = [
-            'type' => 'danger',
-            'priority' => 'critical',
-            'icon' => 'fas fa-car-crash',
-            'title' => '必須処理未実施',
-            'message' => "運転者「{$vehicle['driver_name']}」が車両「{$vehicle['vehicle_number']}」で" . implode('・', $missing_items) . "を行わずに乗車記録（{$vehicle['ride_count']}件）を登録しています。",
-            'action' => $vehicle['has_departure'] ? 'daily_inspection.php' : 'departure.php',
-            'action_text' => $missing_items[0] . 'を実施'
-        ];
-    }
+// 今日の売上
+$today_stats = getRevenueStats($pdo, "ride_date = ?", [$today]);
 
-    // 3. 18時以降で入庫・乗務後点呼未完了をチェック
-    if ($current_hour >= 18) {
-        // 未入庫車両をチェック
-        $stmt = $pdo->prepare("
-            SELECT dr.vehicle_id, v.vehicle_number, u.name as driver_name, dr.departure_time
-            FROM departure_records dr
-            JOIN vehicles v ON dr.vehicle_id = v.id
-            JOIN users u ON dr.driver_id = u.id
-            LEFT JOIN arrival_records ar ON dr.vehicle_id = ar.vehicle_id AND dr.departure_date = ar.arrival_date
-            WHERE dr.departure_date = ? AND ar.id IS NULL
-        ");
-        $stmt->execute([$today]);
-        $not_arrived_vehicles = $stmt->fetchAll();
-        
-        foreach ($not_arrived_vehicles as $vehicle) {
-            $alerts[] = [
-                'type' => 'warning',
-                'priority' => 'high',
-                'icon' => 'fas fa-clock',
-                'title' => '入庫処理未完了',
-                'message' => "車両「{$vehicle['vehicle_number']}」（運転者：{$vehicle['driver_name']}）が18時以降も入庫処理を完了していません。出庫時刻：{$vehicle['departure_time']}",
-                'action' => 'arrival.php',
-                'action_text' => '入庫処理を実施'
-            ];
-        }
-        
-        // 乗務後点呼未実施をチェック
-        $stmt = $pdo->prepare("
-            SELECT DISTINCT dr.driver_id, u.name as driver_name
-            FROM departure_records dr
-            JOIN users u ON dr.driver_id = u.id
-            LEFT JOIN post_duty_calls pdc ON dr.driver_id = pdc.driver_id AND dr.departure_date = pdc.call_date AND pdc.is_completed = TRUE
-            WHERE dr.departure_date = ? AND pdc.id IS NULL
-        ");
-        $stmt->execute([$today]);
-        $no_post_duty = $stmt->fetchAll();
-        
-        foreach ($no_post_duty as $driver) {
-            $alerts[] = [
-                'type' => 'warning',
-                'priority' => 'high',
-                'icon' => 'fas fa-user-clock',
-                'title' => '乗務後点呼未実施',
-                'message' => "運転者「{$driver['driver_name']}」が18時以降も乗務後点呼を完了していません。",
-                'action' => 'post_duty_call.php',
-                'action_text' => '乗務後点呼を実施'
-            ];
-        }
-    }
+// 今月の売上
+$current_month_stats = getRevenueStats($pdo, "DATE_FORMAT(ride_date, '%Y-%m') = ?", [$current_month]);
 
-    // 今日の統計データ
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM pre_duty_calls WHERE call_date = ? AND is_completed = TRUE");
-    $stmt->execute([$today]);
-    $today_pre_duty_calls = $stmt->fetchColumn();
+// 先月の売上
+$last_month_stats = getRevenueStats($pdo, "DATE_FORMAT(ride_date, '%Y-%m') = ?", [$last_month]);
+
+// 先月比較計算
+$revenue_diff = $current_month_stats['total_revenue'] - $last_month_stats['total_revenue'];
+$revenue_diff_rate = $last_month_stats['total_revenue'] > 0 ? 
+    ($revenue_diff / $last_month_stats['total_revenue'] * 100) : 0;
+
+// 営業日数計算
+$stmt = $pdo->prepare("SELECT COUNT(DISTINCT ride_date) as working_days FROM ride_records WHERE DATE_FORMAT(ride_date, '%Y-%m') = ?");
+$stmt->execute([$current_month]);
+$working_days_result = $stmt->fetch();
+$working_days = $working_days_result['working_days'] ?: 1;
+
+$avg_daily_revenue = $current_month_stats['total_revenue'] / $working_days;
+
+// 業務状況統計
+function getBusinessStats($pdo, $today) {
+    $stats = [];
     
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM post_duty_calls WHERE call_date = ? AND is_completed = TRUE");
-    $stmt->execute([$today]);
-    $today_post_duty_calls = $stmt->fetchColumn();
-    
+    // 出庫数
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE departure_date = ?");
     $stmt->execute([$today]);
-    $today_departures = $stmt->fetchColumn();
+    $stats['departures'] = $stmt->fetchColumn();
     
+    // 入庫数
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE arrival_date = ?");
     $stmt->execute([$today]);
-    $today_arrivals = $stmt->fetchColumn();
+    $stats['arrivals'] = $stmt->fetchColumn();
     
-    // 乗車記録の統計データ取得を修正
-    $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(total_fare), 0) as revenue FROM ride_records WHERE ride_date = ?");
+    // 乗務前点呼
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM pre_duty_calls WHERE call_date = ?");
     $stmt->execute([$today]);
-    $result = $stmt->fetch();
-    $today_ride_records = $result ? $result['count'] : 0;
-    $today_total_revenue = $result ? $result['revenue'] : 0;
-
-    $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(total_fare), 0) as revenue FROM ride_records WHERE ride_date >= ?");
-    $stmt->execute([$current_month_start]);
-    $result = $stmt->fetch();
-    $month_ride_records = $result ? $result['count'] : 0;
-    $month_total_revenue = $result ? $result['revenue'] : 0;
+    $stats['pre_calls'] = $stmt->fetchColumn();
     
-    $days_in_month = date('j');
-    $month_avg_revenue = $days_in_month > 0 ? round($month_total_revenue / $days_in_month) : 0;
+    // 乗務後点呼
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM post_duty_calls WHERE call_date = ?");
+    $stmt->execute([$today]);
+    $stats['post_calls'] = $stmt->fetchColumn();
     
-} catch (Exception $e) {
-    error_log("Dashboard alert error: " . $e->getMessage());
-    // エラーがあっても処理を続行し、デフォルト値を設定
-    $today_pre_duty_calls = 0;
-    $today_post_duty_calls = 0;
-    $today_departures = 0;
-    $today_arrivals = 0;
-    $today_ride_records = 0;
-    $today_total_revenue = 0;
-    $month_ride_records = 0;
-    $month_total_revenue = 0;
-    $month_avg_revenue = 0;
+    // 日常点検
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM daily_inspections WHERE inspection_date = ?");
+    $stmt->execute([$today]);
+    $stats['inspections'] = $stmt->fetchColumn();
+    
+    return $stats;
 }
 
-// アラートを優先度でソート
-if (!empty($alerts)) {
-    usort($alerts, function($a, $b) {
-        $priority_order = ['critical' => 0, 'high' => 1, 'medium' => 2, 'low' => 3];
-        return $priority_order[$a['priority']] - $priority_order[$b['priority']];
-    });
+$business_stats = getBusinessStats($pdo, $today);
+
+// アラート検出機能
+function detectAlerts($pdo, $today) {
+    $alerts = [];
+    $current_hour = intval(date('H'));
+    
+    // 朝の業務フロー漏れチェック
+    if ($current_hour >= 8) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM daily_inspections WHERE inspection_date = ?");
+        $stmt->execute([$today]);
+        if ($stmt->fetchColumn() == 0) {
+            $alerts[] = [
+                'level' => 'high',
+                'title' => '日常点検未実施',
+                'message' => '本日の日常点検が完了していません',
+                'action' => 'daily_inspection.php'
+            ];
+        }
+    }
+    
+    if ($current_hour >= 8) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM pre_duty_calls WHERE call_date = ?");
+        $stmt->execute([$today]);
+        if ($stmt->fetchColumn() == 0) {
+            $alerts[] = [
+                'level' => 'high',
+                'title' => '乗務前点呼未実施',
+                'message' => '本日の乗務前点呼が完了していません',
+                'action' => 'pre_duty_call.php'
+            ];
+        }
+    }
+    
+    if ($current_hour >= 9) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE departure_date = ?");
+        $stmt->execute([$today]);
+        if ($stmt->fetchColumn() == 0) {
+            $alerts[] = [
+                'level' => 'medium',
+                'title' => '出庫処理未実施',
+                'message' => '本日の出庫処理が完了していません',
+                'action' => 'departure.php'
+            ];
+        }
+    }
+    
+    // 夕方の業務フロー漏れチェック
+    if ($current_hour >= 17) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE arrival_date = ?");
+        $stmt->execute([$today]);
+        if ($stmt->fetchColumn() == 0) {
+            $alerts[] = [
+                'level' => 'medium',
+                'title' => '入庫処理未完了',
+                'message' => '本日の入庫処理が完了していません',
+                'action' => 'arrival.php'
+            ];
+        }
+    }
+    
+    return $alerts;
 }
 
-// 統計データ配列
-$stats_today = [
-    [
-        'value' => $today_departures,
-        'label' => '今日の出庫',
-        'icon' => 'truck-pickup',
-        'color' => 'primary'
-    ],
-    [
-        'value' => $today_ride_records,
-        'label' => '今日の乗車',
-        'icon' => 'car',
-        'color' => 'success'
-    ],
-    [
-        'value' => max(0, $today_departures - $today_arrivals),
-        'label' => '未入庫',
-        'icon' => 'exclamation-triangle',
-        'color' => ($today_departures - $today_arrivals > 0) ? 'danger' : 'success'
-    ],
-    [
-        'value' => $today_pre_duty_calls . '/' . $today_post_duty_calls,
-        'label' => '乗務前/後点呼',
-        'icon' => 'clipboard-check',
-        'color' => 'info'
-    ]
-];
+$alerts = detectAlerts($pdo, $today);
+
+// ヘッダー関数（統一仕様準拠）
+function renderSystemHeader($user_name, $user_role, $current_page = '') {
+    $is_dashboard = $current_page === 'dashboard';
+    $dashboard_link = '';
+    
+    if (!$is_dashboard) {
+        $dashboard_link = '<a href="dashboard.php" class="dashboard-link">
+            <i class="fas fa-tachometer-alt"></i>ダッシュボード
+        </a>';
+    }
+    
+    return '
+    <div class="header-container">
+        <div class="system-header">
+            <div class="container-fluid">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1 class="system-title">
+                            <i class="fas fa-taxi"></i>福祉輸送管理システム
+                        </h1>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <div class="user-info">
+                            ' . $dashboard_link . '
+                            <i class="fas fa-user-circle"></i>
+                            <span>' . htmlspecialchars($user_name) . '</span>
+                            <span class="text-muted">(' . htmlspecialchars($user_role) . ')</span>
+                            <a href="logout.php" class="logout-link ms-3">
+                                <i class="fas fa-sign-out-alt"></i>ログアウト
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>';
+}
+
+function renderSectionHeader($icon, $title, $badge = '') {
+    $badge_html = $badge ? '<span class="status-badge info ms-2">' . htmlspecialchars($badge) . '</span>' : '';
+    
+    return '
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>
+                <i class="fas fa-' . htmlspecialchars($icon) . '"></i>
+                ' . htmlspecialchars($title) . $badge_html . '
+            </h5>
+        </div>
+    </div>';
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -278,309 +243,314 @@ $stats_today = [
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <!-- 統一ヘッダーCSS -->
-    <link rel="stylesheet" href="css/header-unified.css">
-    
     <style>
-        /* ダッシュボード固有のスタイル */
-        .alerts-section {
-            margin-bottom: 2rem;
-        }
-        
-        .alert-item {
-            border-radius: 12px;
-            border: none;
-            margin-bottom: 1rem;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            animation: slideIn 0.5s ease-out;
-        }
-        
-        .alert-critical {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-            color: white;
-            border-left: 5px solid #a71e2a;
-        }
-        
-        .alert-high {
-            background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
-            color: #212529;
-            border-left: 5px solid #d39e00;
-        }
-        
-        .alert-item .alert-icon {
-            font-size: 1.5rem;
-            margin-right: 1rem;
-        }
-        
-        .alert-title {
-            font-weight: bold;
-            font-size: 1.1rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .alert-message {
-            margin-bottom: 1rem;
-            line-height: 1.4;
-        }
-        
-        .pulse {
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-        
-        @keyframes slideIn {
-            from {
-                transform: translateX(-100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-        
-        /* 売上カード（見やすい配色に修正） */
-        .revenue-card {
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            border: 1px solid var(--success);
-            border-left: 4px solid var(--success);
-        }
-        
-        .revenue-card h6 {
-            color: var(--success);
-            font-weight: 600;
-        }
-        
-        .revenue-card h2 {
-            color: var(--success);
-        }
-        
-        .revenue-card small {
-            color: var(--text-secondary);
-        }
-        
-        .revenue-month-card {
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            border: 1px solid var(--accent);
-            border-left: 4px solid var(--accent);
-        }
-        
-        .revenue-month-card h6 {
-            color: var(--accent);
-            font-weight: 600;
-        }
-        
-        .revenue-month-card h2 {
-            color: var(--accent);
-        }
-        
-        .revenue-month-card small {
-            color: var(--text-secondary);
-        }
-        
-        /* クイックアクション */
-        .quick-action-btn {
-            background: var(--white);
-            border: 2px solid var(--medium-gray);
-            border-radius: var(--border-radius-lg);
-            padding: 1rem;
-            text-decoration: none;
-            color: var(--text-primary);
-            display: block;
-            margin-bottom: 0.5rem;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            min-height: 80px;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .quick-action-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.1), transparent);
-            transition: left 0.5s;
-        }
-        
-        .quick-action-btn:hover::before {
-            left: 100%;
-        }
-        
-        .quick-action-btn:hover {
-            border-color: var(--primary-start);
-            color: var(--primary-start);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-lg);
-            text-decoration: none;
-        }
-        
-        .quick-action-content {
-            display: flex;
-            align-items: center;
-        }
-        
-        .quick-action-icon {
-            font-size: 1.8rem;
-            margin-right: 1rem;
-        }
-        
-        .quick-action-text h6 {
-            margin: 0;
-            font-weight: 600;
-        }
-        
-        .quick-action-text small {
-            color: var(--text-secondary);
-            font-size: 0.75rem;
-        }
-        
-        /* 業務進捗ガイド（視認性改善） */
-        .progress-step {
-            padding: 1rem;
-            border-radius: var(--border-radius);
-            margin-bottom: 0.5rem;
-            transition: all 0.3s ease;
-        }
-        
-        .progress-step.completed {
-            background: var(--success);
-            color: white;
-            border: 1px solid var(--success);
-        }
-        
-        .progress-step.pending {
-            background: var(--bg-primary);
-            color: var(--text-secondary);
-            border: 2px dashed var(--border-medium);
-        }
-        
-        .progress-step i {
-            font-size: 1.5rem;
-            display: block;
-            margin-bottom: 0.5rem;
-        }
-        
-        .progress-step small {
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        
-        .next-action {
-            background: var(--bg-primary);
-            padding: 1.5rem;
-            border-radius: var(--border-radius);
-            border-left: 4px solid var(--accent);
-            border: 1px solid var(--border-light);
-        }
-        
-        .next-action h6 {
-            color: var(--text-primary);
-            margin-bottom: 1rem;
-        }
-        
-        .next-action p {
-            color: var(--text-primary);
-            margin-bottom: 0.5rem;
-        }
-        
-        .next-action small {
-            color: var(--text-secondary);
-        }
+    .header-container {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 15px 0;
+        margin-bottom: 20px;
+    }
+    
+    .system-title {
+        font-size: 24px;
+        font-weight: bold;
+        margin: 0;
+    }
+    
+    .user-info {
+        font-size: 14px;
+    }
+    
+    .dashboard-link, .logout-link {
+        color: white;
+        text-decoration: none;
+        margin-right: 15px;
+    }
+    
+    .dashboard-link:hover, .logout-link:hover {
+        color: #f8f9fa;
+        text-decoration: underline;
+    }
+    
+    .status-badge {
+        font-size: 12px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        background-color: #17a2b8;
+        color: white;
+    }
+    
+    .revenue-card {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+    }
+    
+    .stats-card {
+        border-left: 4px solid #007bff;
+    }
+    
+    .alert-high {
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .alert-medium {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    
+    .alert-low {
+        background-color: #17a2b8;
+        color: white;
+    }
+    
+    .workflow-card {
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .workflow-btn-main {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        border: none;
+        color: white;
+        padding: 15px 30px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        width: 100%;
+        margin-bottom: 15px;
+    }
+    
+    .workflow-btn-main:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+    }
+    
+    .step-btn {
+        display: inline-block;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        color: #495057;
+        padding: 8px 15px;
+        margin: 5px;
+        border-radius: 6px;
+        text-decoration: none;
+        font-size: 14px;
+    }
+    
+    .step-btn:hover {
+        background-color: #e9ecef;
+        color: #495057;
+        text-decoration: none;
+    }
     </style>
 </head>
 <body>
-    <?php
-    // 統一システムヘッダー（ヘッダー関数が存在する場合のみ実行）
-    if (function_exists('renderSystemHeader')) {
-        echo renderSystemHeader($user_name, $user_role_display, 'dashboard');
-        echo renderPageHeader('tachometer-alt', 'ダッシュボード', 'システム全体の状況');
-    } else {
-        // フォールバック：従来のヘッダー
-        ?>
-        <div class="header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 1rem;">
-            <div class="container">
-                <h1><i class="fas fa-taxi me-2"></i>福祉輸送管理システム</h1>
-                <div class="user-info">
-                    <?= htmlspecialchars($user_name) ?> (<?= htmlspecialchars($user_role_display) ?>) 
-                    | <?= date('Y年n月j日 (D)') ?> <?= $current_time ?>
-                    <a href="logout.php" class="btn btn-outline-light btn-sm ms-3">ログアウト</a>
-                </div>
-            </div>
-        </div>
-        <?php
-    }
-    ?>
-    
-    <div class="container-fluid mt-4">
-        <!-- 業務漏れアラート -->
+    <!-- システムヘッダー -->
+    <?= renderSystemHeader($user_name, $user_permission, 'dashboard') ?>
+
+    <div class="container-fluid">
+        <!-- アラートエリア -->
         <?php if (!empty($alerts)): ?>
-        <div class="alerts-section">
-            <?php 
-            if (function_exists('renderSectionHeader')) {
-                echo renderSectionHeader('exclamation-triangle', '重要なお知らせ・業務漏れ確認');
-            } else {
-                echo '<h4><i class="fas fa-exclamation-triangle me-2 text-danger"></i>重要なお知らせ・業務漏れ確認</h4>';
-            }
-            ?>
+        <div class="alert-area mb-4">
             <?php foreach ($alerts as $alert): ?>
-            <div class="alert alert-item alert-<?= $alert['priority'] ?> <?= $alert['priority'] === 'critical' ? 'pulse' : '' ?>">
-                <div class="row align-items-center">
-                    <div class="col-auto">
-                        <i class="<?= $alert['icon'] ?> alert-icon"></i>
-                    </div>
-                    <div class="col">
-                        <div class="alert-title"><?= htmlspecialchars($alert['title']) ?></div>
-                        <div class="alert-message"><?= htmlspecialchars($alert['message']) ?></div>
-                    </div>
-                    <?php if ($alert['action']): ?>
-                    <div class="col-auto">
-                        <a href="<?= $alert['action'] ?>" class="btn btn-light">
-                            <i class="fas fa-arrow-right me-1"></i><?= htmlspecialchars($alert['action_text']) ?>
-                        </a>
-                    </div>
+            <div class="alert alert-<?= $alert['level'] ?> d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <div>
+                    <strong><?= htmlspecialchars($alert['title']) ?></strong><br>
+                    <small><?= htmlspecialchars($alert['message']) ?></small>
+                    <?php if (isset($alert['action'])): ?>
+                    <a href="<?= htmlspecialchars($alert['action']) ?>" class="btn btn-sm btn-light ms-3">対応する</a>
                     <?php endif; ?>
                 </div>
             </div>
             <?php endforeach; ?>
         </div>
         <?php endif; ?>
-        
-        <!-- 今日の業務状況 -->
-        <?php 
-        if (function_exists('renderSectionHeader')) {
-            echo renderSectionHeader('chart-bar', '今日の業務状況');
-            echo renderStatsCards($stats_today);
-        } else {
-            // フォールバック：従来の統計表示
-            ?>
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5><i class="fas fa-chart-bar me-2"></i>今日の業務状況</h5>
+
+        <!-- 売上カード -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card revenue-card">
+                    <div class="card-body text-center">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <h5><i class="fas fa-yen-sign"></i> 今日の売上</h5>
+                                <h2>¥<?= number_format($today_stats['total_revenue']) ?></h2>
+                                <small><?= $today_stats['trip_count'] ?>回の乗車</small>
+                                <?php if ($today_stats['trip_count'] > 0): ?>
+                                <br><small>平均 ¥<?= number_format($today_stats['total_revenue'] / $today_stats['trip_count']) ?>/回</small>
+                                <?php endif; ?>
+                            </div>
+                            <div class="col-md-4">
+                                <h5><i class="fas fa-calendar-alt"></i> 今月の売上</h5>
+                                <h2>¥<?= number_format($current_month_stats['total_revenue']) ?></h2>
+                                <small><?= $current_month_stats['trip_count'] ?>回 / <?= $working_days ?>営業日</small>
+                                <br><small>日平均 ¥<?= number_format($avg_daily_revenue) ?></small>
+                            </div>
+                            <div class="col-md-4">
+                                <h5><i class="fas fa-chart-line"></i> 先月比較</h5>
+                                <h2 class="<?= $revenue_diff >= 0 ? 'text-success' : 'text-danger' ?>">
+                                    <?= $revenue_diff >= 0 ? '+' : '' ?>¥<?= number_format($revenue_diff) ?>
+                                </h2>
+                                <small>
+                                    <?= $revenue_diff >= 0 ? '↗' : '↘' ?> 
+                                    <?= number_format(abs($revenue_diff_rate), 1) ?>%
+                                </small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-6 col-md-3">
-                            <h3 class="text-primary"><?= $today_departures ?></h3>
-                            <p class="small">今日の出庫</p>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <h3 class="text-success"><?= $today_ride_records ?></h3>
-                            <p class="small">今日の乗車</p>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <h3 class="text-<?= ($today_departures - $today_arrivals > 0) ? 'danger' : 'success' ?>">
-                                <?= max(0, $today_departures - $today_arrivals) ?>
-                            </h3>
-                            <p class="small">未入庫</p>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <h3 class="text-info"><?= $today_p
+            </div>
+        </div>
+
+        <!-- 業務状況カード -->
+        <div class="row mb-4">
+            <div class="col-6 col-md-2">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-truck-pickup fa-2x text-primary mb-2"></i>
+                        <h3 class="text-primary"><?= $business_stats['departures'] ?></h3>
+                        <small>今日の出庫</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-home fa-2x text-success mb-2"></i>
+                        <h3 class="text-success"><?= $business_stats['arrivals'] ?></h3>
+                        <small>今日の入庫</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-clipboard-check fa-2x text-info mb-2"></i>
+                        <h3 class="text-info"><?= $business_stats['pre_calls'] ?></h3>
+                        <small>乗務前点呼</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-clipboard-list fa-2x text-warning mb-2"></i>
+                        <h3 class="text-warning"><?= $business_stats['post_calls'] ?></h3>
+                        <small>乗務後点呼</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-tools fa-2x text-secondary mb-2"></i>
+                        <h3 class="text-secondary"><?= $business_stats['inspections'] ?></h3>
+                        <small>日常点検</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <div class="card stats-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-car fa-2x text-dark mb-2"></i>
+                        <h3 class="text-dark"><?= $today_stats['trip_count'] ?></h3>
+                        <small>今日の乗車</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 業務フローカード -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="workflow-card">
+                    <button class="workflow-btn-main" onclick="startMorningFlow()">
+                        <i class="fas fa-sun"></i> 始業フローを開始
+                    </button>
+                    <div class="workflow-steps">
+                        <a href="daily_inspection.php" class="step-btn">1.日常点検</a>
+                        <a href="pre_duty_call.php" class="step-btn">2.乗務前点呼</a>
+                        <a href="departure.php" class="step-btn">3.出庫処理</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="workflow-card">
+                    <button class="workflow-btn-main" onclick="startEveningFlow()">
+                        <i class="fas fa-moon"></i> 終業フローを開始
+                    </button>
+                    <div class="workflow-steps">
+                        <a href="arrival.php" class="step-btn">1.入庫処理</a>
+                        <a href="post_duty_call.php" class="step-btn">2.乗務後点呼</a>
+                        <a href="cash_management.php" class="step-btn">3.集金管理</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- メインメニューグリッド -->
+        <div class="row mt-4">
+            <div class="col-6 col-md-3 mb-3">
+                <a href="ride_records.php" class="card text-decoration-none h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-route fa-2x text-primary mb-2"></i>
+                        <h6>乗車記録</h6>
+                        <small class="text-muted">乗降記録・復路作成</small>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-md-3 mb-3">
+                <a href="cash_management.php" class="card text-decoration-none h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-calculator fa-2x text-success mb-2"></i>
+                        <h6>集金管理</h6>
+                        <small class="text-muted">現金・カード集計</small>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-md-3 mb-3">
+                <a href="periodic_inspection.php" class="card text-decoration-none h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-calendar-check fa-2x text-info mb-2"></i>
+                        <h6>定期点検</h6>
+                        <small class="text-muted">3ヶ月点検</small>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-md-3 mb-3">
+                <a href="annual_report.php" class="card text-decoration-none h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-file-alt fa-2x text-warning mb-2"></i>
+                        <h6>陸運局提出</h6>
+                        <small class="text-muted">年次報告</small>
+                    </div>
+                </a>
+            </div>
+
+            <!-- 管理者限定メニュー -->
+            <?php if ($user_permission === 'Admin'): ?>
+            <div class="col-6 col-md-3 mb-3">
+                <a href="user_management.php" class="card text-decoration-none h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-users fa-2x text-danger mb-2"></i>
+                        <h6>ユーザー管理</h6>
+                        <small class="text-muted">権限・職務管理</small>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-md-3 mb-3">
+                <a href="vehicle_management.php" class="card text-decoration-none h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-car-side fa-2x text-secondary mb-2"></i>
+                        <h6>車両管理</h6>
+                        <small class="text-muted">車両情報管理</small>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-md-3 mb-3">
+                <a href="accident_management.php" class="card text-decoration-none h-100">
+                    <div cl
