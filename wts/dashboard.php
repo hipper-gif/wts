@@ -7,7 +7,7 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// データベース接続 (config/database.php または直接接続)
+// データベース接続
 try {
     $pdo = new PDO(
         'mysql:host=localhost;dbname=twinklemark_wts;charset=utf8',
@@ -175,59 +175,6 @@ function detectAlerts($pdo, $today) {
 }
 
 $alerts = detectAlerts($pdo, $today);
-
-// ヘッダー関数（統一仕様準拠）
-function renderSystemHeader($user_name, $user_role, $current_page = '') {
-    $is_dashboard = $current_page === 'dashboard';
-    $dashboard_link = '';
-    
-    if (!$is_dashboard) {
-        $dashboard_link = '<a href="dashboard.php" class="dashboard-link">
-            <i class="fas fa-tachometer-alt"></i>ダッシュボード
-        </a>';
-    }
-    
-    return '
-    <div class="header-container">
-        <div class="system-header">
-            <div class="container-fluid">
-                <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <h1 class="system-title">
-                            <i class="fas fa-taxi"></i>福祉輸送管理システム
-                        </h1>
-                    </div>
-                    <div class="col-md-4 text-end">
-                        <div class="user-info">
-                            ' . $dashboard_link . '
-                            <i class="fas fa-user-circle"></i>
-                            <span>' . htmlspecialchars($user_name) . '</span>
-                            <span class="text-muted">(' . htmlspecialchars($user_role) . ')</span>
-                            <a href="logout.php" class="logout-link ms-3">
-                                <i class="fas fa-sign-out-alt"></i>ログアウト
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>';
-}
-
-function renderSectionHeader($icon, $title, $badge = '') {
-    $badge_html = $badge ? '<span class="status-badge info ms-2">' . htmlspecialchars($badge) . '</span>' : '';
-    
-    return '
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5>
-                <i class="fas fa-' . htmlspecialchars($icon) . '"></i>
-                ' . htmlspecialchars($title) . $badge_html . '
-            </h5>
-        </div>
-    </div>';
-}
-
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -242,13 +189,15 @@ function renderSectionHeader($icon, $title, $badge = '') {
     <!-- Font Awesome 6.0.0 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
-    <!-- 統一ヘッダーCSS -->
+    <!-- 統一CSS -->
     <style>
+    /* システムヘッダー */
     .header-container {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         padding: 15px 0;
         margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
     .system-title {
@@ -272,43 +221,52 @@ function renderSectionHeader($icon, $title, $badge = '') {
         text-decoration: underline;
     }
     
-    .status-badge {
-        font-size: 12px;
-        padding: 2px 8px;
-        border-radius: 12px;
-        background-color: #17a2b8;
-        color: white;
-    }
-    
+    /* カード・アラートスタイル */
     .revenue-card {
         background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
         color: white;
+        border-radius: 12px;
     }
     
     .stats-card {
         border-left: 4px solid #007bff;
+        border-radius: 8px;
+        transition: transform 0.2s ease;
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
     
     .alert-high {
         background-color: #dc3545;
         color: white;
+        border: none;
+        border-radius: 8px;
     }
     
     .alert-medium {
         background-color: #ffc107;
         color: #212529;
+        border: none;
+        border-radius: 8px;
     }
     
     .alert-low {
         background-color: #17a2b8;
         color: white;
+        border: none;
+        border-radius: 8px;
     }
     
+    /* ワークフロー */
     .workflow-card {
         border: 2px solid #e9ecef;
         border-radius: 12px;
         padding: 20px;
         margin-bottom: 20px;
+        background-color: #f8f9fa;
     }
     
     .workflow-btn-main {
@@ -321,6 +279,8 @@ function renderSectionHeader($icon, $title, $badge = '') {
         font-weight: bold;
         width: 100%;
         margin-bottom: 15px;
+        cursor: pointer;
+        transition: transform 0.2s ease;
     }
     
     .workflow-btn-main:hover {
@@ -330,7 +290,7 @@ function renderSectionHeader($icon, $title, $badge = '') {
     
     .step-btn {
         display: inline-block;
-        background-color: #f8f9fa;
+        background-color: #ffffff;
         border: 1px solid #dee2e6;
         color: #495057;
         padding: 8px 15px;
@@ -338,31 +298,89 @@ function renderSectionHeader($icon, $title, $badge = '') {
         border-radius: 6px;
         text-decoration: none;
         font-size: 14px;
+        transition: all 0.2s ease;
     }
     
     .step-btn:hover {
         background-color: #e9ecef;
         color: #495057;
         text-decoration: none;
+        transform: translateY(-1px);
+    }
+    
+    /* メニューカード */
+    .menu-card {
+        border-radius: 12px;
+        border: none;
+        transition: all 0.2s ease;
+        text-decoration: none;
+    }
+    
+    .menu-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        text-decoration: none;
+    }
+    
+    .menu-card .card-body {
+        text-align: center;
+        padding: 20px;
+    }
+    
+    .menu-card i {
+        font-size: 2rem;
+        margin-bottom: 10px;
+    }
+    
+    .menu-card h6 {
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: #333;
+    }
+    
+    .menu-card small {
+        color: #666;
     }
     </style>
 </head>
 <body>
     <!-- システムヘッダー -->
-    <?= renderSystemHeader($user_name, $user_permission, 'dashboard') ?>
+    <div class="header-container">
+        <div class="system-header">
+            <div class="container-fluid">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1 class="system-title">
+                            <i class="fas fa-taxi"></i> 福祉輸送管理システム
+                        </h1>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <div class="user-info">
+                            <i class="fas fa-user-circle"></i>
+                            <span><?php echo htmlspecialchars($user_name); ?></span>
+                            <span class="text-muted">(<?php echo htmlspecialchars($user_permission); ?>)</span>
+                            <a href="logout.php" class="logout-link ms-3">
+                                <i class="fas fa-sign-out-alt"></i>ログアウト
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="container-fluid">
         <!-- アラートエリア -->
         <?php if (!empty($alerts)): ?>
         <div class="alert-area mb-4">
             <?php foreach ($alerts as $alert): ?>
-            <div class="alert alert-<?= $alert['level'] ?> d-flex align-items-center">
+            <div class="alert alert-<?php echo $alert['level']; ?> d-flex align-items-center">
                 <i class="fas fa-exclamation-triangle me-2"></i>
                 <div>
-                    <strong><?= htmlspecialchars($alert['title']) ?></strong><br>
-                    <small><?= htmlspecialchars($alert['message']) ?></small>
+                    <strong><?php echo htmlspecialchars($alert['title']); ?></strong><br>
+                    <small><?php echo htmlspecialchars($alert['message']); ?></small>
                     <?php if (isset($alert['action'])): ?>
-                    <a href="<?= htmlspecialchars($alert['action']) ?>" class="btn btn-sm btn-light ms-3">対応する</a>
+                    <a href="<?php echo htmlspecialchars($alert['action']); ?>" class="btn btn-sm btn-light ms-3">対応する</a>
                     <?php endif; ?>
                 </div>
             </div>
@@ -378,26 +396,26 @@ function renderSectionHeader($icon, $title, $badge = '') {
                         <div class="row">
                             <div class="col-md-4">
                                 <h5><i class="fas fa-yen-sign"></i> 今日の売上</h5>
-                                <h2>¥<?= number_format($today_stats['total_revenue']) ?></h2>
-                                <small><?= $today_stats['trip_count'] ?>回の乗車</small>
+                                <h2>¥<?php echo number_format($today_stats['total_revenue']); ?></h2>
+                                <small><?php echo $today_stats['trip_count']; ?>回の乗車</small>
                                 <?php if ($today_stats['trip_count'] > 0): ?>
-                                <br><small>平均 ¥<?= number_format($today_stats['total_revenue'] / $today_stats['trip_count']) ?>/回</small>
+                                <br><small>平均 ¥<?php echo number_format($today_stats['total_revenue'] / $today_stats['trip_count']); ?>/回</small>
                                 <?php endif; ?>
                             </div>
                             <div class="col-md-4">
                                 <h5><i class="fas fa-calendar-alt"></i> 今月の売上</h5>
-                                <h2>¥<?= number_format($current_month_stats['total_revenue']) ?></h2>
-                                <small><?= $current_month_stats['trip_count'] ?>回 / <?= $working_days ?>営業日</small>
-                                <br><small>日平均 ¥<?= number_format($avg_daily_revenue) ?></small>
+                                <h2>¥<?php echo number_format($current_month_stats['total_revenue']); ?></h2>
+                                <small><?php echo $current_month_stats['trip_count']; ?>回 / <?php echo $working_days; ?>営業日</small>
+                                <br><small>日平均 ¥<?php echo number_format($avg_daily_revenue); ?></small>
                             </div>
                             <div class="col-md-4">
                                 <h5><i class="fas fa-chart-line"></i> 先月比較</h5>
-                                <h2 class="<?= $revenue_diff >= 0 ? 'text-success' : 'text-danger' ?>">
-                                    <?= $revenue_diff >= 0 ? '+' : '' ?>¥<?= number_format($revenue_diff) ?>
+                                <h2 class="<?php echo $revenue_diff >= 0 ? 'text-success' : 'text-danger'; ?>">
+                                    <?php echo $revenue_diff >= 0 ? '+' : ''; ?>¥<?php echo number_format($revenue_diff); ?>
                                 </h2>
                                 <small>
-                                    <?= $revenue_diff >= 0 ? '↗' : '↘' ?> 
-                                    <?= number_format(abs($revenue_diff_rate), 1) ?>%
+                                    <?php echo $revenue_diff >= 0 ? '↗' : '↘'; ?> 
+                                    <?php echo number_format(abs($revenue_diff_rate), 1); ?>%
                                 </small>
                             </div>
                         </div>
@@ -412,7 +430,7 @@ function renderSectionHeader($icon, $title, $badge = '') {
                 <div class="card stats-card text-center">
                     <div class="card-body">
                         <i class="fas fa-truck-pickup fa-2x text-primary mb-2"></i>
-                        <h3 class="text-primary"><?= $business_stats['departures'] ?></h3>
+                        <h3 class="text-primary"><?php echo $business_stats['departures']; ?></h3>
                         <small>今日の出庫</small>
                     </div>
                 </div>
@@ -421,7 +439,7 @@ function renderSectionHeader($icon, $title, $badge = '') {
                 <div class="card stats-card text-center">
                     <div class="card-body">
                         <i class="fas fa-home fa-2x text-success mb-2"></i>
-                        <h3 class="text-success"><?= $business_stats['arrivals'] ?></h3>
+                        <h3 class="text-success"><?php echo $business_stats['arrivals']; ?></h3>
                         <small>今日の入庫</small>
                     </div>
                 </div>
@@ -430,7 +448,7 @@ function renderSectionHeader($icon, $title, $badge = '') {
                 <div class="card stats-card text-center">
                     <div class="card-body">
                         <i class="fas fa-clipboard-check fa-2x text-info mb-2"></i>
-                        <h3 class="text-info"><?= $business_stats['pre_calls'] ?></h3>
+                        <h3 class="text-info"><?php echo $business_stats['pre_calls']; ?></h3>
                         <small>乗務前点呼</small>
                     </div>
                 </div>
@@ -439,7 +457,7 @@ function renderSectionHeader($icon, $title, $badge = '') {
                 <div class="card stats-card text-center">
                     <div class="card-body">
                         <i class="fas fa-clipboard-list fa-2x text-warning mb-2"></i>
-                        <h3 class="text-warning"><?= $business_stats['post_calls'] ?></h3>
+                        <h3 class="text-warning"><?php echo $business_stats['post_calls']; ?></h3>
                         <small>乗務後点呼</small>
                     </div>
                 </div>
@@ -448,7 +466,7 @@ function renderSectionHeader($icon, $title, $badge = '') {
                 <div class="card stats-card text-center">
                     <div class="card-body">
                         <i class="fas fa-tools fa-2x text-secondary mb-2"></i>
-                        <h3 class="text-secondary"><?= $business_stats['inspections'] ?></h3>
+                        <h3 class="text-secondary"><?php echo $business_stats['inspections']; ?></h3>
                         <small>日常点検</small>
                     </div>
                 </div>
@@ -457,7 +475,7 @@ function renderSectionHeader($icon, $title, $badge = '') {
                 <div class="card stats-card text-center">
                     <div class="card-body">
                         <i class="fas fa-car fa-2x text-dark mb-2"></i>
-                        <h3 class="text-dark"><?= $today_stats['trip_count'] ?></h3>
+                        <h3 class="text-dark"><?php echo $today_stats['trip_count']; ?></h3>
                         <small>今日の乗車</small>
                     </div>
                 </div>
@@ -495,36 +513,36 @@ function renderSectionHeader($icon, $title, $badge = '') {
         <!-- メインメニューグリッド -->
         <div class="row mt-4">
             <div class="col-6 col-md-3 mb-3">
-                <a href="ride_records.php" class="card text-decoration-none h-100">
-                    <div class="card-body text-center">
-                        <i class="fas fa-route fa-2x text-primary mb-2"></i>
+                <a href="ride_records.php" class="card menu-card text-decoration-none h-100">
+                    <div class="card-body">
+                        <i class="fas fa-route text-primary"></i>
                         <h6>乗車記録</h6>
                         <small class="text-muted">乗降記録・復路作成</small>
                     </div>
                 </a>
             </div>
             <div class="col-6 col-md-3 mb-3">
-                <a href="cash_management.php" class="card text-decoration-none h-100">
-                    <div class="card-body text-center">
-                        <i class="fas fa-calculator fa-2x text-success mb-2"></i>
+                <a href="cash_management.php" class="card menu-card text-decoration-none h-100">
+                    <div class="card-body">
+                        <i class="fas fa-calculator text-success"></i>
                         <h6>集金管理</h6>
                         <small class="text-muted">現金・カード集計</small>
                     </div>
                 </a>
             </div>
             <div class="col-6 col-md-3 mb-3">
-                <a href="periodic_inspection.php" class="card text-decoration-none h-100">
-                    <div class="card-body text-center">
-                        <i class="fas fa-calendar-check fa-2x text-info mb-2"></i>
+                <a href="periodic_inspection.php" class="card menu-card text-decoration-none h-100">
+                    <div class="card-body">
+                        <i class="fas fa-calendar-check text-info"></i>
                         <h6>定期点検</h6>
                         <small class="text-muted">3ヶ月点検</small>
                     </div>
                 </a>
             </div>
             <div class="col-6 col-md-3 mb-3">
-                <a href="annual_report.php" class="card text-decoration-none h-100">
-                    <div class="card-body text-center">
-                        <i class="fas fa-file-alt fa-2x text-warning mb-2"></i>
+                <a href="annual_report.php" class="card menu-card text-decoration-none h-100">
+                    <div class="card-body">
+                        <i class="fas fa-file-alt text-warning"></i>
                         <h6>陸運局提出</h6>
                         <small class="text-muted">年次報告</small>
                     </div>
@@ -534,23 +552,17 @@ function renderSectionHeader($icon, $title, $badge = '') {
             <!-- 管理者限定メニュー -->
             <?php if ($user_permission === 'Admin'): ?>
             <div class="col-6 col-md-3 mb-3">
-                <a href="user_management.php" class="card text-decoration-none h-100">
-                    <div class="card-body text-center">
-                        <i class="fas fa-users fa-2x text-danger mb-2"></i>
+                <a href="user_management.php" class="card menu-card text-decoration-none h-100">
+                    <div class="card-body">
+                        <i class="fas fa-users text-danger"></i>
                         <h6>ユーザー管理</h6>
                         <small class="text-muted">権限・職務管理</small>
                     </div>
                 </a>
             </div>
             <div class="col-6 col-md-3 mb-3">
-                <a href="vehicle_management.php" class="card text-decoration-none h-100">
-                    <div class="card-body text-center">
-                        <i class="fas fa-car-side fa-2x text-secondary mb-2"></i>
+                <a href="vehicle_management.php" class="card menu-card text-decoration-none h-100">
+                    <div class="card-body">
+                        <i class="fas fa-car-side text-secondary"></i>
                         <h6>車両管理</h6>
-                        <small class="text-muted">車両情報管理</small>
-                    </div>
-                </a>
-            </div>
-            <div class="col-6 col-md-3 mb-3">
-                <a href="accident_management.php" class="card text-decoration-none h-100">
-                    <div cl
+                        <small clas
