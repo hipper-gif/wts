@@ -13,11 +13,11 @@ try {
         'mysql:host=localhost;dbname=twinklemark_wts;charset=utf8',
         'twinklemark_wtsuser',
         'Smiley2525',
-        [
+        array(
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false
-        ]
+        )
     );
 } catch (PDOException $e) {
     die('データベース接続エラー: ' . $e->getMessage());
@@ -25,7 +25,7 @@ try {
 
 // ユーザー情報取得
 $stmt = $pdo->prepare("SELECT name, permission_level FROM users WHERE id = ? AND is_active = TRUE");
-$stmt->execute([$_SESSION['user_id']]);
+$stmt->execute(array($_SESSION['user_id']));
 $user = $stmt->fetch();
 
 if (!$user) {
@@ -41,15 +41,15 @@ $today = date('Y-m-d');
 $current_month = date('Y-m');
 $last_month = date('Y-m', strtotime('-1 month'));
 
-// 売上統計取得
-function getRevenueStats($pdo, $date_condition, $params = []) {
+// 売上統計取得関数
+function getRevenueStats($pdo, $date_condition, $params = array()) {
     $sql = "SELECT 
                 COUNT(*) as trip_count,
                 COALESCE(SUM(total_fare), 0) as total_revenue,
                 COALESCE(SUM(cash_amount), 0) as cash_amount,
                 COALESCE(SUM(card_amount), 0) as card_amount
             FROM ride_records 
-            WHERE $date_condition";
+            WHERE " . $date_condition;
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -57,98 +57,104 @@ function getRevenueStats($pdo, $date_condition, $params = []) {
 }
 
 // 統計データ取得
-$today_stats = getRevenueStats($pdo, "ride_date = ?", [$today]);
-$current_month_stats = getRevenueStats($pdo, "DATE_FORMAT(ride_date, '%Y-%m') = ?", [$current_month]);
-$last_month_stats = getRevenueStats($pdo, "DATE_FORMAT(ride_date, '%Y-%m') = ?", [$last_month]);
+$today_stats = getRevenueStats($pdo, "ride_date = ?", array($today));
+$current_month_stats = getRevenueStats($pdo, "DATE_FORMAT(ride_date, '%Y-%m') = ?", array($current_month));
+$last_month_stats = getRevenueStats($pdo, "DATE_FORMAT(ride_date, '%Y-%m') = ?", array($last_month));
 
 // 先月比較計算
 $revenue_diff = $current_month_stats['total_revenue'] - $last_month_stats['total_revenue'];
-$revenue_diff_rate = $last_month_stats['total_revenue'] > 0 ? 
-    ($revenue_diff / $last_month_stats['total_revenue'] * 100) : 0;
+if ($last_month_stats['total_revenue'] > 0) {
+    $revenue_diff_rate = ($revenue_diff / $last_month_stats['total_revenue'] * 100);
+} else {
+    $revenue_diff_rate = 0;
+}
 
 // 営業日数計算
 $stmt = $pdo->prepare("SELECT COUNT(DISTINCT ride_date) as working_days FROM ride_records WHERE DATE_FORMAT(ride_date, '%Y-%m') = ?");
-$stmt->execute([$current_month]);
+$stmt->execute(array($current_month));
 $working_days_result = $stmt->fetch();
-$working_days = $working_days_result['working_days'] ?: 1;
+$working_days = $working_days_result['working_days'];
+if ($working_days == 0) {
+    $working_days = 1;
+}
 $avg_daily_revenue = $current_month_stats['total_revenue'] / $working_days;
 
 // 業務状況統計
-$business_stats = [];
+$business_stats = array();
 
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE departure_date = ?");
-$stmt->execute([$today]);
+$stmt->execute(array($today));
 $business_stats['departures'] = $stmt->fetchColumn();
 
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE arrival_date = ?");
-$stmt->execute([$today]);
+$stmt->execute(array($today));
 $business_stats['arrivals'] = $stmt->fetchColumn();
 
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM pre_duty_calls WHERE call_date = ?");
-$stmt->execute([$today]);
+$stmt->execute(array($today));
 $business_stats['pre_calls'] = $stmt->fetchColumn();
 
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM post_duty_calls WHERE call_date = ?");
-$stmt->execute([$today]);
+$stmt->execute(array($today));
 $business_stats['post_calls'] = $stmt->fetchColumn();
 
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM daily_inspections WHERE inspection_date = ?");
-$stmt->execute([$today]);
+$stmt->execute(array($today));
 $business_stats['inspections'] = $stmt->fetchColumn();
 
 // アラート検出
-$alerts = [];
+$alerts = array();
 $current_hour = intval(date('H'));
 
 if ($current_hour >= 8) {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM daily_inspections WHERE inspection_date = ?");
-    $stmt->execute([$today]);
+    $stmt->execute(array($today));
     if ($stmt->fetchColumn() == 0) {
-        $alerts[] = [
+        $alerts[] = array(
             'level' => 'high',
             'title' => '日常点検未実施',
             'message' => '本日の日常点検が完了していません',
             'action' => 'daily_inspection.php'
-        ];
+        );
     }
 }
 
 if ($current_hour >= 8) {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM pre_duty_calls WHERE call_date = ?");
-    $stmt->execute([$today]);
+    $stmt->execute(array($today));
     if ($stmt->fetchColumn() == 0) {
-        $alerts[] = [
+        $alerts[] = array(
             'level' => 'high',
             'title' => '乗務前点呼未実施',
             'message' => '本日の乗務前点呼が完了していません',
             'action' => 'pre_duty_call.php'
-        ];
+        );
     }
 }
 
 if ($current_hour >= 9) {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE departure_date = ?");
-    $stmt->execute([$today]);
+    $stmt->execute(array($today));
     if ($stmt->fetchColumn() == 0) {
-        $alerts[] = [
+        $alerts[] = array(
             'level' => 'medium',
             'title' => '出庫処理未実施',
             'message' => '本日の出庫処理が完了していません',
             'action' => 'departure.php'
-        ];
+        );
     }
 }
 
 if ($current_hour >= 17) {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE arrival_date = ?");
-    $stmt->execute([$today]);
+    $stmt->execute(array($today));
     if ($stmt->fetchColumn() == 0) {
-        $alerts[] = [
+        $alerts[] = array(
             'level' => 'medium',
             'title' => '入庫処理未完了',
             'message' => '本日の入庫処理が完了していません',
             'action' => 'arrival.php'
-        ];
+        );
     }
 }
 ?>
@@ -335,7 +341,7 @@ if ($current_hour >= 17) {
 
     <div class="container-fluid">
         <!-- アラートエリア -->
-        <?php if (!empty($alerts)) { ?>
+        <?php if (count($alerts) > 0) { ?>
         <div class="alert-area mb-4">
             <?php foreach ($alerts as $alert) { ?>
             <div class="alert alert-<?php echo $alert['level']; ?> d-flex align-items-center">
@@ -374,7 +380,8 @@ if ($current_hour >= 17) {
                             </div>
                             <div class="col-md-4">
                                 <h5><i class="fas fa-chart-line"></i> 先月比較</h5>
-                                <h2 class="<?php echo $revenue_diff >= 0 ? 'text-success' : 'text-danger'; ?>">
+                                <?php $diff_class = $revenue_diff >= 0 ? 'text-success' : 'text-danger'; ?>
+                                <h2 class="<?php echo $diff_class; ?>">
                                     <?php echo $revenue_diff >= 0 ? '+' : ''; ?>¥<?php echo number_format($revenue_diff); ?>
                                 </h2>
                                 <small>
@@ -543,9 +550,4 @@ if ($current_hour >= 17) {
                 </a>
             </div>
             <div class="col-6 col-md-3 mb-3">
-                <a href="data_management.php" class="card menu-card text-decoration-none h-100">
-                    <div class="card-body">
-                        <i class="fas fa-database text-info"></i>
-                        <h6>データ管理</h6>
-                        <small class="text-muted">データ修正・分析</small>
-              
+                <a href="data_management.php" class="car
