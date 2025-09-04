@@ -171,8 +171,7 @@ try {
                 'action_text' => '入庫処理を実施'
             ];
 
-</body>
-</html>
+
         
         if ($flow_status['arrival'] && !$flow_status['post_duty_call']) {
             $alerts[] = [
