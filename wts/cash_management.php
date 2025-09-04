@@ -1,584 +1,490 @@
 <?php
-// CSPヘッダーを修正版に変更
-header("Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data: https:;");
 session_start();
 require_once 'config/database.php';
 
-// ログインチェック
+// ログイン確認
 if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
-    exit;
+    exit();
 }
 
 $pdo = getDBConnection();
-$current_user_id = $_SESSION['user_id'];
-$current_user_name = $_SESSION['user_name'] ?? '不明';
 
-// 運転者リスト取得
-function getDriverList($pdo) {
-    $stmt = $pdo->prepare("
-        SELECT id, NAME as name FROM users 
-        WHERE is_driver = 1 AND is_active = 1
-        ORDER BY NAME
-    ");
-    $stmt->execute();
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+// ユーザー情報取得
+$stmt = $pdo->prepare("SELECT permission_level, NAME, is_driver FROM users WHERE id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+// 権限確認（運転者またはAdmin）
+if (!$user['is_driver'] && $user['permission_level'] !== 'Admin') {
+    header('Location: dashboard.php');
+    exit();
 }
 
-// システム売上取得（運転者別）
-function getSystemRevenue($pdo, $date, $driver_id = null) {
-    $sql = "SELECT 
-                SUM(total_fare) as total_revenue,
-                SUM(cash_amount) as cash_total,
-                SUM(card_amount) as card_total,
-                COUNT(*) as ride_count
-            FROM ride_records 
-            WHERE DATE(ride_date) = ?";
-    
-    $params = [$date];
-    
-    if ($driver_id) {
-        $sql .= " AND driver_id = ?";
-        $params[] = $driver_id;
-    }
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    return $stmt->fetch(PDO::FETCH_ASSOC);
-}
-
-$driver_list = getDriverList($pdo);
 $today = date('Y-m-d');
-$selected_driver_id = $_GET['driver_id'] ?? $current_user_id;
+$message = '';
 
-$system_revenue = getSystemRevenue($pdo, $today);
-$user_system_revenue = getSystemRevenue($pdo, $today, $selected_driver_id);
+// POST処理：乗車記録保存
+if ($_POST && isset($_POST['action'])) {
+    try {
+        $pdo->beginTransaction();
+        
+        if ($_POST['action'] === 'save_record') {
+            // 基本情報
+            $ride_date = $_POST['ride_date'] ?: $today;
+            $ride_time = $_POST['ride_time'];
+            $pickup_location = $_POST['pickup_location'];
+            $destination = $_POST['destination'];
+            $passenger_count = intval($_POST['passenger_count']);
+            $transportation_type = $_POST['transportation_type'];
+            
+            // 料金計算
+            $fare = intval($_POST['fare'] ?? 0);
+            $charge = intval($_POST['charge'] ?? 0);
+            $total_fare = $fare + $charge;
+            
+            // 支払方法別金額
+            $payment_method = $_POST['payment_method'];
+            $cash_amount = $payment_method === '現金' ? $total_fare : 0;
+            $card_amount = $payment_method === 'カード' ? $total_fare : 0;
+            
+            // 乗車記録保存
+            $stmt = $pdo->prepare("
+                INSERT INTO ride_records 
+                (ride_date, ride_time, pickup_location, destination, passenger_count, 
+                 transportation_type, fare, charge, total_fare, payment_method, 
+                 cash_amount, card_amount, driver_id, created_at, updated_at) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ");
+            
+            $stmt->execute([
+                $ride_date, $ride_time, $pickup_location, $destination, $passenger_count,
+                $transportation_type, $fare, $charge, $total_fare, $payment_method,
+                $cash_amount, $card_amount, $_SESSION['user_id']
+            ]);
+            
+            $record_id = $pdo->lastInsertId();
+            
+            $pdo->commit();
+            $message = '乗車記録を保存しました。';
+            
+        } elseif ($_POST['action'] === 'create_return') {
+            // 復路作成
+            $original_id = $_POST['original_id'];
+            
+            // 元記録取得
+            $stmt = $pdo->prepare("SELECT * FROM ride_records WHERE id = ?");
+            $stmt->execute([$original_id]);
+            $original = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($original) {
+                // 復路記録作成（乗降地入れ替え）
+                $return_time = date('H:i', strtotime($original['ride_time']) + 1800); // 30分後
+                
+                $stmt = $pdo->prepare("
+                    INSERT INTO ride_records 
+                    (ride_date, ride_time, pickup_location, destination, passenger_count, 
+                     transportation_type, fare, charge, total_fare, payment_method, 
+                     cash_amount, card_amount, driver_id, created_at, updated_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ");
+                
+                $stmt->execute([
+                    $original['ride_date'],
+                    $return_time,
+                    $original['destination'],  // 復路なので乗降地入れ替え
+                    $original['pickup_location'],
+                    $original['passenger_count'],
+                    $original['transportation_type'],
+                    $original['fare'],
+                    $original['charge'],
+                    $original['total_fare'],
+                    $original['payment_method'],
+                    $original['cash_amount'],
+                    $original['card_amount'],
+                    $_SESSION['user_id']
+                ]);
+                
+                $pdo->commit();
+                $message = '復路を作成しました。';
+            }
+        }
+        
+    } catch (Exception $e) {
+        $pdo->rollback();
+        $message = 'エラーが発生しました: ' . $e->getMessage();
+    }
+}
 
-// 基準おつり定義（1万円札を追加）
-$base_change = [
-    'bill_10000' => ['count' => 0, 'unit' => 10000],
-    'bill_5000' => ['count' => 1, 'unit' => 5000],
-    'bill_1000' => ['count' => 10, 'unit' => 1000],
-    'coin_500' => ['count' => 3, 'unit' => 500],
-    'coin_100' => ['count' => 11, 'unit' => 100],
-    'coin_50' => ['count' => 5, 'unit' => 50],
-    'coin_10' => ['count' => 15, 'unit' => 10]
-];
+// 本日の乗車記録取得
+$stmt = $pdo->prepare("
+    SELECT r.*, u.NAME as driver_name 
+    FROM ride_records r 
+    LEFT JOIN users u ON r.driver_id = u.id 
+    WHERE r.ride_date = ? 
+    ORDER BY r.ride_time DESC
+");
+$stmt->execute([$today]);
+$today_records = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$base_total = 18000;
-
-// 既存の集金データ取得
-$existing_data = null;
-$stmt = $pdo->prepare("SELECT * FROM cash_count_details WHERE confirmation_date = ? AND driver_id = ?");
-$stmt->execute([$today, $selected_driver_id]);
-$existing_data = $stmt->fetch(PDO::FETCH_ASSOC);
-
-// 月次売上データ取得
-$selected_month = $_GET['month'] ?? date('Y-m');
-$month_parts = explode('-', $selected_month);
-$year = $month_parts[0];
-$month = $month_parts[1];
-
-$monthly_sql = "SELECT 
-    DATE_FORMAT(ride_date, '%Y-%m-%d') as date,
-    SUM(total_fare) as daily_total,
-    SUM(cash_amount) as cash_total,
-    SUM(card_amount) as card_total,
-    COUNT(*) as ride_count
+// 本日の売上サマリー
+$stmt = $pdo->prepare("
+    SELECT 
+        COUNT(*) as ride_count,
+        COALESCE(SUM(total_fare), 0) as total_revenue,
+        COALESCE(SUM(cash_amount), 0) as cash_revenue,
+        COALESCE(SUM(card_amount), 0) as card_revenue
     FROM ride_records 
-    WHERE YEAR(ride_date) = ? AND MONTH(ride_date) = ?
-    GROUP BY DATE(ride_date)
-    ORDER BY date DESC";
-$monthly_stmt = $pdo->prepare($monthly_sql);
-$monthly_stmt->execute([$year, $month]);
-$monthly_data = $monthly_stmt->fetchAll(PDO::FETCH_ASSOC);
-?>
+    WHERE ride_date = ?
+");
+$stmt->execute([$today]);
+$summary = $stmt->fetch(PDO::FETCH_ASSOC);
 
+// フロー進行状況確認
+$flow_status = [];
+
+// 出庫状況確認
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE departure_date = ?");
+$stmt->execute([$today]);
+$flow_status['departed'] = $stmt->fetchColumn() > 0;
+
+// 運行中ステータス（出庫済み且つ未入庫）
+$stmt = $pdo->prepare("
+    SELECT COUNT(*) FROM departure_records d 
+    LEFT JOIN arrival_records a ON d.id = a.departure_record_id 
+    WHERE d.departure_date = ? AND a.id IS NULL
+");
+$stmt->execute([$today]);
+$flow_status['in_operation'] = $stmt->fetchColumn() > 0;
+
+?>
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>集金管理 - スマイリーケアタクシー</title>
-    
-    <!-- Bootstrap & Font Awesome -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>乗車記録 - 福祉輸送管理システム</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
-    <!-- 統一ヘッダーCSS -->
-    <link rel="stylesheet" href="css/header-unified.css">
-    
     <style>
-        .denomination-card {
-            border: 1px solid #dee2e6;
-            border-radius: 10px;
-            margin-bottom: 15px;
-            padding: 15px;
-            background: #f8f9fa;
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --success-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            --warning-gradient: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+            --info-gradient: linear-gradient(135deg, #17a2b8 0%, #20c997 100%);
+            --shadow: 0 4px 15px rgba(0,0,0,0.1);
+            --border-radius: 15px;
         }
-        
-        .denomination-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 10px;
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            padding-bottom: 80px;
         }
-        
-        .count-control {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .count-btn {
-            width: 40px;
-            height: 40px;
-            border: none;
-            border-radius: 50%;
-            font-weight: bold;
-            font-size: 18px;
-        }
-        
-        .count-input {
-            width: 80px;
-            text-align: center;
-            border: 1px solid #ced4da;
-            border-radius: 5px;
-            padding: 8px;
-        }
-        
-        .base-indicator {
-            color: #6c757d;
-            font-size: 0.9em;
-        }
-        
-        .difference {
-            font-weight: bold;
-        }
-        
-        .difference.positive {
-            color: #28a745;
-        }
-        
-        .difference.negative {
-            color: #dc3545;
-        }
-        
-        .summary-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+        /* ヘッダー */
+        .system-header {
+            background: var(--primary-gradient);
             color: white;
-            border-radius: 15px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        
-        .nav-buttons {
-            position: fixed;
-            top: 20px;
-            left: 20px;
+            padding: 15px 0;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
             z-index: 1000;
         }
-        
-        @media (max-width: 768px) {
-            .denomination-card {
-                margin-bottom: 10px;
-                padding: 10px;
+
+        .page-header {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+
+        /* フロー状況表示 */
+        .flow-status {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .flow-step {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .flow-step:last-child {
+            border-bottom: none;
+        }
+
+        .step-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 0.9rem;
+        }
+
+        .step-completed {
+            background: var(--success-gradient);
+            color: white;
+        }
+
+        .step-current {
+            background: var(--warning-gradient);
+            color: white;
+        }
+
+        .step-pending {
+            background: #e9ecef;
+            color: #6c757d;
+        }
+
+        /* 売上サマリー */
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .summary-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+
+        .summary-amount {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .summary-label {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+
+        /* 入力フォーム */
+        .record-form {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .form-section {
+            margin-bottom: 20px;
+        }
+
+        .form-section h6 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .form-control, .form-select {
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            padding: 12px 15px;
+            font-size: 1rem;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+
+        /* 料金入力 */
+        .fare-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .fare-result {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        .total-fare {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #27ae60;
+        }
+
+        /* アクションボタン */
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-primary-custom {
+            background: var(--primary-gradient);
+            border: none;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 25px;
+            flex: 1;
+        }
+
+        .btn-success-custom {
+            background: var(--success-gradient);
+            border: none;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 25px;
+            flex: 1;
+        }
+
+        /* 記録一覧 */
+        .records-section {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .record-item {
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .record-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .record-time {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .record-route {
+            color: #7f8c8d;
+            margin-bottom: 10px;
+        }
+
+        .record-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .record-fare {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #27ae60;
+        }
+
+        .return-btn {
+            background: var(--info-gradient);
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+        }
+
+        /* フローティングボタン */
+        .floating-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: var(--success-gradient);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+            text-decoration: none;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+            z-index: 999;
+        }
+
+        /* レスポンシブ */
+        @media (max-width: 430px) {
+            .summary-cards {
+                grid-template-columns: 1fr;
             }
             
-            .count-btn {
-                width: 35px;
-                height: 35px;
-                font-size: 16px;
+            .fare-inputs {
+                grid-template-columns: 1fr;
             }
             
-            .count-input {
-                width: 60px;
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .record-details {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
             }
         }
     </style>
 </head>
 <body>
-    <!-- ナビゲーションボタン -->
-    <div class="nav-buttons">
-        <a href="dashboard.php" class="btn btn-primary btn-sm me-2">
-            <i class="fas fa-arrow-left"></i> ダッシュボードに戻る
-        </a>
-    </div>
-
-    <!-- 統一ヘッダー -->
-    <div class="header-container">
-        <div class="system-header">
-            <div class="container-fluid">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h1 class="system-title">
-                        <i class="fas fa-taxi"></i>
-                        スマイリーケアタクシー
-                    </h1>
-                    <div class="user-info">
-                        <i class="fas fa-user"></i>
-                        <?php echo htmlspecialchars($current_user_name); ?>さん
-                    </div>
+    <!-- システムヘッダー -->
+    <div class="system-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h1><i class="fas fa-taxi me-2"></i>スマイリーケアタクシー</h1>
+                </div>
+                <div class="col-auto">
+                    <a href="dashboard.php" class="text-white text-decoration-none">
+                        <i class="fas fa-tachometer-alt me-1"></i>ダッシュボード
+                    </a>
                 </div>
             </div>
         </div>
-        
+    </div>
+
+    <div class="container">
+        <!-- ページヘッダー -->
         <div class="page-header">
-            <div class="container-fluid">
-                <h2 class="page-title">
-                    <i class="fas fa-money-check-alt"></i>
-                    集金管理 - 日次売上集計・差額管理
-                </h2>
-            </div>
+            <h2><i class="fas fa-car me-3"></i>乗車記録管理</h2>
+            <p class="mb-0 text-muted">
+                <i class="fas fa-calendar me-2"></i><?= date('Y年m月d日') ?>
+                <span class="ms-3"><i class="fas fa-user me-2"></i><?= htmlspecialchars($user['NAME']) ?></span>
+            </p>
         </div>
-    </div>
 
-    <div class="container-fluid mt-4">
-        <!-- タブメニュー -->
-        <ul class="nav nav-tabs" id="cashTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily" type="button" role="tab">
-                    <i class="fas fa-calendar-day"></i> 日次集計
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="count-tab" data-bs-toggle="tab" data-bs-target="#count" type="button" role="tab">
-                    <i class="fas fa-coins"></i> 現金カウント
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="monthly-tab" data-bs-toggle="tab" data-bs-target="#monthly" type="button" role="tab">
-                    <i class="fas fa-chart-line"></i> 月次統計
-                </button>
-            </li>
-        </ul>
-
-        <div class="tab-content" id="cashTabContent">
-            <!-- 日次集計タブ -->
-            <div class="tab-pane fade show active" id="daily" role="tabpanel">
-                <div class="row mt-4">
-                    <div class="col-md-12">
-                        <!-- 運転者選択 -->
-                        <div class="card mb-3">
-                            <div class="card-header">
-                                <h5><i class="fas fa-user-cog"></i> 運転者選択</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-4">
-                                        <select class="form-select" id="driver_select">
-                                            <?php foreach ($driver_list as $driver): ?>
-                                            <option value="<?php echo $driver['id']; ?>" 
-                                                    <?php echo $driver['id'] == $selected_driver_id ? 'selected' : ''; ?>>
-                                                <?php echo htmlspecialchars($driver['name']); ?>
-                                                <?php echo $driver['id'] == $current_user_id ? ' (あなた)' : ''; ?>
-                                            </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="row mt-2">
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5><i class="fas fa-chart-bar"></i> 本日の売上実績 (全体)</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row text-center">
-                                    <div class="col-6">
-                                        <div class="stat-item">
-                                            <h3 class="text-primary">¥<?php echo number_format($system_revenue['total_revenue'] ?? 0); ?></h3>
-                                            <p class="text-muted">総売上</p>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="stat-item">
-                                            <h3 class="text-success"><?php echo $system_revenue['ride_count'] ?? 0; ?>回</h3>
-                                            <p class="text-muted">総回数</p>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="stat-item">
-                                            <h3 class="text-warning">¥<?php echo number_format($system_revenue['cash_total'] ?? 0); ?></h3>
-                                            <p class="text-muted">現金売上</p>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="stat-item">
-                                            <h3 class="text-info">¥<?php echo number_format($system_revenue['card_total'] ?? 0); ?></h3>
-                                            <p class="text-muted">カード売上</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5><i class="fas fa-user-check"></i> 選択運転者の売上実績</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row text-center">
-                                    <div class="col-6">
-                                        <div class="stat-item">
-                                            <h3 class="text-primary">¥<?php echo number_format($user_system_revenue['total_revenue'] ?? 0); ?></h3>
-                                            <p class="text-muted">選択運転者の総売上</p>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="stat-item">
-                                            <h3 class="text-success"><?php echo $user_system_revenue['ride_count'] ?? 0; ?>回</h3>
-                                            <p class="text-muted">選択運転者の回数</p>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="stat-item">
-                                            <h3 class="text-warning">¥<?php echo number_format($user_system_revenue['cash_total'] ?? 0); ?></h3>
-                                            <p class="text-muted">現金売上</p>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="stat-item">
-                                            <h3 class="text-info">¥<?php echo number_format($user_system_revenue['card_total'] ?? 0); ?></h3>
-                                            <p class="text-muted">カード売上</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 現金カウントタブ -->
-            <div class="tab-pane fade" id="count" role="tabpanel">
-                <div class="row mt-4">
-                    <div class="col-md-8">
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i>
-                            選択された運転者の集金をカウントしてください。基準おつり（¥18,000）との差額を自動計算します。
-                        </div>
-                        
-                        <form id="cashCountForm">
-                            <input type="hidden" id="confirmation_date" value="<?php echo $today; ?>">
-                            <input type="hidden" id="driver_id" value="<?php echo $selected_driver_id; ?>">
-                            
-                            <!-- 金種別入力 -->
-                            <?php foreach ($base_change as $key => $info): ?>
-                            <div class="denomination-card" data-denomination="<?php echo $key; ?>">
-                                <div class="denomination-row">
-                                    <div class="denomination-info">
-                                        <strong>
-                                            <?php
-                                            $labels = [
-                                                'bill_10000' => '1万円札',
-                                                'bill_5000' => '5千円札',
-                                                'bill_1000' => '千円札',
-                                                'coin_500' => '500円玉',
-                                                'coin_100' => '100円玉',
-                                                'coin_50' => '50円玉',
-                                                'coin_10' => '10円玉'
-                                            ];
-                                            echo $labels[$key];
-                                            ?>
-                                        </strong>
-                                        <div class="base-indicator">基準: <?php echo $info['count']; ?>枚</div>
-                                    </div>
-                                    
-                                    <div class="count-control">
-                                        <button type="button" class="btn btn-outline-danger count-btn" 
-                                                data-denomination="<?php echo $key; ?>" 
-                                                data-delta="-1">
-                                            <i class="fas fa-minus"></i>
-                                        </button>
-                                        <input type="number" 
-                                               class="form-control count-input" 
-                                               id="<?php echo $key; ?>" 
-                                               value="<?php echo $existing_data[$key] ?? $info['count']; ?>"
-                                               min="0">
-                                        <button type="button" class="btn btn-outline-success count-btn"
-                                                data-denomination="<?php echo $key; ?>"
-                                                data-delta="1">
-                                            <i class="fas fa-plus"></i>
-                                        </button>
-                                    </div>
-                                    
-                                    <div class="amount-info">
-                                        <div class="amount" id="amount_<?php echo $key; ?>">¥0</div>
-                                        <div class="difference" id="diff_<?php echo $key; ?>">±0</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <?php endforeach; ?>
-                            
-                            <div class="form-group mt-3">
-                                <label for="memo">メモ（差額理由など）</label>
-                                <textarea class="form-control" id="memo" rows="3" placeholder="差額がある場合は理由を記入してください"><?php echo htmlspecialchars($existing_data['memo'] ?? ''); ?></textarea>
-                            </div>
-                            
-                            <button type="submit" class="btn btn-primary btn-lg mt-3">
-                                <i class="fas fa-save"></i> 保存する
-                            </button>
-                        </form>
-                    </div>
-                    
-                    <div class="col-md-4">
-                        <!-- 集計結果 -->
-                        <div class="summary-card">
-                            <h4><i class="fas fa-calculator"></i> 集計結果</h4>
-                            <div class="summary-item">
-                                <div class="d-flex justify-content-between">
-                                    <span>カウント合計:</span>
-                                    <span id="count_total">¥0</span>
-                                </div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="d-flex justify-content-between">
-                                    <span>基準おつり:</span>
-                                    <span>¥<?php echo number_format($base_total); ?></span>
-                                </div>
-                            </div>
-                            <hr style="border-color: rgba(255,255,255,0.3);">
-                            <div class="summary-item">
-                                <div class="d-flex justify-content-between">
-                                    <strong>入金額:</strong>
-                                    <strong id="deposit_amount">¥0</strong>
-                                </div>
-                            </div>
-                            <hr style="border-color: rgba(255,255,255,0.3);">
-                            <div class="summary-item">
-                                <div class="d-flex justify-content-between">
-                                    <span>システム現金売上:</span>
-                                    <span>¥<?php echo number_format($user_system_revenue['cash_total'] ?? 0); ?></span>
-                                </div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="d-flex justify-content-between">
-                                    <span>予想金額:</span>
-                                    <span id="expected_amount">¥<?php echo number_format($base_total + ($user_system_revenue['cash_total'] ?? 0)); ?></span>
-                                </div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="d-flex justify-content-between">
-                                    <strong>実際差額:</strong>
-                                    <strong id="actual_difference">¥0</strong>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 月次統計タブ -->
-            <div class="tab-pane fade" id="monthly" role="tabpanel">
-                <div class="mt-4">
-                    <!-- 月選択ボタン -->
-                    <div class="row mb-3">
-                        <div class="col-12">
-                            <div class="btn-group" role="group">
-                                <button type="button" class="btn btn-outline-primary" 
-                                        data-month="<?php echo date('Y-m'); ?>">
-                                    <i class="fas fa-calendar"></i> 今月 (<?php echo date('n月'); ?>)
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" 
-                                        data-month="<?php echo date('Y-m', strtotime('-1 month')); ?>">
-                                    <i class="fas fa-calendar-minus"></i> 先月 (<?php echo date('n月', strtotime('-1 month')); ?>)
-                                </button>
-                                <input type="month" class="form-control" style="max-width: 200px; margin-left: 10px;" 
-                                       value="<?php echo $selected_month; ?>" id="month_selector">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <h4><i class="fas fa-chart-line"></i> <?php echo $year; ?>年<?php echo $month; ?>月の売上実績</h4>
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>日付</th>
-                                    <th>総売上</th>
-                                    <th>現金売上</th>
-                                    <th>カード売上</th>
-                                    <th>利用回数</th>
-                                    <th>現金率</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php 
-                                $month_total = 0;
-                                $month_cash_total = 0;
-                                $month_card_total = 0;
-                                $month_ride_count = 0;
-                                
-                                foreach ($monthly_data as $row): 
-                                    $month_total += $row['daily_total'];
-                                    $month_cash_total += $row['cash_total'];
-                                    $month_card_total += $row['card_total'];
-                                    $month_ride_count += $row['ride_count'];
-                                ?>
-                                <tr>
-                                    <td><?php echo date('m/d(D)', strtotime($row['date'])); ?></td>
-                                    <td class="text-end">¥<?php echo number_format($row['daily_total']); ?></td>
-                                    <td class="text-end">¥<?php echo number_format($row['cash_total']); ?></td>
-                                    <td class="text-end">¥<?php echo number_format($row['card_total']); ?></td>
-                                    <td class="text-center"><?php echo $row['ride_count']; ?>回</td>
-                                    <td class="text-center">
-                                        <?php 
-                                        $cash_rate = $row['daily_total'] > 0 ? ($row['cash_total'] / $row['daily_total']) * 100 : 0;
-                                        echo number_format($cash_rate, 1) . '%'; 
-                                        ?>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                                
-                                <?php if (empty($monthly_data)): ?>
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted">データがありません</td>
-                                </tr>
-                                <?php else: ?>
-                                <!-- 月合計行 -->
-                                <tr class="table-warning">
-                                    <th>月合計</th>
-                                    <th class="text-end">¥<?php echo number_format($month_total); ?></th>
-                                    <th class="text-end">¥<?php echo number_format($month_cash_total); ?></th>
-                                    <th class="text-end">¥<?php echo number_format($month_card_total); ?></th>
-                                    <th class="text-center"><?php echo $month_ride_count; ?>回</th>
-                                    <th class="text-center">
-                                        <?php 
-                                        $overall_cash_rate = $month_total > 0 ? ($month_cash_total / $month_total) * 100 : 0;
-                                        echo number_format($overall_cash_rate, 1) . '%'; 
-                                        ?>
-                                    </th>
-                                </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+        <?php if ($message): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($message) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
-    </div>
+        <?php endif; ?>
 
-    <!-- データをJavaScriptに渡すための隠しスクリプト -->
-    <script id="app-data" type="application/json">
-    {
-        "baseChange": <?php echo json_encode($base_change); ?>,
-        "baseTotal": <?php echo $base_total; ?>,
-        "systemCashSales": <?php echo $user_system_revenue['cash_total'] ?? 0; ?>,
-        "selectedDriverId": <?php echo $selected_driver_id; ?>
-    }
-    </script>
-
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- 外部JavaScriptファイル -->
-    <script src="js/cash-management.js"></script>
-</body>
-</html>
+        <!-- フロー進行状況 -->
+        <div class="flow-status">
+            <h6><i class="fas fa-route me-2"></i>運行フロー状況</h6>
+            <div class="flow-step">
+                <div class="step-icon <?= $flow
