@@ -508,10 +508,42 @@ usort($alerts, function($a, $b) {
             </div>
             
             <div class="dashboard-grid">
-                <?= renderStatCard('稼働運転者', $today_active_drivers . '人', 'user-tie', '', 'neutral') ?>
-                <?= renderStatCard('総乗車回数', $today_total_rides . '回', 'users', '', 'positive') ?>
-                <?= renderStatCard('未入庫車両', ($today_departures - $today_arrivals) . '台', 'exclamation-triangle', '', ($today_departures - $today_arrivals > 0) ? 'negative' : 'positive') ?>
-                <?= renderStatCard('本日売上', '¥' . number_format($today_total_revenue), 'yen-sign', '', 'positive') ?>
+                <div class="col-md-3 mb-3">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <i class="fas fa-user-tie fa-2x text-secondary mb-3"></i>
+                            <h5><?= $today_active_drivers ?></h5>
+                            <p class="card-text">稼働運転者</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <i class="fas fa-users fa-2x text-success mb-3"></i>
+                            <h5><?= $today_total_rides ?></h5>
+                            <p class="card-text">総乗車回数</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <i class="fas fa-exclamation-triangle fa-2x <?= ($today_departures - $today_arrivals > 0) ? 'text-danger' : 'text-success' ?> mb-3"></i>
+                            <h5><?= ($today_departures - $today_arrivals) ?></h5>
+                            <p class="card-text">未入庫車両</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <i class="fas fa-yen-sign fa-2x text-success mb-3"></i>
+                            <h5>¥<?= number_format($today_total_revenue) ?></h5>
+                            <p class="card-text">本日売上</p>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <!-- 管理機能（権限別表示） -->
