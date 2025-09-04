@@ -1,885 +1,887 @@
 <?php
 session_start();
-require_once 'config/database.php';
 
-// ログイン確認
+// データベース接続設定
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'twinklemark_wts');
+define('DB_USER', 'twinklemark_taxi');
+define('DB_PASS', 'Smiley2525');
+define('DB_CHARSET', 'utf8mb4');
+
+// データベース接続
+try {
+    $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
+    $pdo = new PDO($dsn, DB_USER, DB_PASS, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false
+    ]);
+} catch (PDOException $e) {
+    die("データベース接続エラー: " . $e->getMessage());
+}
+
+// ログインチェック
 if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
-    exit();
+    exit;
 }
 
-$pdo = getDBConnection();
+// 統一ヘッダー関数を読み込み
+require_once 'includes/unified-header.php';
 
 // ユーザー情報取得
-$stmt = $pdo->prepare("SELECT permission_level, NAME, is_driver, is_admin FROM users WHERE id = ?");
-$stmt->execute([$_SESSION['user_id']]);
-$user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-// 権限確認（運転者またはAdmin）
-if (!$user['is_driver'] && $user['permission_level'] !== 'Admin') {
-    header('Location: dashboard.php');
-    exit();
+try {
+    $stmt = $pdo->prepare("SELECT name, permission_level, is_driver, is_caller, is_manager FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $user_data = $stmt->fetch();
+    
+    if (!$user_data) {
+        session_destroy();
+        header('Location: index.php');
+        exit;
+    }
+    
+    $user_name = $user_data['name'];
+    $user_permission_level = $user_data['permission_level'];
+    $is_admin = ($user_permission_level === 'Admin');
+    
+} catch (PDOException $e) {
+    error_log("User data fetch error: " . $e->getMessage());
+    session_destroy();
+    header('Location: index.php');
+    exit;
 }
 
-$today = date('Y-m-d');
-$message = '';
+// パラメータ取得
+$action = $_GET['action'] ?? '';
+$edit_id = $_GET['edit_id'] ?? '';
 
-// POST処理：現金カウント保存
-if ($_POST && isset($_POST['action']) && $_POST['action'] === 'save_count') {
+// デフォルト値設定
+$selected_driver = $_POST['driver_id'] ?? $_GET['driver_id'] ?? $_SESSION['user_id'];
+$start_date = $_POST['start_date'] ?? $_GET['start_date'] ?? date('Y-m-d');
+$end_date = $_POST['end_date'] ?? $_GET['end_date'] ?? date('Y-m-d');
+
+$message = '';
+$message_type = '';
+
+// 運転者リスト取得
+try {
+    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");
+    $stmt->execute();
+    $drivers = $stmt->fetchAll();
+} catch (Exception $e) {
+    $drivers = [];
+    error_log("Driver list error: " . $e->getMessage());
+}
+
+// 売上金確認データの処理
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $pdo->beginTransaction();
-        
-        // 金種別枚数取得
-        $bill_5000 = intval($_POST['bill_5000'] ?? 0);
-        $bill_1000 = intval($_POST['bill_1000'] ?? 0);
-        $coin_500 = intval($_POST['coin_500'] ?? 0);
-        $coin_100 = intval($_POST['coin_100'] ?? 0);
-        $coin_50 = intval($_POST['coin_50'] ?? 0);
-        $coin_10 = intval($_POST['coin_10'] ?? 0);
-        
-        // 合計金額計算
-        $total_amount = ($bill_5000 * 5000) + ($bill_1000 * 1000) + 
-                       ($coin_500 * 500) + ($coin_100 * 100) + 
-                       ($coin_50 * 50) + ($coin_10 * 10);
-        
-        // 基準おつり（18,000円）
-        $base_change = 18000;
-        $deposit_amount = $total_amount - $base_change;
-        
-        // システム売上取得
-        $stmt = $pdo->prepare("
-            SELECT COALESCE(SUM(total_fare), 0) as system_revenue,
-                   COUNT(*) as ride_count
-            FROM ride_records 
-            WHERE ride_date = ? AND payment_method = '現金'
-        ");
-        $stmt->execute([$today]);
-        $system_data = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        $expected_amount = $base_change + $system_data['system_revenue'];
-        $difference = $total_amount - $expected_amount;
-        
-        // 既存レコード確認
-        $stmt = $pdo->prepare("SELECT id FROM cash_count_details WHERE confirmation_date = ? AND driver_id = ?");
-        $stmt->execute([$today, $_SESSION['user_id']]);
-        $existing = $stmt->fetch();
-        
-        if ($existing) {
-            // 更新
-            $stmt = $pdo->prepare("
-                UPDATE cash_count_details SET 
-                    bill_5000 = ?, bill_1000 = ?, coin_500 = ?, coin_100 = ?, coin_50 = ?, coin_10 = ?,
-                    total_amount = ?, memo = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            ");
-            $stmt->execute([
-                $bill_5000, $bill_1000, $coin_500, $coin_100, $coin_50, $coin_10,
-                $total_amount, $_POST['memo'] ?? '', $existing['id']
-            ]);
-        } else {
+        if ($action === 'save') {
             // 新規登録
+            $confirmation_date = $_POST['confirmation_date'];
+            $driver_id = $_POST['driver_id'];
+            $confirmed_amount = (int)$_POST['confirmed_amount'];
+            $calculated_amount = (int)$_POST['calculated_amount'];
+            $difference = $confirmed_amount - $calculated_amount;
+            $change_stock = (int)$_POST['change_stock'];
+            $memo = $_POST['memo'] ?? '';
+            
+            // 現金内訳
+            $cash_breakdown = [
+                'bill_10000' => (int)$_POST['bill_10000'],
+                'bill_5000' => (int)$_POST['bill_5000'],
+                'bill_2000' => (int)$_POST['bill_2000'],
+                'bill_1000' => (int)$_POST['bill_1000'],
+                'coin_500' => (int)$_POST['coin_500'],
+                'coin_100' => (int)$_POST['coin_100'],
+                'coin_50' => (int)$_POST['coin_50'],
+                'coin_10' => (int)$_POST['coin_10'],
+                'coin_5' => (int)$_POST['coin_5'],
+                'coin_1' => (int)$_POST['coin_1']
+            ];
+            
             $stmt = $pdo->prepare("
-                INSERT INTO cash_count_details 
-                (confirmation_date, driver_id, bill_5000, bill_1000, coin_500, coin_100, coin_50, coin_10, 
-                 total_amount, memo, created_at, updated_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO cash_management (
+                    confirmation_date, driver_id, confirmed_amount, calculated_amount, 
+                    difference, change_stock, memo, cash_breakdown, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ");
+            
             $stmt->execute([
-                $today, $_SESSION['user_id'], $bill_5000, $bill_1000, $coin_500, 
-                $coin_100, $coin_50, $coin_10, $total_amount, $_POST['memo'] ?? ''
+                $confirmation_date, $driver_id, $confirmed_amount, $calculated_amount,
+                $difference, $change_stock, $memo, json_encode($cash_breakdown)
             ]);
-        }
-        
-        // 集金確認テーブルにも記録
-        $stmt = $pdo->prepare("SELECT id FROM cash_confirmations WHERE confirmation_date = ? AND driver_id = ?");
-        $stmt->execute([$today, $_SESSION['user_id']]);
-        $existing_confirmation = $stmt->fetch();
-        
-        if ($existing_confirmation) {
+            
+            $message = '売上金確認データを登録しました。';
+            $message_type = 'success';
+            
+        } elseif ($action === 'update' && !empty($edit_id)) {
+            // 修正処理
+            $confirmation_date = $_POST['confirmation_date'];
+            $driver_id = $_POST['driver_id'];
+            $confirmed_amount = (int)$_POST['confirmed_amount'];
+            $calculated_amount = (int)$_POST['calculated_amount'];
+            $difference = $confirmed_amount - $calculated_amount;
+            $change_stock = (int)$_POST['change_stock'];
+            $memo = $_POST['memo'] ?? '';
+            
+            // 現金内訳
+            $cash_breakdown = [
+                'bill_10000' => (int)$_POST['bill_10000'],
+                'bill_5000' => (int)$_POST['bill_5000'],
+                'bill_2000' => (int)$_POST['bill_2000'],
+                'bill_1000' => (int)$_POST['bill_1000'],
+                'coin_500' => (int)$_POST['coin_500'],
+                'coin_100' => (int)$_POST['coin_100'],
+                'coin_50' => (int)$_POST['coin_50'],
+                'coin_10' => (int)$_POST['coin_10'],
+                'coin_5' => (int)$_POST['coin_5'],
+                'coin_1' => (int)$_POST['coin_1']
+            ];
+            
             $stmt = $pdo->prepare("
-                UPDATE cash_confirmations SET 
-                    confirmed_amount = ?, calculated_amount = ?, difference = ?, 
-                    memo = ?, updated_at = CURRENT_TIMESTAMP
+                UPDATE cash_management SET 
+                    confirmation_date = ?, driver_id = ?, confirmed_amount = ?, 
+                    calculated_amount = ?, difference = ?, change_stock = ?, 
+                    memo = ?, cash_breakdown = ?, updated_at = NOW()
                 WHERE id = ?
             ");
+            
             $stmt->execute([
-                $total_amount, $expected_amount, $difference, 
-                $_POST['memo'] ?? '', $existing_confirmation['id']
+                $confirmation_date, $driver_id, $confirmed_amount, $calculated_amount,
+                $difference, $change_stock, $memo, json_encode($cash_breakdown), $edit_id
             ]);
-        } else {
-            $stmt = $pdo->prepare("
-                INSERT INTO cash_confirmations 
-                (confirmation_date, driver_id, confirmed_amount, calculated_amount, difference, 
-                 change_stock, memo, confirmed_by, created_at, updated_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            ");
-            $stmt->execute([
-                $today, $_SESSION['user_id'], $total_amount, $expected_amount, 
-                $difference, $base_change, $_POST['memo'] ?? '', $_SESSION['user_id']
-            ]);
+            
+            $message = '売上金確認データを修正しました。';
+            $message_type = 'success';
+            $action = '';
+            $edit_id = '';
         }
-        
-        $pdo->commit();
-        $message = '現金カウントを保存しました。';
-        
     } catch (Exception $e) {
-        $pdo->rollback();
         $message = 'エラーが発生しました: ' . $e->getMessage();
+        $message_type = 'danger';
+        error_log("Cash management save error: " . $e->getMessage());
     }
 }
 
-// 既存データ取得
-$stmt = $pdo->prepare("SELECT * FROM cash_count_details WHERE confirmation_date = ? AND driver_id = ?");
-$stmt->execute([$today, $_SESSION['user_id']]);
-$existing_count = $stmt->fetch(PDO::FETCH_ASSOC);
+// 編集データ取得
+$edit_data = null;
+if ($action === 'edit' && !empty($edit_id)) {
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM cash_management WHERE id = ?");
+        $stmt->execute([$edit_id]);
+        $edit_data = $stmt->fetch();
+        
+        if ($edit_data && !empty($edit_data['cash_breakdown'])) {
+            $edit_data['cash_breakdown'] = json_decode($edit_data['cash_breakdown'], true);
+        }
+    } catch (Exception $e) {
+        error_log("Edit data fetch error: " . $e->getMessage());
+    }
+}
 
-// 本日の売上データ取得
-$stmt = $pdo->prepare("
-    SELECT 
-        COALESCE(SUM(total_fare), 0) as total_revenue,
-        COALESCE(SUM(CASE WHEN payment_method = '現金' THEN total_fare ELSE 0 END), 0) as cash_revenue,
-        COALESCE(SUM(CASE WHEN payment_method = 'カード' THEN total_fare ELSE 0 END), 0) as card_revenue,
-        COUNT(*) as ride_count
-    FROM ride_records 
-    WHERE ride_date = ?
-");
-$stmt->execute([$today]);
-$revenue_data = $stmt->fetch(PDO::FETCH_ASSOC);
+// 売上金確認履歴取得
+$cash_history = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT cm.*, u.name as driver_name 
+        FROM cash_management cm
+        JOIN users u ON cm.driver_id = u.id
+        WHERE cm.driver_id = ? AND cm.confirmation_date BETWEEN ? AND ?
+        ORDER BY cm.confirmation_date DESC, cm.created_at DESC
+    ");
+    $stmt->execute([$selected_driver, $start_date, $end_date]);
+    $cash_history = $stmt->fetchAll();
+} catch (Exception $e) {
+    error_log("Cash history error: " . $e->getMessage());
+}
 
-// 基準おつり設定
-$base_counts = [
-    'bill_5000' => 1,   // 5,000円
-    'bill_1000' => 10,  // 10,000円
-    'coin_500' => 3,    // 1,500円
-    'coin_100' => 11,   // 1,100円
-    'coin_50' => 5,     // 250円
-    'coin_10' => 15     // 150円
-];
+// 指定期間の売上計算
+$calculated_revenue = 0;
+try {
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(SUM(total_fare), 0) as total_revenue
+        FROM ride_records 
+        WHERE driver_id = ? AND ride_date BETWEEN ? AND ?
+    ");
+    $stmt->execute([$selected_driver, $start_date, $end_date]);
+    $result = $stmt->fetch();
+    $calculated_revenue = $result['total_revenue'] ?? 0;
+} catch (Exception $e) {
+    error_log("Revenue calculation error: " . $e->getMessage());
+}
 
-// 現在のカウント（既存データがあれば使用、なければ基準値）
-$current_counts = $existing_count ? [
-    'bill_5000' => $existing_count['bill_5000'],
-    'bill_1000' => $existing_count['bill_1000'],
-    'coin_500' => $existing_count['coin_500'],
-    'coin_100' => $existing_count['coin_100'],
-    'coin_50' => $existing_count['coin_50'],
-    'coin_10' => $existing_count['coin_10']
-] : $base_counts;
-
+// 最新の釣銭在庫取得
+$latest_change_stock = 10000; // デフォルト値
+try {
+    $stmt = $pdo->prepare("
+        SELECT change_stock 
+        FROM cash_management 
+        WHERE driver_id = ? 
+        ORDER BY confirmation_date DESC, created_at DESC 
+        LIMIT 1
+    ");
+    $stmt->execute([$selected_driver]);
+    $result = $stmt->fetch();
+    if ($result) {
+        $latest_change_stock = $result['change_stock'];
+    }
+} catch (Exception $e) {
+    error_log("Change stock error: " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>売上金確認 - 福祉輸送管理システム</title>
+    
+    <!-- 統一UI CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/ui-unified-v3.css">
+    
     <style>
-        :root {
-            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --success-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            --warning-gradient: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
-            --shadow: 0 4px 15px rgba(0,0,0,0.1);
-            --border-radius: 15px;
-        }
-
-        body {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            min-height: 100vh;
-        }
-
-        /* ヘッダー */
-        .system-header {
-            background: var(--primary-gradient);
-            color: white;
-            padding: 15px 0;
-            margin-bottom: 20px;
-            box-shadow: var(--shadow);
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-        }
-
-        .page-header {
-            background: white;
-            border-radius: var(--border-radius);
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: var(--shadow);
-            text-align: center;
-        }
-
-        .page-header h2 {
-            margin: 0;
-            color: #2c3e50;
-            font-weight: 600;
-        }
-
-        /* カウントカード */
-        .count-section {
-            background: white;
-            border-radius: var(--border-radius);
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: var(--shadow);
-        }
-
-        .denomination-row {
-            display: flex;
-            align-items: center;
-            padding: 15px 0;
-            border-bottom: 1px solid #eee;
-        }
-
-        .denomination-row:last-child {
-            border-bottom: none;
-        }
-
-        .denom-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 15px;
-            font-size: 1.2rem;
-            color: white;
-        }
-
-        .bill-icon {
-            background: var(--success-gradient);
-        }
-
-        .coin-icon {
-            background: var(--warning-gradient);
-        }
-
-        .denom-info {
-            flex: 1;
-        }
-
-        .denom-value {
-            font-weight: 600;
-            font-size: 1.1rem;
-            color: #2c3e50;
-        }
-
-        .denom-base {
-            font-size: 0.8rem;
-            color: #7f8c8d;
-        }
-
-        .count-input-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .count-btn {
-            width: 40px;
-            height: 40px;
-            border: none;
-            border-radius: 50%;
-            background: var(--primary-gradient);
-            color: white;
-            font-size: 1.2rem;
-            cursor: pointer;
+        .cash-denomination {
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
             transition: all 0.3s ease;
         }
-
-        .count-btn:hover {
-            transform: scale(1.1);
+        
+        .cash-denomination:focus-within {
+            border-color: #2196F3;
+            box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
         }
-
-        .count-input {
-            width: 80px;
-            height: 40px;
-            text-align: center;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
-
-        .amount-display {
-            width: 100px;
-            text-align: right;
-            font-weight: 600;
-            color: #27ae60;
-            font-size: 1.1rem;
-        }
-
-        .difference-display {
-            font-size: 0.9rem;
-            margin-left: 10px;
-        }
-
-        .difference-positive {
-            color: #e74c3c;
-        }
-
-        .difference-negative {
-            color: #3498db;
-        }
-
-        /* サマリーカード */
-        .summary-cards {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .summary-card {
-            background: white;
-            border-radius: var(--border-radius);
-            padding: 20px;
-            text-align: center;
-            box-shadow: var(--shadow);
-            border-left: 4px solid #3498db;
-        }
-
-        .summary-amount {
-            font-size: 1.8rem;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-
-        .summary-label {
-            font-size: 0.9rem;
-            color: #7f8c8d;
-        }
-
-        .deposit-card {
-            border-left-color: #27ae60;
-        }
-
-        .deposit-card .summary-amount {
-            color: #27ae60;
-        }
-
-        .system-card {
-            border-left-color: #e74c3c;
-        }
-
-        .system-card .summary-amount {
-            color: #e74c3c;
-        }
-
-        /* 差額表示 */
-        .difference-card {
-            background: white;
-            border-radius: var(--border-radius);
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: var(--shadow);
-            text-align: center;
-        }
-
-        .difference-amount {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 10px;
-        }
-
-        .difference-zero {
-            color: #27ae60;
-        }
-
-        .difference-plus {
-            color: #e74c3c;
-        }
-
-        .difference-minus {
-            color: #3498db;
-        }
-
-        /* アクションボタン */
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .btn-reset {
-            background: var(--warning-gradient);
+        
+        .denomination-input {
             border: none;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 25px;
-            flex: 1;
-        }
-
-        .btn-save {
-            background: var(--success-gradient);
-            border: none;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 25px;
-            flex: 2;
-        }
-
-        /* フロー完了 */
-        .flow-complete {
-            background: var(--success-gradient);
-            color: white;
-            border-radius: var(--border-radius);
-            padding: 20px;
+            background: transparent;
+            font-size: 16px;
+            font-weight: bold;
             text-align: center;
-            margin-bottom: 20px;
         }
-
-        /* レスポンシブ */
-        @media (max-width: 430px) {
-            .summary-cards {
-                grid-template-columns: 1fr;
-            }
-            
-            .count-input-group {
-                flex-wrap: wrap;
-            }
-            
-            .action-buttons {
-                flex-direction: column;
-            }
+        
+        .denomination-input:focus {
+            outline: none;
+            box-shadow: none;
         }
-
-        /* メッセージ */
-        .message {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 9999;
-            max-width: 300px;
-            padding: 15px;
-            border-radius: var(--border-radius);
+        
+        .bill {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
-            background: var(--success-gradient);
-            box-shadow: var(--shadow);
+        }
+        
+        .coin {
+            background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+            color: white;
+        }
+        
+        .cash-summary {
+            background: linear-gradient(135deg, #2196F3 0%, #21CBF3 100%);
+            color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
         }
     </style>
 </head>
 <body>
-    <!-- システムヘッダー -->
-    <div class="system-header">
-        <div class="container">
-            <div class="row align-items-center">
-                <div class="col">
-                    <h1><i class="fas fa-taxi me-2"></i>スマイリーケアタクシー</h1>
-                </div>
-                <div class="col-auto">
-                    <a href="dashboard.php" class="text-white text-decoration-none">
-                        <i class="fas fa-tachometer-alt me-1"></i>ダッシュボード
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="container">
-        <!-- ページヘッダー -->
-        <div class="page-header">
-            <h2><i class="fas fa-yen-sign me-3"></i>売上金確認（現金カウント）</h2>
-            <p class="mb-0 text-muted">
-                <i class="fas fa-calendar me-2"></i><?= date('Y年m月d日') ?>
-                <span class="ms-3"><i class="fas fa-user me-2"></i><?= htmlspecialchars($user['NAME']) ?></span>
-            </p>
-        </div>
-
-        <?php if ($message): ?>
-        <div class="message" id="message">
-            <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($message) ?>
-        </div>
-        <?php endif; ?>
-
-        <!-- 本日の売上サマリー -->
-        <div class="count-section">
-            <h5 class="mb-3"><i class="fas fa-chart-bar me-2"></i>本日の売上</h5>
-            <div class="row">
-                <div class="col-4 text-center">
-                    <div class="summary-amount" style="color: #3498db;">¥<?= number_format($revenue_data['total_revenue']) ?></div>
-                    <div class="summary-label">総売上</div>
-                </div>
-                <div class="col-4 text-center">
-                    <div class="summary-amount" style="color: #27ae60;">¥<?= number_format($revenue_data['cash_revenue']) ?></div>
-                    <div class="summary-label">現金売上</div>
-                </div>
-                <div class="col-4 text-center">
-                    <div class="summary-amount" style="color: #e74c3c;"><?= $revenue_data['ride_count'] ?>回</div>
-                    <div class="summary-label">乗車回数</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 現金カウント -->
-        <form method="POST" id="countForm">
-            <input type="hidden" name="action" value="save_count">
+    <!-- 統一システムヘッダー -->
+    <?= renderSystemHeader($user_name, $user_permission_level) ?>
+    
+    <!-- 統一ページヘッダー -->
+    <?= renderPageHeader('yen-sign', '売上金確認', '日次売上・現金管理') ?>
+    
+    <!-- メインコンテンツ -->
+    <div class="main-content">
+        <div class="content-container">
             
-            <div class="count-section">
-                <h5 class="mb-3"><i class="fas fa-calculator me-2"></i>現金カウント</h5>
-                
-                <!-- 5千円札 -->
-                <div class="denomination-row">
-                    <div class="denom-icon bill-icon">
-                        <i class="fas fa-money-bill"></i>
-                    </div>
-                    <div class="denom-info">
-                        <div class="denom-value">5千円札</div>
-                        <div class="denom-base">基準: <?= $base_counts['bill_5000'] ?>枚</div>
-                    </div>
-                    <div class="count-input-group">
-                        <button type="button" class="count-btn" onclick="adjustCount('bill_5000', -1)">-</button>
-                        <input type="number" name="bill_5000" id="bill_5000" class="count-input" 
-                               value="<?= $current_counts['bill_5000'] ?>" min="0" 
-                               onchange="calculateTotal()">
-                        <button type="button" class="count-btn" onclick="adjustCount('bill_5000', 1)">+</button>
-                        <div class="amount-display" id="amount_5000">¥<?= number_format($current_counts['bill_5000'] * 5000) ?></div>
-                        <div class="difference-display" id="diff_5000"></div>
-                    </div>
-                </div>
-
-                <!-- 千円札 -->
-                <div class="denomination-row">
-                    <div class="denom-icon bill-icon">
-                        <i class="fas fa-money-bill"></i>
-                    </div>
-                    <div class="denom-info">
-                        <div class="denom-value">千円札</div>
-                        <div class="denom-base">基準: <?= $base_counts['bill_1000'] ?>枚</div>
-                    </div>
-                    <div class="count-input-group">
-                        <button type="button" class="count-btn" onclick="adjustCount('bill_1000', -1)">-</button>
-                        <input type="number" name="bill_1000" id="bill_1000" class="count-input" 
-                               value="<?= $current_counts['bill_1000'] ?>" min="0" 
-                               onchange="calculateTotal()">
-                        <button type="button" class="count-btn" onclick="adjustCount('bill_1000', 1)">+</button>
-                        <div class="amount-display" id="amount_1000">¥<?= number_format($current_counts['bill_1000'] * 1000) ?></div>
-                        <div class="difference-display" id="diff_1000"></div>
-                    </div>
-                </div>
-
-                <!-- 500円玉 -->
-                <div class="denomination-row">
-                    <div class="denom-icon coin-icon">
-                        <i class="fas fa-coins"></i>
-                    </div>
-                    <div class="denom-info">
-                        <div class="denom-value">500円玉</div>
-                        <div class="denom-base">基準: <?= $base_counts['coin_500'] ?>枚</div>
-                    </div>
-                    <div class="count-input-group">
-                        <button type="button" class="count-btn" onclick="adjustCount('coin_500', -1)">-</button>
-                        <input type="number" name="coin_500" id="coin_500" class="count-input" 
-                               value="<?= $current_counts['coin_500'] ?>" min="0" 
-                               onchange="calculateTotal()">
-                        <button type="button" class="count-btn" onclick="adjustCount('coin_500', 1)">+</button>
-                        <div class="amount-display" id="amount_500">¥<?= number_format($current_counts['coin_500'] * 500) ?></div>
-                        <div class="difference-display" id="diff_500"></div>
-                    </div>
-                </div>
-
-                <!-- 100円玉 -->
-                <div class="denomination-row">
-                    <div class="denom-icon coin-icon">
-                        <i class="fas fa-coins"></i>
-                    </div>
-                    <div class="denom-info">
-                        <div class="denom-value">100円玉</div>
-                        <div class="denom-base">基準: <?= $base_counts['coin_100'] ?>枚</div>
-                    </div>
-                    <div class="count-input-group">
-                        <button type="button" class="count-btn" onclick="adjustCount('coin_100', -1)">-</button>
-                        <input type="number" name="coin_100" id="coin_100" class="count-input" 
-                               value="<?= $current_counts['coin_100'] ?>" min="0" 
-                               onchange="calculateTotal()">
-                        <button type="button" class="count-btn" onclick="adjustCount('coin_100', 1)">+</button>
-                        <div class="amount-display" id="amount_100">¥<?= number_format($current_counts['coin_100'] * 100) ?></div>
-                        <div class="difference-display" id="diff_100"></div>
-                    </div>
-                </div>
-
-                <!-- 50円玉 -->
-                <div class="denomination-row">
-                    <div class="denom-icon coin-icon">
-                        <i class="fas fa-coins"></i>
-                    </div>
-                    <div class="denom-info">
-                        <div class="denom-value">50円玉</div>
-                        <div class="denom-base">基準: <?= $base_counts['coin_50'] ?>枚</div>
-                    </div>
-                    <div class="count-input-group">
-                        <button type="button" class="count-btn" onclick="adjustCount('coin_50', -1)">-</button>
-                        <input type="number" name="coin_50" id="coin_50" class="count-input" 
-                               value="<?= $current_counts['coin_50'] ?>" min="0" 
-                               onchange="calculateTotal()">
-                        <button type="button" class="count-btn" onclick="adjustCount('coin_50', 1)">+</button>
-                        <div class="amount-display" id="amount_50">¥<?= number_format($current_counts['coin_50'] * 50) ?></div>
-                        <div class="difference-display" id="diff_50"></div>
-                    </div>
-                </div>
-
-                <!-- 10円玉 -->
-                <div class="denomination-row">
-                    <div class="denom-icon coin-icon">
-                        <i class="fas fa-coins"></i>
-                    </div>
-                    <div class="denom-info">
-                        <div class="denom-value">10円玉</div>
-                        <div class="denom-base">基準: <?= $base_counts['coin_10'] ?>枚</div>
-                    </div>
-                    <div class="count-input-group">
-                        <button type="button" class="count-btn" onclick="adjustCount('coin_10', -1)">-</button>
-                        <input type="number" name="coin_10" id="coin_10" class="count-input" 
-                               value="<?= $current_counts['coin_10'] ?>" min="0" 
-                               onchange="calculateTotal()">
-                        <button type="button" class="count-btn" onclick="adjustCount('coin_10', 1)">+</button>
-                        <div class="amount-display" id="amount_10">¥<?= number_format($current_counts['coin_10'] * 10) ?></div>
-                        <div class="difference-display" id="diff_10"></div>
-                    </div>
-                </div>
+            <!-- メッセージ表示 -->
+            <?php if ($message): ?>
+                <?= renderAlert($message, $message_type) ?>
+            <?php endif; ?>
+            
+            <!-- 検索・フィルター -->
+            <div class="section-header">
+                <h3 class="section-title">
+                    <i class="fas fa-search icon-primary"></i>
+                    検索・フィルター
+                </h3>
             </div>
-
-            <!-- 計算結果表示 -->
-            <div class="summary-cards">
-                <div class="summary-card">
-                    <div class="summary-amount" id="total_amount">¥0</div>
-                    <div class="summary-label">カウント合計</div>
+            
+            <form method="GET" class="card mb-4">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">運転者</label>
+                            <select name="driver_id" class="form-select">
+                                <?php foreach ($drivers as $driver): ?>
+                                    <option value="<?= $driver['id'] ?>" <?= $driver['id'] == $selected_driver ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($driver['name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">開始日</label>
+                            <input type="date" name="start_date" class="form-control" value="<?= $start_date ?>" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">終了日</label>
+                            <input type="date" name="end_date" class="form-control" value="<?= $end_date ?>" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary d-block w-100">
+                                <i class="fas fa-search"></i> 検索
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div class="summary-card deposit-card">
-                    <div class="summary-amount" id="deposit_amount">¥0</div>
-                    <div class="summary-label">入金額</div>
-                    <small class="text-muted">(合計 - 基準18,000円)</small>
+            </form>
+            
+            <!-- 売上金確認フォーム -->
+            <?php if ($action === 'new' || $action === 'edit'): ?>
+            <div class="section-header">
+                <h3 class="section-title">
+                    <i class="fas fa-plus-circle icon-success"></i>
+                    <?= $action === 'edit' ? '売上金確認修正' : '新規売上金確認' ?>
+                </h3>
+            </div>
+            
+            <form method="POST" action="?action=<?= $action === 'edit' ? 'update' : 'save' ?><?= $action === 'edit' ? '&edit_id=' . $edit_id : '' ?>" class="card mb-4">
+                <div class="card-body">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label">確認日</label>
+                            <input type="date" name="confirmation_date" class="form-control" 
+                                   value="<?= $edit_data['confirmation_date'] ?? date('Y-m-d') ?>" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">運転者</label>
+                            <select name="driver_id" class="form-select" required>
+                                <?php foreach ($drivers as $driver): ?>
+                                    <option value="<?= $driver['id'] ?>" <?= $driver['id'] == ($edit_data['driver_id'] ?? $selected_driver) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($driver['name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">システム計算額</label>
+                            <input type="number" name="calculated_amount" class="form-control" 
+                                   value="<?= $edit_data['calculated_amount'] ?? $calculated_revenue ?>" required>
+                        </div>
+                    </div>
+                    
+                    <!-- 現金内訳入力 -->
+                    <h5 class="mb-3">
+                        <i class="fas fa-coins"></i> 現金内訳
+                    </h5>
+                    
+                    <div class="row g-3 mb-4">
+                        <!-- 紙幣 -->
+                        <div class="col-md-6">
+                            <h6 class="text-success mb-3"><i class="fas fa-money-bill-wave"></i> 紙幣</h6>
+                            
+                            <div class="cash-denomination bill mb-3 p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>10,000円札</span>
+                                    <div class="d-flex align-items-center">
+                                        <input type="number" name="bill_10000" class="denomination-input" 
+                                               value="<?= $edit_data['cash_breakdown']['bill_10000'] ?? 0 ?>" min="0" style="width: 60px;">
+                                        <span class="ms-2">枚</span>
+                                        <span class="ms-3 fw-bold" id="bill_10000_total">¥0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="cash-denomination bill mb-3 p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>5,000円札</span>
+                                    <div class="d-flex align-items-center">
+                                        <input type="number" name="bill_5000" class="denomination-input" 
+                                               value="<?= $edit_data['cash_breakdown']['bill_5000'] ?? 0 ?>" min="0" style="width: 60px;">
+                                        <span class="ms-2">枚</span>
+                                        <span class="ms-3 fw-bold" id="bill_5000_total">¥0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="cash-denomination bill mb-3 p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>2,000円札</span>
+                                    <div class="d-flex align-items-center">
+                                        <input type="number" name="bill_2000" class="denomination-input" 
+                                               value="<?= $edit_data['cash_breakdown']['bill_2000'] ?? 0 ?>" min="0" style="width: 60px;">
+                                        <span class="ms-2">枚</span>
+                                        <span class="ms-3 fw-bold" id="bill_2000_total">¥0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="cash-denomination bill mb-3 p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>1,000円札</span>
+                                    <div class="d-flex align-items-center">
+                                        <input type="number" name="bill_1000" class="denomination-input" 
+                                               value="<?= $edit_data['cash_breakdown']['bill_1000'] ?? 0 ?>" min="0" style="width: 60px;">
+                                        <span class="ms-2">枚</span>
+                                        <span class="ms-3 fw-bold" id="bill_1000_total">¥0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 硬貨 -->
+                        <div class="col-md-6">
+                            <h6 class="text-warning mb-3"><i class="fas fa-coins"></i> 硬貨</h6>
+                            
+                            <div class="cash-denomination coin mb-3 p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>500円玉</span>
+                                    <div class="d-flex align-items-center">
+                                        <input type="number" name="coin_500" class="denomination-input" 
+                                               value="<?= $edit_data['cash_breakdown']['coin_500'] ?? 0 ?>" min="0" style="width: 60px;">
+                                        <span class="ms-2">枚</span>
+                                        <span class="ms-3 fw-bold" id="coin_500_total">¥0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="cash-denomination coin mb-3 p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>100円玉</span>
+                                    <div class="d-flex align-items-center">
+                                        <input type="number" name="coin_100" class="denomination-input" 
+                                               value="<?= $edit_data['cash_breakdown']['coin_100'] ?? 0 ?>" min="0" style="width: 60px;">
+                                        <span class="ms-2">枚</span>
+                                        <span class="ms-3 fw-bold" id="coin_100_total">¥0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="cash-denomination coin mb-3 p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>50円玉</span>
+                                    <div class="d-flex align-items-center">
+                                        <input type="number" name="coin_50" class="denomination-input" 
+                                               value="<?= $edit_data['cash_breakdown']['coin_50'] ?? 0 ?>" min="0" style="width: 60px;">
+                                        <span class="ms-2">枚</span>
+                                        <span class="ms-3 fw-bold" id="coin_50_total">¥0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="cash-denomination coin mb-3 p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>10円玉</span>
+                                    <div class="d-flex align-items-center">
+                                        <input type="number" name="coin_10" class="denomination-input" 
+                                               value="<?= $edit_data['cash_breakdown']['coin_10'] ?? 0 ?>" min="0" style="width: 60px;">
+                                        <span class="ms-2">枚</span>
+                                        <span class="ms-3 fw-bold" id="coin_10_total">¥0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="cash-denomination coin mb-3 p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>5円玉</span>
+                                    <div class="d-flex align-items-center">
+                                        <input type="number" name="coin_5" class="denomination-input" 
+                                               value="<?= $edit_data['cash_breakdown']['coin_5'] ?? 0 ?>" min="0" style="width: 60px;">
+                                        <span class="ms-2">枚</span>
+                                        <span class="ms-3 fw-bold" id="coin_5_total">¥0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="cash-denomination coin mb-3 p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>1円玉</span>
+                                    <div class="d-flex align-items-center">
+                                        <input type="number" name="coin_1" class="denomination-input" 
+                                               value="<?= $edit_data['cash_breakdown']['coin_1'] ?? 0 ?>" min="0" style="width: 60px;">
+                                        <span class="ms-2">枚</span>
+                                        <span class="ms-3 fw-bold" id="coin_1_total">¥0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 集計・確認 -->
+                    <div class="cash-summary p-4 mb-4">
+                        <div class="row g-3 text-center">
+                            <div class="col-md-3">
+                                <h6>実際の現金額</h6>
+                                <div class="h4 mb-0" id="confirmed_total">¥0</div>
+                                <input type="hidden" name="confirmed_amount" id="confirmed_amount_input" value="0">
+                            </div>
+                            <div class="col-md-3">
+                                <h6>システム計算額</h6>
+                                <div class="h4 mb-0">¥<?= number_format($edit_data['calculated_amount'] ?? $calculated_revenue) ?></div>
+                            </div>
+                            <div class="col-md-3">
+                                <h6>差額</h6>
+                                <div class="h4 mb-0" id="difference_display">¥0</div>
+                            </div>
+                            <div class="col-md-3">
+                                <h6>釣銭在庫</h6>
+                                <input type="number" name="change_stock" class="form-control text-center fw-bold" 
+                                       value="<?= $edit_data['change_stock'] ?? $latest_change_stock ?>" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <label class="form-label">メモ・備考</label>
+                            <textarea name="memo" class="form-control" rows="3" placeholder="差額の理由や特記事項があれば記入"><?= htmlspecialchars($edit_data['memo'] ?? '') ?></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="cash_management.php?driver_id=<?= $selected_driver ?>&start_date=<?= $start_date ?>&end_date=<?= $end_date ?>" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> 戻る
+                        </a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> <?= $action === 'edit' ? '修正保存' : '確認完了' ?>
+                        </button>
+                    </div>
                 </div>
-            </div>
-
-            <!-- 差額表示 -->
-            <div class="difference-card">
-                <div>予想金額: ¥<span id="expected_amount"><?= number_format(18000 + $revenue_data['cash_revenue']) ?></span></div>
-                <div class="difference-amount" id="difference_amount">¥0</div>
-                <div class="summary-label">実際差額</div>
-                <small class="text-muted">基準18,000円 + 現金売上<?= number_format($revenue_data['cash_revenue']) ?>円 との差</small>
-            </div>
-
-            <!-- メモ欄 -->
-            <div class="count-section">
-                <h6><i class="fas fa-sticky-note me-2"></i>メモ・差額理由</h6>
-                <textarea name="memo" class="form-control" rows="3" placeholder="差額がある場合は理由を記入してください"><?= $existing_count['memo'] ?? '' ?></textarea>
-            </div>
-
+            </form>
+            
+            <?php else: ?>
+            
             <!-- アクションボタン -->
-            <div class="action-buttons">
-                <button type="button" class="btn btn-reset" onclick="resetToBase()">
-                    <i class="fas fa-undo me-2"></i>基準値にリセット
-                </button>
-                <button type="submit" class="btn btn-save">
-                    <i class="fas fa-save me-2"></i>カウント保存
-                </button>
-            </div>
-        </form>
-
-        <!-- フロー完了表示 -->
-        <?php if ($existing_count): ?>
-        <div class="flow-complete">
-            <i class="fas fa-check-circle fa-2x mb-3"></i>
-            <h5>7. 売上金確認 完了</h5>
-            <p class="mb-0">本日の日次運行フローが完了しました。お疲れ様でした。</p>
-            <div class="mt-3">
-                <a href="dashboard.php" class="btn btn-light me-2">
-                    <i class="fas fa-tachometer-alt me-2"></i>ダッシュボード
-                </a>
-                <a href="cash_management.php" class="btn btn-outline-light">
-                    <i class="fas fa-chart-line me-2"></i>集金管理
+            <div class="d-flex justify-content-between mb-4">
+                <div>
+                    <h5 class="mb-0">
+                        選択期間: <?= date('Y年n月j日', strtotime($start_date)) ?> 〜 <?= date('Y年n月j日', strtotime($end_date)) ?>
+                    </h5>
+                    <p class="text-muted mb-0">
+                        運転者: <?php 
+                        $selected_driver_name = '';
+                        foreach ($drivers as $driver) {
+                            if ($driver['id'] == $selected_driver) {
+                                $selected_driver_name = $driver['name'];
+                                break;
+                            }
+                        }
+                        echo htmlspecialchars($selected_driver_name);
+                        ?>
+                    </p>
+                </div>
+                <a href="cash_management.php?action=new&driver_id=<?= $selected_driver ?>&start_date=<?= $start_date ?>&end_date=<?= $end_date ?>" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> 新規確認
                 </a>
             </div>
-        </div>
-        <?php endif; ?>
-
-        <!-- フロー進行状況 -->
-        <div class="count-section">
-            <h6><i class="fas fa-route me-2"></i>日次運行フロー進捗</h6>
-            <div class="row g-2">
-                <div class="col-6">
-                    <div class="d-flex align-items-center p-2 bg-light rounded">
-                        <i class="fas fa-check-circle text-success me-2"></i>
-                        <small>1-6. 基本業務完了</small>
+            
+            <!-- 期間サマリー -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <i class="fas fa-calculator fa-2x text-primary mb-3"></i>
+                            <h5>システム計算額</h5>
+                            <div class="h4 text-primary">¥<?= number_format($calculated_revenue) ?></div>
+                        </div>
                     </div>
                 </div>
-                <div class="col-6">
-                    <div class="d-flex align-items-center p-2 rounded <?= $existing_count ? 'bg-success text-white' : 'bg-warning' ?>">
-                        <i class="fas fa-<?= $existing_count ? 'check-circle' : 'clock' ?> me-2"></i>
-                        <small>7. 売上金確認 <?= $existing_count ? '完了' : '実施中' ?></small>
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <?php
+                            $total_confirmed = 0;
+                            foreach ($cash_history as $record) {
+                                $total_confirmed += $record['confirmed_amount'];
+                            }
+                            ?>
+                            <i class="fas fa-coins fa-2x text-success mb-3"></i>
+                            <h5>確認済み現金</h5>
+                            <div class="h4 text-success">¥<?= number_format($total_confirmed) ?></div>
+                        </div>
                     </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <?php
+                            $total_difference = $total_confirmed - $calculated_revenue;
+                            $diff_class = $total_difference >= 0 ? 'text-success' : 'text-danger';
+                            ?>
+                            <i class="fas fa-balance-scale fa-2x <?= $diff_class ?> mb-3"></i>
+                            <h5>合計差額</h5>
+                            <div class="h4 <?= $diff_class ?>">
+                                <?= $total_difference >= 0 ? '+' : '' ?>¥<?= number_format($total_difference) ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 売上金確認履歴 -->
+            <div class="section-header">
+                <h3 class="section-title">
+                    <i class="fas fa-history icon-info"></i>
+                    売上金確認履歴
+                </h3>
+            </div>
+            
+            <?php if (empty($cash_history)): ?>
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">確認記録がありません</h5>
+                        <p class="text-muted mb-4">指定した期間・運転者の売上金確認記録が見つかりませんでした。</p>
+                        <a href="cash_management.php?action=new&driver_id=<?= $selected_driver ?>&start_date=<?= $start_date ?>&end_date=<?= $end_date ?>" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> 新規確認を追加
+                        </a>
+                    </div>
+                </div>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>確認日</th>
+                                <th>運転者</th>
+                                <th>実際の現金</th>
+                                <th>システム計算</th>
+                                <th>差額</th>
+                                <th>釣銭在庫</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($cash_history as $record): ?>
+                                <tr>
+                                    <td><?= date('Y/m/d', strtotime($record['confirmation_date'])) ?></td>
+                                    <td><?= htmlspecialchars($record['driver_name']) ?></td>
+                                    <td class="text-end">¥<?= number_format($record['confirmed_amount']) ?></td>
+                                    <td class="text-end">¥<?= number_format($record['calculated_amount']) ?></td>
+                                    <td class="text-end">
+                                        <span class="<?= $record['difference'] >= 0 ? 'text-success' : 'text-danger' ?>">
+                                            <?= $record['difference'] >= 0 ? '+' : '' ?>¥<?= number_format($record['difference']) ?>
+                                        </span>
+                                    </td>
+                                    <td class="text-end">¥<?= number_format($record['change_stock']) ?></td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button type="button" class="btn btn-outline-info" onclick="showDetail(<?= $record['id'] ?>)">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <a href="cash_management.php?action=edit&edit_id=<?= $record['id'] ?>" class="btn btn-outline-warning">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-outline-danger" onclick="confirmDelete(<?= $record['id'] ?>)">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+            
+            <?php endif; ?>
+        </div>
+    </div>
+    
+    <!-- 詳細表示モーダル -->
+    <div class="modal fade" id="detailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">売上金確認詳細</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="detailModalBody">
+                    <!-- 詳細内容がここに表示されます -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- 統一JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/ui-interactions.js"></script>
+    
     <script>
-        // 基準値定義
-        const baseCounts = {
-            'bill_5000': <?= $base_counts['bill_5000'] ?>,
-            'bill_1000': <?= $base_counts['bill_1000'] ?>,
-            'coin_500': <?= $base_counts['coin_500'] ?>,
-            'coin_100': <?= $base_counts['coin_100'] ?>,
-            'coin_50': <?= $base_counts['coin_50'] ?>,
-            'coin_10': <?= $base_counts['coin_10'] ?>
-        };
-
-        const denomValues = {
-            'bill_5000': 5000,
-            'bill_1000': 1000,
-            'coin_500': 500,
-            'coin_100': 100,
-            'coin_50': 50,
-            'coin_10': 10
-        };
-
-        const baseChange = 18000;
-        const systemRevenue = <?= $revenue_data['cash_revenue'] ?>;
-
-        // カウント調整
-        function adjustCount(denom, change) {
-            const input = document.getElementById(denom);
-            const currentValue = parseInt(input.value) || 0;
-            const newValue = Math.max(0, currentValue + change);
-            input.value = newValue;
-            calculateTotal();
-        }
-
-        // 合計計算
-        function calculateTotal() {
-            let totalAmount = 0;
-            
-            // 各金種の計算と差異表示
-            Object.keys(denomValues).forEach(denom => {
-                const count = parseInt(document.getElementById(denom).value) || 0;
-                const amount = count * denomValues[denom];
-                const difference = count - baseCounts[denom];
-                
-                // 金額表示更新
-                document.getElementById('amount_' + denom.split('_')[1]).textContent = 
-                    '¥' + amount.toLocaleString();
-                
-                // 差異表示更新
-                const diffElement = document.getElementById('diff_' + denom.split('_')[1]);
-                if (difference > 0) {
-                    diffElement.textContent = '+' + difference;
-                    diffElement.className = 'difference-display difference-positive';
-                } else if (difference < 0) {
-                    diffElement.textContent = difference.toString();
-                    diffElement.className = 'difference-display difference-negative';
-                } else {
-                    diffElement.textContent = '';
-                    diffElement.className = 'difference-display';
-                }
-                
-                totalAmount += amount;
-            });
-
-            // 合計金額表示
-            document.getElementById('total_amount').textContent = 
-                '¥' + totalAmount.toLocaleString();
-
-            // 入金額計算（合計 - 基準おつり）
-            const depositAmount = totalAmount - baseChange;
-            document.getElementById('deposit_amount').textContent = 
-                '¥' + depositAmount.toLocaleString();
-
-            // 差額計算
-            const expectedAmount = baseChange + systemRevenue;
-            const difference = totalAmount - expectedAmount;
-            const diffElement = document.getElementById('difference_amount');
-            
-            diffElement.textContent = '¥' + Math.abs(difference).toLocaleString();
-            
-            if (difference === 0) {
-                diffElement.className = 'difference-amount difference-zero';
-                diffElement.textContent = '差額なし';
-            } else if (difference > 0) {
-                diffElement.className = 'difference-amount difference-plus';
-                diffElement.textContent = '+¥' + difference.toLocaleString();
-            } else {
-                diffElement.className = 'difference-amount difference-minus';
-                diffElement.textContent = '-¥' + Math.abs(difference).toLocaleString();
-            }
-        }
-
-        // 基準値リセット
-        function resetToBase() {
-            if (confirm('基準値にリセットしますか？')) {
-                Object.keys(baseCounts).forEach(denom => {
-                    document.getElementById(denom).value = baseCounts[denom];
-                });
-                calculateTotal();
-            }
-        }
-
-        // ページ読み込み時に計算実行
+        // 現金内訳の自動計算
         document.addEventListener('DOMContentLoaded', function() {
-            calculateTotal();
+            const denominations = [
+                { name: 'bill_10000', value: 10000 },
+                { name: 'bill_5000', value: 5000 },
+                { name: 'bill_2000', value: 2000 },
+                { name: 'bill_1000', value: 1000 },
+                { name: 'coin_500', value: 500 },
+                { name: 'coin_100', value: 100 },
+                { name: 'coin_50', value: 50 },
+                { name: 'coin_10', value: 10 },
+                { name: 'coin_5', value: 5 },
+                { name: 'coin_1', value: 1 }
+            ];
             
-            // メッセージ自動非表示
-            const message = document.getElementById('message');
-            if (message) {
-                setTimeout(() => {
-                    message.style.opacity = '0';
-                    setTimeout(() => message.remove(), 300);
-                }, 3000);
-            }
-
-            // フォーム送信前確認
-            document.getElementById('countForm').addEventListener('submit', function(e) {
-                const totalAmount = parseInt(document.getElementById('total_amount').textContent.replace(/[¥,]/g, ''));
-                const depositAmount = parseInt(document.getElementById('deposit_amount').textContent.replace(/[¥,]/g, ''));
+            function updateTotals() {
+                let grandTotal = 0;
                 
-                if (!confirm(`現金カウントを保存しますか？\n\nカウント合計: ¥${totalAmount.toLocaleString()}\n入金額: ¥${depositAmount.toLocaleString()}`)) {
-                    e.preventDefault();
+                denominations.forEach(denom => {
+                    const input = document.querySelector(`input[name="${denom.name}"]`);
+                    const totalSpan = document.getElementById(`${denom.name}_total`);
+                    
+                    if (input && totalSpan) {
+                        const count = parseInt(input.value) || 0;
+                        const total = count * denom.value;
+                        totalSpan.textContent = '¥' + total.toLocaleString();
+                        grandTotal += total;
+                    }
+                });
+                
+                // 合計金額を更新
+                const confirmedTotalElement = document.getElementById('confirmed_total');
+                const confirmedAmountInput = document.getElementById('confirmed_amount_input');
+                
+                if (confirmedTotalElement && confirmedAmountInput) {
+                    confirmedTotalElement.textContent = '¥' + grandTotal.toLocaleString();
+                    confirmedAmountInput.value = grandTotal;
+                }
+                
+                // 差額を計算
+                const calculatedAmount = parseInt(document.querySelector('input[name="calculated_amount"]')?.value) || 0;
+                const difference = grandTotal - calculatedAmount;
+                const differenceElement = document.getElementById('difference_display');
+                
+                if (differenceElement) {
+                    const diffClass = difference >= 0 ? 'text-success' : 'text-danger';
+                    differenceElement.className = `h4 mb-0 ${diffClass}`;
+                    differenceElement.textContent = (difference >= 0 ? '+' : '') + '¥' + difference.toLocaleString();
+                }
+            }
+            
+            // 入力フィールドにイベントリスナーを追加
+            denominations.forEach(denom => {
+                const input = document.querySelector(`input[name="${denom.name}"]`);
+                if (input) {
+                    input.addEventListener('input', updateTotals);
+                    input.addEventListener('change', updateTotals);
                 }
             });
-
-            // タッチデバイス最適化
-            const buttons = document.querySelectorAll('.count-btn');
-            buttons.forEach(button => {
-                button.addEventListener('touchstart', function() {
-                    this.style.transform = 'scale(0.95)';
-                }, {passive: true});
-                
-                button.addEventListener('touchend', function() {
-                    this.style.transform = 'scale(1.1)';
-                    setTimeout(() => {
-                        this.style.transform = '';
-                    }, 150);
-                }, {passive: true});
-            });
-
-            // 入力フィールドのフォーカス時選択
-            const inputs = document.querySelectorAll('.count-input');
-            inputs.forEach(input => {
-                input.addEventListener('focus', function() {
-                    this.select();
-                });
-            });
-        });
-
-        // キーボードショートカット
-        document.addEventListener('keydown', function(e) {
-            // Ctrl + R で基準値リセット
-            if (e.ctrlKey && e.key === 'r') {
-                e.preventDefault();
-                resetToBase();
+            
+            // システム計算額の変更にも対応
+            const calculatedAmountInput = document.querySelector('input[name="calculated_amount"]');
+            if (calculatedAmountInput) {
+                calculatedAmountInput.addEventListener('input', updateTotals);
+                calculatedAmountInput.addEventListener('change', updateTotals);
             }
             
-            // Ctrl + S で保存
-            if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
-                document.getElementById('countForm').submit();
-            }
+            // 初期計算
+            updateTotals();
         });
+        
+        // 詳細表示
+        function showDetail(recordId) {
+            fetch(`api/cash_detail.php?id=${recordId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const record = data.data;
+                        const breakdown = JSON.parse(record.cash_breakdown || '{}');
+                        
+                        const detailHtml = `
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>基本情報</h6>
+                                    <table class="table table-sm">
+                                        <tr><td>確認日</td><td>${record.confirmation_date}</td></tr>
+                                        <tr><td>運転者</td><td>${record.driver_name}</td></tr>
+                                        <tr><td>実際の現金</td><td>¥${parseInt(record.confirmed_amount).toLocaleString()}</td></tr>
+                                        <tr><td>システム計算</td><td>¥${parseInt(record.calculated_amount).toLocaleString()}</td></tr>
+                                        <tr><td>差額</td><td class="${record.difference >= 0 ? 'text-success' : 'text-danger'}">
+                                            ${record.difference >= 0 ? '+' : ''}¥${parseInt(record.difference).toLocaleString()}</td></tr>
+                                        <tr><td>釣銭在庫</td><td>¥${parseInt(record.change_stock).toLocaleString()}</td></tr>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>現金内訳</h6>
+                                    <table class="table table-sm">
+                                        <tr><td>10,000円札</td><td>${breakdown.bill_10000 || 0}枚</td><td>¥${((breakdown.bill_10000 || 0) * 10000).toLocaleString()}</td></tr>
+                                        <tr><td>5,000円札</td><td>${breakdown.bill_5000 || 0}枚</td><td>¥${((breakdown.bill_5000 || 0) * 5000).toLocaleString()}</td></tr>
+                                        <tr><td>2,000円札</td><td>${breakdown.bill_2000 || 0}枚</td><td>¥${((breakdown.bill_2000 || 0) * 2000).toLocaleString()}</td></tr>
+                                        <tr><td>1,000円札</td><td>${breakdown.bill_1000 || 0}枚</td><td>¥${((breakdown.bill_1000 || 0) * 1000).toLocaleString()}</td></tr>
+                                        <tr><td>500円玉</td><td>${breakdown.coin_500 || 0}枚</td><td>¥${((breakdown.coin_500 || 0) * 500).toLocaleString()}</td></tr>
+                                        <tr><td>100円玉</td><td>${breakdown.coin_100 || 0}枚</td><td>¥${((breakdown.coin_100 || 0) * 100).toLocaleString()}</td></tr>
+                                        <tr><td>50円玉</td><td>${breakdown.coin_50 || 0}枚</td><td>¥${((breakdown.coin_50 || 0) * 50).toLocaleString()}</td></tr>
+                                        <tr><td>10円玉</td><td>${breakdown.coin_10 || 0}枚</td><td>¥${((breakdown.coin_10 || 0) * 10).toLocaleString()}</td></tr>
+                                        <tr><td>5円玉</td><td>${breakdown.coin_5 || 0}枚</td><td>¥${((breakdown.coin_5 || 0) * 5).toLocaleString()}</td></tr>
+                                        <tr><td>1円玉</td><td>${breakdown.coin_1 || 0}枚</td><td>¥${((breakdown.coin_1 || 0) * 1).toLocaleString()}</td></tr>
+                                    </table>
+                                </div>
+                            </div>
+                            ${record.memo ? `<div class="mt-3"><h6>メモ・備考</h6><p class="bg-light p-2 rounded">${record.memo}</p></div>` : ''}
+                        `;
+                        
+                        document.getElementById('detailModalBody').innerHTML = detailHtml;
+                        new bootstrap.Modal(document.getElementById('detailModal')).show();
+                    } else {
+                        alert('詳細情報の取得に失敗しました。');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('詳細情報の取得中にエラーが発生しました。');
+                });
+        }
+        
+        // 削除確認
+        function confirmDelete(recordId) {
+            if (confirm('この売上金確認記録を削除してもよろしいですか？')) {
+                fetch('api/cash_delete.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ id: recordId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('削除に失敗しました: ' + (data.message || ''));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('削除中にエラーが発生しました。');
+                });
+            }
+        }
+        
+        // フォーム送信時の確認
+        const form = document.querySelector('form[method="POST"]');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                const confirmedAmount = parseInt(document.getElementById('confirmed_amount_input')?.value) || 0;
+                const calculatedAmount = parseInt(document.querySelector('input[name="calculated_amount"]')?.value) || 0;
+                const difference = confirmedAmount - calculatedAmount;
+                
+                if (Math.abs(difference) > 1000) {
+                    if (!confirm(`差額が¥${Math.abs(difference).toLocaleString()}あります。本当に登録しますか？`)) {
+                        e.preventDefault();
+                        return false;
+                    }
+                }
+            });
+        }
     </script>
 </body>
 </html>
