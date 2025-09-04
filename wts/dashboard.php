@@ -26,6 +26,9 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+// ヘッダー関数の読み込み
+require_once 'includes/header.php';
+
 // ✅ 修正：permission_levelベースのユーザー情報取得
 try {
     $stmt = $pdo->prepare("SELECT name, permission_level, is_driver, is_caller, is_manager FROM users WHERE id = ?");
@@ -81,9 +84,6 @@ try {
 } catch (Exception $e) {
     // デフォルト値を使用
 }
-
-// 業務漏れチェック機能（改善版）
-$alerts = [];
 
 try {
     // 今日の統計データ
@@ -167,86 +167,79 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ダッシュボード - <?= htmlspecialchars($system_name) ?></title>
+    
+    <!-- 必須CSS（ヘッダー統一仕様準拠） -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/header-unified.css">
+    
     <style>
         :root {
-            --primary: #2c3e50;
-            --success: #27ae60;
-            --info: #3498db;
-            --warning: #f39c12;
-            --danger: #e74c3c;
+            /* ヘッダー統一仕様のCSS変数を使用 */
             --ride-primary: #11998e;
             --ride-secondary: #38ef7d;
         }
         
         body {
             padding-bottom: 120px; /* フローティングヘッダー分の余白 */
-            background-color: #f8f9fa;
-            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-        }
-        
-        /* 簡素化されたヘッダー */
-        .main-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 12px 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding-top: calc(var(--header-height) + var(--subheader-height));
         }
         
         /* コンテンツカード */
         .content-card {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            background: var(--bg-primary);
+            border-radius: var(--border-radius-lg);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-md);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-light);
         }
         
         .summary-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: var(--accent);
+            color: var(--text-inverse);
             text-align: center;
         }
         
         .summary-stat {
-            padding: 15px 5px;
+            padding: var(--spacing-md) var(--spacing-xs);
         }
         
         .stat-value {
-            font-size: 24px;
-            font-weight: bold;
+            font-size: 1.5rem;
+            font-weight: 700;
             line-height: 1;
+            color: inherit;
         }
         
         .stat-label {
-            font-size: 11px;
+            font-size: 0.75rem;
             opacity: 0.9;
-            margin-top: 5px;
+            margin-top: var(--spacing-xs);
         }
         
         /* 右下フローティング乗務記録ヘッダー */
         .mobile-ride-header {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
+            bottom: var(--spacing-lg);
+            right: var(--spacing-lg);
             z-index: 1000;
             display: flex;
             flex-direction: column;
             align-items: flex-end;
-            gap: 15px;
+            gap: var(--spacing-md);
         }
         
         /* 乗務記録専用ヘッダーバー */
         .ride-header-bar {
             background: linear-gradient(135deg, var(--ride-primary) 0%, var(--ride-secondary) 100%);
-            color: white;
-            padding: 12px 20px;
+            color: var(--text-inverse);
+            padding: var(--spacing-sm) var(--spacing-lg);
             border-radius: 25px;
-            box-shadow: 0 4px 20px rgba(17, 153, 142, 0.3);
+            box-shadow: var(--shadow-md);
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: var(--spacing-md);
             min-width: 280px;
             transform: translateX(220px);
             transition: transform 0.3s ease;
@@ -258,13 +251,13 @@ try {
         
         .ride-toggle-btn {
             background: var(--ride-primary);
-            color: white;
+            color: var(--text-inverse);
             border: none;
             width: 60px;
             height: 60px;
             border-radius: 50%;
-            font-size: 20px;
-            box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);
+            font-size: 1.25rem;
+            box-shadow: var(--shadow-md);
             cursor: pointer;
             transition: all 0.3s ease;
             flex-shrink: 0;
@@ -278,7 +271,7 @@ try {
         .ride-header-content {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: var(--spacing-sm);
             opacity: 0;
             transition: opacity 0.3s ease;
         }
@@ -290,34 +283,35 @@ try {
         .ride-quick-action {
             background: rgba(255,255,255,0.2);
             border: none;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 15px;
-            font-size: 12px;
-            font-weight: bold;
+            color: var(--text-inverse);
+            padding: var(--spacing-xs) var(--spacing-sm);
+            border-radius: var(--border-radius);
+            font-size: 0.75rem;
+            font-weight: 600;
             transition: all 0.2s ease;
             white-space: nowrap;
         }
         
         .ride-quick-action:hover {
             background: rgba(255,255,255,0.3);
-            color: white;
+            color: var(--text-inverse);
             transform: translateY(-1px);
         }
         
         /* ステータス表示 */
         .ride-status-indicator {
-            background: white;
+            background: var(--bg-primary);
             color: var(--ride-primary);
             border-radius: 20px;
-            padding: 15px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: var(--spacing-md);
+            box-shadow: var(--shadow-sm);
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: var(--spacing-sm);
             min-width: 200px;
             transform: translateX(140px);
             transition: transform 0.3s ease;
+            border: 1px solid var(--border-light);
         }
         
         .ride-status-indicator.expanded {
@@ -339,22 +333,23 @@ try {
         }
         
         .status-text {
-            font-size: 13px;
-            font-weight: bold;
+            font-size: 0.8125rem;
+            font-weight: 600;
             flex: 1;
         }
         
         /* 今日の記録カウンター */
         .ride-counter {
-            background: white;
-            color: var(--primary);
+            background: var(--bg-primary);
+            color: var(--text-primary);
             border-radius: 20px;
-            padding: 10px 15px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: var(--spacing-sm) var(--spacing-md);
+            box-shadow: var(--shadow-sm);
             text-align: center;
             min-width: 120px;
             transform: translateX(60px);
             transition: transform 0.3s ease;
+            border: 1px solid var(--border-light);
         }
         
         .ride-counter.expanded {
@@ -362,28 +357,28 @@ try {
         }
         
         .counter-number {
-            font-size: 24px;
-            font-weight: bold;
+            font-size: 1.5rem;
+            font-weight: 700;
             color: var(--ride-primary);
             line-height: 1;
         }
         
         .counter-label {
-            font-size: 11px;
-            opacity: 0.7;
+            font-size: 0.6875rem;
+            color: var(--text-muted);
         }
         
         /* 緊急アクション用ボタン */
         .emergency-ride-btn {
             background: var(--warning);
-            color: white;
+            color: var(--text-inverse);
             border: none;
             width: 50px;
             height: 50px;
             border-radius: 50%;
-            font-size: 16px;
-            box-shadow: 0 3px 12px rgba(243, 156, 18, 0.4);
-            margin-bottom: 10px;
+            font-size: 1rem;
+            box-shadow: var(--shadow-sm);
+            margin-bottom: var(--spacing-sm);
             cursor: pointer;
             transition: all 0.3s ease;
         }
@@ -414,28 +409,28 @@ try {
         
         /* クイックアクションボタン */
         .quick-btn {
-            background: white;
-            border: 2px solid #e9ecef;
-            border-radius: 12px;
-            padding: 15px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: var(--border-radius);
+            padding: var(--spacing-md);
             text-decoration: none;
-            color: #333;
+            color: var(--text-primary);
             display: block;
-            margin-bottom: 10px;
+            margin-bottom: var(--spacing-sm);
             transition: all 0.3s ease;
         }
         
         .quick-btn:hover {
-            border-color: var(--primary);
-            color: var(--primary);
+            border-color: var(--accent);
+            color: var(--accent);
             text-decoration: none;
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(44, 62, 80, 0.15);
+            box-shadow: var(--shadow-sm);
         }
         
         .quick-btn i {
-            font-size: 20px;
-            margin-right: 10px;
+            font-size: 1.25rem;
+            margin-right: var(--spacing-sm);
             width: 30px;
         }
         
@@ -444,7 +439,7 @@ try {
             .ride-header-bar {
                 min-width: 250px;
                 transform: translateX(190px);
-                padding: 10px 15px;
+                padding: var(--spacing-sm) var(--spacing-md);
             }
             
             .ride-status-indicator {
@@ -460,8 +455,8 @@ try {
         
         @media (max-width: 375px) {
             .mobile-ride-header {
-                bottom: 15px;
-                right: 15px;
+                bottom: var(--spacing-md);
+                right: var(--spacing-md);
             }
             
             .ride-header-bar {
@@ -469,66 +464,20 @@ try {
                 transform: translateX(160px);
             }
         }
-        
-        /* ハプティックフィードバック効果 */
-        .haptic-feedback {
-            animation: haptic 0.1s ease;
-        }
-        
-        @keyframes haptic {
-            0% { transform: scale(1); }
-            50% { transform: scale(0.95); }
-            100% { transform: scale(1); }
-        }
-        
-        /* ダークモード対応 */
-        @media (prefers-color-scheme: dark) {
-            body {
-                background-color: #1a1a1a;
-                color: #ffffff;
-            }
-            
-            .content-card {
-                background: #2d2d2d;
-                color: #ffffff;
-            }
-            
-            .quick-btn {
-                background: #2d2d2d;
-                color: #ffffff;
-                border-color: #444;
-            }
-        }
     </style>
 </head>
 <body>
-    <!-- 簡素化されたメインヘッダー -->
-    <div class="main-header">
-        <div class="container-fluid">
-            <div class="row align-items-center">
-                <div class="col">
-                    <h5 class="mb-0">
-                        <i class="fas fa-taxi me-2"></i>スマイリーケア
-                    </h5>
-                    <small>
-                        <i class="fas fa-user me-1"></i><?= htmlspecialchars($user_name) ?>
-                        (<?= htmlspecialchars($user_role_display) ?>)
-                    </small>
-                </div>
-                <div class="col-auto">
-                    <small><?= date('n/j(D) H:i') ?></small>
-                    <a href="logout.php" class="btn btn-outline-light btn-sm ms-2">
-                        <i class="fas fa-sign-out-alt"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- システムヘッダー（統一仕様準拠） -->
+    <?= renderSystemHeader($user_name, $user_role_display, 'dashboard') ?>
+    
+    <!-- ページヘッダー（統一仕様準拠） -->
+    <?= renderPageHeader('tachometer-alt', 'ダッシュボード', '業務状況・売上実績') ?>
 
-    <div class="container-fluid py-3">
-        <!-- 今日のサマリー -->
+    <div class="container-fluid">
+        <!-- 業務状況セクション -->
+        <?= renderSectionHeader('chart-line', '今日の実績', date('n月j日(D)', strtotime($today))) ?>
+        
         <div class="content-card summary-card">
-            <h6 class="mb-3">📅 今日の実績 - <?= date('n月j日(D)', strtotime($today)) ?></h6>
             <div class="row">
                 <div class="col-3">
                     <div class="summary-stat">
@@ -557,72 +506,72 @@ try {
             </div>
         </div>
 
-        <!-- 今日の業務進捗 -->
+        <!-- 業務進捗セクション -->
+        <?= renderSectionHeader('tasks', '今日の業務進捗') ?>
+        
         <div class="content-card">
-            <h6><i class="fas fa-tasks"></i> 今日の業務進捗</h6>
-            <div class="d-flex flex-wrap gap-2 mt-3">
+            <div class="d-flex flex-wrap gap-2">
                 <span class="badge bg-<?= $today_departures > 0 ? 'success' : 'secondary' ?>">
-                    <?= $today_departures > 0 ? '✓' : '○' ?> 日常点検・点呼
+                    <i class="fas fa-<?= $today_departures > 0 ? 'check-circle' : 'circle' ?>"></i> 日常点検・点呼
                 </span>
                 <span class="badge bg-<?= $today_departures > 0 ? 'success' : 'secondary' ?>">
-                    <?= $today_departures > 0 ? '✓' : '○' ?> 出庫
+                    <i class="fas fa-<?= $today_departures > 0 ? 'check-circle' : 'circle' ?>"></i> 出庫
                 </span>
                 <span class="badge bg-<?= $today_ride_records > 0 ? 'warning' : 'secondary' ?>">
-                    <?= $today_ride_records > 0 ? '🚕' : '○' ?> 運行中
+                    <i class="fas fa-<?= $today_ride_records > 0 ? 'car' : 'circle' ?>"></i> 運行中
                 </span>
                 <span class="badge bg-<?= $today_arrivals > 0 ? 'success' : 'secondary' ?>">
-                    <?= $today_arrivals > 0 ? '✓' : '○' ?> 入庫
+                    <i class="fas fa-<?= $today_arrivals > 0 ? 'check-circle' : 'circle' ?>"></i> 入庫
                 </span>
                 <span class="badge bg-<?= $today_post_duty_calls > 0 ? 'success' : 'secondary' ?>">
-                    <?= $today_post_duty_calls > 0 ? '✓' : '○' ?> 点呼完了
+                    <i class="fas fa-<?= $today_post_duty_calls > 0 ? 'check-circle' : 'circle' ?>"></i> 点呼完了
                 </span>
             </div>
         </div>
 
-        <!-- クイックアクション（使用頻度順） -->
+        <!-- よく使う機能セクション -->
+        <?= renderSectionHeader('bolt', 'よく使う機能') ?>
+        
         <div class="content-card">
-            <h6><i class="fas fa-bolt"></i> よく使う機能</h6>
-            <div class="mt-3">
-                <!-- 乗車記録を最上位に -->
-                <a href="ride_records.php" class="quick-btn">
-                    <i class="fas fa-car text-success"></i>
-                    <strong>乗車記録</strong> - 営業中の記録入力
-                </a>
-                
-                <div class="row g-2">
-                    <div class="col-6">
-                        <a href="daily_inspection.php" class="quick-btn">
-                            <i class="fas fa-tools text-secondary"></i>
-                            日常点検
-                        </a>
-                    </div>
-                    <div class="col-6">
-                        <a href="pre_duty_call.php" class="quick-btn">
-                            <i class="fas fa-clipboard-check text-warning"></i>
-                            乗務前点呼
-                        </a>
-                    </div>
-                    <div class="col-6">
-                        <a href="departure.php" class="quick-btn">
-                            <i class="fas fa-sign-out-alt text-primary"></i>
-                            出庫処理
-                        </a>
-                    </div>
-                    <div class="col-6">
-                        <a href="arrival.php" class="quick-btn">
-                            <i class="fas fa-sign-in-alt text-info"></i>
-                            入庫処理
-                        </a>
-                    </div>
+            <!-- 乗車記録を最上位に -->
+            <a href="ride_records.php" class="quick-btn">
+                <i class="fas fa-car text-success"></i>
+                <strong>乗車記録</strong> - 営業中の記録入力
+            </a>
+            
+            <div class="row g-2">
+                <div class="col-6">
+                    <a href="daily_inspection.php" class="quick-btn">
+                        <i class="fas fa-tools text-secondary"></i>
+                        日常点検
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="pre_duty_call.php" class="quick-btn">
+                        <i class="fas fa-clipboard-check text-warning"></i>
+                        乗務前点呼
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="departure.php" class="quick-btn">
+                        <i class="fas fa-truck-pickup text-primary"></i>
+                        出庫処理
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="arrival.php" class="quick-btn">
+                        <i class="fas fa-truck-pickup text-info"></i>
+                        入庫処理
+                    </a>
                 </div>
             </div>
         </div>
 
         <!-- 管理機能（Admin権限のみ） -->
         <?php if ($is_admin): ?>
+        <?= renderSectionHeader('cogs', '管理機能') ?>
         <div class="content-card">
-            <h6><i class="fas fa-cogs"></i> 管理機能</h6>
-            <div class="row g-2 mt-3">
+            <div class="row g-2">
                 <div class="col-6">
                     <a href="cash_management.php" class="quick-btn">
                         <i class="fas fa-yen-sign text-success"></i>
@@ -639,24 +588,25 @@ try {
         </div>
         <?php endif; ?>
 
-        <!-- 統計情報 -->
+        <!-- 統計情報セクション -->
+        <?= renderSectionHeader('chart-bar', '今月の実績') ?>
+        
         <div class="content-card">
-            <h6><i class="fas fa-chart-line"></i> 今月の実績</h6>
-            <div class="row text-center mt-3">
+            <div class="row text-center">
                 <div class="col-4">
-                    <div class="text-primary">
+                    <div style="color: var(--accent);">
                         <strong><?= $month_ride_records ?></strong>
                         <div><small>総乗車回数</small></div>
                     </div>
                 </div>
                 <div class="col-4">
-                    <div class="text-success">
+                    <div style="color: var(--success);">
                         <strong>¥<?= number_format($month_total_revenue) ?></strong>
                         <div><small>総売上</small></div>
                     </div>
                 </div>
                 <div class="col-4">
-                    <div class="text-info">
+                    <div style="color: var(--info);">
                         <strong>¥<?= number_format($month_avg_revenue) ?></strong>
                         <div><small>日平均</small></div>
                     </div>
@@ -719,7 +669,6 @@ try {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let isRideHeaderExpanded = false;
-        let isFirstVisit = !localStorage.getItem('ride_header_used');
 
         // 乗務記録ヘッダーの展開/収納
         function toggleRideHeader() {
@@ -759,18 +708,14 @@ try {
 
         // クイック新規記録
         function quickAddRide() {
-            // ハプティックフィードバック
             if (navigator.vibrate) {
                 navigator.vibrate([50, 50, 50]);
             }
-            
-            // 新規記録画面へ
             location.href = 'ride_records.php?action=quick_add';
         }
 
         // スワイプジェスチャー対応
-        let startX = 0;
-        let startY = 0;
+        let startX = 0, startY = 0;
 
         document.addEventListener('touchstart', function(e) {
             startX = e.touches[0].clientX;
@@ -779,11 +724,10 @@ try {
 
         document.addEventListener('touchend', function(e) {
             const endX = e.changedTouches[0].clientX;
-            const endY = e.changedTouches[0].clientY;
             const diffX = startX - endX;
-            const diffY = Math.abs(startY - endY);
+            const diffY = Math.abs(startY - e.changedTouches[0].clientY);
             
-            // 右下エリアからの左スワイプで展開
+            // 右下からの左スワイプで展開
             if (startX > window.innerWidth - 100 && 
                 startY > window.innerHeight - 200 &&
                 diffX > 50 && diffY < 50) {
@@ -793,140 +737,39 @@ try {
             }
         });
 
-        // 記録カウンターのリアルタイム更新
-        function updateRideCounter() {
-            fetch('api/get_today_ride_count.php')
-                .then(response => response.json())
-                .then(data => {
-                    document.querySelector('.counter-number').textContent = data.count;
-                    
-                    // ステータス更新
-                    const statusText = document.querySelector('.status-text');
-                    if (data.count > 0) {
-                        statusText.textContent = `運行中 - ${data.count}件記録済み`;
-                    } else {
-                        statusText.textContent = '運行中 - 記録待ち';
-                    }
-                })
-                .catch(error => console.log('カウンター更新エラー:', error));
-        }
-
-        // 定期的な更新（2分ごと）
-        setInterval(updateRideCounter, 120000);
-
-        // 長押しでメニュー表示
-        let pressTimer;
-        
-        document.getElementById('rideCounter').addEventListener('touchstart', function(e) {
-            pressTimer = setTimeout(() => {
-                if (confirm('乗務記録の詳細メニューを表示しますか？')) {
-                    location.href = 'ride_records.php?action=menu';
-                }
-            }, 1000);
-        });
-
-        document.getElementById('rideCounter').addEventListener('touchend', function(e) {
-            clearTimeout(pressTimer);
-        });
-
         // キーボードショートカット
         document.addEventListener('keydown', function(e) {
-            // Ctrl + R で乗務記録ヘッダー展開
-            if (e.key === 'r' && e.ctrlKey) {
+            if (e.ctrlKey && e.key === 'r') {
                 e.preventDefault();
                 toggleRideHeader();
             }
-            // Ctrl + N で新規乗車記録
-            if (e.key === 'n' && e.ctrlKey) {
-                e.preventDefault();
-                location.href = 'ride_records.php?action=add';
-            }
         });
 
-        // PWA的な動作（Service Workerの登録）
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
-                .then(registration => console.log('ServiceWorker registered'))
-                .catch(error => console.log('ServiceWorker registration failed'));
-        }
-
-        // バッテリー節約モード（非アクティブ時の更新停止）
-        let isActive = true;
-        
-        document.addEventListener('visibilitychange', function() {
-            isActive = !document.hidden;
-            if (isActive) {
-                updateRideCounter(); // ページがアクティブになったら即座更新
-            }
-        });
-
-        // 初回訪問時のガイド表示
-        if (isFirstVisit) {
+        // 初回ガイド
+        if (!localStorage.getItem('ride_header_used')) {
             setTimeout(() => {
                 const tooltip = document.createElement('div');
                 tooltip.style.cssText = `
-                    position: fixed;
-                    bottom: 90px;
-                    right: 25px;
-                    background: rgba(0,0,0,0.8);
-                    color: white;
-                    padding: 8px 12px;
-                    border-radius: 15px;
-                    font-size: 11px;
-                    z-index: 1001;
-                    animation: fadeInOut 4s ease-in-out;
+                    position: fixed; bottom: 90px; right: 25px;
+                    background: rgba(0,0,0,0.8); color: white;
+                    padding: 8px 12px; border-radius: 15px; font-size: 11px;
+                    z-index: 1001; animation: fadeInOut 4s ease-in-out;
                 `;
-                tooltip.textContent = '👈 右下のボタンで乗務記録へ';
+                tooltip.textContent = '👈 右下で乗務記録へ';
                 document.body.appendChild(tooltip);
                 
-                setTimeout(() => {
-                    tooltip.remove();
-                }, 4000);
+                const style = document.createElement('style');
+                style.textContent = `
+                    @keyframes fadeInOut {
+                        0%, 100% { opacity: 0; transform: translateX(20px); }
+                        20%, 80% { opacity: 1; transform: translateX(0); }
+                    }
+                `;
+                document.head.appendChild(style);
+                
+                setTimeout(() => tooltip.remove(), 4000);
             }, 3000);
         }
-
-        // フェードイン・アウトアニメーション
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes fadeInOut {
-                0%, 100% { opacity: 0; transform: translateX(20px); }
-                20%, 80% { opacity: 1; transform: translateX(0); }
-            }
-        `;
-        document.head.appendChild(style);
-
-        // 乗務記録ボタンの定期ハイライト（10秒ごと）
-        setInterval(function() {
-            const fabBtn = document.querySelector('.ride-toggle-btn');
-            if (fabBtn && !isRideHeaderExpanded) {
-                fabBtn.style.transform = 'scale(1.1)';
-                fabBtn.style.background = 'var(--ride-secondary)';
-                setTimeout(() => {
-                    fabBtn.style.transform = 'scale(1)';
-                    fabBtn.style.background = 'var(--ride-primary)';
-                }, 300);
-            }
-        }, 10000);
-
-        // アクセシビリティ対応
-        document.addEventListener('DOMContentLoaded', function() {
-            // フォーカス管理
-            const rideToggleBtn = document.getElementById('rideHeaderBar').querySelector('.ride-toggle-btn');
-            rideToggleBtn.setAttribute('aria-label', '乗務記録メニューを開く');
-            rideToggleBtn.setAttribute('role', 'button');
-        });
-
-        // エラーハンドリング
-        window.addEventListener('error', function(e) {
-            console.error('JavaScript Error:', e.error);
-        });
-
-        // 統計データの自動更新（5分ごと）
-        setInterval(function() {
-            if (isActive) {
-                location.reload();
-            }
-        }, 300000);
     </script>
 </body>
 </html>
