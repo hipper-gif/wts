@@ -170,7 +170,7 @@ try {
                 'action' => 'arrival.php',
                 'action_text' => '入庫処理を実施'
             ];
-    </script>
+
 </body>
 </html>
         
