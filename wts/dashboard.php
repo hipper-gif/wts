@@ -26,9 +26,6 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// 統一ヘッダー関数を読み込み
-require_once 'includes/unified-header.php';
-
 // ユーザー情報取得
 try {
     $stmt = $pdo->prepare("SELECT name, permission_level, is_driver, is_caller, is_manager FROM users WHERE id = ?");
@@ -170,8 +167,7 @@ try {
                 'action' => 'arrival.php',
                 'action_text' => '入庫処理を実施'
             ];
-
-
+        }
         
         if ($flow_status['arrival'] && !$flow_status['post_duty_call']) {
             $alerts[] = [
@@ -244,19 +240,10 @@ usort($alerts, function($a, $b) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ダッシュボード - <?= htmlspecialchars($system_name) ?></title>
     
-    <!-- PWA設定 -->
-    <link rel="manifest" href="/Smiley/taxi/wts/manifest.json">
-    <meta name="theme-color" content="#2196F3">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="WTS">
-    <link rel="apple-touch-icon" href="/Smiley/taxi/wts/icons/icon-192x192.png">
-    
     <!-- 統一UI CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/ui-unified-v3.css">
-    <link rel="stylesheet" href="css/pwa-styles.css">
     
     <style>
         .flow-step {
@@ -294,12 +281,6 @@ usort($alerts, function($a, $b) {
             100% { box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3); }
         }
         
-        .flow-connector {
-            height: 2px;
-            background: linear-gradient(90deg, #28a745 0%, #dee2e6 100%);
-            margin: 10px 0;
-        }
-        
         .step-number {
             width: 30px;
             height: 30px;
@@ -333,275 +314,142 @@ usort($alerts, function($a, $b) {
     </style>
 </head>
 <body>
-    <!-- PWA インストールボタン（非表示、必要時に表示） -->
-    <button id="pwa-install-btn" class="btn btn-primary position-fixed" style="top: 80px; right: 20px; z-index: 1050; display: none;">
-        <i class="fas fa-download"></i> アプリをインストール
-    </button>
-    
     <!-- 統一システムヘッダー -->
-    <?= renderSystemHeader($user_name, $user_permission_level) ?>
+    <header class="bg-primary text-white py-3">
+        <div class="container-fluid">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h4 class="mb-0">
+                        <i class="fas fa-taxi me-2"></i>
+                        <?= htmlspecialchars($system_name) ?>
+                    </h4>
+                </div>
+                <div class="col-md-6 text-end">
+                    <span class="me-3">
+                        <i class="fas fa-user me-1"></i>
+                        <?= htmlspecialchars($user_name) ?> (<?= htmlspecialchars($user_role_display) ?>)
+                    </span>
+                    <a href="logout.php" class="btn btn-outline-light btn-sm">
+                        <i class="fas fa-sign-out-alt"></i> ログアウト
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
     
     <!-- 統一ページヘッダー -->
-    <?= renderPageHeader('tachometer-alt', 'ダッシュボード', '日次運行フロー・業務状況管理') ?>
+    <div class="bg-light border-bottom py-3">
+        <div class="container-fluid">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h2 class="mb-0">
+                        <i class="fas fa-tachometer-alt text-primary me-2"></i>
+                        ダッシュボード
+                    </h2>
+                    <p class="text-muted mb-0">日次運行フロー・業務状況管理</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-0">
+                            <li class="breadcrumb-item active">ダッシュボード</li>
+                        </ol>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <!-- メインコンテンツ -->
-    <div class="main-content">
-        <div class="content-container">
-            
-            <!-- 業務漏れアラート -->
-            <?php if (!empty($alerts)): ?>
-            <div class="section-header">
-                <h3 class="section-title">
-                    <i class="fas fa-exclamation-triangle icon-danger"></i>
-                    重要なお知らせ・業務漏れ確認
-                </h3>
-            </div>
-            
-            <?php foreach ($alerts as $alert): ?>
-            <?= renderAlert($alert['message'], $alert['type'], $alert['icon'], false) ?>
-            <div class="d-flex justify-content-end mb-3">
-                <a href="<?= $alert['action'] ?>" class="btn btn-<?= $alert['type'] === 'danger' ? 'danger' : ($alert['type'] === 'warning' ? 'warning' : 'info') ?>">
-                    <i class="fas fa-arrow-right"></i> <?= htmlspecialchars($alert['action_text']) ?>
+    <div class="container-fluid py-4">
+        
+        <!-- 業務漏れアラート -->
+        <?php if (!empty($alerts)): ?>
+        <div class="section-header">
+            <h3 class="section-title">
+                <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                重要なお知らせ・業務漏れ確認
+            </h3>
+        </div>
+        
+        <?php foreach ($alerts as $alert): ?>
+        <div class="alert alert-<?= $alert['type'] ?> alert-dismissible fade show" role="alert">
+            <i class="<?= $alert['icon'] ?> me-2"></i>
+            <?= htmlspecialchars($alert['message']) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div class="d-flex justify-content-end mb-3">
+            <a href="<?= $alert['action'] ?>" class="btn btn-<?= $alert['type'] === 'danger' ? 'danger' : ($alert['type'] === 'warning' ? 'warning' : 'info') ?>">
+                <i class="fas fa-arrow-right"></i> <?= htmlspecialchars($alert['action_text']) ?>
+            </a>
+        </div>
+        <?php endforeach; ?>
+        <?php endif; ?>
+        
+        <!-- 日次運行フロー -->
+        <div class="section-header mb-4">
+            <h3 class="section-title">
+                <i class="fas fa-route text-primary me-2"></i>
+                日次運行フロー（7段階）
+            </h3>
+            <p class="section-description"><?= htmlspecialchars($user_name) ?> さんの本日の進捗状況</p>
+        </div>
+        
+        <?php
+        $flow_steps = [
+            ['key' => 'daily_inspection', 'number' => '1', 'title' => '日常点検', 'icon' => 'tools', 'url' => 'daily_inspection.php', 'desc' => '法定義務・最初に実施'],
+            ['key' => 'pre_duty_call', 'number' => '2', 'title' => '乗務前点呼', 'icon' => 'clipboard-check', 'url' => 'pre_duty_call.php', 'desc' => 'アルコール検査含む'],
+            ['key' => 'departure', 'number' => '3', 'title' => '出庫処理', 'icon' => 'sign-out-alt', 'url' => 'departure.php', 'desc' => 'メーター・天候記録'],
+            ['key' => 'ride_records', 'number' => '4', 'title' => '乗車記録', 'icon' => 'users', 'url' => 'ride_records.php', 'desc' => '営業中随時入力'],
+            ['key' => 'arrival', 'number' => '5', 'title' => '入庫処理', 'icon' => 'sign-in-alt', 'url' => 'arrival.php', 'desc' => '燃料費・経費記録'],
+            ['key' => 'post_duty_call', 'number' => '6', 'title' => '乗務後点呼', 'icon' => 'user-clock', 'url' => 'post_duty_call.php', 'desc' => '健康状態確認'],
+            ['key' => 'cash_confirmation', 'number' => '7', 'title' => '売上金確認', 'icon' => 'yen-sign', 'url' => 'cash_management.php', 'desc' => '現金・カード売上確認']
+        ];
+        
+        // 現在のステップを特定
+        $current_step = 0;
+        foreach ($flow_steps as $index => $step) {
+            if (!$flow_status[$step['key']]) {
+                $current_step = $index;
+                break;
+            }
+            if ($index === count($flow_steps) - 1) {
+                $current_step = count($flow_steps);
+            }
+        }
+        ?>
+        
+        <div class="row g-2 mb-4">
+            <?php foreach ($flow_steps as $index => $step): ?>
+                <?php
+                $is_completed = $flow_status[$step['key']];
+                $is_current = ($index === $current_step);
+                $is_pending = ($index > $current_step);
+                $status_class = $is_completed ? 'completed' : ($is_current ? 'current' : 'pending');
+                ?>
+                
+                <div class="col-lg-4 col-md-6 mb-3">
+                    <a href="<?= $step['url'] ?>" class="text-decoration-none">
+                        <div class="card flow-step <?= $status_class ?> h-100">
+                            <div class="card-body text-center p-3">
+                                <div class="step-number mx-auto">
+                                    <?= $is_completed ? '<i class="fas fa-check"></i>' : $step['number'] ?>
+                                </div>
+                                <div class="mb-2">
+                                    <i class="fas fa-<?= $step['icon'] ?> fa-2x mb-2"></i>
+                                </div>
+                                <h6 class="card-title">緊急監査対応</h6>
+                        <p class="card-text small text-muted">5分で準備完了</p>
+                    </div>
                 </a>
             </div>
-            <?php endforeach; ?>
-            <?php endif; ?>
-            
-            <!-- 日次運行フロー -->
-            <div class="section-header">
-                <h3 class="section-title">
-                    <i class="fas fa-route icon-primary"></i>
-                    日次運行フロー（7段階）
-                </h3>
-                <p class="section-description"><?= htmlspecialchars($user_name) ?> さんの本日の進捗状況</p>
-            </div>
-            
-            <?php
-            $flow_steps = [
-                ['key' => 'daily_inspection', 'number' => '1', 'title' => '日常点検', 'icon' => 'tools', 'url' => 'daily_inspection.php', 'desc' => '法定義務・最初に実施'],
-                ['key' => 'pre_duty_call', 'number' => '2', 'title' => '乗務前点呼', 'icon' => 'clipboard-check', 'url' => 'pre_duty_call.php', 'desc' => 'アルコール検査含む'],
-                ['key' => 'departure', 'number' => '3', 'title' => '出庫処理', 'icon' => 'sign-out-alt', 'url' => 'departure.php', 'desc' => 'メーター・天候記録'],
-                ['key' => 'ride_records', 'number' => '4', 'title' => '乗車記録', 'icon' => 'users', 'url' => 'ride_records.php', 'desc' => '営業中随時入力'],
-                ['key' => 'arrival', 'number' => '5', 'title' => '入庫処理', 'icon' => 'sign-in-alt', 'url' => 'arrival.php', 'desc' => '燃料費・経費記録'],
-                ['key' => 'post_duty_call', 'number' => '6', 'title' => '乗務後点呼', 'icon' => 'user-clock', 'url' => 'post_duty_call.php', 'desc' => '健康状態確認'],
-                ['key' => 'cash_confirmation', 'number' => '7', 'title' => '売上金確認', 'icon' => 'yen-sign', 'url' => 'cash_management.php', 'desc' => '現金・カード売上確認']
-            ];
-            
-            // 現在のステップを特定
-            $current_step = 0;
-            foreach ($flow_steps as $index => $step) {
-                if (!$flow_status[$step['key']]) {
-                    $current_step = $index;
-                    break;
-                }
-                if ($index === count($flow_steps) - 1) {
-                    $current_step = count($flow_steps);
-                }
-            }
-            ?>
-            
-            <div class="row g-2">
-                <?php foreach ($flow_steps as $index => $step): ?>
-                    <?php
-                    $is_completed = $flow_status[$step['key']];
-                    $is_current = ($index === $current_step);
-                    $is_pending = ($index > $current_step);
-                    $status_class = $is_completed ? 'completed' : ($is_current ? 'current' : 'pending');
-                    ?>
-                    
-                    <div class="col-lg-4 col-md-6 mb-3">
-                        <a href="<?= $step['url'] ?>" class="text-decoration-none">
-                            <div class="card flow-step <?= $status_class ?> h-100">
-                                <div class="card-body text-center p-3">
-                                    <div class="step-number mx-auto">
-                                        <?= $is_completed ? '<i class="fas fa-check"></i>' : $step['number'] ?>
-                                    </div>
-                                    <div class="mb-2">
-                                        <i class="fas fa-<?= $step['icon'] ?> fa-2x mb-2"></i>
-                                    </div>
-                                    <h6 class="card-title mb-2"><?= $step['title'] ?></h6>
-                                    <p class="card-text small mb-0"><?= $step['desc'] ?></p>
-                                    
-                                    <?php if ($is_completed): ?>
-                                        <div class="mt-2">
-                                            <small class="badge bg-light text-dark">
-                                                <i class="fas fa-check-circle text-success"></i> 完了
-                                            </small>
-                                            <a href="<?= $step['url'] ?>?action=edit" class="badge bg-secondary ms-1" onclick="event.stopPropagation();">
-                                                <i class="fas fa-edit"></i> 修正
-                                            </a>
-                                        </div>
-                                    <?php elseif ($is_current): ?>
-                                        <div class="mt-2">
-                                            <small class="badge bg-light text-dark">
-                                                <i class="fas fa-arrow-right text-primary"></i> 次の作業
-                                            </small>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                    
-                    <?php if ($index < count($flow_steps) - 1): ?>
-                        <div class="w-100 d-lg-none"></div>
-                        <?php if (($index + 1) % 3 === 0): ?>
-                            <div class="w-100 d-none d-lg-block"></div>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                <?php endforeach; ?>
-            </div>
-            
-            <!-- 進捗サマリー -->
-            <div class="card mt-4">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-md-8">
-                            <?php
-                            $completed_count = count(array_filter($flow_status));
-                            $total_count = count($flow_status);
-                            $progress_percent = round(($completed_count / $total_count) * 100);
-                            ?>
-                            
-                            <h6 class="mb-3">本日の進捗: <?= $completed_count ?>/<?= $total_count ?> 完了 (<?= $progress_percent ?>%)</h6>
-                            <div class="progress mb-3" style="height: 10px;">
-                                <div class="progress-bar bg-success" style="width: <?= $progress_percent ?>%"></div>
-                            </div>
-                            
-                            <?php if ($current_step < count($flow_steps)): ?>
-                                <p class="mb-0 text-primary">
-                                    <i class="fas fa-info-circle"></i> 
-                                    次の作業: <strong><?= $flow_steps[$current_step]['title'] ?></strong>
-                                </p>
-                            <?php else: ?>
-                                <p class="mb-0 text-success">
-                                    <i class="fas fa-check-circle"></i> 
-                                    本日の業務フローが全て完了しています！お疲れ様でした。
-                                </p>
-                            <?php endif; ?>
-                        </div>
-                        <div class="col-md-4 text-center">
-                            <?php if ($progress_percent === 100): ?>
-                                <div class="text-success">
-                                    <i class="fas fa-trophy fa-3x mb-2"></i>
-                                    <div><strong>業務完了</strong></div>
-                                </div>
-                            <?php else: ?>
-                                <div class="text-primary">
-                                    <i class="fas fa-tasks fa-3x mb-2"></i>
-                                    <div><strong><?= 7 - $completed_count ?> 件残り</strong></div>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- 今日の全体状況 -->
-            <div class="section-header">
-                <h3 class="section-title">
-                    <i class="fas fa-chart-line icon-primary"></i>
-                    今日の全体状況
-                </h3>
-                <p class="section-description"><?= date('Y年n月j日 (D)', strtotime($today)) ?> <?= $current_time ?> 現在</p>
-            </div>
-            
-            <div class="dashboard-grid">
-                <div class="col-md-3 mb-3">
-                    <div class="card text-center h-100">
-                        <div class="card-body">
-                            <i class="fas fa-user-tie fa-2x text-secondary mb-3"></i>
-                            <h5><?= $today_active_drivers ?></h5>
-                            <p class="card-text">稼働運転者</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <div class="card text-center h-100">
-                        <div class="card-body">
-                            <i class="fas fa-users fa-2x text-success mb-3"></i>
-                            <h5><?= $today_total_rides ?></h5>
-                            <p class="card-text">総乗車回数</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <div class="card text-center h-100">
-                        <div class="card-body">
-                            <i class="fas fa-exclamation-triangle fa-2x <?= ($today_departures - $today_arrivals > 0) ? 'text-danger' : 'text-success' ?> mb-3"></i>
-                            <h5><?= ($today_departures - $today_arrivals) ?></h5>
-                            <p class="card-text">未入庫車両</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <div class="card text-center h-100">
-                        <div class="card-body">
-                            <i class="fas fa-yen-sign fa-2x text-success mb-3"></i>
-                            <h5>¥<?= number_format($today_total_revenue) ?></h5>
-                            <p class="card-text">本日売上</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- 管理機能（権限別表示） -->
-            <?php if ($is_admin): ?>
-            <div class="section-header">
-                <h3 class="section-title">
-                    <i class="fas fa-cogs icon-secondary"></i>
-                    管理機能
-                </h3>
-                <p class="section-description">システム管理者専用機能</p>
-            </div>
-            
-            <div class="row">
-                <div class="col-md-3 mb-3">
-                    <a href="master_menu.php" class="card h-100 text-decoration-none">
-                        <div class="card-body text-center">
-                            <i class="fas fa-database fa-2x mb-3 text-secondary"></i>
-                            <h6 class="card-title">マスタ管理</h6>
-                            <p class="card-text small text-muted">ユーザー・車両管理</p>
-                        </div>
-                    </a>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <a href="annual_report.php" class="card h-100 text-decoration-none">
-                        <div class="card-body text-center">
-                            <i class="fas fa-file-alt fa-2x mb-3 text-info"></i>
-                            <h6 class="card-title">陸運局報告</h6>
-                            <p class="card-text small text-muted">年次報告書作成</p>
-                        </div>
-                    </a>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <a href="accident_management.php" class="card h-100 text-decoration-none">
-                        <div class="card-body text-center">
-                            <i class="fas fa-exclamation-circle fa-2x mb-3 text-warning"></i>
-                            <h6 class="card-title">事故管理</h6>
-                            <p class="card-text small text-muted">事故記録・報告</p>
-                        </div>
-                    </a>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <a href="export_document.php" class="card h-100 text-decoration-none">
-                        <div class="card-body text-center">
-                            <i class="fas fa-download fa-2x mb-3 text-success"></i>
-                            <h6 class="card-title">緊急監査対応</h6>
-                            <p class="card-text small text-muted">5分で準備完了</p>
-                        </div>
-                    </a>
-                </div>
-            </div>
-            <?php endif; ?>
-            
         </div>
+        <?php endif; ?>
+        
     </div>
 
     <!-- 統一JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/ui-interactions.js"></script>
-    <script src="js/pwa-install.js"></script>
     
     <script>
         // 業務フロー カードのアニメーション
@@ -620,4 +468,275 @@ usort($alerts, function($a, $b) {
                 }, index * 100);
             });
             
-            //
+            // 重要なアラートがある場合のブラウザ通知
+            <?php if (!empty($alerts) && in_array('critical', array_column($alerts, 'priority'))): ?>
+            if (Notification.permission === "granted") {
+                new Notification("重要な業務漏れがあります", {
+                    body: "<?= isset($alerts[0]) ? htmlspecialchars($alerts[0]['message']) : '' ?>",
+                    icon: "/favicon.ico"
+                });
+            } else if (Notification.permission !== "denied") {
+                Notification.requestPermission().then(function (permission) {
+                    if (permission === "granted") {
+                        new Notification("重要な業務漏れがあります", {
+                            body: "<?= isset($alerts[0]) ? htmlspecialchars($alerts[0]['message']) : '' ?>",
+                            icon: "/favicon.ico"
+                        });
+                    }
+                });
+            }
+            <?php endif; ?>
+            
+            // フロー完了時の効果音・振動
+            const completedSteps = document.querySelectorAll('.flow-step.completed');
+            if (completedSteps.length === 7 && <?= $progress_percent ?> === 100) {
+                // 全業務完了時のお祝い効果
+                if (navigator.vibrate) {
+                    navigator.vibrate([200, 100, 200, 100, 200]);
+                }
+                
+                // 紙吹雪エフェクト（簡易版）
+                setTimeout(() => {
+                    confetti();
+                }, 1000);
+            }
+            
+            // クリック時のフィードバック
+            const actionCards = document.querySelectorAll('.flow-step, .card');
+            actionCards.forEach(card => {
+                card.addEventListener('click', function(e) {
+                    // ハプティックフィードバック
+                    if (navigator.vibrate) {
+                        navigator.vibrate(50);
+                    }
+                    
+                    // カードアニメーション
+                    this.style.transform = 'scale(0.98)';
+                    setTimeout(() => {
+                        this.style.transform = 'scale(1)';
+                    }, 150);
+                });
+            });
+        });
+        
+        // 簡易紙吹雪エフェクト
+        function confetti() {
+            const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57'];
+            
+            for (let i = 0; i < 50; i++) {
+                setTimeout(() => {
+                    const confetti = document.createElement('div');
+                    confetti.style.cssText = `
+                        position: fixed;
+                        width: 10px;
+                        height: 10px;
+                        background: ${colors[Math.floor(Math.random() * colors.length)]};
+                        left: ${Math.random() * window.innerWidth}px;
+                        top: -10px;
+                        z-index: 9999;
+                        animation: fall 3s linear forwards;
+                        pointer-events: none;
+                    `;
+                    
+                    document.body.appendChild(confetti);
+                    
+                    setTimeout(() => {
+                        confetti.remove();
+                    }, 3000);
+                }, i * 100);
+            }
+        }
+        
+        // 紙吹雪アニメーション用CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fall {
+                0% { transform: translateY(-10px) rotate(0deg); }
+                100% { transform: translateY(${window.innerHeight + 10}px) rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // 5分ごとにアラートを更新（ページリロードなし）
+        setInterval(async function() {
+            try {
+                const response = await fetch('api/dashboard_alerts.php');
+                const data = await response.json();
+                
+                if (data.alerts && data.alerts.length > 0) {
+                    // アラート表示の更新
+                    updateAlerts(data.alerts);
+                }
+            } catch (error) {
+                console.log('アラート更新エラー:', error);
+            }
+        }, 300000); // 5分
+        
+        function updateAlerts(alerts) {
+            // アラート表示の動的更新（必要に応じて実装）
+            console.log('新しいアラート:', alerts);
+        }
+    </script>
+</body>
+</html> class="card-title mb-2"><?= $step['title'] ?></h6>
+                                <p class="card-text small mb-0"><?= $step['desc'] ?></p>
+                                
+                                <?php if ($is_completed): ?>
+                                    <div class="mt-2">
+                                        <small class="badge bg-light text-dark">
+                                            <i class="fas fa-check-circle text-success"></i> 完了
+                                        </small>
+                                        <a href="<?= $step['url'] ?>?action=edit" class="badge bg-secondary ms-1" onclick="event.stopPropagation();">
+                                            <i class="fas fa-edit"></i> 修正
+                                        </a>
+                                    </div>
+                                <?php elseif ($is_current): ?>
+                                    <div class="mt-2">
+                                        <small class="badge bg-light text-dark">
+                                            <i class="fas fa-arrow-right text-primary"></i> 次の作業
+                                        </small>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        
+        <!-- 進捗サマリー -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <?php
+                        $completed_count = count(array_filter($flow_status));
+                        $total_count = count($flow_status);
+                        $progress_percent = round(($completed_count / $total_count) * 100);
+                        ?>
+                        
+                        <h6 class="mb-3">本日の進捗: <?= $completed_count ?>/<?= $total_count ?> 完了 (<?= $progress_percent ?>%)</h6>
+                        <div class="progress mb-3" style="height: 10px;">
+                            <div class="progress-bar bg-success" style="width: <?= $progress_percent ?>%"></div>
+                        </div>
+                        
+                        <?php if ($current_step < count($flow_steps)): ?>
+                            <p class="mb-0 text-primary">
+                                <i class="fas fa-info-circle"></i> 
+                                次の作業: <strong><?= $flow_steps[$current_step]['title'] ?></strong>
+                            </p>
+                        <?php else: ?>
+                            <p class="mb-0 text-success">
+                                <i class="fas fa-check-circle"></i> 
+                                本日の業務フローが全て完了しています！お疲れ様でした。
+                            </p>
+                        <?php endif; ?>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <?php if ($progress_percent === 100): ?>
+                            <div class="text-success">
+                                <i class="fas fa-trophy fa-3x mb-2"></i>
+                                <div><strong>業務完了</strong></div>
+                            </div>
+                        <?php else: ?>
+                            <div class="text-primary">
+                                <i class="fas fa-tasks fa-3x mb-2"></i>
+                                <div><strong><?= 7 - $completed_count ?> 件残り</strong></div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 今日の全体状況 -->
+        <div class="section-header mb-4">
+            <h3 class="section-title">
+                <i class="fas fa-chart-line text-primary me-2"></i>
+                今日の全体状況
+            </h3>
+            <p class="section-description"><?= date('Y年n月j日 (D)', strtotime($today)) ?> <?= $current_time ?> 現在</p>
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <i class="fas fa-user-tie fa-2x text-secondary mb-3"></i>
+                        <h5><?= $today_active_drivers ?> 人</h5>
+                        <p class="card-text">稼働運転者</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <i class="fas fa-users fa-2x text-success mb-3"></i>
+                        <h5><?= $today_total_rides ?> 回</h5>
+                        <p class="card-text">総乗車回数</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <i class="fas fa-exclamation-triangle fa-2x <?= ($today_departures - $today_arrivals > 0) ? 'text-danger' : 'text-success' ?> mb-3"></i>
+                        <h5><?= ($today_departures - $today_arrivals) ?> 台</h5>
+                        <p class="card-text">未入庫車両</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <i class="fas fa-yen-sign fa-2x text-success mb-3"></i>
+                        <h5>¥<?= number_format($today_total_revenue) ?></h5>
+                        <p class="card-text">本日売上</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 管理機能（権限別表示） -->
+        <?php if ($is_admin): ?>
+        <div class="section-header mb-4">
+            <h3 class="section-title">
+                <i class="fas fa-cogs text-secondary me-2"></i>
+                管理機能
+            </h3>
+            <p class="section-description">システム管理者専用機能</p>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-3 mb-3">
+                <a href="master_menu.php" class="card h-100 text-decoration-none">
+                    <div class="card-body text-center">
+                        <i class="fas fa-database fa-2x mb-3 text-secondary"></i>
+                        <h6 class="card-title">マスタ管理</h6>
+                        <p class="card-text small text-muted">ユーザー・車両管理</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-3 mb-3">
+                <a href="annual_report.php" class="card h-100 text-decoration-none">
+                    <div class="card-body text-center">
+                        <i class="fas fa-file-alt fa-2x mb-3 text-info"></i>
+                        <h6 class="card-title">陸運局報告</h6>
+                        <p class="card-text small text-muted">年次報告書作成</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-3 mb-3">
+                <a href="accident_management.php" class="card h-100 text-decoration-none">
+                    <div class="card-body text-center">
+                        <i class="fas fa-exclamation-circle fa-2x mb-3 text-warning"></i>
+                        <h6 class="card-title">事故管理</h6>
+                        <p class="card-text small text-muted">事故記録・報告</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-3 mb-3">
+                <a href="export_document.php" class="card h-100 text-decoration-none">
+                    <div class="card-body text-center">
+                        <i class="fas fa-download fa-2x mb-3 text-success"></i>
+                        <h6
