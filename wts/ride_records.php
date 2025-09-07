@@ -231,12 +231,12 @@ $summary_stmt = $pdo->prepare($summary_sql);
 $summary_stmt->execute($params);
 $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
 
-// 輸送分類別集計 - 料金システム統一仕様に準拠
+-- 現在エラーになっているSQL（244行目付近）
 $category_sql = "SELECT 
-    r.transport_category,
+    r.transport_category,  -- ← 正しいカラム名
     COUNT(*) as count,
     SUM(r.passenger_count) as passengers,
-    COALESCE(SUM(r.total_fare), SUM(r.fare + COALESCE(r.charge, 0))) as revenue
+    SUM(r.fare + r.charge) as revenue
     FROM ride_records r 
     WHERE " . implode(' AND ', $where_conditions) . "
     GROUP BY r.transport_category 
