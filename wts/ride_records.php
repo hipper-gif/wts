@@ -231,7 +231,7 @@ $summary_stmt = $pdo->prepare($summary_sql);
 $summary_stmt->execute($params);
 $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
 
--- 現在エラーになっているSQL（244行目付近）
+// 現在エラーになっているSQL（244行目付近）
 $category_sql = "SELECT 
     r.transport_category,
     COUNT(*) as count,
