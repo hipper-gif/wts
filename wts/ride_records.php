@@ -233,7 +233,7 @@ $summary = $summary_stmt->fetch(PDO::FETCH_ASSOC);
 
 -- 現在エラーになっているSQL（244行目付近）
 $category_sql = "SELECT 
-    r.transport_category,  -- ← 正しいカラム名
+    r.transport_category,
     COUNT(*) as count,
     SUM(r.passenger_count) as passengers,
     SUM(r.fare + r.charge) as revenue
