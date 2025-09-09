@@ -1,9 +1,9 @@
 <?php
 /**
- * 福祉輸送管理システム - 改良版統一ヘッダー関数
+ * 福祉輸送管理システム - 改良版統一ヘッダー関数 + PWA対応
  * 
- * 最終更新: 2025年9月1日
- * 改良点: ダッシュボード戻りナビゲーション・モダンなデザイン・UX向上
+ * 最終更新: 2025年9月9日
+ * 改良点: ダッシュボード戻りナビゲーション・モダンなデザイン・UX向上・PWA対応
  * 
  * 使用方法:
  * require_once 'includes/header.php';
@@ -432,14 +432,14 @@ function renderModal($id, $title, $content, $buttons = [], $size = '') {
 }
 
 /**
- * 完全なHTMLページヘッダーを生成（head部分含む）
+ * 完全なHTMLページヘッダーを生成（head部分含む）+ PWA対応
  * 
  * @param string $page_title ページタイトル
  * @param array $options オプション設定
  * @return string HTML
  */
 function renderHTMLHead($page_title, $options = []) {
-    $description = $options['description'] ?? '福祉輸送管理システム';
+    $description = $options['description'] ?? '福祉輸送管理システム - 7段階業務フロー対応PWAアプリ';
     $additional_css = $options['additional_css'] ?? [];
     $additional_js = $options['additional_js'] ?? [];
     
@@ -458,21 +458,306 @@ function renderHTMLHead($page_title, $options = []) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <!-- 統一ヘッダーCSS -->
-    <link rel="stylesheet" href="css/header-unified.css">';
+    <link rel="stylesheet" href="css/header-unified.css">
+    
+    <!-- ========== PWA設定 v3.1 ========== -->
+    
+    <!-- Web App Manifest -->
+    <link rel="manifest" href="/Smiley/taxi/wts/manifest.json">
+
+    <!-- テーマカラー -->
+    <meta name="theme-color" content="#2196F3">
+    <meta name="msapplication-TileColor" content="#2196F3">
+
+    <!-- iOS Safari対応 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="福祉輸送管理システム">
+    <link rel="apple-touch-icon" href="/Smiley/taxi/wts/icons/apple-touch-icon.png">
+
+    <!-- Android Chrome対応 -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="WTS">
+
+    <!-- 基本favicon設定 -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/Smiley/taxi/wts/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/Smiley/taxi/wts/icons/favicon-16x16.png">
+
+    <!-- SEO・SNS対応 -->
+    <meta name="keywords" content="福祉輸送,タクシー,業務管理,PWA,オフライン,法令遵守,7段階フロー">
+
+    <!-- Open Graph（SNS共有用） -->
+    <meta property="og:title" content="' . htmlspecialchars($page_title) . ' - 福祉輸送管理システム v3.1">
+    <meta property="og:description" content="' . htmlspecialchars($description) . '">
+    <meta property="og:image" content="https://twinklemark.xsrv.jp/Smiley/taxi/wts/icons/icon-512x512.png">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://twinklemark.xsrv.jp/Smiley/taxi/wts/">
+
+    <!-- PWA初期化JavaScript -->
+    <script>
+    // PWA Service Worker 登録
+    if ("serviceWorker" in navigator) {
+        window.addEventListener("load", function() {
+            navigator.serviceWorker.register("/Smiley/taxi/wts/sw.js")
+                .then(function(registration) {
+                    console.log("✅ Service Worker 登録成功:", registration.scope);
+                })
+                .catch(function(error) {
+                    console.log("❌ Service Worker 登録失敗 (Day2で実装予定):", error);
+                });
+        });
+    }
+
+    // PWAインストールプロンプト管理
+    let deferredPrompt;
+
+    window.addEventListener("beforeinstallprompt", (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        console.log("📱 PWAインストール可能");
+        
+        // インストールボタンの表示制御
+        const installButton = document.getElementById("pwa-install-btn");
+        if (installButton) {
+            installButton.style.display = "block";
+            installButton.addEventListener("click", installPWA);
+        }
+    });
+
+    window.addEventListener("appinstalled", () => {
+        console.log("🎉 PWA インストール完了");
+        deferredPrompt = null;
+        
+        // インストールボタンを隠す
+        const installButton = document.getElementById("pwa-install-btn");
+        if (installButton) {
+            installButton.style.display = "none";
+        }
+        
+        // 成功メッセージ表示
+        showPWANotification("アプリがホーム画面に追加されました！", "success");
+    });
+
+    // PWAインストール実行
+    function installPWA() {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === "accepted") {
+                    console.log("✅ PWAインストール: 承認");
+                } else {
+                    console.log("❌ PWAインストール: 拒否");
+                }
+                deferredPrompt = null;
+            });
+        }
+    }
+
+    // PWA通知表示
+    function showPWANotification(message, type = "info") {
+        const notification = document.createElement("div");
+        notification.className = `pwa-notification ${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <span class="notification-message">${message}</span>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // 5秒後に自動削除
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 5000);
+    }
+
+    // オフライン状態監視
+    window.addEventListener("online", () => {
+        document.body.classList.remove("offline-mode");
+        console.log("🌐 オンライン復旧");
+        showPWANotification("インターネット接続が復旧しました", "success");
+    });
+
+    window.addEventListener("offline", () => {
+        document.body.classList.add("offline-mode");
+        console.log("📡 オフライン状態");
+        showPWANotification("オフラインモードで動作中", "warning");
+    });
+
+    // PWA表示モード判定
+    window.addEventListener("load", () => {
+        // スタンドアローンモード（PWAアプリとして起動）の場合
+        if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true) {
+            document.body.classList.add("pwa-mode");
+            console.log("📱 PWAモードで起動");
+        }
+    });
+    </script>
+
+    <!-- PWA専用CSS -->
+    <style>
+    /* PWA通知システム */
+    .pwa-notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        max-width: 300px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        color: white;
+        font-size: 0.9rem;
+        z-index: 9998;
+        animation: slideInRight 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    .pwa-notification.success {
+        background: linear-gradient(135deg, #4CAF50, #45a049);
+    }
+
+    .pwa-notification.warning {
+        background: linear-gradient(135deg, #FF9800, #F57C00);
+    }
+
+    .pwa-notification.info {
+        background: linear-gradient(135deg, #2196F3, #1976D2);
+    }
+
+    .notification-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .notification-close {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+        padding: 0;
+        opacity: 0.8;
+    }
+
+    .notification-close:hover {
+        opacity: 1;
+    }
+
+    /* PWAインストールボタン */
+    #pwa-install-btn {
+        display: none;
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #2196F3, #1976D2);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 50px;
+        font-weight: 600;
+        box-shadow: 0 4px 20px rgba(33, 150, 243, 0.4);
+        cursor: pointer;
+        z-index: 9999;
+        transition: all 0.3s ease;
+    }
+
+    #pwa-install-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 25px rgba(33, 150, 243, 0.5);
+    }
+
+    /* オフラインモード表示 */
+    .offline-mode {
+        filter: grayscale(0.3);
+    }
+
+    .offline-mode::before {
+        content: "📡 オフライン";
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: #f44336;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        z-index: 9999;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    /* PWAモード表示 */
+    .pwa-mode::after {
+        content: "📱 PWA";
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        background: #4CAF50;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        z-index: 9999;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    /* アニメーション */
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    /* レスポンシブ対応 */
+    @media (max-width: 768px) {
+        .pwa-notification {
+            top: 10px;
+            right: 10px;
+            left: 10px;
+            max-width: none;
+        }
+        
+        #pwa-install-btn {
+            bottom: 10px;
+            right: 10px;
+            left: 10px;
+            border-radius: 12px;
+        }
+    }
+    </style>
+    
+    <!-- ========== PWA設定終了 ========== -->';
     
     // 追加CSS
     foreach ($additional_css as $css) {
-        $html .= '<link rel="stylesheet" href="' . htmlspecialchars($css) . '">';
+        $html .= '
+    <link rel="stylesheet" href="' . htmlspecialchars($css) . '">';
     }
     
-    $html .= '</head>
-<body class="fade-in-up">';
+    $html .= '
+</head>
+<body class="fade-in-up">
+    
+    <!-- PWAインストールボタン -->
+    <button id="pwa-install-btn">
+        <i class="fas fa-download"></i> アプリをインストール
+    </button>';
     
     return $html;
 }
 
 /**
- * HTMLフッターを生成（JavaScriptファイル含む）
+ * HTMLフッターを生成（JavaScriptファイル含む）+ PWA対応
  * 
  * @param array $options オプション設定
  * @return string HTML
@@ -486,11 +771,12 @@ function renderHTMLFooter($options = []) {
     
     // 追加JavaScript
     foreach ($additional_js as $js) {
-        $html .= '<script src="' . htmlspecialchars($js) . '"></script>';
+        $html .= '
+    <script src="' . htmlspecialchars($js) . '"></script>';
     }
     
     $html .= '
-    <!-- 共通JavaScript -->
+    <!-- 共通JavaScript + PWA機能 -->
     <script>
         // ツールチップ初期化
         var tooltipTriggerList = [].slice.call(document.querySelectorAll(\'[data-bs-toggle="tooltip"]\'));
@@ -511,6 +797,21 @@ function renderHTMLFooter($options = []) {
         document.addEventListener(\'DOMContentLoaded\', function() {
             document.body.classList.add(\'fade-in-up\');
         });
+        
+        // PWA関連の初期化処理
+        document.addEventListener(\'DOMContentLoaded\', function() {
+            // PWA状態をコンソールに表示
+            if (window.matchMedia(\'(display-mode: standalone)\').matches) {
+                console.log(\'🎉 PWAとして起動中\');
+            }
+            
+            // Service Worker状態確認
+            if (\'serviceWorker\' in navigator) {
+                navigator.serviceWorker.ready.then(function(registration) {
+                    console.log(\'✅ Service Worker 準備完了:\', registration.scope);
+                });
+            }
+        });
     </script>
 </body>
 </html>';
@@ -519,38 +820,151 @@ function renderHTMLFooter($options = []) {
 }
 
 /**
- * 使用例・サンプル実装
+ * PWA専用ヘルパー関数 - インストールボタンを表示
+ * 
+ * @param string $text ボタンテキスト
+ * @param string $position 位置（fixed, inline）
+ * @return string HTML
+ */
+function renderPWAInstallButton($text = 'アプリをインストール', $position = 'fixed') {
+    $position_class = $position === 'inline' ? 'btn btn-primary' : '';
+    $position_id = $position === 'fixed' ? 'pwa-install-btn' : 'pwa-install-btn-inline';
+    
+    return '<button id="' . $position_id . '" class="' . $position_class . '" style="display: none;">
+        <i class="fas fa-download"></i> ' . htmlspecialchars($text) . '
+    </button>';
+}
+
+/**
+ * PWA状態チェック関数
+ * 
+ * @return array PWA状態情報
+ */
+function getPWAStatus() {
+    $manifest_exists = file_exists($_SERVER['DOCUMENT_ROOT'] . '/Smiley/taxi/wts/manifest.json');
+    $sw_exists = file_exists($_SERVER['DOCUMENT_ROOT'] . '/Smiley/taxi/wts/sw.js');
+    $icons_dir_exists = is_dir($_SERVER['DOCUMENT_ROOT'] . '/Smiley/taxi/wts/icons/');
+    
+    return [
+        'manifest_exists' => $manifest_exists,
+        'service_worker_exists' => $sw_exists,
+        'icons_dir_exists' => $icons_dir_exists,
+        'pwa_ready' => $manifest_exists && $icons_dir_exists,
+        'fully_ready' => $manifest_exists && $sw_exists && $icons_dir_exists
+    ];
+}
+
+/**
+ * PWA機能付きページを生成するためのショートカット関数
+ * 
+ * @param string $page_title ページタイトル
+ * @param string $user_name ユーザー名
+ * @param string $user_role ユーザー権限
+ * @param string $current_page 現在のページ
+ * @param array $options オプション設定
+ * @return array [html_head, system_header] のHTML文字列
+ */
+function renderPWAPage($page_title, $user_name, $user_role, $current_page = '', $options = []) {
+    $html_head = renderHTMLHead($page_title, $options);
+    $system_header = renderSystemHeader($user_name, $user_role, $current_page);
+    
+    return [
+        'html_head' => $html_head,
+        'system_header' => $system_header
+    ];
+}
+
+/**
+ * 使用例・サンプル実装（PWA対応版）
  */
 function renderSampleUsage() {
     return '
-    <!-- 使用例 -->
+    <!-- PWA対応版使用例 -->
     <?php
     require_once "includes/header.php";
     
-    // HTMLヘッダー出力
+    // PWA機能付きHTMLヘッダー出力
     echo renderHTMLHead("日常点検", [
-        "description" => "車両の日常点検を行います"
+        "description" => "車両の日常点検を行います - PWAアプリ対応"
     ]);
     
-    // システムヘッダー（ダッシュボード戻りリンク付き）
+    // システムヘッダー
     echo renderSystemHeader($_SESSION["user_name"], $_SESSION["user_role"], "inspection");
     
     // ページヘッダー
     echo renderPageHeader("tools", "日常点検", "車両の安全確認");
     
-    // 統計カード表示
-    $stats = [
-        ["value" => "5", "label" => "今日の点検", "icon" => "check-circle", "color" => "success"],
-        ["value" => "2", "label" => "要注意", "icon" => "exclamation-triangle", "color" => "warning"]
-    ];
-    echo renderStatsCards($stats);
+    // PWA状態確認
+    $pwa_status = getPWAStatus();
+    if (!$pwa_status["pwa_ready"]) {
+        echo renderAlert("warning", "PWA準備中", "アプリ機能の準備中です");
+    }
     
-    // アラート表示
-    echo renderAlert("info", "重要なお知らせ", "定期点検の実施をお忘れなく");
+    // インライン型インストールボタン（オプション）
+    echo renderPWAInstallButton("ホーム画面に追加", "inline");
     
-    // HTMLフッター
+    // メインコンテンツ...
+    
+    // HTMLフッター（PWA対応）
     echo renderHTMLFooter();
     ?>
     ';
+}
+
+/**
+ * PWA診断情報を表示する関数
+ * 
+ * @return string HTML
+ */
+function renderPWADiagnostics() {
+    $status = getPWAStatus();
+    
+    $html = '<div class="card mb-4">
+        <div class="card-header">
+            <h5><i class="fas fa-mobile-alt"></i> PWA状態診断</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">';
+    
+    $checks = [
+        'manifest_exists' => ['ファイル', 'manifest.json', $status['manifest_exists']],
+        'service_worker_exists' => ['ファイル', 'sw.js（Day 2実装予定）', $status['service_worker_exists']],
+        'icons_dir_exists' => ['ディレクトリ', 'icons/', $status['icons_dir_exists']],
+        'pwa_ready' => ['PWA基本', '基本機能', $status['pwa_ready']],
+        'fully_ready' => ['PWA完全', 'フル機能', $status['fully_ready']]
+    ];
+    
+    foreach ($checks as $key => $check) {
+        $icon = $check[2] ? 'check-circle text-success' : 'times-circle text-danger';
+        $status_text = $check[2] ? '正常' : '未実装';
+        
+        $html .= '<div class="col-md-6 mb-3">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-' . $icon . ' me-2"></i>
+                <div>
+                    <strong>' . $check[0] . '</strong><br>
+                    <small class="text-muted">' . $check[1] . ': ' . $status_text . '</small>
+                </div>
+            </div>
+        </div>';
+    }
+    
+    $html .= '</div>';
+    
+    if ($status['pwa_ready']) {
+        $html .= '<div class="alert alert-success">
+            <i class="fas fa-check-circle"></i>
+            PWA基本機能が利用可能です！
+        </div>';
+    } else {
+        $html .= '<div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            PWA機能の準備中です
+        </div>';
+    }
+    
+    $html .= '</div></div>';
+    
+    return $html;
 }
 ?>
