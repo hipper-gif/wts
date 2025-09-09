@@ -1,11 +1,11 @@
 {
   "name": "福祉輸送管理システム",
   "short_name": "WTS",
-  "description": "スマイリーケアタクシーの7段階業務管理アプリ",
+  "description": "スマイリーケアタクシーの7段階業務管理システム",
   "start_url": "/Smiley/taxi/wts/?utm_source=pwa",
   "scope": "/Smiley/taxi/wts/",
   "display": "standalone",
-  "orientation": "portrait-primary", 
+  "orientation": "portrait-primary",
   "theme_color": "#2196F3",
   "background_color": "#FFFFFF",
   "lang": "ja",
@@ -13,44 +13,26 @@
   
   "icons": [
     {
-      "src": "icons/icon-72x72.png",
-      "sizes": "72x72",
+      "src": "icons/favicon-16x16.png",
+      "sizes": "16x16",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
-      "src": "icons/icon-96x96.png",
-      "sizes": "96x96", 
+      "src": "icons/favicon-32x32.png",
+      "sizes": "32x32",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
-      "src": "icons/icon-128x128.png",
-      "sizes": "128x128",
-      "type": "image/png", 
-      "purpose": "maskable any"
-    },
-    {
-      "src": "icons/icon-144x144.png",
-      "sizes": "144x144",
+      "src": "icons/apple-touch-icon.png",
+      "sizes": "180x180",
       "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "icons/icon-152x152.png",
-      "sizes": "152x152",
-      "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
       "src": "icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "icons/icon-384x384.png",
-      "sizes": "384x384",
       "type": "image/png",
       "purpose": "maskable any"
     },
@@ -62,65 +44,44 @@
     }
   ],
   
-  "screenshots": [
-    {
-      "src": "screenshots/desktop-dashboard.png",
-      "sizes": "1280x720", 
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "7段階業務フローダッシュボード"
-    },
-    {
-      "src": "screenshots/mobile-cash-management.png",
-      "sizes": "390x844",
-      "type": "image/png", 
-      "form_factor": "narrow",
-      "label": "売上金確認画面"
-    }
-  ],
-  
   "shortcuts": [
     {
       "name": "日常点検",
       "short_name": "点検",
-      "description": "日常点検を開始（フロー第1段階）",
+      "description": "日常点検を開始",
       "url": "/Smiley/taxi/wts/daily_inspection.php",
       "icons": [
         {
-          "src": "icons/shortcut-inspection.png",
+          "src": "icons/icon-192x192.png",
           "sizes": "192x192"
         }
       ]
     },
     {
-      "name": "乗車記録", 
+      "name": "乗車記録",
       "short_name": "乗車記録",
-      "description": "新しい乗車記録を追加（フロー第4段階）",
+      "description": "新しい乗車記録を追加",
       "url": "/Smiley/taxi/wts/ride_records.php?action=new",
       "icons": [
         {
-          "src": "icons/shortcut-ride.png",
+          "src": "icons/icon-192x192.png",
           "sizes": "192x192"
         }
       ]
     },
     {
       "name": "売上金確認",
-      "short_name": "売上確認", 
-      "description": "売上金確認を実施（フロー第7段階）",
-      "url": "/Smiley/taxi/wts/cash_management.php?action=new",
+      "short_name": "売上確認",
+      "description": "売上金確認を実施",
+      "url": "/Smiley/taxi/wts/cash_management.php",
       "icons": [
         {
-          "src": "icons/shortcut-cash.png",
+          "src": "icons/icon-192x192.png",
           "sizes": "192x192"
         }
       ]
     }
   ],
 
-  "categories": ["business", "productivity", "utilities"],
-  "iarc_rating_id": "",
-  
-  "prefer_related_applications": false,
-  "related_applications": []
+  "categories": ["business", "productivity", "utilities"]
 }
