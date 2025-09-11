@@ -16,7 +16,6 @@ $current_time = date('H:i');
 
 $success_message = '';
 $error_message = '';
-$is_edit_mode = false;
 
 // ドライバーと点呼者の取得
 try {
@@ -45,80 +44,77 @@ try {
 
 // 今日の点呼記録があるかチェック
 $existing_call = null;
-$selected_driver_id = null;
+$default_driver_id = null;
 
-if ($_GET['driver_id'] ?? null) {
-    $selected_driver_id = $_GET['driver_id'];
+// URLパラメータから運転者指定がある場合
+if (isset($_GET['driver_id']) && !empty($_GET['driver_id'])) {
+    $default_driver_id = $_GET['driver_id'];
 } elseif ($is_current_user_driver) {
-    // ログインユーザーが運転者の場合はデフォルト選択
-    $selected_driver_id = $user_id;
+    // ログインユーザーが運転者の場合、デフォルト選択
+    $default_driver_id = $user_id;
 }
 
-if ($selected_driver_id) {
+if ($default_driver_id) {
     $stmt = $pdo->prepare("SELECT * FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
-    $stmt->execute([$selected_driver_id, $today]);
+    $stmt->execute([$default_driver_id, $today]);
     $existing_call = $stmt->fetch();
-    $is_edit_mode = (bool)$existing_call;
 }
 
-// 修正・削除処理
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    if ($_POST['action'] === 'delete') {
-        try {
-            $stmt = $pdo->prepare("DELETE FROM pre_duty_calls WHERE driver_id = ? AND call_date = ?");
-            $stmt->execute([$_POST['driver_id'], $today]);
-            $success_message = '乗務前点呼記録を削除しました。';
-            $existing_call = null;
-            $is_edit_mode = false;
-        } catch (Exception $e) {
-            $error_message = '削除中にエラーが発生しました: ' . $e->getMessage();
-            error_log("Pre duty call delete error: " . $e->getMessage());
-        }
-    }
-}
+// 修正モードかどうかの判定
+$is_edit_mode = (bool)$existing_call;
 
-// フォーム送信処理（登録・更新）
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
+// フォーム送信処理
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $driver_id = $_POST['driver_id'];
     $call_time = $_POST['call_time'];
 
-    // 使用予定車両を取得（前回使用車両から推定）
-    $stmt = $pdo->prepare("
-        SELECT v.id 
-        FROM vehicles v 
-        WHERE v.is_active = TRUE 
-        AND v.id = (
-            SELECT ar.vehicle_id 
-            FROM arrival_records ar 
-            WHERE ar.driver_id = ? 
-            ORDER BY ar.arrival_date DESC 
-            LIMIT 1
-        )
-    ");
-    $stmt->execute([$driver_id]);
-    $vehicle_record = $stmt->fetch();
-
-    if (!$vehicle_record) {
-        // デフォルト車両を使用
-        $stmt = $pdo->prepare("SELECT id FROM vehicles WHERE is_active = TRUE ORDER BY vehicle_number LIMIT 1");
-        $stmt->execute();
+    try {
+        // 使用予定車両を取得（前回使用車両から推定）
+        $stmt = $pdo->prepare("
+            SELECT v.id 
+            FROM vehicles v 
+            WHERE v.is_active = TRUE 
+            AND v.id = (
+                SELECT ar.vehicle_id 
+                FROM arrival_records ar 
+                WHERE ar.driver_id = ? 
+                ORDER BY ar.arrival_date DESC 
+                LIMIT 1
+            )
+        ");
+        $stmt->execute([$driver_id]);
         $vehicle_record = $stmt->fetch();
-    }
 
-    if (!$vehicle_record) {
-        $error_message = '使用可能な車両が見つかりません。車両管理画面で車両を登録してください。';
-    } else {
+        if (!$vehicle_record) {
+            // デフォルト車両を使用
+            $stmt = $pdo->prepare("SELECT id FROM vehicles WHERE is_active = TRUE ORDER BY vehicle_number LIMIT 1");
+            $stmt->execute();
+            $vehicle_record = $stmt->fetch();
+        }
+
+        if (!$vehicle_record) {
+            throw new Exception('使用可能な車両が見つかりません。車両管理画面で車両を登録してください。');
+        }
+
         $vehicle_id = $vehicle_record['id'];
 
         // 点呼者名の処理
         $caller_name = $_POST['caller_name'];
         if ($caller_name === 'その他') {
             $caller_name = $_POST['other_caller'];
+            if (empty(trim($caller_name))) {
+                throw new Exception('点呼者名を入力してください。');
+            }
         }
 
         $alcohol_check_value = $_POST['alcohol_check_value'];
 
-        // 16項目確認事項のチェック
+        // アルコール値の検証
+        if (!is_numeric($alcohol_check_value) || $alcohol_check_value < 0 || $alcohol_check_value > 1) {
+            throw new Exception('アルコール測定値は0.000-1.000の範囲で入力してください。');
+        }
+
+        // 確認事項のチェック
         $check_items = [
             'health_check', 'clothing_check', 'footwear_check', 'pre_inspection_check',
             'license_check', 'vehicle_registration_check', 'insurance_check', 'emergency_tools_check',
@@ -126,76 +122,146 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             'crew_id_check', 'operation_record_check', 'receipt_check', 'stop_sign_check'
         ];
 
-        try {
-            // 既存レコードの確認（車両IDは使わず、運転者と日付のみで検索）
-            $stmt = $pdo->prepare("SELECT id FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
-            $stmt->execute([$driver_id, $today]);
-            $existing = $stmt->fetch();
+        // 既存レコードの確認
+        $stmt = $pdo->prepare("SELECT id FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
+        $stmt->execute([$driver_id, $today]);
+        $existing = $stmt->fetch();
 
-            if ($existing) {
-                // 更新
-                $sql = "UPDATE pre_duty_calls SET 
+        if ($existing) {
+            // 更新
+            $sql = "UPDATE pre_duty_calls SET 
                         call_time = ?, caller_name = ?, alcohol_check_value = ?, alcohol_check_time = ?,";
 
-                foreach ($check_items as $item) {
-                    $sql .= " $item = ?,";
-                }
+            foreach ($check_items as $item) {
+                $sql .= " $item = ?,";
+            }
 
-                $sql .= " remarks = ?, is_completed = TRUE, updated_at = NOW() 
+            $sql .= " remarks = ?, is_completed = TRUE, updated_at = NOW() 
                         WHERE driver_id = ? AND call_date = ?";
 
-                $stmt = $pdo->prepare($sql);
-                $params = [$call_time, $caller_name, $alcohol_check_value, $call_time];
+            $stmt = $pdo->prepare($sql);
+            $params = [$call_time, $caller_name, $alcohol_check_value, $call_time];
 
-                foreach ($check_items as $item) {
-                    $params[] = isset($_POST[$item]) ? 1 : 0;
-                }
+            foreach ($check_items as $item) {
+                $params[] = isset($_POST[$item]) ? 1 : 0;
+            }
 
-                $params[] = $_POST['remarks'] ?? '';
-                $params[] = $driver_id;
-                $params[] = $today;
+            $params[] = $_POST['remarks'] ?? '';
+            $params[] = $driver_id;
+            $params[] = $today;
 
-                $stmt->execute($params);
-                $success_message = '乗務前点呼記録を更新しました。';
-            } else {
-                // 新規挿入
-                $sql = "INSERT INTO pre_duty_calls (
+            $stmt->execute($params);
+            $success_message = '乗務前点呼記録を更新しました。';
+        } else {
+            // 新規挿入
+            $sql = "INSERT INTO pre_duty_calls (
                         driver_id, vehicle_id, call_date, call_time, caller_name, 
                         alcohol_check_value, alcohol_check_time,";
 
-                foreach ($check_items as $item) {
-                    $sql .= " $item,";
-                }
-
-                $sql .= " remarks, is_completed) VALUES (?, ?, ?, ?, ?, ?, ?,";
-
-                $sql .= str_repeat('?,', count($check_items));
-                $sql .= " ?, TRUE)";
-
-                $stmt = $pdo->prepare($sql);
-                $params = [$driver_id, $vehicle_id, $today, $call_time, $caller_name, $alcohol_check_value, $call_time];
-
-                foreach ($check_items as $item) {
-                    $params[] = isset($_POST[$item]) ? 1 : 0;
-                }
-
-                $params[] = $_POST['remarks'] ?? '';
-
-                $stmt->execute($params);
-                $success_message = '乗務前点呼記録を登録しました。';
+            foreach ($check_items as $item) {
+                $sql .= " $item,";
             }
 
-            // 記録を再取得
-            $stmt = $pdo->prepare("SELECT * FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
-            $stmt->execute([$driver_id, $today]);
-            $existing_call = $stmt->fetch();
-            $is_edit_mode = true;
+            $sql .= " remarks, is_completed) VALUES (?, ?, ?, ?, ?, ?, ?,";
 
-        } catch (Exception $e) {
-            $error_message = '記録の保存中にエラーが発生しました: ' . $e->getMessage();
-            error_log("Pre duty call error: " . $e->getMessage());
+            $sql .= str_repeat('?,', count($check_items));
+            $sql .= " ?, TRUE)";
+
+            $stmt = $pdo->prepare($sql);
+            $params = [$driver_id, $vehicle_id, $today, $call_time, $caller_name, $alcohol_check_value, $call_time];
+
+            foreach ($check_items as $item) {
+                $params[] = isset($_POST[$item]) ? 1 : 0;
+            }
+
+            $params[] = $_POST['remarks'] ?? '';
+
+            $stmt->execute($params);
+            $success_message = '乗務前点呼記録を登録しました。';
         }
+
+        // 記録を再取得
+        $stmt = $pdo->prepare("SELECT * FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
+        $stmt->execute([$driver_id, $today]);
+        $existing_call = $stmt->fetch();
+        $is_edit_mode = true;
+
+    } catch (Exception $e) {
+        $error_message = '記録の保存中にエラーが発生しました: ' . $e->getMessage();
+        error_log("Pre duty call error: " . $e->getMessage());
     }
+}
+
+// 統一ヘッダー用の設定
+$page_config = [
+    'title' => '乗務前点呼',
+    'icon' => 'clipboard-check',
+    'category' => '日次業務',
+    'step' => 2,
+    'max_steps' => 7,
+    'description' => '16項目の安全確認とアルコールチェック'
+];
+
+// 統一ヘッダーの読み込み
+function renderPageHeader($config) {
+    return '<div class="unified-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col">
+                    <div class="header-content">
+                        <div class="header-icon">
+                            <i class="fas fa-' . $config['icon'] . '"></i>
+                        </div>
+                        <div class="header-text">
+                            <h1 class="header-title">' . $config['title'] . '</h1>
+                            <div class="header-subtitle">
+                                <span class="badge bg-primary me-2">' . $config['category'] . '</span>
+                                <span class="text-muted">ステップ ' . $config['step'] . '/' . $config['max_steps'] . '</span>
+                            </div>
+                            <p class="header-description">' . $config['description'] . '</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <div class="header-actions">
+                        <a href="dashboard.php" class="btn btn-outline-light">
+                            <i class="fas fa-arrow-left me-1"></i>ダッシュボード
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>';
+}
+
+function renderSectionHeader($icon, $title, $subtitle = '', $actions = []) {
+    $html = '<div class="section-header">
+        <div class="section-title-group">
+            <div class="section-icon">
+                <i class="fas fa-' . $icon . '"></i>
+            </div>
+            <div class="section-text">
+                <h5 class="section-title">' . $title . '</h5>';
+    
+    if ($subtitle) {
+        $html .= '<div class="section-subtitle">' . $subtitle . '</div>';
+    }
+    
+    $html .= '</div>
+        </div>';
+    
+    if (!empty($actions)) {
+        $html .= '<div class="section-actions">';
+        foreach ($actions as $action) {
+            $html .= '<a href="' . $action['url'] . '" class="btn ' . $action['class'] . '">
+                <i class="fas fa-' . $action['icon'] . ' me-1"></i>' . $action['text'] . '
+            </a>';
+        }
+        $html .= '</div>';
+    }
+    
+    $html .= '</div>';
+    return $html;
 }
 ?>
 <!DOCTYPE html>
@@ -206,76 +272,152 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     <title>乗務前点呼 - 福祉輸送管理システム</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
-    <!-- PWA対応メタタグ -->
-    <link rel="manifest" href="/Smiley/taxi/wts/manifest.json">
-    <meta name="theme-color" content="#2196F3">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="WTS v3.1">
-    <link rel="apple-touch-icon" href="/Smiley/taxi/wts/icons/icon-192x192.png">
-    
     <style>
+        :root {
+            --primary-color: #667eea;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --light-bg: #f8f9fa;
+        }
+
         body {
-            background-color: #f8f9fa;
+            background-color: var(--light-bg);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
-        .form-card {
+        /* 統一ヘッダースタイル */
+        .unified-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .header-icon {
+            width: 60px;
+            height: 60px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .header-title {
+            margin: 0;
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        .header-subtitle {
+            margin: 0.5rem 0;
+        }
+
+        .header-description {
+            margin: 0;
+            opacity: 0.9;
+        }
+
+        /* セクションヘッダー */
+        .section-header {
+            background: white;
+            border-radius: 15px 15px 0 0;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .section-title-group {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .section-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .section-title {
+            margin: 0;
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .section-subtitle {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .section-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        /* カードスタイル */
+        .card {
             background: white;
             border-radius: 15px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border: none;
             margin-bottom: 2rem;
         }
 
-        .form-card-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 1rem 1.5rem;
-            border-radius: 15px 15px 0 0;
-            margin: 0;
-        }
-
-        .form-card-body {
+        .card-body {
             padding: 1.5rem;
         }
 
-        .check-item {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 0.75rem;
-            margin-bottom: 0.5rem;
-            transition: all 0.2s ease;
+        /* チェック項目スタイル */
+        .check-item-clickable {
             cursor: pointer;
+            transition: all 0.2s ease;
         }
 
-        .check-item:hover {
-            background: #e3f2fd;
-            border-color: #2196f3;
+        .check-item-clickable:hover {
+            background-color: #e3f2fd !important;
+            border-color: #2196f3 !important;
         }
 
-        .check-item.checked {
-            background: #e8f5e8;
-            border-color: #28a745;
+        .check-item-clickable.checked {
+            background-color: #e8f5e8 !important;
+            border-color: var(--success-color) !important;
         }
 
         .form-check-input:checked {
-            background-color: #28a745;
-            border-color: #28a745;
+            background-color: var(--success-color);
+            border-color: var(--success-color);
         }
 
+        /* アルコール入力 */
         .alcohol-input {
             max-width: 150px;
         }
 
+        /* ボタンスタイル */
         .btn-save {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            background: linear-gradient(135deg, var(--success-color) 0%, #20c997 100%);
             border: none;
             color: white;
             padding: 0.75rem 2rem;
             border-radius: 25px;
             font-weight: 600;
+            font-size: 1.1rem;
         }
 
         .btn-save:hover {
@@ -285,104 +427,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         }
 
         .btn-edit {
-            background: linear-gradient(135deg, #ffc107 0%, #ffb300 100%);
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
             border: none;
-            color: #212529;
-            padding: 0.5rem 1.5rem;
-            border-radius: 20px;
-            font-weight: 600;
-        }
-
-        .btn-delete {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-            border: none;
-            color: white;
-            padding: 0.5rem 1.5rem;
-            border-radius: 20px;
-            font-weight: 600;
-        }
-
-        .required-mark {
-            color: #dc3545;
-        }
-
-        .next-step-banner {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-            padding: 1rem;
-            border-radius: 10px;
-            margin-bottom: 1.5rem;
-            text-align: center;
-        }
-
-        .next-step-banner .btn {
-            background: rgba(255,255,255,0.2);
-            border: 1px solid rgba(255,255,255,0.3);
             color: white;
             padding: 0.75rem 2rem;
             border-radius: 25px;
             font-weight: 600;
-            transition: all 0.3s ease;
         }
 
-        .next-step-banner .btn:hover {
-            background: rgba(255,255,255,0.3);
-            border-color: rgba(255,255,255,0.5);
-            color: white;
+        .btn-edit:hover {
             transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(23, 162, 184, 0.3);
+            color: white;
         }
 
-        /* スマートフォン用レスポンシブ */
+        /* 次ステップ案内 */
+        .next-step-alert {
+            background: linear-gradient(135deg, var(--success-color) 0%, #20c997 100%);
+            border: none;
+            color: white;
+            border-radius: 15px;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .next-step-alert h5 {
+            color: white;
+            margin-bottom: 1rem;
+        }
+
+        .next-step-alert .btn {
+            background: white;
+            color: var(--success-color);
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .next-step-alert .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        /* 必須マーク */
+        .required-mark {
+            color: var(--danger-color);
+        }
+
+        /* レスポンシブ対応 */
         @media (max-width: 768px) {
-            .form-card-header {
-                padding: 0.75rem 1rem;
+            .unified-header {
+                padding: 1.5rem 0;
             }
 
-            .mobile-buttons {
-                display: flex;
-                gap: 0.5rem;
-                margin-bottom: 1rem;
+            .header-title {
+                font-size: 1.5rem;
+            }
+
+            .section-header {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+
+            .section-actions {
                 justify-content: center;
             }
 
-            .mobile-buttons .btn {
-                font-size: 0.9rem;
-                padding: 0.6rem 1rem;
-                flex: 1;
-                max-width: 150px;
-            }
-
-            .header-buttons {
-                display: none;
-            }
-
-            .form-card-body {
-                padding: 1rem;
+            .header-actions {
+                margin-top: 1rem;
             }
         }
     </style>
 </head>
 <body>
     <!-- 統一ヘッダー -->
-    <?php 
-    $page_title = "乗務前点呼";
-    $page_category = "daily";
-    $page_step = 2;
-    include 'includes/unified-header.php'; 
-    ?>
+    <?= renderPageHeader($page_config) ?>
 
     <div class="container mt-4">
-        <!-- 次のステップへの案内バナー -->
-        <?php if ($existing_call && $existing_call['is_completed']): ?>
-        <div class="next-step-banner">
-            <h5 class="mb-3"><i class="fas fa-check-circle me-2"></i>乗務前点呼完了</h5>
-            <p class="mb-3">次は出庫処理を行ってください</p>
-            <a href="departure.php?driver_id=<?= $existing_call['driver_id'] ?>" class="btn btn-lg">
-                <i class="fas fa-car me-2"></i>出庫処理へ進む
-            </a>
-        </div>
-        <?php endif; ?>
-
         <!-- アラート -->
         <?php if ($success_message): ?>
         <div class="alert alert-success alert-dismissible fade show">
@@ -400,51 +524,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         </div>
         <?php endif; ?>
 
+        <!-- 点呼完了時の次ステップ案内 -->
+        <?php if ($existing_call && $existing_call['is_completed']): ?>
+        <div class="alert next-step-alert">
+            <h5><i class="fas fa-check-circle me-2"></i>乗務前点呼が完了しました</h5>
+            <p class="mb-3">次は出庫処理を行ってください。出庫処理では、出庫時刻・天候・メーター値を記録します。</p>
+            <a href="departure.php?driver_id=<?= $existing_call['driver_id'] ?>" class="btn btn-lg">
+                <i class="fas fa-arrow-right me-2"></i>出庫処理へ進む
+            </a>
+        </div>
+        <?php endif; ?>
+
         <form method="POST" id="predutyForm">
-            <!-- 基本情報 -->
-            <div class="form-card">
-                <div class="form-card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            <i class="fas fa-info-circle me-2"></i>基本情報
-                        </h5>
-                        <?php if ($is_edit_mode): ?>
-                        <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-edit btn-sm" onclick="enableEdit()">
-                                <i class="fas fa-edit me-1"></i>修正
-                            </button>
-                            <button type="button" class="btn btn-delete btn-sm" onclick="confirmDelete()">
-                                <i class="fas fa-trash me-1"></i>削除
-                            </button>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <div class="form-card-body">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
+            <!-- 基本情報セクション -->
+            <?= renderSectionHeader('info-circle', '基本情報', '運転者・点呼者・時刻の設定') ?>
+            
+            <div class="card">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
                             <label class="form-label">運転者 <span class="required-mark">*</span></label>
-                            <select class="form-select" name="driver_id" id="driverSelect" required <?= $is_edit_mode ? 'disabled' : '' ?>>
+                            <select class="form-select" name="driver_id" required <?= $is_edit_mode ? 'disabled' : '' ?>>
                                 <option value="">選択してください</option>
                                 <?php foreach ($drivers as $driver): ?>
                                 <option value="<?= $driver['id'] ?>" 
                                     <?= (($existing_call && $existing_call['driver_id'] == $driver['id']) || 
-                                         (!$existing_call && $selected_driver_id == $driver['id'])) ? 'selected' : '' ?>>
+                                         (!$existing_call && $default_driver_id == $driver['id'])) ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($driver['name']) ?>
-                                    <?= $driver['id'] == $user_id ? ' (ログイン中)' : '' ?>
                                 </option>
                                 <?php endforeach; ?>
                             </select>
+                            <?php if ($is_edit_mode): ?>
+                            <input type="hidden" name="driver_id" value="<?= $existing_call['driver_id'] ?>">
+                            <?php endif; ?>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-6">
                             <label class="form-label">点呼時刻 <span class="required-mark">*</span></label>
                             <input type="time" class="form-control" name="call_time" 
-                                value="<?= $existing_call ? $existing_call['call_time'] : $current_time ?>" 
-                                <?= $is_edit_mode ? 'readonly' : '' ?> required>
+                                   value="<?= $existing_call ? $existing_call['call_time'] : $current_time ?>" 
+                                   required <?= $is_edit_mode ? 'readonly' : '' ?>>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-6">
                             <label class="form-label">点呼者 <span class="required-mark">*</span></label>
-                            <select class="form-select" name="caller_name" <?= $is_edit_mode ? 'disabled' : '' ?> required>
+                            <select class="form-select" name="caller_name" required <?= $is_edit_mode ? 'disabled' : '' ?>>
                                 <option value="">選択してください</option>
                                 <?php foreach ($callers as $caller): ?>
                                 <option value="<?= htmlspecialchars($caller['name']) ?>" 
@@ -463,34 +585,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 </div>
             </div>
 
-            <!-- 確認事項 -->
-            <div class="form-card">
-                <div class="form-card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            <i class="fas fa-tasks me-2"></i>確認事項（16項目）
-                        </h5>
-                        <div class="header-buttons d-none d-md-flex">
-                            <button type="button" class="btn btn-outline-light btn-sm me-2" id="checkAllBtn" <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                <i class="fas fa-check-double me-1"></i>全てチェック
-                            </button>
-                            <button type="button" class="btn btn-outline-light btn-sm" id="uncheckAllBtn" <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                <i class="fas fa-times me-1"></i>全て解除
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-card-body">
-                    <!-- スマホ用ボタン -->
-                    <div class="mobile-buttons d-md-none">
-                        <button type="button" class="btn btn-success" id="checkAllBtnMobile" <?= $is_edit_mode ? 'disabled' : '' ?>>
-                            <i class="fas fa-check-double me-1"></i>全てチェック
-                        </button>
-                        <button type="button" class="btn btn-warning" id="uncheckAllBtnMobile" <?= $is_edit_mode ? 'disabled' : '' ?>>
-                            <i class="fas fa-times me-1"></i>全て解除
-                        </button>
-                    </div>
+            <!-- 確認事項セクション -->
+            <?php
+            $check_actions = [];
+            if (!$is_edit_mode) {
+                $check_actions[] = [
+                    'icon' => 'check-double',
+                    'text' => '全てチェック',
+                    'url' => 'javascript:checkAll()',
+                    'class' => 'btn btn-success btn-sm'
+                ];
+                $check_actions[] = [
+                    'icon' => 'times',
+                    'text' => '全て解除',
+                    'url' => 'javascript:uncheckAll()',
+                    'class' => 'btn btn-warning btn-sm'
+                ];
+            }
+            echo renderSectionHeader('tasks', '確認事項', '16項目', $check_actions);
+            ?>
 
+            <div class="card">
+                <div class="card-body">
                     <?php
                     $check_items = [
                         'health_check' => '健康状態',
@@ -512,18 +628,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                     ];
                     ?>
 
-                    <div class="row">
+                    <div class="row g-3">
                         <?php foreach ($check_items as $key => $label): ?>
                         <div class="col-md-6 col-lg-4">
-                            <div class="check-item <?= $is_edit_mode ? '' : 'clickable' ?>" <?= $is_edit_mode ? '' : "onclick=\"toggleCheck('$key')\"" ?>>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="<?= $key ?>" id="<?= $key ?>"
-                                        <?= ($existing_call && $existing_call[$key]) ? 'checked' : '' ?>
-                                        <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                    <label class="form-check-label" for="<?= $key ?>">
-                                        <?= htmlspecialchars($label) ?>
-                                    </label>
-                                </div>
+                            <div class="form-check p-3 border rounded <?= $is_edit_mode ? '' : 'check-item-clickable' ?> <?= ($existing_call && $existing_call[$key]) ? 'bg-success bg-opacity-10 border-success' : '' ?>" 
+                                 <?= $is_edit_mode ? '' : 'onclick="toggleCheck(\'' . $key . '\')"' ?>>
+                                <input class="form-check-input" type="checkbox" name="<?= $key ?>" id="<?= $key ?>"
+                                       <?= ($existing_call && $existing_call[$key]) ? 'checked' : '' ?>
+                                       <?= $is_edit_mode ? 'disabled' : '' ?>>
+                                <label class="form-check-label w-100" for="<?= $key ?>">
+                                    <?= htmlspecialchars($label) ?>
+                                </label>
                             </div>
                         </div>
                         <?php endforeach; ?>
@@ -531,23 +646,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 </div>
             </div>
 
-            <!-- アルコールチェック -->
-            <div class="form-card">
-                <div class="form-card-header">
-                    <h5 class="mb-0">
-                        <i class="fas fa-wine-bottle me-2"></i>アルコールチェック
-                    </h5>
-                </div>
-                <div class="form-card-body">
+            <!-- アルコールチェックセクション -->
+            <?= renderSectionHeader('wine-bottle', 'アルコールチェック', '法定義務：0.000mg/L基準') ?>
+            
+            <div class="card">
+                <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col-auto">
                             <label class="form-label mb-0">測定値 <span class="required-mark">*</span></label>
                         </div>
                         <div class="col-auto">
                             <input type="number" class="form-control alcohol-input" name="alcohol_check_value" 
-                                step="0.001" min="0" max="1" 
-                                value="<?= $existing_call ? $existing_call['alcohol_check_value'] : '0.000' ?>" 
-                                <?= $is_edit_mode ? 'readonly' : '' ?> required>
+                                   step="0.001" min="0" max="1" 
+                                   value="<?= $existing_call ? $existing_call['alcohol_check_value'] : '0.000' ?>" 
+                                   required <?= $is_edit_mode ? 'readonly' : '' ?>>
                         </div>
                         <div class="col-auto">
                             <span class="text-muted">mg/L</span>
@@ -556,39 +668,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 </div>
             </div>
 
-            <!-- 備考 -->
-            <div class="form-card">
-                <div class="form-card-header">
-                    <h5 class="mb-0">
-                        <i class="fas fa-comment me-2"></i>備考
-                    </h5>
-                </div>
-                <div class="form-card-body">
+            <!-- 備考セクション -->
+            <?= renderSectionHeader('comment', '備考', '特記事項があれば記入') ?>
+            
+            <div class="card">
+                <div class="card-body">
                     <textarea class="form-control" name="remarks" rows="3" 
-                        placeholder="特記事項があれば記入してください"
-                        <?= $is_edit_mode ? 'readonly' : '' ?>><?= $existing_call ? htmlspecialchars($existing_call['remarks']) : '' ?></textarea>
+                              placeholder="特記事項があれば記入してください"
+                              <?= $is_edit_mode ? 'readonly' : '' ?>><?= $existing_call ? htmlspecialchars($existing_call['remarks']) : '' ?></textarea>
                 </div>
             </div>
 
-            <!-- 保存ボタン -->
+            <!-- 保存・修正ボタン -->
             <div class="text-center mb-4">
-                <button type="submit" class="btn btn-save btn-lg" id="saveBtn" <?= $is_edit_mode ? 'style="display:none;"' : '' ?>>
-                    <i class="fas fa-save me-2"></i>
-                    <?= $existing_call ? '更新する' : '登録する' ?>
+                <?php if ($is_edit_mode): ?>
+                <button type="button" class="btn btn-edit btn-lg me-3" onclick="enableEdit()">
+                    <i class="fas fa-edit me-2"></i>修正する
                 </button>
+                <button type="submit" class="btn btn-save btn-lg" id="saveBtn" style="display: none;">
+                    <i class="fas fa-save me-2"></i>更新する
+                </button>
+                <?php else: ?>
+                <button type="submit" class="btn btn-save btn-lg">
+                    <i class="fas fa-save me-2"></i>登録する
+                </button>
+                <?php endif; ?>
             </div>
-        </form>
-
-        <!-- 削除確認フォーム（非表示） -->
-        <form method="POST" id="deleteForm" style="display: none;">
-            <input type="hidden" name="action" value="delete">
-            <input type="hidden" name="driver_id" value="<?= $existing_call ? $existing_call['driver_id'] : '' ?>">
         </form>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        let editMode = <?= $is_edit_mode ? 'true' : 'false' ?>;
+        // 修正モードの有効化
+        function enableEdit() {
+            // フォーム要素を編集可能にする
+            document.querySelector('select[name="driver_id"]').disabled = false;
+            document.querySelector('input[name="call_time"]').readOnly = false;
+            document.querySelector('select[name="caller_name"]').disabled = false;
+            document.getElementById('other_caller').readOnly = false;
+            document.querySelector('input[name="alcohol_check_value"]').readOnly = false;
+            document.querySelector('textarea[name="remarks"]').readOnly = false;
+
+            // チェックボックスを有効化
+            const checkboxes = document.querySelectorAll('.form-check-input[type="checkbox"]');
+            checkboxes.forEach(function(checkbox) {
+                checkbox.disabled = false;
+            });
+
+            // チェック項目をクリック可能にする
+            const checkItems = document.querySelectorAll('.form-check');
+            checkItems.forEach(function(item) {
+                const parentDiv = item.closest('div');
+                parentDiv.classList.add('check-item-clickable');
+                parentDiv.onclick = function() {
+                    const checkbox = item.querySelector('input[type="checkbox"]');
+                    toggleCheck(checkbox.id);
+                };
+            });
+
+            // ボタンの表示切り替え
+            document.querySelector('.btn-edit').style.display = 'none';
+            document.getElementById('saveBtn').style.display = 'inline-block';
+
+            // 一括操作ボタンを追加
+            addBulkActionButtons();
+        }
+
+        // 一括操作ボタンの追加
+        function addBulkActionButtons() {
+            const sectionHeader = document.querySelector('.section-actions');
+            if (sectionHeader && sectionHeader.children.length === 0) {
+                sectionHeader.innerHTML = `
+                    <a href="javascript:checkAll()" class="btn btn-success btn-sm">
+                        <i class="fas fa-check-double me-1"></i>全てチェック
+                    </a>
+                    <a href="javascript:uncheckAll()" class="btn btn-warning btn-sm">
+                        <i class="fas fa-times me-1"></i>全て解除
+                    </a>
+                `;
+            }
+        }
 
         // 点呼者選択の表示切替
         function toggleCallerInput() {
@@ -605,60 +764,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             }
         }
 
-        // 修正モードの有効化
-        function enableEdit() {
-            editMode = false;
-            
-            // フォーム要素の有効化
-            const formElements = document.querySelectorAll('select, input, textarea');
-            formElements.forEach(element => {
-                element.disabled = false;
-                element.removeAttribute('readonly');
-            });
-
-            // 運転者選択は変更不可のまま
-            document.getElementById('driverSelect').disabled = true;
-
-            // チェックボックスの有効化
-            const checkboxes = document.querySelectorAll('.form-check-input[type="checkbox"]');
-            checkboxes.forEach(checkbox => {
-                checkbox.disabled = false;
-            });
-
-            // チェック項目のクリック有効化
-            const checkItems = document.querySelectorAll('.check-item');
-            checkItems.forEach(item => {
-                item.classList.add('clickable');
-                const checkboxId = item.querySelector('.form-check-input').id;
-                item.setAttribute('onclick', `toggleCheck('${checkboxId}')`);
-            });
-
-            // ボタンの表示切替
-            document.getElementById('saveBtn').style.display = 'inline-block';
-            
-            // 一括チェックボタンの有効化
-            const bulkButtons = document.querySelectorAll('#checkAllBtn, #uncheckAllBtn, #checkAllBtnMobile, #uncheckAllBtnMobile');
-            bulkButtons.forEach(btn => btn.disabled = false);
-        }
-
-        // 削除確認
-        function confirmDelete() {
-            if (confirm('この乗務前点呼記録を削除してもよろしいですか？\n削除すると復元できません。')) {
-                document.getElementById('deleteForm').submit();
-            }
-        }
-
         // 全てチェック
         function checkAll() {
-            if (editMode) return;
-            
-            const checkboxes = document.querySelectorAll('.check-item .form-check-input[type="checkbox"]');
+            const checkboxes = document.querySelectorAll('.form-check-input[type="checkbox"]');
             checkboxes.forEach(function(checkbox) {
                 if (!checkbox.disabled) {
                     checkbox.checked = true;
-                    const container = checkbox.closest('.check-item');
+                    const container = checkbox.closest('.form-check').parentElement;
                     if (container) {
-                        container.classList.add('checked');
+                        container.classList.add('bg-success', 'bg-opacity-10', 'border-success');
                     }
                 }
             });
@@ -666,15 +780,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
         // 全て解除
         function uncheckAll() {
-            if (editMode) return;
-            
-            const checkboxes = document.querySelectorAll('.check-item .form-check-input[type="checkbox"]');
+            const checkboxes = document.querySelectorAll('.form-check-input[type="checkbox"]');
             checkboxes.forEach(function(checkbox) {
                 if (!checkbox.disabled) {
                     checkbox.checked = false;
-                    const container = checkbox.closest('.check-item');
+                    const container = checkbox.closest('.form-check').parentElement;
                     if (container) {
-                        container.classList.remove('checked');
+                        container.classList.remove('bg-success', 'bg-opacity-10', 'border-success');
                     }
                 }
             });
@@ -682,28 +794,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
         // チェック項目のクリック処理
         function toggleCheck(itemId) {
-            if (editMode) return;
-            
             const checkbox = document.getElementById(itemId);
-            const container = checkbox.closest('.check-item');
+            if (checkbox.disabled) return;
+            
+            const container = checkbox.closest('.form-check').parentElement;
 
-            if (!checkbox.disabled) {
-                checkbox.checked = !checkbox.checked;
+            checkbox.checked = !checkbox.checked;
 
-                if (checkbox.checked) {
-                    container.classList.add('checked');
-                } else {
-                    container.classList.remove('checked');
-                }
-            }
-        }
-
-        // 運転者選択変更時の処理
-        function onDriverChange() {
-            const driverSelect = document.getElementById('driverSelect');
-            if (driverSelect.value) {
-                // 選択された運転者の既存記録をチェック
-                window.location.href = `pre_duty_call.php?driver_id=${driverSelect.value}`;
+            if (checkbox.checked) {
+                container.classList.add('bg-success', 'bg-opacity-10', 'border-success');
+            } else {
+                container.classList.remove('bg-success', 'bg-opacity-10', 'border-success');
             }
         }
 
@@ -712,9 +813,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             // 既存チェック項目のスタイル適用
             const checkboxes = document.querySelectorAll('.form-check-input[type="checkbox"]');
             checkboxes.forEach(function(checkbox) {
-                const container = checkbox.closest('.check-item');
+                const container = checkbox.closest('.form-check').parentElement;
                 if (checkbox.checked && container) {
-                    container.classList.add('checked');
+                    container.classList.add('bg-success', 'bg-opacity-10', 'border-success');
                 }
             });
 
@@ -725,32 +826,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 toggleCallerInput(); // 初期表示
             }
 
-            // 運転者選択の変更イベント
-            const driverSelect = document.getElementById('driverSelect');
-            if (driverSelect && !editMode) {
-                driverSelect.addEventListener('change', onDriverChange);
-            }
-
-            // 一括チェックボタンのイベント設定
-            const checkAllBtn = document.getElementById('checkAllBtn');
-            const uncheckAllBtn = document.getElementById('uncheckAllBtn');
-            const checkAllBtnMobile = document.getElementById('checkAllBtnMobile');
-            const uncheckAllBtnMobile = document.getElementById('uncheckAllBtnMobile');
-
-            if (checkAllBtn) {
-                checkAllBtn.addEventListener('click', checkAll);
-            }
-
-            if (uncheckAllBtn) {
-                uncheckAllBtn.addEventListener('click', uncheckAll);
-            }
-
-            if (checkAllBtnMobile) {
-                checkAllBtnMobile.addEventListener('click', checkAll);
-            }
-
-            if (uncheckAllBtnMobile) {
-                uncheckAllBtnMobile.addEventListener('click', uncheckAll);
+            // 運転者変更時の既存記録チェック
+            const driverSelect = document.querySelector('select[name="driver_id"]');
+            if (driverSelect && !driverSelect.disabled) {
+                driverSelect.addEventListener('change', function() {
+                    if (this.value) {
+                        // 既存記録がある場合は確認
+                        const today = new Date().toISOString().split('T')[0];
+                        window.location.href = `pre_duty_call.php?driver_id=${this.value}`;
+                    }
+                });
             }
         });
 
@@ -774,43 +859,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 return;
             }
 
+            // アルコール測定値の確認
+            const alcoholValue = parseFloat(document.querySelector('input[name="alcohol_check_value"]').value);
+            if (isNaN(alcoholValue) || alcoholValue < 0 || alcoholValue > 1) {
+                e.preventDefault();
+                alert('アルコール測定値は0.000-1.000の範囲で入力してください。');
+                return;
+            }
+
+            // 基準値超過時の警告
+            if (alcoholValue > 0.000) {
+                if (!confirm(`アルコール測定値が${alcoholValue}mg/Lです。基準値（0.000mg/L）を超えています。\n本当に記録しますか？`)) {
+                    e.preventDefault();
+                    return;
+                }
+            }
+
             // 必須チェック項目の確認
             const requiredChecks = ['health_check', 'pre_inspection_check', 'license_check'];
-            let allChecked = true;
+            const uncheckedRequired = requiredChecks.filter(checkId => 
+                !document.getElementById(checkId).checked
+            );
 
-            requiredChecks.forEach(function(checkId) {
-                if (!document.getElementById(checkId).checked) {
-                    allChecked = false;
-                }
-            });
-
-            if (!allChecked) {
-                if (!confirm('必須項目（健康状態・運行前点検・免許証）が未チェックです。\nこのまま保存しますか？')) {
+            if (uncheckedRequired.length > 0) {
+                const items = uncheckedRequired.map(id => {
+                    const labels = {
+                        'health_check': '健康状態',
+                        'pre_inspection_check': '運行前点検',
+                        'license_check': '免許証'
+                    };
+                    return labels[id];
+                }).join('、');
+                
+                if (!confirm(`重要項目「${items}」が未チェックです。\nこのまま保存しますか？`)) {
                     e.preventDefault();
+                    return;
                 }
             }
 
-            // アルコールチェック値の確認
-            const alcoholValue = parseFloat(document.querySelector('input[name="alcohol_check_value"]').value);
-            if (alcoholValue > 0) {
-                if (!confirm(`アルコールチェック値が ${alcoholValue} mg/L です。\n基準値を超えていないか確認してください。\nこのまま保存しますか？`)) {
-                    e.preventDefault();
-                }
-            }
+            // 保存中の表示
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>保存中...';
+
+            // 3秒後に元に戻す（エラー時対応）
+            setTimeout(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }, 3000);
         });
 
-        // PWA関連の初期化（PWA実装時に使用）
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/Smiley/taxi/wts/sw.js')
-                    .then(function(registration) {
-                        console.log('ServiceWorker registration successful');
-                    })
-                    .catch(function(err) {
-                        console.log('ServiceWorker registration failed: ', err);
-                    });
-            });
-        }
+        // アルコール値入力時のリアルタイム検証
+        document.addEventListener('DOMContentLoaded', function() {
+            const alcoholInput = document.querySelector('input[name="alcohol_check_value"]');
+            if (alcoholInput) {
+                alcoholInput.addEventListener('input', function() {
+                    const value = parseFloat(this.value);
+                    const container = this.closest('.card-body');
+                    
+                    // 既存の警告を削除
+                    const existingWarning = container.querySelector('.alcohol-warning');
+                    if (existingWarning) {
+                        existingWarning.remove();
+                    }
+
+                    if (!isNaN(value) && value > 0.000) {
+                        const warning = document.createElement('div');
+                        warning.className = 'alert alert-warning mt-2 alcohol-warning';
+                        warning.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>基準値（0.000mg/L）を超えています。';
+                        container.appendChild(warning);
+                    }
+                });
+            }
+        });
     </script>
 </body>
 </html>
