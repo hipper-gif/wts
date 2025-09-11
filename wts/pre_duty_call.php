@@ -14,12 +14,9 @@ $user_name = $_SESSION['user_name'];
 $today = date('Y-m-d');
 $current_time = date('H:i');
 
-// 🚀 自動遷移モードの判定
-$auto_flow = isset($_GET['auto_flow']) && $_GET['auto_flow'] == '1';
-$from_inspection = isset($_GET['from']) && $_GET['from'] == 'inspection';
-
 $success_message = '';
 $error_message = '';
+$is_edit_mode = false;
 
 // ドライバーと点呼者の取得
 try {
@@ -33,23 +30,55 @@ try {
     $stmt->execute();
     $callers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    // ログインユーザーが運転者かチェック
+    $stmt = $pdo->prepare("SELECT is_driver FROM users WHERE id = ? AND is_active = 1");
+    $stmt->execute([$user_id]);
+    $current_user = $stmt->fetch();
+    $is_current_user_driver = $current_user && $current_user['is_driver'];
+
 } catch (Exception $e) {
     error_log("Data fetch error: " . $e->getMessage());
     $drivers = [];
     $callers = [];
+    $is_current_user_driver = false;
 }
 
 // 今日の点呼記録があるかチェック
 $existing_call = null;
+$selected_driver_id = null;
+
 if ($_GET['driver_id'] ?? null) {
-    $driver_id = $_GET['driver_id'];
-    $stmt = $pdo->prepare("SELECT * FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
-    $stmt->execute([$driver_id, $today]);
-    $existing_call = $stmt->fetch();
+    $selected_driver_id = $_GET['driver_id'];
+} elseif ($is_current_user_driver) {
+    // ログインユーザーが運転者の場合はデフォルト選択
+    $selected_driver_id = $user_id;
 }
 
-// フォーム送信処理
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($selected_driver_id) {
+    $stmt = $pdo->prepare("SELECT * FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
+    $stmt->execute([$selected_driver_id, $today]);
+    $existing_call = $stmt->fetch();
+    $is_edit_mode = (bool)$existing_call;
+}
+
+// 修正・削除処理
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if ($_POST['action'] === 'delete') {
+        try {
+            $stmt = $pdo->prepare("DELETE FROM pre_duty_calls WHERE driver_id = ? AND call_date = ?");
+            $stmt->execute([$_POST['driver_id'], $today]);
+            $success_message = '乗務前点呼記録を削除しました。';
+            $existing_call = null;
+            $is_edit_mode = false;
+        } catch (Exception $e) {
+            $error_message = '削除中にエラーが発生しました: ' . $e->getMessage();
+            error_log("Pre duty call delete error: " . $e->getMessage());
+        }
+    }
+}
+
+// フォーム送信処理（登録・更新）
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     $driver_id = $_POST['driver_id'];
     $call_time = $_POST['call_time'];
 
@@ -77,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$vehicle_record) {
-        $error_message = '使用可能な車両が見つかりません。';
+        $error_message = '使用可能な車両が見つかりません。車両管理画面で車両を登録してください。';
     } else {
         $vehicle_id = $vehicle_record['id'];
 
@@ -89,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $alcohol_check_value = $_POST['alcohol_check_value'];
 
-        // 確認事項のチェック
+        // 16項目確認事項のチェック
         $check_items = [
             'health_check', 'clothing_check', 'footwear_check', 'pre_inspection_check',
             'license_check', 'vehicle_registration_check', 'insurance_check', 'emergency_tools_check',
@@ -156,34 +185,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $success_message = '乗務前点呼記録を登録しました。';
             }
 
-            // 🚀 自動遷移モードの場合
-            if ($auto_flow) {
-                // 日常点検が完了しているかチェック（既存DBに合わせて修正）
-                $stmt = $pdo->prepare("
-                    SELECT id FROM daily_inspections 
-                    WHERE vehicle_id = ? AND inspection_date = ?
-                    LIMIT 1
-                ");
-                $stmt->execute([$vehicle_id, $today]);
-                $inspection_completed = $stmt->fetch();
-
-                if ($inspection_completed) {
-                    // 日常点検が存在する場合、出庫処理へ自動遷移
-                    $redirect_url = "departure.php?auto_flow=1&driver_id={$driver_id}&vehicle_id={$vehicle_id}";
-                    header("Location: {$redirect_url}");
-                    exit;
-                } else {
-                    // 日常点検が未実施の場合、日常点検へ遷移
-                    $redirect_url = "daily_inspection.php?auto_flow=1&driver_id={$driver_id}&vehicle_id={$vehicle_id}";
-                    header("Location: {$redirect_url}");
-                    exit;
-                }
-            }
-
             // 記録を再取得
             $stmt = $pdo->prepare("SELECT * FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
             $stmt->execute([$driver_id, $today]);
             $existing_call = $stmt->fetch();
+            $is_edit_mode = true;
 
         } catch (Exception $e) {
             $error_message = '記録の保存中にエラーが発生しました: ' . $e->getMessage();
@@ -191,73 +197,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
-
-// 今日の日常点検完了状況をチェック（自動遷移用）
-$inspection_status = [];
-if ($existing_call) {
-    $stmt = $pdo->prepare("
-        SELECT v.id, v.vehicle_number, 
-               CASE WHEN di.id IS NOT NULL THEN 1 ELSE 0 END as inspection_completed
-        FROM vehicles v
-        LEFT JOIN daily_inspections di ON v.id = di.vehicle_id 
-            AND di.inspection_date = ?
-        WHERE v.is_active = TRUE
-        ORDER BY v.vehicle_number
-    ");
-    $stmt->execute([$today]);
-    $inspection_status = $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>乗務前点呼<?= $auto_flow ? ' - 連続業務モード' : '' ?> - 福祉輸送管理システム</title>
+    <title>乗務前点呼 - 福祉輸送管理システム</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- PWA対応メタタグ -->
+    <link rel="manifest" href="/Smiley/taxi/wts/manifest.json">
+    <meta name="theme-color" content="#2196F3">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="WTS v3.1">
+    <link rel="apple-touch-icon" href="/Smiley/taxi/wts/icons/icon-192x192.png">
+    
     <style>
         body {
             background-color: #f8f9fa;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 1rem 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        /* 🚀 自動遷移モード用スタイル */
-        .auto-flow-mode .header {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-        }
-
-        .workflow-indicator {
-            background: rgba(255,255,255,0.1);
-            border-radius: 10px;
-            padding: 0.5rem 1rem;
-            margin-top: 0.5rem;
-            font-size: 0.9rem;
-        }
-
-        .workflow-step {
-            display: inline-block;
-            margin: 0 0.5rem;
-        }
-
-        .workflow-step.completed {
-            color: #28a745;
-        }
-
-        .workflow-step.current {
-            color: #ffc107;
-            font-weight: bold;
-        }
-
-        .workflow-step.pending {
-            color: #6c757d;
         }
 
         .form-card {
@@ -275,10 +236,6 @@ if ($existing_call) {
             margin: 0;
         }
 
-        .auto-flow-mode .form-card-header {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-        }
-
         .form-card-body {
             padding: 1.5rem;
         }
@@ -290,6 +247,7 @@ if ($existing_call) {
             padding: 0.75rem;
             margin-bottom: 0.5rem;
             transition: all 0.2s ease;
+            cursor: pointer;
         }
 
         .check-item:hover {
@@ -326,16 +284,40 @@ if ($existing_call) {
             color: white;
         }
 
-        .next-step-card {
-            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
-            border: 2px solid #2196f3;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(33, 150, 243, 0.2);
+        .btn-edit {
+            background: linear-gradient(135deg, #ffc107 0%, #ffb300 100%);
+            border: none;
+            color: #212529;
+            padding: 0.5rem 1.5rem;
+            border-radius: 20px;
+            font-weight: 600;
         }
 
-        .btn-next-flow {
-            background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+        .btn-delete {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
             border: none;
+            color: white;
+            padding: 0.5rem 1.5rem;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .required-mark {
+            color: #dc3545;
+        }
+
+        .next-step-banner {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .next-step-banner .btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
             color: white;
             padding: 0.75rem 2rem;
             border-radius: 25px;
@@ -343,31 +325,19 @@ if ($existing_call) {
             transition: all 0.3s ease;
         }
 
-        .btn-next-flow:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(33, 150, 243, 0.4);
+        .next-step-banner .btn:hover {
+            background: rgba(255,255,255,0.3);
+            border-color: rgba(255,255,255,0.5);
             color: white;
+            transform: translateY(-2px);
         }
 
-        .required-mark {
-            color: #dc3545;
-        }
-
-        .vehicle-info {
-            background: #e8f5e8;
-            border: 1px solid #28a745;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        /* スマートフォン用レイアウト修正 */
+        /* スマートフォン用レスポンシブ */
         @media (max-width: 768px) {
             .form-card-header {
                 padding: 0.75rem 1rem;
             }
 
-            /* ヘッダーボタンのスマホ対応 - ヘッダー外に配置 */
             .mobile-buttons {
                 display: flex;
                 gap: 0.5rem;
@@ -382,666 +352,465 @@ if ($existing_call) {
                 max-width: 150px;
             }
 
-            /* デスクトップのボタンを非表示 */
             .header-buttons {
                 display: none;
-            }
-
-            /* タイトル部分はシンプルに */
-            .form-card-header-content {
-                display: block;
-            }
-
-            .form-card-title {
-                margin-bottom: 0;
-                font-size: 1.1rem;
             }
 
             .form-card-body {
                 padding: 1rem;
             }
-
-            .workflow-indicator {
-                font-size: 0.8rem;
-                padding: 0.3rem 0.8rem;
-            }
-
-            .next-step-info {
-                padding: 0.75rem;
-                margin: 0.75rem 0;
-            }
-        }
-
-        /* 極小画面（320px以下）対応 */
-        @media (max-width: 320px) {
-            .mobile-buttons .btn {
-                font-size: 0.8rem;
-                padding: 0.5rem 0.8rem;
-            }
         }
     </style>
 </head>
-<body class="<?= $auto_flow ? 'auto-flow-mode' : '' ?>">
-<!-- ヘッダー -->
-<div class="header">
-    <div class="container">
-        <div class="row align-items-center">
-            <div class="col">
-                <h1><i class="fas fa-clipboard-check me-2"></i>乗務前点呼<?= $auto_flow ? ' - 連続業務モード' : '' ?></h1>
-                <small><?= date('Y年n月j日 (D)') ?></small>
-                
-                <?php if ($auto_flow): ?>
-                <div class="workflow-indicator">
-                    <span class="workflow-step completed">
-                        <i class="fas fa-check-circle"></i> 日常点検
-                    </span>
-                    <i class="fas fa-arrow-right mx-1"></i>
-                    <span class="workflow-step current">
-                        <i class="fas fa-clipboard-check"></i> 乗務前点呼
-                    </span>
-                    <i class="fas fa-arrow-right mx-1"></i>
-                    <span class="workflow-step pending">
-                        <i class="fas fa-car"></i> 出庫処理
-                    </span>
-                </div>
-                <?php endif; ?>
-            </div>
-            <div class="col-auto">
-                <?php if ($auto_flow): ?>
-                <a href="dashboard.php" class="btn btn-outline-light btn-sm">
-                    <i class="fas fa-times me-1"></i>連続業務中止
-                </a>
-                <?php else: ?>
-                <a href="dashboard.php" class="btn btn-outline-light btn-sm">
-                    <i class="fas fa-arrow-left me-1"></i>ダッシュボード
-                </a>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
-</div>
+<body>
+    <!-- 統一ヘッダー -->
+    <?php 
+    $page_title = "乗務前点呼";
+    $page_category = "daily";
+    $page_step = 2;
+    include 'includes/unified-header.php'; 
+    ?>
 
-<div class="container mt-4">
-    <!-- アラート -->
-    <?php if ($success_message): ?>
-    <div class="alert alert-success alert-dismissible fade show">
-        <i class="fas fa-check-circle me-2"></i>
-        <?= htmlspecialchars($success_message) ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    
-    <!-- 🚀 自動遷移モード：成功時の次ステップ案内 -->
-    <?php if ($auto_flow && $existing_call): ?>
-    <div class="next-step-info">
-        <h6><i class="fas fa-route me-2"></i>次のステップ</h6>
-        <p class="mb-3">乗務前点呼が完了しました。日常点検の状況に応じて次の処理を選択してください。</p>
-        
-        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
-            <?php
-            // 日常点検の完了状況をチェック（既存DBに合わせて修正）
-            $stmt = $pdo->prepare("
-                SELECT id FROM daily_inspections 
-                WHERE vehicle_id = (
-                    SELECT vehicle_id FROM pre_duty_calls 
-                    WHERE driver_id = ? AND call_date = ? 
-                    LIMIT 1
-                ) AND inspection_date = ?
-                LIMIT 1
-            ");
-            $stmt->execute([$driver_id, $today, $today]);
-            $inspection_completed = $stmt->fetch();
-            ?>
-            
-            <?php if ($inspection_completed): ?>
-            <a href="departure.php?auto_flow=1&driver_id=<?= $driver_id ?>" class="btn btn-next-step btn-lg">
+    <div class="container mt-4">
+        <!-- 次のステップへの案内バナー -->
+        <?php if ($existing_call && $existing_call['is_completed']): ?>
+        <div class="next-step-banner">
+            <h5 class="mb-3"><i class="fas fa-check-circle me-2"></i>乗務前点呼完了</h5>
+            <p class="mb-3">次は出庫処理を行ってください</p>
+            <a href="departure.php?driver_id=<?= $existing_call['driver_id'] ?>" class="btn btn-lg">
                 <i class="fas fa-car me-2"></i>出庫処理へ進む
             </a>
-            <?php else: ?>
-            <a href="daily_inspection.php?auto_flow=1&driver_id=<?= $driver_id ?>" class="btn btn-warning btn-lg">
-                <i class="fas fa-tools me-2"></i>日常点検へ戻る
-            </a>
-            <a href="departure.php?auto_flow=1&driver_id=<?= $driver_id ?>" class="btn btn-next-step btn-lg">
-                <i class="fas fa-car me-2"></i>点検なしで出庫処理
-            </a>
-            <?php endif; ?>
         </div>
-    </div>
-    <?php endif; ?>
-    <?php endif; ?>
-
-    <?php if ($error_message): ?>
-    <div class="alert alert-danger alert-dismissible fade show">
-        <i class="fas fa-exclamation-triangle me-2"></i>
-        <?= htmlspecialchars($error_message) ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    <?php endif; ?>
-
-    <!-- 🚀 自動遷移モード：現在の状況表示 -->
-    <?php if ($auto_flow && $from_inspection): ?>
-    <div class="alert alert-info">
-        <i class="fas fa-info-circle me-2"></i>
-        <strong>連続業務モード：</strong>日常点検から続けて乗務前点呼を行います。
-        完了後、自動的に出庫処理画面に移動します。
-    </div>
-    <?php endif; ?>
-
-    <form method="POST" id="predutyForm">
-        <!-- 自動遷移モード用の隠しフィールド -->
-        <?php if ($auto_flow): ?>
-        <input type="hidden" name="auto_flow" value="1">
         <?php endif; ?>
-        
-        <!-- 基本情報 -->
-        <div class="form-card">
-            <div class="form-card-header">
-                <div class="form-card-header-content">
-                    <h5 class="form-card-title mb-0">
-                        <i class="fas fa-info-circle me-2"></i>基本情報
-                        <?php if ($auto_flow): ?>
-                        <span class="badge bg-light text-dark ms-2">連続業務モード</span>
+
+        <!-- アラート -->
+        <?php if ($success_message): ?>
+        <div class="alert alert-success alert-dismissible fade show">
+            <i class="fas fa-check-circle me-2"></i>
+            <?= htmlspecialchars($success_message) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($error_message): ?>
+        <div class="alert alert-danger alert-dismissible fade show">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <?= htmlspecialchars($error_message) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <?php endif; ?>
+
+        <form method="POST" id="predutyForm">
+            <!-- 基本情報 -->
+            <div class="form-card">
+                <div class="form-card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>基本情報
+                        </h5>
+                        <?php if ($is_edit_mode): ?>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-edit btn-sm" onclick="enableEdit()">
+                                <i class="fas fa-edit me-1"></i>修正
+                            </button>
+                            <button type="button" class="btn btn-delete btn-sm" onclick="confirmDelete()">
+                                <i class="fas fa-trash me-1"></i>削除
+                            </button>
+                        </div>
                         <?php endif; ?>
-                    </h5>
+                    </div>
+                </div>
+                <div class="form-card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">運転者 <span class="required-mark">*</span></label>
+                            <select class="form-select" name="driver_id" id="driverSelect" required <?= $is_edit_mode ? 'disabled' : '' ?>>
+                                <option value="">選択してください</option>
+                                <?php foreach ($drivers as $driver): ?>
+                                <option value="<?= $driver['id'] ?>" 
+                                    <?= (($existing_call && $existing_call['driver_id'] == $driver['id']) || 
+                                         (!$existing_call && $selected_driver_id == $driver['id'])) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($driver['name']) ?>
+                                    <?= $driver['id'] == $user_id ? ' (ログイン中)' : '' ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">点呼時刻 <span class="required-mark">*</span></label>
+                            <input type="time" class="form-control" name="call_time" 
+                                value="<?= $existing_call ? $existing_call['call_time'] : $current_time ?>" 
+                                <?= $is_edit_mode ? 'readonly' : '' ?> required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">点呼者 <span class="required-mark">*</span></label>
+                            <select class="form-select" name="caller_name" <?= $is_edit_mode ? 'disabled' : '' ?> required>
+                                <option value="">選択してください</option>
+                                <?php foreach ($callers as $caller): ?>
+                                <option value="<?= htmlspecialchars($caller['name']) ?>" 
+                                    <?= ($existing_call && $existing_call['caller_name'] == $caller['name']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($caller['name']) ?>
+                                </option>
+                                <?php endforeach; ?>
+                                <option value="その他" <?= ($existing_call && !in_array($existing_call['caller_name'], array_column($callers, 'name')) && $existing_call['caller_name'] != '') ? 'selected' : '' ?>>その他</option>
+                            </select>
+                            <input type="text" class="form-control mt-2" id="other_caller" name="other_caller" 
+                                placeholder="その他の場合は名前を入力" style="display: none;"
+                                <?= $is_edit_mode ? 'readonly' : '' ?>
+                                value="<?= ($existing_call && !in_array($existing_call['caller_name'], array_column($callers, 'name')) && $existing_call['caller_name'] != '') ? htmlspecialchars($existing_call['caller_name']) : '' ?>">
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="form-card-body">
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">運転者 <span class="required-mark">*</span></label>
-                        <select class="form-select" name="driver_id" required <?= $auto_flow ? 'onchange="updateAutoFlowVehicle()"' : '' ?>>
-                            <option value="">選択してください</option>
-                            <?php foreach ($drivers as $driver): ?>
-                            <option value="<?= $driver['id'] ?>" 
-                                <?= ($existing_call && $existing_call['driver_id'] == $driver['id']) ? 'selected' : '' ?>
-                                <?= (isset($_GET['driver_id']) && $_GET['driver_id'] == $driver['id']) ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($driver['name']) ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">点呼時刻 <span class="required-mark">*</span></label>
-                        <input type="time" class="form-control" name="call_time" 
-                               value="<?= $existing_call ? $existing_call['call_time'] : $current_time ?>" required>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">点呼者 <span class="required-mark">*</span></label>
-                        <select class="form-select" name="caller_name" required>
-                            <option value="">選択してください</option>
-                            <?php foreach ($callers as $caller): ?>
-                            <option value="<?= htmlspecialchars($caller['name']) ?>" 
-                                <?= ($existing_call && $existing_call['caller_name'] == $caller['name']) ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($caller['name']) ?>
-                            </option>
-                            <?php endforeach; ?>
-                            <option value="その他" <?= ($existing_call && !in_array($existing_call['caller_name'], array_column($callers, 'name')) && $existing_call['caller_name'] != '') ? 'selected' : '' ?>>その他</option>
-                        </select>
-                        <input type="text" class="form-control mt-2" id="other_caller" name="other_caller" 
-                               placeholder="その他の場合は名前を入力" style="display: none;"
-                               value="<?= ($existing_call && !in_array($existing_call['caller_name'], array_column($callers, 'name')) && $existing_call['caller_name'] != '') ? htmlspecialchars($existing_call['caller_name']) : '' ?>">
+
+            <!-- 確認事項 -->
+            <div class="form-card">
+                <div class="form-card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-tasks me-2"></i>確認事項（16項目）
+                        </h5>
+                        <div class="header-buttons d-none d-md-flex">
+                            <button type="button" class="btn btn-outline-light btn-sm me-2" id="checkAllBtn" <?= $is_edit_mode ? 'disabled' : '' ?>>
+                                <i class="fas fa-check-double me-1"></i>全てチェック
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm" id="uncheckAllBtn" <?= $is_edit_mode ? 'disabled' : '' ?>>
+                                <i class="fas fa-times me-1"></i>全て解除
+                            </button>
+                        </div>
                     </div>
                 </div>
+                <div class="form-card-body">
+                    <!-- スマホ用ボタン -->
+                    <div class="mobile-buttons d-md-none">
+                        <button type="button" class="btn btn-success" id="checkAllBtnMobile" <?= $is_edit_mode ? 'disabled' : '' ?>>
+                            <i class="fas fa-check-double me-1"></i>全てチェック
+                        </button>
+                        <button type="button" class="btn btn-warning" id="uncheckAllBtnMobile" <?= $is_edit_mode ? 'disabled' : '' ?>>
+                            <i class="fas fa-times me-1"></i>全て解除
+                        </button>
+                    </div>
 
-                <!-- 🚀 自動遷移モード：車両状況表示 -->
-                <?php if ($auto_flow && !empty($inspection_status)): ?>
-                <div class="vehicle-info">
-                    <h6><i class="fas fa-car me-2"></i>車両点検状況</h6>
+                    <?php
+                    $check_items = [
+                        'health_check' => '健康状態',
+                        'clothing_check' => '服装',
+                        'footwear_check' => '履物',
+                        'pre_inspection_check' => '運行前点検',
+                        'license_check' => '免許証',
+                        'vehicle_registration_check' => '車検証',
+                        'insurance_check' => '保険証',
+                        'emergency_tools_check' => '応急工具',
+                        'map_check' => '地図',
+                        'taxi_card_check' => 'タクシーカード',
+                        'emergency_signal_check' => '非常信号用具',
+                        'change_money_check' => '釣銭',
+                        'crew_id_check' => '乗務員証',
+                        'operation_record_check' => '運行記録用用紙',
+                        'receipt_check' => '領収書',
+                        'stop_sign_check' => '停止表示機'
+                    ];
+                    ?>
+
                     <div class="row">
-                        <?php foreach ($inspection_status as $vehicle): ?>
-                        <div class="col-md-6 mb-2">
-                            <span class="badge bg-<?= $vehicle['inspection_completed'] ? 'success' : 'warning' ?> me-2">
-                                <?= $vehicle['vehicle_number'] ?>
-                            </span>
-                            <?php if ($vehicle['inspection_completed']): ?>
-                            <i class="fas fa-check-circle text-success"></i> 点検完了
-                            <?php else: ?>
-                            <i class="fas fa-exclamation-triangle text-warning"></i> 点検未完了
-                            <?php endif; ?>
+                        <?php foreach ($check_items as $key => $label): ?>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="check-item <?= $is_edit_mode ? '' : 'clickable' ?>" <?= $is_edit_mode ? '' : "onclick=\"toggleCheck('$key')\"" ?>>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="<?= $key ?>" id="<?= $key ?>"
+                                        <?= ($existing_call && $existing_call[$key]) ? 'checked' : '' ?>
+                                        <?= $is_edit_mode ? 'disabled' : '' ?>>
+                                    <label class="form-check-label" for="<?= $key ?>">
+                                        <?= htmlspecialchars($label) ?>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                         <?php endforeach; ?>
                     </div>
                 </div>
-                <?php endif; ?>
             </div>
-        </div>
 
-        <!-- 確認事項 -->
-        <div class="form-card">
-            <div class="form-card-header">
-                <div class="form-card-header-content">
-                    <h5 class="form-card-title mb-0">
-                        <i class="fas fa-tasks me-2"></i>確認事項（15項目）
+            <!-- アルコールチェック -->
+            <div class="form-card">
+                <div class="form-card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-wine-bottle me-2"></i>アルコールチェック
                     </h5>
-                    <div class="header-buttons d-none d-md-flex float-end">
-                        <button type="button" class="btn btn-outline-light btn-sm me-2" id="checkAllBtn">
-                            <i class="fas fa-check-double me-1"></i>全てチェック
-                        </button>
-                        <button type="button" class="btn btn-outline-light btn-sm" id="uncheckAllBtn">
-                            <i class="fas fa-times me-1"></i>全て解除
-                        </button>
-                    </div>
                 </div>
-            </div>
-            <div class="form-card-body">
-                <!-- スマホ用ボタン（ヘッダー外に配置） -->
-                <div class="mobile-buttons d-md-none">
-                    <button type="button" class="btn btn-success" id="checkAllBtnMobile">
-                        <i class="fas fa-check-double me-1"></i>全てチェック
-                    </button>
-                    <button type="button" class="btn btn-warning" id="uncheckAllBtnMobile">
-                        <i class="fas fa-times me-1"></i>全て解除
-                    </button>
-                </div>
-
-                <?php
-                $check_items = [
-                    'health_check' => '健康状態',
-                    'clothing_check' => '服装',
-                    'footwear_check' => '履物',
-                    'pre_inspection_check' => '運行前点検',
-                    'license_check' => '免許証',
-                    'vehicle_registration_check' => '車検証',
-                    'insurance_check' => '保険証',
-                    'emergency_tools_check' => '応急工具',
-                    'map_check' => '地図',
-                    'taxi_card_check' => 'タクシーカード',
-                    'emergency_signal_check' => '非常信号用具',
-                    'change_money_check' => '釣銭',
-                    'crew_id_check' => '乗務員証',
-                    'operation_record_check' => '運行記録用用紙',
-                    'receipt_check' => '領収書',
-                    'stop_sign_check' => '停止表示機'
-                ];
-                ?>
-
-                <div class="row">
-                    <?php foreach ($check_items as $key => $label): ?>
-                    <div class="col-md-6 col-lg-4">
-                        <div class="check-item" onclick="toggleCheck('<?= $key ?>')">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="<?= $key ?>" id="<?= $key ?>"
-                                       <?= ($existing_call && $existing_call[$key]) ? 'checked' : '' ?>>
-                                <label class="form-check-label" for="<?= $key ?>">
-                                    <?= htmlspecialchars($label) ?>
-                                </label>
-                            </div>
+                <div class="form-card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <label class="form-label mb-0">測定値 <span class="required-mark">*</span></label>
+                        </div>
+                        <div class="col-auto">
+                            <input type="number" class="form-control alcohol-input" name="alcohol_check_value" 
+                                step="0.001" min="0" max="1" 
+                                value="<?= $existing_call ? $existing_call['alcohol_check_value'] : '0.000' ?>" 
+                                <?= $is_edit_mode ? 'readonly' : '' ?> required>
+                        </div>
+                        <div class="col-auto">
+                            <span class="text-muted">mg/L</span>
                         </div>
                     </div>
-                    <?php endforeach; ?>
                 </div>
             </div>
-        </div>
 
-        <!-- アルコールチェック -->
-        <div class="form-card">
-            <div class="form-card-header">
-                <h5 class="form-card-title mb-0">
-                    <i class="fas fa-wine-bottle me-2"></i>アルコールチェック
-                </h5>
-            </div>
-            <div class="form-card-body">
-                <div class="row align-items-center">
-                    <div class="col-auto">
-                        <label class="form-label mb-0">測定値 <span class="required-mark">*</span></label>
-                    </div>
-                    <div class="col-auto">
-                        <input type="number" class="form-control alcohol-input" name="alcohol_check_value" 
-                               step="0.001" min="0" max="1" 
-                               value="<?= $existing_call ? $existing_call['alcohol_check_value'] : '0.000' ?>" required>
-                    </div>
-                    <div class="col-auto">
-                        <span class="text-muted">mg/L</span>
-                    </div>
+            <!-- 備考 -->
+            <div class="form-card">
+                <div class="form-card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-comment me-2"></i>備考
+                    </h5>
+                </div>
+                <div class="form-card-body">
+                    <textarea class="form-control" name="remarks" rows="3" 
+                        placeholder="特記事項があれば記入してください"
+                        <?= $is_edit_mode ? 'readonly' : '' ?>><?= $existing_call ? htmlspecialchars($existing_call['remarks']) : '' ?></textarea>
                 </div>
             </div>
-        </div>
 
-        <!-- 備考 -->
-        <div class="form-card">
-            <div class="form-card-header">
-                <h5 class="form-card-title mb-0">
-                    <i class="fas fa-comment me-2"></i>備考
-                </h5>
-            </div>
-            <div class="form-card-body">
-                <textarea class="form-control" name="remarks" rows="3" 
-                          placeholder="特記事項があれば記入してください"><?= $existing_call ? htmlspecialchars($existing_call['remarks']) : '' ?></textarea>
-            </div>
-        </div>
-
-        <!-- 保存・遷移ボタン -->
-        <div class="text-center mb-4">
-            <button type="submit" class="btn btn-save btn-lg">
-                <i class="fas fa-save me-2"></i>
-                <?= $existing_call ? '更新する' : '登録する' ?>
-            </button>
-            
-            <!-- 🚀 既存データがある場合：出庫処理への直接リンクも表示 -->
-            <?php if ($existing_call): ?>
-            <div class="mt-3">
-                <a href="departure.php?driver_id=<?= $existing_call['driver_id'] ?>" 
-                   class="btn btn-outline-primary btn-lg">
-                    <i class="fas fa-car me-2"></i>出庫処理へ進む
-                </a>
-            </div>
-            <?php endif; ?>
-        </div>
-    </form>
-
-    <!-- 🚀 自動遷移モード：クイックアクションボタン -->
-    <?php if (!$existing_call): ?>
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card border-info">
-                <div class="card-header bg-info text-white">
-                    <h6 class="mb-0"><i class="fas fa-lightning-bolt me-2"></i>朝の業務を効率化</h6>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted">定型的な朝の準備作業をスピードアップ</p>
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-start">
-                        <button type="button" class="btn btn-success" onclick="quickComplete()">
-                            <i class="fas fa-magic me-2"></i>標準設定で完了
-                        </button>
-                        <button type="button" class="btn btn-outline-info" onclick="showQuickSettings()">
-                            <i class="fas fa-cog me-2"></i>設定内容確認
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-</div>
-
-<!-- 🚀 クイック設定モーダル -->
-<div class="modal fade" id="quickSettingsModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-magic me-2"></i>標準設定内容
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p><strong>自動設定される内容：</strong></p>
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item">✓ 全15項目の確認事項をチェック</li>
-                    <li class="list-group-item">✓ アルコール値: 0.000 mg/L</li>
-                    <li class="list-group-item">✓ 点呼者: リストの最初のユーザー</li>
-                    <li class="list-group-item">✓ 点呼時刻: 現在時刻</li>
-                </ul>
-                <div class="alert alert-info mt-3">
-                    <i class="fas fa-info-circle me-2"></i>
-                    設定後、保存ボタンで登録してから出庫処理に進んでください。
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                <button type="button" class="btn btn-success" onclick="executeQuickComplete()">
-                    <i class="fas fa-check me-2"></i>この内容で設定
+            <!-- 保存ボタン -->
+            <div class="text-center mb-4">
+                <button type="submit" class="btn btn-save btn-lg" id="saveBtn" <?= $is_edit_mode ? 'style="display:none;"' : '' ?>>
+                    <i class="fas fa-save me-2"></i>
+                    <?= $existing_call ? '更新する' : '登録する' ?>
                 </button>
             </div>
-        </div>
+        </form>
+
+        <!-- 削除確認フォーム（非表示） -->
+        <form method="POST" id="deleteForm" style="display: none;">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="driver_id" value="<?= $existing_call ? $existing_call['driver_id'] : '' ?>">
+        </form>
     </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-// 点呼者選択の表示切替
-function toggleCallerInput() {
-    const callerSelect = document.querySelector('select[name="caller_name"]');
-    const otherInput = document.getElementById('other_caller');
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let editMode = <?= $is_edit_mode ? 'true' : 'false' ?>;
 
-    if (callerSelect.value === 'その他') {
-        otherInput.style.display = 'block';
-        otherInput.required = true;
-    } else {
-        otherInput.style.display = 'none';
-        otherInput.required = false;
-        otherInput.value = '';
-    }
-}
+        // 点呼者選択の表示切替
+        function toggleCallerInput() {
+            const callerSelect = document.querySelector('select[name="caller_name"]');
+            const otherInput = document.getElementById('other_caller');
 
-// 全てチェック
-function checkAll() {
-    const checkboxes = document.querySelectorAll('.check-item .form-check-input[type="checkbox"]');
-    checkboxes.forEach(function(checkbox) {
-        checkbox.checked = true;
-        const container = checkbox.closest('.check-item');
-        if (container) {
-            container.classList.add('checked');
+            if (callerSelect.value === 'その他') {
+                otherInput.style.display = 'block';
+                otherInput.required = true;
+            } else {
+                otherInput.style.display = 'none';
+                otherInput.required = false;
+                otherInput.value = '';
+            }
         }
-    });
-}
 
-// 全て解除
-function uncheckAll() {
-    const checkboxes = document.querySelectorAll('.check-item .form-check-input[type="checkbox"]');
-    checkboxes.forEach(function(checkbox) {
-        checkbox.checked = false;
-        const container = checkbox.closest('.check-item');
-        if (container) {
-            container.classList.remove('checked');
+        // 修正モードの有効化
+        function enableEdit() {
+            editMode = false;
+            
+            // フォーム要素の有効化
+            const formElements = document.querySelectorAll('select, input, textarea');
+            formElements.forEach(element => {
+                element.disabled = false;
+                element.removeAttribute('readonly');
+            });
+
+            // 運転者選択は変更不可のまま
+            document.getElementById('driverSelect').disabled = true;
+
+            // チェックボックスの有効化
+            const checkboxes = document.querySelectorAll('.form-check-input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.disabled = false;
+            });
+
+            // チェック項目のクリック有効化
+            const checkItems = document.querySelectorAll('.check-item');
+            checkItems.forEach(item => {
+                item.classList.add('clickable');
+                const checkboxId = item.querySelector('.form-check-input').id;
+                item.setAttribute('onclick', `toggleCheck('${checkboxId}')`);
+            });
+
+            // ボタンの表示切替
+            document.getElementById('saveBtn').style.display = 'inline-block';
+            
+            // 一括チェックボタンの有効化
+            const bulkButtons = document.querySelectorAll('#checkAllBtn, #uncheckAllBtn, #checkAllBtnMobile, #uncheckAllBtnMobile');
+            bulkButtons.forEach(btn => btn.disabled = false);
         }
-    });
-}
 
-// チェック項目のクリック処理
-function toggleCheck(itemId) {
-    const checkbox = document.getElementById(itemId);
-    const container = checkbox.closest('.check-item');
-
-    checkbox.checked = !checkbox.checked;
-
-    if (checkbox.checked) {
-        container.classList.add('checked');
-    } else {
-        container.classList.remove('checked');
-    }
-}
-
-// 🚀 自動遷移モード：車両情報更新
-function updateAutoFlowVehicle() {
-    const driverId = document.querySelector('select[name="driver_id"]').value;
-    if (driverId) {
-        // 車両情報の更新処理（必要に応じて実装）
-        console.log('Driver changed to:', driverId);
-    }
-}
-
-// 🚀 自動遷移モード：連続業務中止
-function exitAutoFlow() {
-    if (confirm('連続業務モードを中止してダッシュボードに戻りますか？\n入力中のデータは保存されません。')) {
-        window.location.href = 'dashboard.php';
-    }
-}
-
-// 🚀 クイック完了機能
-function quickComplete() {
-    document.getElementById('quickSettingsModal').style.display = 'none';
-    const modal = new bootstrap.Modal(document.getElementById('quickSettingsModal'));
-    modal.show();
-}
-
-function showQuickSettings() {
-    const modal = new bootstrap.Modal(document.getElementById('quickSettingsModal'));
-    modal.show();
-}
-
-function executeQuickComplete() {
-    // 全項目をチェック
-    checkAll();
-    
-    // アルコール値を0.000に設定
-    document.querySelector('input[name="alcohol_check_value"]').value = '0.000';
-    
-    // 点呼者を現在のユーザーに設定（最初の選択肢を選択）
-    const callerSelect = document.querySelector('select[name="caller_name"]');
-    if (callerSelect.options.length > 1) {
-        callerSelect.selectedIndex = 1; // 「選択してください」の次を選択
-    }
-    
-    // 現在時刻を設定
-    const now = new Date();
-    const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                      now.getMinutes().toString().padStart(2, '0');
-    document.querySelector('input[name="call_time"]').value = timeString;
-    
-    // モーダルを閉じる
-    const modal = bootstrap.Modal.getInstance(document.getElementById('quickSettingsModal'));
-    modal.hide();
-    
-    // 確認メッセージ
-    setTimeout(() => {
-        alert('標準設定を適用しました。フォームを確認後、「登録して次へ進む」をクリックしてください。');
-    }, 500);
-}
-
-// 初期化処理
-document.addEventListener('DOMContentLoaded', function() {
-    // 既存チェック項目のスタイル適用
-    const checkboxes = document.querySelectorAll('.form-check-input[type="checkbox"]');
-    checkboxes.forEach(function(checkbox) {
-        const container = checkbox.closest('.check-item');
-        if (checkbox.checked && container) {
-            container.classList.add('checked');
+        // 削除確認
+        function confirmDelete() {
+            if (confirm('この乗務前点呼記録を削除してもよろしいですか？\n削除すると復元できません。')) {
+                document.getElementById('deleteForm').submit();
+            }
         }
-    });
 
-    // 点呼者選択の初期設定
-    const callerSelect = document.querySelector('select[name="caller_name"]');
-    if (callerSelect) {
-        callerSelect.addEventListener('change', toggleCallerInput);
-        toggleCallerInput(); // 初期表示
-    }
-
-    // 一括チェックボタンのイベント設定（デスクトップ・モバイル両対応）
-    const checkAllBtn = document.getElementById('checkAllBtn');
-    const uncheckAllBtn = document.getElementById('uncheckAllBtn');
-    const checkAllBtnMobile = document.getElementById('checkAllBtnMobile');
-    const uncheckAllBtnMobile = document.getElementById('uncheckAllBtnMobile');
-
-    if (checkAllBtn) {
-        checkAllBtn.addEventListener('click', checkAll);
-    }
-
-    if (uncheckAllBtn) {
-        uncheckAllBtn.addEventListener('click', uncheckAll);
-    }
-
-    if (checkAllBtnMobile) {
-        checkAllBtnMobile.addEventListener('click', checkAll);
-    }
-
-    if (uncheckAllBtnMobile) {
-        uncheckAllBtnMobile.addEventListener('click', uncheckAll);
-    }
-
-    // 🚀 自動遷移モード：成功メッセージの自動消去
-    const autoFlow = <?= $auto_flow ? 'true' : 'false' ?>;
-    if (autoFlow) {
-        const successAlert = document.querySelector('.alert-success');
-        if (successAlert) {
-            setTimeout(() => {
-                successAlert.style.opacity = '0.7';
-            }, 3000);
+        // 全てチェック
+        function checkAll() {
+            if (editMode) return;
+            
+            const checkboxes = document.querySelectorAll('.check-item .form-check-input[type="checkbox"]');
+            checkboxes.forEach(function(checkbox) {
+                if (!checkbox.disabled) {
+                    checkbox.checked = true;
+                    const container = checkbox.closest('.check-item');
+                    if (container) {
+                        container.classList.add('checked');
+                    }
+                }
+            });
         }
-    }
-});
 
-// フォーム送信前の確認
-document.getElementById('predutyForm').addEventListener('submit', function(e) {
-    const driverId = document.querySelector('select[name="driver_id"]').value;
+        // 全て解除
+        function uncheckAll() {
+            if (editMode) return;
+            
+            const checkboxes = document.querySelectorAll('.check-item .form-check-input[type="checkbox"]');
+            checkboxes.forEach(function(checkbox) {
+                if (!checkbox.disabled) {
+                    checkbox.checked = false;
+                    const container = checkbox.closest('.check-item');
+                    if (container) {
+                        container.classList.remove('checked');
+                    }
+                }
+            });
+        }
 
-    if (!driverId) {
-        e.preventDefault();
-        alert('運転者を選択してください。');
-        return;
-    }
+        // チェック項目のクリック処理
+        function toggleCheck(itemId) {
+            if (editMode) return;
+            
+            const checkbox = document.getElementById(itemId);
+            const container = checkbox.closest('.check-item');
 
-    // 点呼者名の確認
-    const callerSelect = document.querySelector('select[name="caller_name"]');
-    const otherInput = document.getElementById('other_caller');
+            if (!checkbox.disabled) {
+                checkbox.checked = !checkbox.checked;
 
-    if (callerSelect.value === 'その他' && !otherInput.value.trim()) {
-        e.preventDefault();
-        alert('点呼者名を入力してください。');
-        return;
-    }
+                if (checkbox.checked) {
+                    container.classList.add('checked');
+                } else {
+                    container.classList.remove('checked');
+                }
+            }
+        }
 
-    // 🚀 自動遷移モード：確認事項のチェック（緩和）
-    const autoFlow = <?= $auto_flow ? 'true' : 'false' ?>;
-    if (!autoFlow) {
-        // 通常モードでは必須チェック項目の確認
-        const requiredChecks = ['health_check', 'pre_inspection_check', 'license_check'];
-        let allChecked = true;
+        // 運転者選択変更時の処理
+        function onDriverChange() {
+            const driverSelect = document.getElementById('driverSelect');
+            if (driverSelect.value) {
+                // 選択された運転者の既存記録をチェック
+                window.location.href = `pre_duty_call.php?driver_id=${driverSelect.value}`;
+            }
+        }
 
-        requiredChecks.forEach(function(checkId) {
-            if (!document.getElementById(checkId).checked) {
-                allChecked = false;
+        // 初期化処理
+        document.addEventListener('DOMContentLoaded', function() {
+            // 既存チェック項目のスタイル適用
+            const checkboxes = document.querySelectorAll('.form-check-input[type="checkbox"]');
+            checkboxes.forEach(function(checkbox) {
+                const container = checkbox.closest('.check-item');
+                if (checkbox.checked && container) {
+                    container.classList.add('checked');
+                }
+            });
+
+            // 点呼者選択の初期設定
+            const callerSelect = document.querySelector('select[name="caller_name"]');
+            if (callerSelect) {
+                callerSelect.addEventListener('change', toggleCallerInput);
+                toggleCallerInput(); // 初期表示
+            }
+
+            // 運転者選択の変更イベント
+            const driverSelect = document.getElementById('driverSelect');
+            if (driverSelect && !editMode) {
+                driverSelect.addEventListener('change', onDriverChange);
+            }
+
+            // 一括チェックボタンのイベント設定
+            const checkAllBtn = document.getElementById('checkAllBtn');
+            const uncheckAllBtn = document.getElementById('uncheckAllBtn');
+            const checkAllBtnMobile = document.getElementById('checkAllBtnMobile');
+            const uncheckAllBtnMobile = document.getElementById('uncheckAllBtnMobile');
+
+            if (checkAllBtn) {
+                checkAllBtn.addEventListener('click', checkAll);
+            }
+
+            if (uncheckAllBtn) {
+                uncheckAllBtn.addEventListener('click', uncheckAll);
+            }
+
+            if (checkAllBtnMobile) {
+                checkAllBtnMobile.addEventListener('click', checkAll);
+            }
+
+            if (uncheckAllBtnMobile) {
+                uncheckAllBtnMobile.addEventListener('click', uncheckAll);
             }
         });
 
-        if (!allChecked) {
-            if (!confirm('必須項目が未チェックです。このまま保存しますか？')) {
+        // フォーム送信前の確認
+        document.getElementById('predutyForm').addEventListener('submit', function(e) {
+            const driverId = document.querySelector('select[name="driver_id"]').value;
+
+            if (!driverId) {
                 e.preventDefault();
+                alert('運転者を選択してください。');
                 return;
             }
-        }
-    }
 
-    // 🚀 自動遷移モード：送信時のローディング表示
-    if (autoFlow) {
-        const submitBtn = e.target.querySelector('button[type="submit"]');
-        if (submitBtn) {
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>次のステップに移動中...';
-            submitBtn.disabled = true;
-        }
-    }
-});
+            // 点呼者名の確認
+            const callerSelect = document.querySelector('select[name="caller_name"]');
+            const otherInput = document.getElementById('other_caller');
 
-// 🚀 自動遷移モード：ページ離脱時の確認
-window.addEventListener('beforeunload', function(e) {
-    const autoFlow = <?= $auto_flow ? 'true' : 'false' ?>;
-    const hasUnsavedData = checkUnsavedData();
-    
-    if (autoFlow && hasUnsavedData) {
-        e.preventDefault();
-        e.returnValue = '連続業務モードを中止しますか？入力中のデータが失われます。';
-        return e.returnValue;
-    }
-});
-
-function checkUnsavedData() {
-    // 基本的なフィールドチェック
-    const driverId = document.querySelector('select[name="driver_id"]').value;
-    const checkedBoxes = document.querySelectorAll('input[type="checkbox"]:checked').length;
-    
-    return driverId && checkedBoxes > 0;
-}
-
-// 🚀 自動遷移モード：キーボードショートカット
-document.addEventListener('keydown', function(e) {
-    const autoFlow = <?= $auto_flow ? 'true' : 'false' ?>;
-    
-    if (autoFlow && e.ctrlKey) {
-        switch(e.key) {
-            case 'Enter':
+            if (callerSelect.value === 'その他' && !otherInput.value.trim()) {
                 e.preventDefault();
-                document.getElementById('predutyForm').dispatchEvent(new Event('submit'));
-                break;
-            case 'a':
-                e.preventDefault();
-                checkAll();
-                break;
-            case 'q':
-                e.preventDefault();
-                quickComplete();
-                break;
+                alert('点呼者名を入力してください。');
+                return;
+            }
+
+            // 必須チェック項目の確認
+            const requiredChecks = ['health_check', 'pre_inspection_check', 'license_check'];
+            let allChecked = true;
+
+            requiredChecks.forEach(function(checkId) {
+                if (!document.getElementById(checkId).checked) {
+                    allChecked = false;
+                }
+            });
+
+            if (!allChecked) {
+                if (!confirm('必須項目（健康状態・運行前点検・免許証）が未チェックです。\nこのまま保存しますか？')) {
+                    e.preventDefault();
+                }
+            }
+
+            // アルコールチェック値の確認
+            const alcoholValue = parseFloat(document.querySelector('input[name="alcohol_check_value"]').value);
+            if (alcoholValue > 0) {
+                if (!confirm(`アルコールチェック値が ${alcoholValue} mg/L です。\n基準値を超えていないか確認してください。\nこのまま保存しますか？`)) {
+                    e.preventDefault();
+                }
+            }
+        });
+
+        // PWA関連の初期化（PWA実装時に使用）
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/Smiley/taxi/wts/sw.js')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registration successful');
+                    })
+                    .catch(function(err) {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
         }
-    }
-});
-</script>
+    </script>
 </body>
 </html>
