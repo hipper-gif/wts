@@ -359,18 +359,20 @@ try {
             line-height: 1.4;
         }
 
-        /* ========== Layer 3: 乗車記録アクセス（浮動ヘッダー） ========== */
+        /* ========== 浮動フッター: 乗車記録アクセス ========== */
         .ride-access-floating {
             position: fixed;
-            top: 0;
+            bottom: 0;
             left: 0;
             right: 0;
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
             z-index: 1020;
-            box-shadow: 0 2px 10px rgba(40, 167, 69, 0.3);
-            transform: translateY(-100%);
+            box-shadow: 0 -2px 10px rgba(40, 167, 69, 0.3);
+            transform: translateY(100%);
             transition: transform 0.3s ease;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
         }
 
         .ride-access-floating.show {
@@ -735,23 +737,24 @@ try {
         </div>
     </nav>
 
-    <!-- 浮動乗車記録アクセス -->
+    <!-- 浮動乗車記録アクセス（フッター型） -->
     <div class="ride-access-floating" id="floatingRideAccess">
-        <div class="container-fluid py-2">
+        <div class="container-fluid py-3">
             <div class="d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center">
                     <i class="fas fa-users me-2"></i>
-                    <span class="fw-bold">乗車記録</span>
+                    <span class="fw-bold d-none d-md-inline">乗車記録</span>
+                    <span class="fw-bold d-md-none">記録</span>
                 </div>
                 <div class="quick-buttons">
                     <button class="btn btn-light btn-sm" onclick="showQuickAmount()">
-                        <i class="fas fa-yen-sign me-1"></i>金額入力
+                        <i class="fas fa-yen-sign me-1"></i><span class="d-none d-md-inline">金額入力</span><span class="d-md-none">金額</span>
                     </button>
                     <a href="ride_records.php?action=new" class="btn btn-light btn-sm">
-                        <i class="fas fa-plus me-1"></i>新規
+                        <i class="fas fa-plus me-1"></i><span class="d-none d-md-inline">新規</span>
                     </a>
                     <a href="ride_records.php" class="btn btn-outline-light btn-sm">
-                        <i class="fas fa-list me-1"></i>一覧
+                        <i class="fas fa-list me-1"></i><span class="d-none d-md-inline">一覧</span>
                     </a>
                 </div>
             </div>
@@ -763,20 +766,6 @@ try {
         <div class="container">
             <!-- メイン売上表示 -->
             <div class="row text-center mb-2">
-                <div class="col-4">
-                    <div class="revenue-item today-revenue">
-                        <div class="amount h4 mb-1">¥<?= number_format($today_revenue['total_revenue']) ?></div>
-                        <div class="detail small">今日 <?= $today_revenue['ride_count'] ?>回</div>
-                        <div class="average tiny">平均 ¥<?= number_format($today_revenue['avg_fare']) ?>/回</div>
-                    </div>
-                </div>
-                <div class="col-4">
-                    <div class="revenue-item monthly-revenue">
-                        <div class="amount h4 mb-1">¥<?= number_format($monthly_revenue['total_revenue']) ?></div>
-                        <div class="detail small">今月 <?= $monthly_revenue['ride_count'] ?>回</div>
-                        <div class="average tiny">稼働 <?= $monthly_revenue['working_days'] ?>日</div>
-                    </div>
-                </div>
                 <div class="col-4">
                     <div class="revenue-item daily-average">
                         <div class="amount h4 mb-1">¥<?= number_format($daily_average) ?></div>
@@ -1081,36 +1070,32 @@ try {
         }
         
         init() {
-            this.setupFloatingHeader();
+            this.setupFloatingFooter();
             this.setupRealtimeUpdates();
             this.setupNotifications();
             this.setupMobileOptimizations();
         }
         
-        // 浮動ヘッダー設定
-        setupFloatingHeader() {
-            const floatingHeader = document.getElementById('floatingRideAccess');
-            let lastScrollTop = 0;
+        // 浮動フッター設定
+        setupFloatingFooter() {
+            const floatingFooter = document.getElementById('floatingRideAccess');
             
             window.addEventListener('scroll', () => {
                 const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
                 
-                // 200px以上スクロールしたら表示
-                if (scrollTop > 200) {
-                    if (scrollTop > lastScrollTop) {
-                        // 下スクロール時は表示
-                        floatingHeader.classList.add('show');
-                    } else {
-                        // 上スクロール時も表示を維持
-                        floatingHeader.classList.add('show');
-                    }
+                // 300px以上スクロールしたら表示
+                if (scrollTop > 300) {
+                    floatingFooter.classList.add('show');
                 } else {
                     // 上部に戻ったら非表示
-                    floatingHeader.classList.remove('show');
+                    floatingFooter.classList.remove('show');
                 }
-                
-                lastScrollTop = scrollTop;
             });
+            
+            // ページ読み込み時の初期表示制御
+            if (window.pageYOffset > 300) {
+                floatingFooter.classList.add('show');
+            }
         }
         
         // リアルタイム更新（5分間隔）
@@ -1305,3 +1290,17 @@ try {
 
 </body>
 </html>
+                    <div class="revenue-item today-revenue">
+                        <div class="amount h4 mb-1">¥<?= number_format($today_revenue['total_revenue']) ?></div>
+                        <div class="detail small">今日 <?= $today_revenue['ride_count'] ?>回</div>
+                        <div class="average tiny">平均 ¥<?= number_format($today_revenue['avg_fare']) ?>/回</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="revenue-item monthly-revenue">
+                        <div class="amount h4 mb-1">¥<?= number_format($monthly_revenue['total_revenue']) ?></div>
+                        <div class="detail small">今月 <?= $monthly_revenue['ride_count'] ?>回</div>
+                        <div class="average tiny">稼働 <?= $monthly_revenue['working_days'] ?>日</div>
+                    </div>
+                </div>
+                <div class="col-4">
