@@ -810,6 +810,9 @@ function renderSectionHeader($icon, $title, $subtitle = '', $actions = []) {
 
         // 初期化処理
         document.addEventListener('DOMContentLoaded', function() {
+            // 一括操作ボタンの初期化
+            initializeBulkActions();
+
             // 既存チェック項目のスタイル適用
             const checkboxes = document.querySelectorAll('.form-check-input[type="checkbox"]');
             checkboxes.forEach(function(checkbox) {
