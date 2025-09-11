@@ -887,50 +887,6 @@ try {
                 </small>
             </div>
         </div>
-
-        <!-- 乗車記録メインアクセス -->
-        <div class="row justify-content-center mb-4">
-            <div class="col-lg-8">
-                <div class="card shadow border-0">
-                    <div class="card-body text-center p-4">
-                        <h3 class="mb-3">
-                            <i class="fas fa-users text-primary me-2"></i>
-                            乗車記録管理
-                        </h3>
-                        <p class="text-muted mb-4">最も頻繁に使用する機能への快速アクセス</p>
-                        
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <button class="btn btn-success btn-lg w-100 py-3" onclick="showQuickAmount()">
-                                    <i class="fas fa-bolt me-2"></i>
-                                    クイック金額
-                                </button>
-                            </div>
-                            <div class="col-md-4">
-                                <a href="ride_records.php?action=new" class="btn btn-primary btn-lg w-100 py-3">
-                                    <i class="fas fa-plus me-2"></i>
-                                    新規記録
-                                </a>
-                            </div>
-                            <div class="col-md-4">
-                                <a href="ride_records.php" class="btn btn-outline-primary btn-lg w-100 py-3">
-                                    <i class="fas fa-list me-2"></i>
-                                    記録一覧
-                                </a>
-                            </div>
-                        </div>
-                        
-                        <!-- 復路作成機能の説明 -->
-                        <div class="mt-4 p-3 bg-light rounded">
-                            <small class="text-muted">
-                                <i class="fas fa-lightbulb me-1"></i>
-                                復路作成機能でワンクリック復路登録が可能です
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Layer 4: 業務フロー -->
