@@ -102,20 +102,22 @@ class RevenueCalculator {
     }
     
     public static function getPreviousMonthComparison($pdo) {
+        $current_day = date('j'); // 今月の日
         $this_month_start = date('Y-m-01');
+        $this_month_end = date('Y-m-' . sprintf('%02d', $current_day)); // 今月の同日まで
         $prev_month_start = date('Y-m-01', strtotime('-1 month'));
-        $prev_month_end = date('Y-m-t', strtotime('-1 month'));
+        $prev_month_end = date('Y-m-' . sprintf('%02d', $current_day), strtotime('-1 month')); // 先月の同日まで
         
-        // 今月の売上
+        // 今月の同日までの売上
         $stmt = $pdo->prepare("
             SELECT COALESCE(SUM(fare + COALESCE(charge, 0)), 0) as revenue 
             FROM ride_records 
-            WHERE ride_date >= ?
+            WHERE ride_date BETWEEN ? AND ?
         ");
-        $stmt->execute([$this_month_start]);
+        $stmt->execute([$this_month_start, $this_month_end]);
         $this_month = $stmt->fetchColumn();
         
-        // 先月の売上
+        // 先月の同日までの売上
         $stmt = $pdo->prepare("
             SELECT COALESCE(SUM(fare + COALESCE(charge, 0)), 0) as revenue 
             FROM ride_records 
@@ -130,7 +132,8 @@ class RevenueCalculator {
         return [
             'difference' => $difference,
             'percentage' => $percentage,
-            'is_positive' => $difference >= 0
+            'is_positive' => $difference >= 0,
+            'comparison_period' => "同期間比較（{$current_day}日時点）"
         ];
     }
 }
@@ -224,6 +227,16 @@ try {
     error_log("Business progress error: " . $e->getMessage());
     $business_progress = ['departures' => 0, 'arrivals' => 0, 'rides' => 0, 'pre_calls' => 0, 'post_calls' => 0];
 }
+
+// 運転者リストを取得（クイック金額入力用）
+$drivers = [];
+try {
+    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");
+    $stmt->execute();
+    $drivers = $stmt->fetchAll();
+} catch (Exception $e) {
+    error_log("Driver fetch error: " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -242,6 +255,19 @@ try {
             background-color: #f8f9fa;
             min-height: 100vh;
             padding-top: 76px; /* ナビゲーションバー分のパディング */
+        }
+
+        /* PWA対応 */
+        @media (display-mode: standalone) {
+            body {
+                padding-top: 0; /* PWAモードではナビゲーションバーなし */
+            }
+            .navbar {
+                display: none; /* PWAモードでナビゲーションバーを非表示 */
+            }
+            .revenue-header {
+                margin-top: 20px; /* PWAモード用の上部マージン */
+            }
         }
 
         /* ========== ナビゲーションバー ========== */
@@ -333,30 +359,83 @@ try {
             line-height: 1.4;
         }
 
-        /* ========== Layer 3: 乗車記録アクセス ========== */
-        .ride-access-section {
-            background: linear-gradient(to bottom, #f8f9fa 0%, #e9ecef 100%);
+        /* ========== Layer 3: 乗車記録アクセス（浮動ヘッダー） ========== */
+        .ride-access-floating {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            z-index: 1020;
+            box-shadow: 0 2px 10px rgba(40, 167, 69, 0.3);
+            transform: translateY(-100%);
+            transition: transform 0.3s ease;
         }
 
-        .ride-access-section .btn-lg {
-            padding: 15px 20px;
-            font-size: 1.1rem;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            min-height: 60px;
+        .ride-access-floating.show {
+            transform: translateY(0);
         }
 
-        .ride-access-section .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(33, 150, 243, 0.3);
+        .ride-access-floating .quick-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
         }
 
-        .ride-access-section .btn-outline-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(33, 150, 243, 0.15);
+        .ride-access-floating .btn {
+            min-height: 40px;
+            border-radius: 20px;
+            font-weight: 600;
         }
 
-        /* ========== Layer 4: 二層業務フロー ========== */
+        /* ========== クイック金額入力 ========== */
+        .quick-amount-section {
+            background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border: 2px solid #28a745;
+        }
+
+        .quick-amount-title {
+            color: #28a745;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .amount-input {
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-align: center;
+            border: 2px solid #28a745;
+            border-radius: 10px;
+        }
+
+        .amount-presets {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 10px;
+            margin: 1rem 0;
+        }
+
+        .preset-btn {
+            border: 1px solid #28a745;
+            background: white;
+            color: #28a745;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .preset-btn:hover, .preset-btn.active {
+            background: #28a745;
+            color: white;
+        }
+
+        /* ========== Layer 4: 業務フロー ========== */
         .workflow-section {
             background-color: #ffffff;
         }
@@ -364,40 +443,38 @@ try {
         .workflow-group {
             background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
             border-radius: 15px;
-            padding: 2rem;
-            margin-bottom: 2rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
             box-shadow: 0 5px 15px rgba(0,0,0,0.08);
             border: 1px solid #e9ecef;
         }
 
         .workflow-group-title {
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
             padding-bottom: 0.5rem;
             border-bottom: 2px solid #e9ecef;
             font-weight: 600;
+            font-size: 1.1rem;
         }
 
-        .progress-flow {
+        .business-flow {
             display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
             justify-content: space-between;
-            align-items: center;
-            flex-wrap: nowrap;
-            gap: 20px;
         }
 
         .step {
             flex: 1;
+            min-width: 120px;
             max-width: 200px;
             text-align: center;
-            padding: 1.5rem;
+            padding: 1rem;
             border-radius: 12px;
             transition: all 0.3s ease;
             border: 2px solid transparent;
-        }
-
-        .step.large {
-            max-width: 300px;
-            padding: 2rem;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            color: #6c757d;
         }
 
         .step.completed {
@@ -407,47 +484,56 @@ try {
             box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
         }
 
-        .step.pending {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            color: #6c757d;
-            border-color: #dee2e6;
-        }
-
         .step:hover {
             transform: translateY(-3px);
             box-shadow: 0 8px 25px rgba(0,0,0,0.15);
         }
 
         .step-icon {
-            font-size: 2rem;
-            margin-bottom: 1rem;
-        }
-
-        .step.large .step-icon {
-            font-size: 3rem;
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
         }
 
         .step-title {
             font-weight: 600;
-            font-size: 1rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .step.large .step-title {
-            font-size: 1.25rem;
+            font-size: 0.9rem;
+            margin-bottom: 0.3rem;
         }
 
         .step-subtitle {
-            font-size: 0.875rem;
+            font-size: 0.75rem;
             opacity: 0.8;
-            margin-bottom: 1rem;
+            margin-bottom: 0.5rem;
         }
 
-        .arrow {
-            flex: 0 0 auto;
-            font-size: 1.5rem;
-            color: #6c757d;
-            margin: 0 10px;
+        .step .btn {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+        }
+
+        /* 営業業務（大きく表示） */
+        .business-main {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .business-main .step {
+            max-width: 300px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .business-main .step-icon {
+            font-size: 3rem;
+        }
+
+        .business-main .step-title {
+            font-size: 1.25rem;
+        }
+
+        .business-main .btn {
+            font-size: 1rem;
+            padding: 10px 20px;
         }
 
         /* ========== 管理機能セクション ========== */
@@ -477,48 +563,48 @@ try {
                 padding-top: 66px; /* モバイル用ナビゲーションバー調整 */
             }
             
+            @media (display-mode: standalone) {
+                body {
+                    padding-top: 0;
+                }
+            }
+            
             .revenue-header .h4 {
-                font-size: 1.1rem;
+                font-size: 1rem;
+            }
+            
+            .revenue-item {
+                padding: 0 8px;
             }
             
             .revenue-item .detail {
-                font-size: 0.8rem;
+                font-size: 0.75rem;
             }
             
             .revenue-item .average {
-                font-size: 0.7rem;
+                font-size: 0.65rem;
             }
             
-            .ride-access-section .btn-lg {
-                padding: 12px 16px;
-                font-size: 1rem;
-                min-height: 50px;
-            }
-            
-            .progress-flow {
+            .business-flow {
                 flex-direction: column;
-                gap: 15px;
-            }
-            
-            .arrow {
-                transform: rotate(90deg);
-                margin: 10px 0;
+                gap: 10px;
             }
             
             .step {
                 max-width: 100%;
-                flex-direction: row;
-                text-align: left;
-                padding: 1rem;
-            }
-            
-            .step-icon {
-                margin-right: 15px;
-                margin-bottom: 0;
-                font-size: 1.5rem;
+                min-width: auto;
             }
             
             .workflow-group {
+                padding: 1rem;
+                margin-bottom: 1rem;
+            }
+            
+            .business-main {
+                padding: 1rem;
+            }
+            
+            .business-main .step {
                 padding: 1.5rem;
             }
             
@@ -526,11 +612,15 @@ try {
                 min-height: 60px;
                 font-size: 0.9rem;
             }
+            
+            .amount-presets {
+                grid-template-columns: repeat(4, 1fr);
+            }
         }
 
         @media (max-width: 576px) {
             .revenue-header {
-                padding: 15px 10px !important;
+                padding: 10px 5px !important;
             }
             
             .container {
@@ -540,6 +630,7 @@ try {
             
             .alert-area .alert {
                 padding: 12px;
+                font-size: 0.85rem;
             }
             
             .alert-icon {
@@ -547,11 +638,15 @@ try {
             }
             
             .workflow-group {
-                padding: 1rem;
+                padding: 0.8rem;
             }
             
             .step {
                 padding: 0.8rem;
+            }
+            
+            .amount-presets {
+                grid-template-columns: repeat(3, 1fr);
             }
         }
 
@@ -598,13 +693,6 @@ try {
             animation: pulse 2s infinite;
         }
 
-        /* ========== PWA対応 ========== */
-        @media (display-mode: standalone) {
-            body {
-                padding-top: 0; /* PWAモードではナビゲーションバーなし */
-            }
-        }
-
         /* ========== システム情報表示 ========== */
         .system-info {
             font-size: 0.875rem;
@@ -619,8 +707,8 @@ try {
             <a class="navbar-brand" href="dashboard.php">
                 <i class="fas fa-taxi me-2"></i>
                 <span class="d-none d-lg-inline"><?= htmlspecialchars($system_name) ?> v3.1</span>
-                <span class="d-none d-md-inline d-lg-none">福祉輸送管理 v3.1</span>
-                <span class="d-md-none">WTS v3.1</span>
+                <span class="d-none d-md-inline d-lg-none"><?= htmlspecialchars($system_name) ?> v3.1</span>
+                <span class="d-md-none"><?= htmlspecialchars($system_name) ?></span>
             </a>
             <div class="navbar-nav ms-auto">
                 <span class="navbar-text me-3">
@@ -632,6 +720,29 @@ try {
             </div>
         </div>
     </nav>
+
+    <!-- 浮動乗車記録アクセス -->
+    <div class="ride-access-floating" id="floatingRideAccess">
+        <div class="container-fluid py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-users me-2"></i>
+                    <span class="fw-bold">乗車記録</span>
+                </div>
+                <div class="quick-buttons">
+                    <button class="btn btn-light btn-sm" onclick="showQuickAmount()">
+                        <i class="fas fa-yen-sign me-1"></i>金額入力
+                    </button>
+                    <a href="ride_records.php?action=new" class="btn btn-light btn-sm">
+                        <i class="fas fa-plus me-1"></i>新規
+                    </a>
+                    <a href="ride_records.php" class="btn btn-outline-light btn-sm">
+                        <i class="fas fa-list me-1"></i>一覧
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Layer 1: 売上情報ヘッダー（sticky） -->
     <div class="revenue-header sticky-top text-white p-3 shadow">
@@ -661,11 +772,11 @@ try {
                 </div>
             </div>
             
-            <!-- 先月比較 -->
+            <!-- 同期間比較 -->
             <div class="comparison text-center">
                 <span class="badge bg-<?= $comparison['is_positive'] ? 'success' : 'danger' ?> px-3 py-2">
                     <i class="fas fa-arrow-<?= $comparison['is_positive'] ? 'up' : 'down' ?>"></i>
-                    先月比 <?= $comparison['is_positive'] ? '+' : '' ?>¥<?= number_format(abs($comparison['difference'])) ?>
+                    <?= $comparison['comparison_period'] ?> <?= $comparison['is_positive'] ? '+' : '' ?>¥<?= number_format(abs($comparison['difference'])) ?>
                     (<?= $comparison['is_positive'] ? '+' : '' ?><?= $comparison['percentage'] ?>%)
                 </span>
             </div>
@@ -711,41 +822,96 @@ try {
         </div>
     </div>
 
-    <!-- Layer 3: 乗車記録アクセス（メインエリア） -->
-    <div class="ride-access-section py-4">
-        <div class="container">
-            <div class="row justify-content-center">
-                <div class="col-lg-8">
-                    <div class="card shadow border-0">
-                        <div class="card-body text-center p-5">
-                            <h3 class="mb-4">
-                                <i class="fas fa-users text-primary me-2"></i>
-                                乗車記録管理
-                            </h3>
-                            <p class="text-muted mb-4">最も頻繁に使用する機能への快速アクセス</p>
-                            
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <a href="ride_records.php?action=new" class="btn btn-primary btn-lg w-100 py-3">
-                                        <i class="fas fa-plus me-2"></i>
-                                        新規乗車記録
-                                    </a>
-                                </div>
-                                <div class="col-md-6">
-                                    <a href="ride_records.php" class="btn btn-outline-primary btn-lg w-100 py-3">
-                                        <i class="fas fa-list me-2"></i>
-                                        記録一覧・編集
-                                    </a>
-                                </div>
+    <!-- Layer 3: クイック金額入力セクション -->
+    <div class="container mt-4">
+        <div class="quick-amount-section" id="quickAmountSection" style="display: none;">
+            <h5 class="quick-amount-title">
+                <i class="fas fa-bolt me-2"></i>
+                クイック金額入力
+            </h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="form-label">運転者</label>
+                    <select class="form-select mb-3" id="quickDriver">
+                        <option value="">運転者を選択</option>
+                        <?php foreach ($drivers as $driver): ?>
+                        <option value="<?= $driver['id'] ?>"><?= htmlspecialchars($driver['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">金額</label>
+                    <input type="number" class="form-control amount-input mb-3" id="quickAmount" placeholder="0" min="0" step="10">
+                </div>
+            </div>
+            
+            <!-- 金額プリセット -->
+            <div class="amount-presets">
+                <button class="preset-btn" onclick="setAmount(500)">500</button>
+                <button class="preset-btn" onclick="setAmount(1000)">1000</button>
+                <button class="preset-btn" onclick="setAmount(1500)">1500</button>
+                <button class="preset-btn" onclick="setAmount(2000)">2000</button>
+                <button class="preset-btn" onclick="setAmount(2500)">2500</button>
+                <button class="preset-btn" onclick="setAmount(3000)">3000</button>
+                <button class="preset-btn" onclick="setAmount(4000)">4000</button>
+                <button class="preset-btn" onclick="setAmount(5000)">5000</button>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <button class="btn btn-secondary" onclick="hideQuickAmount()">
+                    <i class="fas fa-times me-2"></i>キャンセル
+                </button>
+                <button class="btn btn-success" onclick="saveQuickAmount()">
+                    <i class="fas fa-save me-2"></i>一時保存
+                </button>
+            </div>
+            
+            <div class="mt-3">
+                <small class="text-muted">
+                    <i class="fas fa-info-circle me-1"></i>
+                    一時保存後、乗車記録で詳細を入力できます
+                </small>
+            </div>
+        </div>
+
+        <!-- 乗車記録メインアクセス -->
+        <div class="row justify-content-center mb-4">
+            <div class="col-lg-8">
+                <div class="card shadow border-0">
+                    <div class="card-body text-center p-4">
+                        <h3 class="mb-3">
+                            <i class="fas fa-users text-primary me-2"></i>
+                            乗車記録管理
+                        </h3>
+                        <p class="text-muted mb-4">最も頻繁に使用する機能への快速アクセス</p>
+                        
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <button class="btn btn-success btn-lg w-100 py-3" onclick="showQuickAmount()">
+                                    <i class="fas fa-bolt me-2"></i>
+                                    クイック金額
+                                </button>
                             </div>
-                            
-                            <!-- 復路作成機能の説明 -->
-                            <div class="mt-4 p-3 bg-light rounded">
-                                <small class="text-muted">
-                                    <i class="fas fa-lightbulb me-1"></i>
-                                    復路作成機能でワンクリック復路登録が可能です
-                                </small>
+                            <div class="col-md-4">
+                                <a href="ride_records.php?action=new" class="btn btn-primary btn-lg w-100 py-3">
+                                    <i class="fas fa-plus me-2"></i>
+                                    新規記録
+                                </a>
                             </div>
+                            <div class="col-md-4">
+                                <a href="ride_records.php" class="btn btn-outline-primary btn-lg w-100 py-3">
+                                    <i class="fas fa-list me-2"></i>
+                                    記録一覧
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <!-- 復路作成機能の説明 -->
+                        <div class="mt-4 p-3 bg-light rounded">
+                            <small class="text-muted">
+                                <i class="fas fa-lightbulb me-1"></i>
+                                復路作成機能でワンクリック復路登録が可能です
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -753,79 +919,62 @@ try {
         </div>
     </div>
 
-    <!-- Layer 4: 二層業務フロー -->
-    <div class="workflow-section py-4" style="background-color: #ffffff;">
+    <!-- Layer 4: 業務フロー -->
+    <div class="workflow-section py-4">
         <div class="container">
-            <h4 class="text-center mb-4">
-                <i class="fas fa-route me-2"></i>
-                7段階業務フロー
-            </h4>
-            
             <!-- 開始業務グループ -->
-            <div class="workflow-group mb-4">
+            <div class="workflow-group">
                 <h5 class="workflow-group-title">
                     <i class="fas fa-play-circle text-success me-2"></i>
                     開始業務
                 </h5>
-                <div class="progress-flow d-flex justify-content-between align-items-center">
+                <div class="business-flow">
                     <!-- Step 1: 日常点検 -->
-                    <div class="step <?= $business_progress['departures'] > 0 ? 'completed' : 'pending' ?>">
+                    <div class="step <?= $business_progress['departures'] > 0 ? 'completed' : '' ?>">
                         <div class="step-icon">
                             <i class="fas fa-tools"></i>
                         </div>
-                        <div class="step-content">
-                            <div class="step-title">日常点検</div>
-                            <div class="step-subtitle">17項目</div>
-                            <a href="daily_inspection.php" class="btn btn-sm btn-outline-primary mt-2">実施</a>
-                        </div>
+                        <div class="step-title">日常点検</div>
+                        <div class="step-subtitle">17項目</div>
+                        <a href="daily_inspection.php" class="btn btn-sm btn-outline-primary">実施</a>
                     </div>
                     
-                    <div class="arrow"><i class="fas fa-arrow-right"></i></div>
-                    
                     <!-- Step 2: 乗務前点呼 -->
-                    <div class="step <?= $business_progress['pre_calls'] > 0 ? 'completed' : 'pending' ?>">
+                    <div class="step <?= $business_progress['pre_calls'] > 0 ? 'completed' : '' ?>">
                         <div class="step-icon">
                             <i class="fas fa-clipboard-check"></i>
                         </div>
-                        <div class="step-content">
-                            <div class="step-title">乗務前点呼</div>
-                            <div class="step-subtitle">16項目</div>
-                            <a href="pre_duty_call.php" class="btn btn-sm btn-outline-warning mt-2">実施</a>
-                        </div>
+                        <div class="step-title">乗務前点呼</div>
+                        <div class="step-subtitle">16項目</div>
+                        <a href="pre_duty_call.php" class="btn btn-sm btn-outline-warning">実施</a>
                     </div>
                     
-                    <div class="arrow"><i class="fas fa-arrow-right"></i></div>
-                    
                     <!-- Step 3: 出庫処理 -->
-                    <div class="step <?= $business_progress['departures'] > 0 ? 'completed' : 'pending' ?>">
+                    <div class="step <?= $business_progress['departures'] > 0 ? 'completed' : '' ?>">
                         <div class="step-icon">
                             <i class="fas fa-sign-out-alt"></i>
                         </div>
-                        <div class="step-content">
-                            <div class="step-title">出庫処理</div>
-                            <div class="step-subtitle">時刻・天候</div>
-                            <a href="departure.php" class="btn btn-sm btn-outline-info mt-2">実施</a>
-                        </div>
+                        <div class="step-title">出庫処理</div>
+                        <div class="step-subtitle">時刻・天候</div>
+                        <a href="departure.php" class="btn btn-sm btn-outline-info">実施</a>
                     </div>
                 </div>
             </div>
             
             <!-- 営業業務 -->
-            <div class="workflow-group mb-4">
+            <div class="workflow-group">
                 <h5 class="workflow-group-title">
                     <i class="fas fa-business-time text-primary me-2"></i>
                     営業業務
                 </h5>
-                <div class="text-center py-4">
-                    <div class="step large <?= $business_progress['rides'] > 0 ? 'completed' : 'pending' ?>">
+                <div class="business-main">
+                    <div class="step large <?= $business_progress['rides'] > 0 ? 'completed' : '' ?>">
                         <div class="step-icon">
                             <i class="fas fa-users"></i>
                         </div>
-                        <div class="step-content">
-                            <div class="step-title">乗車記録</div>
-                            <div class="step-subtitle">今日 <?= $business_progress['rides'] ?>件</div>
-                            <a href="ride_records.php" class="btn btn-success btn-lg mt-3">記録管理</a>
-                        </div>
+                        <div class="step-title">乗車記録</div>
+                        <div class="step-subtitle">今日 <?= $business_progress['rides'] ?>件</div>
+                        <a href="ride_records.php" class="btn btn-success btn-lg">記録管理</a>
                     </div>
                 </div>
             </div>
@@ -836,45 +985,64 @@ try {
                     <i class="fas fa-stop-circle text-danger me-2"></i>
                     終了業務
                 </h5>
-                <div class="progress-flow d-flex justify-content-between align-items-center">
+                <div class="business-flow">
                     <!-- Step 5: 入庫処理 -->
-                    <div class="step <?= $business_progress['arrivals'] > 0 ? 'completed' : 'pending' ?>">
+                    <div class="step <?= $business_progress['arrivals'] > 0 ? 'completed' : '' ?>">
                         <div class="step-icon">
                             <i class="fas fa-sign-in-alt"></i>
                         </div>
-                        <div class="step-content">
-                            <div class="step-title">入庫処理</div>
-                            <div class="step-subtitle">走行距離</div>
-                            <a href="arrival.php" class="btn btn-sm btn-outline-info mt-2">実施</a>
-                        </div>
+                        <div class="step-title">入庫処理</div>
+                        <div class="step-subtitle">走行距離</div>
+                        <a href="arrival.php" class="btn btn-sm btn-outline-info">実施</a>
                     </div>
                     
-                    <div class="arrow"><i class="fas fa-arrow-right"></i></div>
-                    
                     <!-- Step 6: 乗務後点呼 -->
-                    <div class="step <?= $business_progress['post_calls'] > 0 ? 'completed' : 'pending' ?>">
+                    <div class="step <?= $business_progress['post_calls'] > 0 ? 'completed' : '' ?>">
                         <div class="step-icon">
                             <i class="fas fa-clipboard-check"></i>
                         </div>
-                        <div class="step-content">
-                            <div class="step-title">乗務後点呼</div>
-                            <div class="step-subtitle">12項目</div>
-                            <a href="post_duty_call.php" class="btn btn-sm btn-outline-warning mt-2">実施</a>
-                        </div>
+                        <div class="step-title">乗務後点呼</div>
+                        <div class="step-subtitle">12項目</div>
+                        <a href="post_duty_call.php" class="btn btn-sm btn-outline-warning">実施</a>
                     </div>
                     
-                    <div class="arrow"><i class="fas fa-arrow-right"></i></div>
-                    
                     <!-- Step 7: 売上金確認 -->
-                    <div class="step pending">
+                    <div class="step">
                         <div class="step-icon">
                             <i class="fas fa-calculator"></i>
                         </div>
-                        <div class="step-content">
-                            <div class="step-title">売上金確認</div>
-                            <div class="step-subtitle">現金管理</div>
-                            <a href="cash_management.php" class="btn btn-sm btn-outline-success mt-2">実施</a>
+                        <div class="step-title">売上金確認</div>
+                        <div class="step-subtitle">現金管理</div>
+                        <a href="cash_management.php" class="btn btn-sm btn-outline-success">実施</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 定期業務グループ -->
+            <div class="workflow-group">
+                <h5 class="workflow-group-title">
+                    <i class="fas fa-calendar-alt text-info me-2"></i>
+                    定期業務
+                </h5>
+                <div class="business-flow">
+                    <!-- 定期点検 -->
+                    <div class="step">
+                        <div class="step-icon">
+                            <i class="fas fa-wrench"></i>
                         </div>
+                        <div class="step-title">定期点検</div>
+                        <div class="step-subtitle">3ヶ月毎</div>
+                        <a href="periodic_inspection.php" class="btn btn-sm btn-outline-secondary">実施</a>
+                    </div>
+                    
+                    <!-- 陸運局報告 -->
+                    <div class="step">
+                        <div class="step-icon">
+                            <i class="fas fa-file-alt"></i>
+                        </div>
+                        <div class="step-title">陸運局報告</div>
+                        <div class="step-subtitle">年1回</div>
+                        <a href="annual_report.php" class="btn btn-sm btn-outline-secondary">実施</a>
                     </div>
                 </div>
             </div>
@@ -924,8 +1092,8 @@ try {
         <div class="container">
             <div class="system-info">
                 <span class="d-none d-lg-inline"><?= htmlspecialchars($system_name) ?> v3.1</span>
-                <span class="d-none d-md-inline d-lg-none">福祉輸送管理 v3.1</span>
-                <span class="d-md-none">WTS v3.1</span>
+                <span class="d-none d-md-inline d-lg-none"><?= htmlspecialchars($system_name) ?> v3.1</span>
+                <span class="d-md-none"><?= htmlspecialchars($system_name) ?></span>
                 &nbsp;|&nbsp;
                 <span id="current-time"><?= date('Y年n月j日 H:i') ?></span>
             </div>
@@ -943,9 +1111,36 @@ try {
         }
         
         init() {
+            this.setupFloatingHeader();
             this.setupRealtimeUpdates();
             this.setupNotifications();
             this.setupMobileOptimizations();
+        }
+        
+        // 浮動ヘッダー設定
+        setupFloatingHeader() {
+            const floatingHeader = document.getElementById('floatingRideAccess');
+            let lastScrollTop = 0;
+            
+            window.addEventListener('scroll', () => {
+                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                
+                // 200px以上スクロールしたら表示
+                if (scrollTop > 200) {
+                    if (scrollTop > lastScrollTop) {
+                        // 下スクロール時は表示
+                        floatingHeader.classList.add('show');
+                    } else {
+                        // 上スクロール時も表示を維持
+                        floatingHeader.classList.add('show');
+                    }
+                } else {
+                    // 上部に戻ったら非表示
+                    floatingHeader.classList.remove('show');
+                }
+                
+                lastScrollTop = scrollTop;
+            });
         }
         
         // リアルタイム更新（5分間隔）
@@ -983,55 +1178,10 @@ try {
                 todayDetail.textContent = `今日 ${revenue.today.count}回`;
                 todayAverage.textContent = `平均 ¥${revenue.today.average.toLocaleString()}/回`;
             }
-            
-            // 月間売上
-            const monthlyAmount = document.querySelector('.monthly-revenue .amount');
-            const monthlyDetail = document.querySelector('.monthly-revenue .detail');
-            const monthlyAverage = document.querySelector('.monthly-revenue .average');
-            
-            if (monthlyAmount) {
-                monthlyAmount.textContent = '¥' + revenue.monthly.amount.toLocaleString();
-                monthlyDetail.textContent = `今月 ${revenue.monthly.count}回`;
-                monthlyAverage.textContent = `稼働 ${revenue.monthly.working_days}日`;
-            }
-            
-            // 日平均
-            const avgAmount = document.querySelector('.daily-average .amount');
-            if (avgAmount) {
-                avgAmount.textContent = '¥' + revenue.daily_average.toLocaleString();
-            }
-            
-            // 先月比較
-            const comparison = document.querySelector('.comparison .badge');
-            if (comparison && revenue.comparison) {
-                const isPositive = revenue.comparison.percentage >= 0;
-                comparison.className = `badge bg-${isPositive ? 'success' : 'danger'} px-3 py-2`;
-                comparison.innerHTML = `
-                    <i class="fas fa-arrow-${isPositive ? 'up' : 'down'}"></i>
-                    先月比 ${isPositive ? '+' : ''}¥${Math.abs(revenue.comparison.difference).toLocaleString()}
-                    (${isPositive ? '+' : ''}${revenue.comparison.percentage}%)
-                `;
-            }
-        }
-        
-        // アラートチェック
-        async checkForNewAlerts() {
-            try {
-                const response = await fetch('api/dashboard_alerts.php');
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.success && data.alerts.length > 0) {
-                        this.updateAlerts(data.alerts);
-                    }
-                }
-            } catch (error) {
-                console.error('アラートチェックエラー:', error);
-            }
         }
         
         // 通知設定
         setupNotifications() {
-            // 重要アラートがある場合の通知
             const criticalAlerts = document.querySelectorAll('.alert-danger');
             if (criticalAlerts.length > 0 && 'Notification' in window) {
                 this.requestNotificationPermission();
@@ -1054,15 +1204,10 @@ try {
         
         // モバイル最適化
         setupMobileOptimizations() {
-            // タッチデバイス検出
             if ('ontouchstart' in window) {
                 document.body.classList.add('touch-device');
-                
-                // スワイプナビゲーション
-                this.setupSwipeNavigation();
             }
             
-            // 画面向き変更対応
             window.addEventListener('orientationchange', () => {
                 setTimeout(() => {
                     this.adjustLayoutForOrientation();
@@ -1074,46 +1219,6 @@ try {
         adjustLayoutForOrientation() {
             const isLandscape = window.innerHeight < window.innerWidth;
             document.body.classList.toggle('landscape-mode', isLandscape);
-        }
-        
-        // スワイプナビゲーション
-        setupSwipeNavigation() {
-            let startX, startY, distX, distY;
-            const threshold = 100;
-            
-            document.addEventListener('touchstart', (e) => {
-                startX = e.touches[0].clientX;
-                startY = e.touches[0].clientY;
-            });
-            
-            document.addEventListener('touchend', (e) => {
-                distX = e.changedTouches[0].clientX - startX;
-                distY = e.changedTouches[0].clientY - startY;
-                
-                if (Math.abs(distX) > Math.abs(distY) && Math.abs(distX) > threshold) {
-                    if (distX > 0) {
-                        // 右スワイプ: 前のページ
-                        this.navigateToPrevious();
-                    } else {
-                        // 左スワイプ: 次のページ
-                        this.navigateToNext();
-                    }
-                }
-            });
-        }
-        
-        // 前のページナビゲーション
-        navigateToPrevious() {
-            // 履歴がある場合は戻る
-            if (window.history.length > 1) {
-                window.history.back();
-            }
-        }
-        
-        // 次のページナビゲーション
-        navigateToNext() {
-            // 乗車記録への快速アクセス
-            window.location.href = 'ride_records.php';
         }
         
         // 時刻更新
@@ -1130,6 +1235,71 @@ try {
                 };
                 timeElement.textContent = now.toLocaleDateString('ja-JP', options);
             }
+        }
+    }
+
+    // クイック金額入力機能
+    function showQuickAmount() {
+        const section = document.getElementById('quickAmountSection');
+        section.style.display = 'block';
+        section.scrollIntoView({ behavior: 'smooth' });
+        
+        // 運転者を自動選択（ログインユーザーが運転者の場合）
+        <?php if ($user_data['is_driver']): ?>
+        document.getElementById('quickDriver').value = '<?= $_SESSION['user_id'] ?>';
+        <?php endif; ?>
+    }
+
+    function hideQuickAmount() {
+        document.getElementById('quickAmountSection').style.display = 'none';
+    }
+
+    function setAmount(amount) {
+        document.getElementById('quickAmount').value = amount;
+        
+        // プリセットボタンのアクティブ状態を更新
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        event.target.classList.add('active');
+    }
+
+    async function saveQuickAmount() {
+        const driverId = document.getElementById('quickDriver').value;
+        const amount = document.getElementById('quickAmount').value;
+        
+        if (!driverId || !amount) {
+            alert('運転者と金額を入力してください');
+            return;
+        }
+        
+        try {
+            const response = await fetch('api/save_quick_amount.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    driver_id: driverId,
+                    amount: amount,
+                    timestamp: new Date().toISOString()
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                alert('金額を一時保存しました。乗車記録で詳細を入力してください。');
+                hideQuickAmount();
+                
+                // 乗車記録ページに遷移（クイック金額IDを渡す）
+                window.location.href = `ride_records.php?action=new&quick_id=${result.quick_id}`;
+            } else {
+                alert('保存に失敗しました: ' + result.message);
+            }
+        } catch (error) {
+            console.error('保存エラー:', error);
+            alert('保存中にエラーが発生しました');
         }
     }
 
