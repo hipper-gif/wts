@@ -648,6 +648,20 @@ try {
             .amount-presets {
                 grid-template-columns: repeat(3, 1fr);
             }
+
+            /* 浮動フッターのモバイル最適化 */
+            .ride-access-floating {
+                padding: 0.5rem 0;
+            }
+
+            .ride-access-floating .btn {
+                padding: 6px 8px;
+                font-size: 0.8rem;
+            }
+
+            .quick-buttons {
+                gap: 5px;
+            }
         }
 
         /* ========== アニメーション ========== */
