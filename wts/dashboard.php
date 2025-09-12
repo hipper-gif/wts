@@ -955,11 +955,11 @@ usort($alerts, function($a, $b) {
                             <h6>計算ロジック説明</h6>
                             <div class="alert alert-info">
                                 <small>
-                                    <strong>料金計算優先順位:</strong><br>
+                                    <strong>料金計算優先順位（最適化後）:</strong><br>
                                     1. total_fare（合計料金）<br>
                                     2. fare + charge（基本＋追加）<br>
                                     3. fare（基本料金のみ）<br>
-                                    4. fare_amount（メイン料金）
+                                    <em>注意: fare_amountカラムは最適化により削除済み</em>
                                 </small>
                             </div>
                             <a href="ride_records.php" class="btn btn-outline-primary btn-sm">
