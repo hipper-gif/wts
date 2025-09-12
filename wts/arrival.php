@@ -1,4 +1,62 @@
-<?php
+<!-- 休憩記録（新機能） -->
+                    <?= renderSectionHeader('break', '休憩記録', '任意', []) ?>
+                    <div class="card mb-4 border-dashed">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="break_location" class="form-label">
+                                        <i class="fas fa-map-marker-alt me-1"></i>休憩場所
+                                    </label>
+                                    <input type="text" class="form-control" id="break_location" name="break_location" 
+                                           placeholder="例：○○SA、△△道の駅">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="break_start_time" class="form-label">
+                                        <i class="fas fa-play me-1"></i>休憩開始
+                                    </label>
+                                    <input type="time" class="form-control" id="break_start_time" name="break_start_time">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="break_end_time" class="form-label">
+                                        <i class="fas fa-stop me-1"></i>休憩終了
+                                    </label>
+                                    <input type="time" class="form-control" id="break_end_time" name="break_end_time">
+                                </div>
+                            </div>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                法定要件ではありませんが、労務管理のため記録を推奨します
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 備考 -->
+                    <div class="mb-4">
+                        <label for="remarks" class="form-label">
+                            <i class="fas fa-sticky-note me-1"></i>備考・特記事項
+                        </label>
+                        <textarea class="form-control" id="remarks" name="remarks" rows="3" 
+                                  placeholder="特記事項があれば入力してください"></textarea>
+                    </div>
+
+                    <!-- 保存ボタン -->
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-primary btn-lg px-5">
+                            <i class="fas fa-save me-2"></i>入庫記録を保存
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 操作ヘルプ -->
+        <?= renderSectionHeader('help', '操作ガイド', 'ヘルプ', []) ?>
+        <div class="card">
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-mouse-pointer me-2 text-primary"></i>未入庫車両から選択</h6>
+                        <p class="small text-muted mb-0">上の「未入庫車両一覧」から該当車両をクリックすると、運転者・車両・出庫メーターが自動入力<?php
 /**
  * 入庫処理システム v3.1 - 改善実装版
  * 仕様書完全準拠・モダンミニマルデザイン
@@ -624,66 +682,7 @@ $page_config = [
                         </div>
                     </div>
 
-                    <!-- 休憩記録（新機能） -->
-                    <div class="card mb-4" style="border: 2px dashed #dee2e6;">
-                        <div class="card-header bg-light">
-                            <i class="fas fa-coffee me-2"></i>休憩記録（任意）
-                            <small class="text-muted">- 法定要件ではありませんが記録推奨</small>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label for="break_location" class="form-label">
-                                        <i class="fas fa-map-marker-alt me-1"></i>休憩場所
-                                    </label>
-                                    <input type="text" class="form-control" id="break_location" name="break_location" 
-                                           placeholder="例：○○SA、△△道の駅">
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label for="break_start_time" class="form-label">
-                                        <i class="fas fa-play me-1"></i>休憩開始
-                                    </label>
-                                    <input type="time" class="form-control" id="break_start_time" name="break_start_time">
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label for="break_end_time" class="form-label">
-                                        <i class="fas fa-stop me-1"></i>休憩終了
-                                    </label>
-                                    <input type="time" class="form-control" id="break_end_time" name="break_end_time">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 備考 -->
-                    <div class="mb-4">
-                        <label for="remarks" class="form-label">
-                            <i class="fas fa-sticky-note me-1"></i>備考・特記事項
-                        </label>
-                        <textarea class="form-control" id="remarks" name="remarks" rows="3" 
-                                  placeholder="特記事項があれば入力してください"></textarea>
-                    </div>
-
-                    <!-- 保存ボタン -->
-                    <div class="text-center">
-                        <button type="submit" class="btn btn-primary btn-lg px-5">
-                            <i class="fas fa-save me-2"></i>入庫記録を保存
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- 操作ヘルプ -->
-        <div class="card">
-            <div class="card-header bg-light">
-                <i class="fas fa-question-circle me-2"></i>操作ガイド
-            </div>
-            <div class="card-body">
-                <div class="row g-4">
-                    <div class="col-md-6">
-                        <h6><i class="fas fa-mouse-pointer me-2 text-primary"></i>未入庫車両から選択</h6>
-                        <p class="small text-muted mb-0">上の「未入庫車両一覧」から該当車両をクリックすると、運転者・車両・出庫メーターが自動入力されます。</p>
+されます。</p>
                     </div>
                     <div class="col-md-6">
                         <h6><i class="fas fa-calculator me-2 text-success"></i>走行距離自動計算</h6>
@@ -701,203 +700,235 @@ $page_config = [
             </div>
         </div>
     </div>
+</main>
 
-    <!-- JavaScript -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // 未入庫項目選択時の処理（改善版）
-        function selectDeparture(departureId, driverName, vehicleNumber, departureMileage, vehicleId, driverId) {
-            // フォームに値を設定
-            document.getElementById('departure_record_id').value = departureId;
-            document.getElementById('driver_id').value = driverId;
-            document.getElementById('vehicle_id').value = vehicleId;
-            
-            // 出庫メーターを保存
-            window.departureMileage = departureMileage;
-            
-            // 走行距離を再計算
-            calculateDistance();
-            
-            // ビジュアルフィードバック（改善）
-            document.querySelectorAll('.unreturned-item').forEach(item => {
-                item.classList.remove('selected');
-            });
-            event.currentTarget.classList.add('selected');
-            
-            // 成功メッセージ表示
-            showToast(`${driverName} (${vehicleNumber}) を選択しました`, 'success');
-        }
+<!-- カスタムスタイル（統一ヘッダー対応） -->
+<style>
+.main-content {
+    margin-top: 0; /* 統一ヘッダーが既に適用済み */
+}
 
-        // 走行距離自動計算（バリデーション強化）
-        function calculateDistance() {
-            const arrivalMileage = parseInt(document.getElementById('arrival_mileage').value) || 0;
-            const departureMileage = window.departureMileage || 0;
-            const totalDistance = arrivalMileage - departureMileage;
+.unreturned-item {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    margin: 0.5rem;
+    padding: 1rem;
+}
+
+.unreturned-item:hover {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    transform: translateX(5px);
+}
+
+.unreturned-item.selected {
+    background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+    color: white;
+}
+
+.border-dashed {
+    border: 2px dashed #dee2e6 !important;
+}
+
+.form-control.border-warning {
+    border-color: #ffc107 !important;
+}
+
+.form-control.border-danger {
+    border-color: #dc3545 !important;
+}
+
+/* レスポンシブ調整 */
+@media (max-width: 768px) {
+    .btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    
+    .col-md-6 {
+        margin-bottom: 1rem;
+    }
+}
+</style>
+
+<!-- JavaScript（統一ヘッダー対応） -->
+<script>
+    // 未入庫項目選択時の処理（改善版）
+    function selectDeparture(departureId, driverName, vehicleNumber, departureMileage, vehicleId, driverId) {
+        // フォームに値を設定
+        document.getElementById('departure_record_id').value = departureId;
+        document.getElementById('driver_id').value = driverId;
+        document.getElementById('vehicle_id').value = vehicleId;
+        
+        // 出庫メーターを保存
+        window.departureMileage = departureMileage;
+        
+        // 走行距離を再計算
+        calculateDistance();
+        
+        // ビジュアルフィードバック（改善）
+        document.querySelectorAll('.unreturned-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+        event.currentTarget.classList.add('selected');
+        
+        // 成功メッセージ表示（統一ヘッダー対応）
+        showNotification(`${driverName} (${vehicleNumber}) を選択しました`, 'success');
+    }
+
+    // 走行距離自動計算（バリデーション強化）
+    function calculateDistance() {
+        const arrivalMileage = parseInt(document.getElementById('arrival_mileage').value) || 0;
+        const departureMileage = window.departureMileage || 0;
+        const totalDistance = arrivalMileage - departureMileage;
+        
+        const distanceField = document.getElementById('total_distance');
+        
+        if (totalDistance >= 0) {
+            distanceField.value = totalDistance;
+            distanceField.className = 'form-control';
             
-            const distanceField = document.getElementById('total_distance');
-            
-            if (totalDistance >= 0) {
-                distanceField.value = totalDistance;
-                distanceField.className = 'form-control';
-                
-                // 異常値チェック
-                if (totalDistance > 500) {
-                    distanceField.className = 'form-control border-warning';
-                    showToast('走行距離が500kmを超えています。確認してください。', 'warning');
-                }
-            } else if (arrivalMileage > 0) {
-                distanceField.value = '';
-                distanceField.className = 'form-control border-danger';
-                showToast('入庫メーターが出庫メーターより小さくなっています。', 'error');
+            // 異常値チェック
+            if (totalDistance > 500) {
+                distanceField.className = 'form-control border-warning';
+                showNotification('走行距離が500kmを超えています。確認してください。', 'warning');
             }
+        } else if (arrivalMileage > 0) {
+            distanceField.value = '';
+            distanceField.className = 'form-control border-danger';
+            showNotification('入庫メーターが出庫メーターより小さくなっています。', 'error');
         }
+    }
 
-        // トーストメッセージ表示（新機能）
-        function showToast(message, type = 'info') {
-            // 既存のトーストを削除
-            const existingToast = document.querySelector('.toast');
-            if (existingToast) {
-                existingToast.remove();
+    // 通知メッセージ表示（統一ヘッダー対応）
+    function showNotification(message, type = 'info') {
+        // 統一ヘッダーの通知システムを使用
+        if (typeof window.showSystemNotification === 'function') {
+            window.showSystemNotification(message, type);
+        } else {
+            // フォールバック：シンプルなアラート
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+    }
+
+    // フォームバリデーション強化
+    function validateForm() {
+        const requiredFields = ['driver_id', 'vehicle_id', 'arrival_date', 'arrival_time', 'arrival_mileage'];
+        let isValid = true;
+
+        requiredFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (!field.value.trim()) {
+                field.classList.add('border-danger');
+                isValid = false;
+            } else {
+                field.classList.remove('border-danger');
             }
+        });
 
-            const colors = {
-                success: 'bg-success',
-                warning: 'bg-warning',
-                error: 'bg-danger',
-                info: 'bg-primary'
-            };
-
-            const toastHtml = `
-                <div class="toast position-fixed top-0 end-0 m-3" style="z-index: 9999" role="alert">
-                    <div class="toast-header ${colors[type]} text-white">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong class="me-auto">通知</strong>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
-                    </div>
-                    <div class="toast-body">
-                        ${message}
-                    </div>
-                </div>
-            `;
-
-            document.body.insertAdjacentHTML('beforeend', toastHtml);
-            const toast = new bootstrap.Toast(document.querySelector('.toast'));
-            toast.show();
+        // 走行距離チェック
+        const totalDistance = parseInt(document.getElementById('total_distance').value) || 0;
+        if (totalDistance < 0) {
+            showNotification('走行距離がマイナスになっています。メーター値を確認してください。', 'error');
+            return false;
         }
 
-        // フォームバリデーション強化
-        function validateForm() {
-            const requiredFields = ['driver_id', 'vehicle_id', 'arrival_date', 'arrival_time', 'arrival_mileage'];
-            let isValid = true;
+        if (!isValid) {
+            showNotification('必須項目が入力されていません。', 'error');
+            return false;
+        }
 
-            requiredFields.forEach(fieldId => {
-                const field = document.getElementById(fieldId);
-                if (!field.value.trim()) {
-                    field.classList.add('border-danger');
-                    isValid = false;
-                } else {
-                    field.classList.remove('border-danger');
-                }
-            });
+        return true;
+    }
 
-            // 走行距離チェック
-            const totalDistance = parseInt(document.getElementById('total_distance').value) || 0;
-            if (totalDistance < 0) {
-                showToast('走行距離がマイナスになっています。メーター値を確認してください。', 'error');
+    // 休憩時間の妥当性チェック
+    function validateBreakTime() {
+        const startTime = document.getElementById('break_start_time').value;
+        const endTime = document.getElementById('break_end_time').value;
+
+        if (startTime && endTime) {
+            const start = new Date(`2000-01-01 ${startTime}`);
+            const end = new Date(`2000-01-01 ${endTime}`);
+
+            if (end <= start) {
+                showNotification('休憩終了時刻は開始時刻より後に設定してください。', 'warning');
                 return false;
             }
 
-            if (!isValid) {
-                showToast('必須項目が入力されていません。', 'error');
-                return false;
+            const breakMinutes = (end - start) / (1000 * 60);
+            if (breakMinutes > 480) { // 8時間
+                showNotification('休憩時間が8時間を超えています。確認してください。', 'warning');
             }
-
-            return true;
         }
+        return true;
+    }
 
-        // 休憩時間の妥当性チェック
-        function validateBreakTime() {
-            const startTime = document.getElementById('break_start_time').value;
-            const endTime = document.getElementById('break_end_time').value;
+    // イベントリスナー設定
+    document.addEventListener('DOMContentLoaded', function() {
+        // 現在時刻を自動設定
+        const now = new Date();
+        const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                          now.getMinutes().toString().padStart(2, '0');
+        document.getElementById('arrival_time').value = timeString;
 
-            if (startTime && endTime) {
-                const start = new Date(`2000-01-01 ${startTime}`);
-                const end = new Date(`2000-01-01 ${endTime}`);
+        // 入庫メーター変更時に走行距離を再計算
+        document.getElementById('arrival_mileage').addEventListener('input', calculateDistance);
 
-                if (end <= start) {
-                    showToast('休憩終了時刻は開始時刻より後に設定してください。', 'warning');
-                    return false;
-                }
+        // 休憩時間変更時の検証
+        document.getElementById('break_start_time').addEventListener('change', validateBreakTime);
+        document.getElementById('break_end_time').addEventListener('change', validateBreakTime);
 
-                const breakMinutes = (end - start) / (1000 * 60);
-                if (breakMinutes > 480) { // 8時間
-                    showToast('休憩時間が8時間を超えています。確認してください。', 'warning');
-                }
+        // フォーム送信時の検証
+        document.getElementById('arrivalForm').addEventListener('submit', function(e) {
+            if (!validateForm() || !validateBreakTime()) {
+                e.preventDefault();
             }
-            return true;
-        }
+        });
 
-        // イベントリスナー設定
-        document.addEventListener('DOMContentLoaded', function() {
-            // 現在時刻を自動設定
-            const now = new Date();
-            const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                              now.getMinutes().toString().padStart(2, '0');
-            document.getElementById('arrival_time').value = timeString;
-
-            // 入庫メーター変更時に走行距離を再計算
-            document.getElementById('arrival_mileage').addEventListener('input', calculateDistance);
-
-            // 休憩時間変更時の検証
-            document.getElementById('break_start_time').addEventListener('change', validateBreakTime);
-            document.getElementById('break_end_time').addEventListener('change', validateBreakTime);
-
-            // フォーム送信時の検証
-            document.getElementById('arrivalForm').addEventListener('submit', function(e) {
-                if (!validateForm() || !validateBreakTime()) {
-                    e.preventDefault();
-                }
-            });
-
-            // リアルタイムバリデーション
-            const requiredFields = ['driver_id', 'vehicle_id', 'arrival_date', 'arrival_time', 'arrival_mileage'];
-            requiredFields.forEach(fieldId => {
-                document.getElementById(fieldId).addEventListener('input', function() {
-                    this.classList.remove('border-danger');
-                });
+        // リアルタイムバリデーション
+        const requiredFields = ['driver_id', 'vehicle_id', 'arrival_date', 'arrival_time', 'arrival_mileage'];
+        requiredFields.forEach(fieldId => {
+            document.getElementById(fieldId).addEventListener('input', function() {
+                this.classList.remove('border-danger');
             });
         });
+    });
 
-        // PWA対応：オフライン検知
-        window.addEventListener('online', function() {
-            showToast('ネットワークに接続されました', 'success');
-        });
+    // PWA対応：オフライン検知
+    window.addEventListener('online', function() {
+        showNotification('ネットワークに接続されました', 'success');
+    });
 
-        window.addEventListener('offline', function() {
-            showToast('オフラインです。データは一時保存され、接続復旧時に同期されます。', 'warning');
-        });
+    window.addEventListener('offline', function() {
+        showNotification('オフラインです。データは一時保存され、接続復旧時に同期されます。', 'warning');
+    });
 
-        // ショートカットキー対応
-        document.addEventListener('keydown', function(e) {
-            // Ctrl+S: 保存
-            if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
-                if (validateForm()) {
-                    document.getElementById('arrivalForm').submit();
-                }
+    // ショートカットキー対応
+    document.addEventListener('keydown', function(e) {
+        // Ctrl+S: 保存
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            if (validateForm()) {
+                document.getElementById('arrivalForm').submit();
             }
-            
-            // Ctrl+R: リセット
-            if (e.ctrlKey && e.key === 'r') {
-                e.preventDefault();
-                if (confirm('入力内容をリセットしますか？')) {
-                    document.getElementById('arrivalForm').reset();
-                    window.departureMileage = 0;
-                    calculateDistance();
-                }
+        }
+        
+        // Ctrl+R: リセット
+        if (e.ctrlKey && e.key === 'r') {
+            e.preventDefault();
+            if (confirm('入力内容をリセットしますか？')) {
+                document.getElementById('arrivalForm').reset();
+                window.departureMileage = 0;
+                calculateDistance();
             }
-        });
-    </script>
+        }
+    });
+</script>
+
+<?php
+// 統一ヘッダーのフッター出力
+echo $page_data['html_footer'];
+?>
 </body>
 </html>
                             <label for="driver_id" class="form-label">
