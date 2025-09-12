@@ -1001,12 +1001,38 @@ usort($alerts, function($a, $b) {
             }
         }
 
-        // クイック入力表示（浮動フッターから呼び出し）
+        // クイック金額入力表示/非表示（浮動フッターから呼び出し）
         function showQuickAmount() {
-            document.querySelector('.quick-amount-section').scrollIntoView({ 
-                behavior: 'smooth' 
-            });
+            const section = document.getElementById('quickAmountSection');
+            section.style.display = 'block';
+            section.scrollIntoView({ behavior: 'smooth' });
             document.getElementById('quickDriver').focus();
+            
+            // アニメーション効果
+            section.style.opacity = '0';
+            section.style.transform = 'translateY(-20px)';
+            setTimeout(() => {
+                section.style.transition = 'all 0.3s ease';
+                section.style.opacity = '1';
+                section.style.transform = 'translateY(0)';
+            }, 10);
+        }
+
+        // クイック金額入力を非表示
+        function hideQuickAmount() {
+            const section = document.getElementById('quickAmountSection');
+            section.style.transition = 'all 0.3s ease';
+            section.style.opacity = '0';
+            section.style.transform = 'translateY(-20px)';
+            setTimeout(() => {
+                section.style.display = 'none';
+                // フォームをリセット
+                document.getElementById('quickDriver').value = '';
+                document.getElementById('quickAmount').value = '';
+                document.querySelectorAll('.preset-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+            }, 300);
         }
 
         // PWA対応の初期化
