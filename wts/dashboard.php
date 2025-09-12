@@ -26,7 +26,7 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// ✅ 修正：permission_levelベースのユーザー情報取得
+// ユーザー情報取得
 try {
     $stmt = $pdo->prepare("SELECT name, permission_level, is_driver, is_caller, is_manager FROM users WHERE id = ?");
     $stmt->execute([$_SESSION['user_id']]);
@@ -79,36 +79,31 @@ try {
     // デフォルト値を使用
 }
 
-// ===== 🔧 売上計算修正：統一されたロジック =====
+// ===== 🔧 売上計算：最適化後テーブル完全対応版 =====
 function calculateRevenue($pdo, $date_condition, $params = []) {
-    // ride_recordsテーブルの料金カラム優先順位に基づく計算
-    // 1. total_fare（合計料金）が設定されている場合は優先
-    // 2. fare + charge（基本料金 + 追加料金）
-    // 3. fare_amount（メイン料金）がnon-null の場合
+    // 2025年9月5日最適化後のride_recordsテーブル対応
+    // 存在するカラムのみ使用：fare, charge, total_fare
+    // 削除されたカラム：fare_amount（参照不可）
     $sql = "
         SELECT 
             COUNT(*) as ride_count,
-            SUM(passenger_count) as total_passengers,
+            SUM(COALESCE(passenger_count, 0)) as total_passengers,
             SUM(
                 CASE 
                     WHEN total_fare IS NOT NULL AND total_fare > 0 THEN total_fare
-                    WHEN fare IS NOT NULL AND charge IS NOT NULL THEN (fare + charge)
-                    WHEN fare IS NOT NULL THEN fare
-                    WHEN fare_amount IS NOT NULL THEN fare_amount
+                    WHEN (fare IS NOT NULL OR charge IS NOT NULL) THEN (COALESCE(fare, 0) + COALESCE(charge, 0))
                     ELSE 0
                 END
             ) as total_revenue,
             ROUND(AVG(
                 CASE 
                     WHEN total_fare IS NOT NULL AND total_fare > 0 THEN total_fare
-                    WHEN fare IS NOT NULL AND charge IS NOT NULL THEN (fare + charge)
-                    WHEN fare IS NOT NULL THEN fare
-                    WHEN fare_amount IS NOT NULL THEN fare_amount
+                    WHEN (fare IS NOT NULL OR charge IS NOT NULL) THEN (COALESCE(fare, 0) + COALESCE(charge, 0))
                     ELSE 0
                 END
             ), 0) as avg_fare
         FROM ride_records 
-        WHERE {$date_condition} AND is_sample_data = 0
+        WHERE {$date_condition} AND COALESCE(is_sample_data, 0) = 0
     ";
     
     $stmt = $pdo->prepare($sql);
@@ -131,7 +126,7 @@ $month_avg_fare = $month_stats['avg_fare'] ?? 0;
 
 // 月平均計算（実稼働日ベース）
 try {
-    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT ride_date) as working_days FROM ride_records WHERE ride_date >= ? AND is_sample_data = 0");
+    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT ride_date) as working_days FROM ride_records WHERE ride_date >= ? AND COALESCE(is_sample_data, 0) = 0");
     $stmt->execute([$current_month_start]);
     $working_days_result = $stmt->fetch();
     $working_days = $working_days_result['working_days'] ?? 1;
@@ -163,7 +158,7 @@ try {
     $revenue_trend = 'neutral';
 }
 
-// 業務漏れチェック機能（改善版）
+// 業務漏れチェック機能
 $alerts = [];
 
 try {
@@ -225,7 +220,7 @@ try {
         ];
     }
 
-    // 3. 18時以降で入庫・乗務後点呼未完了をチェック（営業時間終了後）
+    // 3. 18時以降で入庫・乗務後点呼未完了をチェック
     if ($current_hour >= 18) {
         // 未入庫車両をチェック
         $stmt = $pdo->prepare("
@@ -275,29 +270,25 @@ try {
         }
     }
 
-    // 今日の統計データ
-    // 今日の乗務前点呼完了数
+    // 今日の業務統計データ
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM pre_duty_calls WHERE call_date = ? AND is_completed = TRUE");
     $stmt->execute([$today]);
     $today_pre_duty_calls = $stmt->fetchColumn();
     
-    // 今日の乗務後点呼完了数
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM post_duty_calls WHERE call_date = ? AND is_completed = TRUE");
     $stmt->execute([$today]);
     $today_post_duty_calls = $stmt->fetchColumn();
     
-    // 今日の出庫記録数
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE departure_date = ?");
     $stmt->execute([$today]);
     $today_departures = $stmt->fetchColumn();
     
-    // 今日の入庫記録数
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE arrival_date = ?");
     $stmt->execute([$today]);
     $today_arrivals = $stmt->fetchColumn();
 
 } catch (Exception $e) {
-    error_log("Dashboard alert error: " . $e->getMessage());
+    error_log("Dashboard error: " . $e->getMessage());
 }
 
 // アラートを優先度でソート
@@ -336,7 +327,7 @@ usort($alerts, function($a, $b) {
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         
-        /* 🎯 売上表示専用スタイル - 最優先で目立つように */
+        /* 売上表示ショーケース */
         .revenue-showcase {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -410,7 +401,7 @@ usort($alerts, function($a, $b) {
             background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
         }
         
-        /* アラート専用スタイル */
+        /* アラートスタイル */
         .alerts-section {
             margin-bottom: 2rem;
         }
@@ -433,18 +424,6 @@ usort($alerts, function($a, $b) {
             background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
             color: #212529;
             border-left: 5px solid #d39e00;
-        }
-        
-        .alert-medium {
-            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
-            color: white;
-            border-left: 5px solid #0e6674;
-        }
-        
-        .alert-low {
-            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
-            color: white;
-            border-left: 5px solid #495057;
         }
         
         .alert-item .alert-icon {
@@ -474,20 +453,11 @@ usort($alerts, function($a, $b) {
         }
         
         @keyframes slideIn {
-            from {
-                transform: translateX(-100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
         }
         
-        .pulse {
-            animation: pulse 2s infinite;
-        }
-        
+        .pulse { animation: pulse 2s infinite; }
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.05); }
@@ -505,9 +475,7 @@ usort($alerts, function($a, $b) {
             transition: transform 0.2s ease;
         }
         
-        .stats-card:hover {
-            transform: translateY(-2px);
-        }
+        .stats-card:hover { transform: translateY(-2px); }
         
         .stats-number {
             font-size: 2.5rem;
@@ -521,7 +489,7 @@ usort($alerts, function($a, $b) {
             margin: 0;
         }
         
-        /* クイックアクションボタン */
+        /* クイックアクション */
         .quick-action-group {
             background: white;
             border-radius: 15px;
@@ -576,32 +544,60 @@ usort($alerts, function($a, $b) {
         .text-purple { color: #6f42c1; }
         .text-orange { color: #fd7e14; }
         
+        /* 業務進捗ガイド */
+        .progress-guide {
+            padding: 1rem 0;
+        }
+        
+        .progress-step {
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .progress-step.completed {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        
+        .progress-step.pending {
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 2px dashed #dee2e6;
+        }
+        
+        .progress-step i {
+            font-size: 1.5rem;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        
+        .progress-step small {
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .next-action {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 1.5rem;
+            border-radius: 10px;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .next-action h6 {
+            margin-bottom: 1rem;
+        }
+        
         @media (max-width: 768px) {
-            .revenue-main {
-                font-size: 2.5rem;
-            }
-            .revenue-stat-number {
-                font-size: 1.4rem;
-            }
-            .stats-number {
-                font-size: 2rem;
-            }
-            .quick-action-btn {
-                padding: 0.8rem;
-                min-height: 70px;
-            }
-            .header h1 {
-                font-size: 1.3rem;
-            }
-            .alert-item {
-                padding: 1rem;
-            }
-            .alert-icon {
-                font-size: 1.2rem !important;
-            }
-            .quick-action-icon {
-                font-size: 1.5rem;
-            }
+            .revenue-main { font-size: 2.5rem; }
+            .revenue-stat-number { font-size: 1.4rem; }
+            .stats-number { font-size: 2rem; }
+            .quick-action-btn { padding: 0.8rem; min-height: 70px; }
+            .header h1 { font-size: 1.3rem; }
+            .alert-item { padding: 1rem; }
+            .alert-icon { font-size: 1.2rem !important; }
+            .quick-action-icon { font-size: 1.5rem; }
         }
     </style>
 </head>
@@ -628,7 +624,7 @@ usort($alerts, function($a, $b) {
     </div>
     
     <div class="container mt-4">
-        <!-- 🎯 売上情報ショーケース（最優先表示） -->
+        <!-- 売上情報ショーケース -->
         <div class="revenue-showcase">
             <div class="row">
                 <div class="col-md-8">
@@ -674,7 +670,7 @@ usort($alerts, function($a, $b) {
             </div>
         </div>
 
-        <!-- 業務漏れアラート（最優先表示） -->
+        <!-- 業務漏れアラート -->
         <?php if (!empty($alerts)): ?>
         <div class="alerts-section">
             <h4><i class="fas fa-exclamation-triangle me-2 text-danger"></i>重要なお知らせ・業務漏れ確認</h4>
@@ -919,7 +915,7 @@ usort($alerts, function($a, $b) {
             </div>
         </div>
 
-        <!-- 📊 料金データ確認パネル（管理者のみ表示） -->
+        <!-- 料金データ確認パネル（管理者のみ表示） -->
         <?php if ($is_admin): ?>
         <div class="row mt-4">
             <div class="col-12">
@@ -952,14 +948,14 @@ usort($alerts, function($a, $b) {
                             </table>
                         </div>
                         <div class="col-md-6">
-                            <h6>計算ロジック説明</h6>
+                            <h6>計算ロジック説明（最適化後）</h6>
                             <div class="alert alert-info">
                                 <small>
-                                    <strong>料金計算優先順位（最適化後）:</strong><br>
+                                    <strong>料金計算優先順位:</strong><br>
                                     1. total_fare（合計料金）<br>
                                     2. fare + charge（基本＋追加）<br>
                                     3. fare（基本料金のみ）<br>
-                                    <em>注意: fare_amountカラムは最適化により削除済み</em>
+                                    <em class="text-muted">※ 2025年9月5日最適化により不要カラム削除済み</em>
                                 </small>
                             </div>
                             <a href="ride_records.php" class="btn btn-outline-primary btn-sm">
@@ -973,52 +969,6 @@ usort($alerts, function($a, $b) {
         <?php endif; ?>
     </div>
 
-    <style>
-        .progress-guide {
-            padding: 1rem 0;
-        }
-        
-        .progress-step {
-            padding: 1rem;
-            border-radius: 10px;
-            margin-bottom: 0.5rem;
-            transition: all 0.3s ease;
-        }
-        
-        .progress-step.completed {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-        }
-        
-        .progress-step.pending {
-            background: #f8f9fa;
-            color: #6c757d;
-            border: 2px dashed #dee2e6;
-        }
-        
-        .progress-step i {
-            font-size: 1.5rem;
-            display: block;
-            margin-bottom: 0.5rem;
-        }
-        
-        .progress-step small {
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        
-        .next-action {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            padding: 1.5rem;
-            border-radius: 10px;
-            border-left: 4px solid var(--primary-color);
-        }
-        
-        .next-action h6 {
-            margin-bottom: 1rem;
-        }
-    </style>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // 5分ごとにページを自動更新してアラートを更新
@@ -1026,7 +976,7 @@ usort($alerts, function($a, $b) {
             window.location.reload();
         }, 300000); // 5分 = 300000ms
 
-        // アラートが存在する場合、ブラウザ通知を表示（ユーザーの許可が必要）
+        // アラートが存在する場合、ブラウザ通知を表示
         <?php if (!empty($alerts) && in_array('critical', array_column($alerts, 'priority'))): ?>
         if (Notification.permission === "granted") {
             new Notification("重要な業務漏れがあります", {
@@ -1072,7 +1022,7 @@ usort($alerts, function($a, $b) {
 
         // 開発者用：料金データデバッグ（Console）
         <?php if ($is_admin): ?>
-        console.log('=== 福祉輸送管理システム 料金データデバッグ ===');
+        console.log('=== 福祉輸送管理システム 料金データデバッグ（最適化後） ===');
         console.log('今日の統計:', {
             乗車記録数: <?= $today_ride_records ?>,
             売上総額: <?= $today_total_revenue ?>,
@@ -1090,6 +1040,7 @@ usort($alerts, function($a, $b) {
             パーセンテージ: '<?= $revenue_percentage ?>%',
             トレンド: '<?= $revenue_trend ?>'
         });
+        console.log('計算ロジック: 最適化後テーブル対応（fare_amount削除済み）');
         <?php endif; ?>
     </script>
 </body>
