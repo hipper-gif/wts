@@ -21,9 +21,6 @@ $user_role = $_SESSION['permission_level'] ?? 'User';
 try {
     $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET, DB_USER, DB_PASS);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    
-    // グローバル変数として設定（統一ヘッダーで使用）
-    $GLOBALS['pdo'] = $pdo;
 } catch (PDOException $e) {
     error_log("Database connection failed: " . $e->getMessage());
     die("データベース接続エラー");
