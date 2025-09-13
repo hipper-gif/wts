@@ -1,4 +1,367 @@
-<?php
+<!-- 入庫記録フォーム -->
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-edit me-2"></i>入庫記録入力
+            </div>
+            <div class="card-body">
+                <form method="POST" id="arrivalForm">
+                    <input type="hidden" id="departure_record_id" name="departure_record_id" value="">
+                    
+                    <!-- 基本情報 -->
+                    <div class="row mb-4">
+                        <div class="col-md-6 mb-3">
+                            <label for="driver_id" class="form-label">
+                                <i class="fas fa-user me-1"></i>運転者 <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" id="driver_id" name="driver_id" required>
+                                <option value="">運転者を選択</option>
+                                <?php foreach ($drivers as $driver): ?>
+                                    <option value="<?= $driver->id ?>"><?= htmlspecialchars($driver->name) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="vehicle_id" class="form-label">
+                                <i class="fas fa-car me-1"></i>車両 <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" id="vehicle_id" name="vehicle_id" required>
+                                <option value="">車両を選択</option>
+                                <?php foreach ($vehicles as $vehicle): ?>
+                                    <option value="<?= $vehicle->id ?>"><?= htmlspecialchars($vehicle->vehicle_number) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 入庫情報 -->
+                    <div class="row mb-4">
+                        <div class="col-md-6 mb-3">
+                            <label for="arrival_date" class="form-label">
+                                <i class="fas fa-calendar me-1"></i>入庫日 <span class="text-danger">*</span>
+                            </label>
+                            <input type="date" class="form-control" id="arrival_date" name="arrival_date" 
+                                   value="<?= date('Y-m-d') ?>" required>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="arrival_time" class="form-label">
+                                <i class="fas fa-clock me-1"></i>入庫時刻 <span class="text-danger">*</span>
+                            </label>
+                            <input type="time" class="form-control" id="arrival_time" name="arrival_time" 
+                                   value="<?= date('H:i') ?>" required>
+                        </div>
+                    </div>
+
+                    <!-- メーター情報 -->
+                    <div class="row mb-4">
+                        <div class="col-md-6 mb-3">
+                            <label for="arrival_mileage" class="form-label">
+                                <i class="fas fa-tachometer-alt me-1"></i>入庫メーター(km) <span class="text-danger">*</span>
+                            </label>
+                            <input type="number" class="form-control" id="arrival_mileage" name="arrival_mileage" required>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="total_distance" class="form-label">
+                                <i class="fas fa-route me-1"></i>走行距離(km)
+                            </label>
+                            <input type="number" class="form-control" id="total_distance" name="total_distance" readonly>
+                            <div class="form-text">自動計算されます</div>
+                        </div>
+                    </div>
+
+                    <!-- 費用情報 -->
+                    <div class="row mb-4">
+                        <div class="col-md-4 mb-3">
+                            <label for="fuel_cost" class="form-label">
+                                <i class="fas fa-gas-pump me-1"></i>燃料代(円)
+                            </label>
+                            <input type="number" class="form-control" id="fuel_cost" name="fuel_cost" value="0" min="0">
+                        </div>
+
+                        <div class="col-md-4 mb-3">
+                            <label for="highway_cost" class="form-label">
+                                <i class="fas fa-road me-1"></i>高速代(円)
+                            </label>
+                            <input type="number" class="form-control" id="highway_cost" name="highway_cost" value="0" min="0">
+                        </div>
+
+                        <div class="col-md-4 mb-3">
+                            <label for="other_cost" class="form-label">
+                                <i class="fas fa-receipt me-1"></i>その他費用(円)
+                            </label>
+                            <input type="number" class="form-control" id="other_cost" name="other_cost" value="0" min="0">
+                        </div>
+                    </div>
+
+                    <!-- 休憩記録 -->
+                    <div class="card mb-4" style="border: 2px dashed #dee2e6;">
+                        <div class="card-header bg-light">
+                            <i class="fas fa-coffee me-2"></i>休憩記録（任意）
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="break_location" class="form-label">
+                                        <i class="fas fa-map-marker-alt me-1"></i>休憩場所
+                                    </label>
+                                    <input type="text" class="form-control" id="break_location" name="break_location" 
+                                           placeholder="例：○○SA、△△道の駅">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="break_start_time" class="form-label">
+                                        <i class="fas fa-play me-1"></i>休憩開始
+                                    </label>
+                                    <input type="time" class="form-control" id="break_start_time" name="break_start_time">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="break_end_time" class="form-label">
+                                        <i class="fas fa-stop me-1"></i>休憩終了
+                                    </label>
+                                    <input type="time" class="form-control" id="break_end_time" name="break_end_time">
+                                </div>
+                            </div>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                法定要件ではありませんが、労務管理のため記録を推奨します
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 備考 -->
+                    <div class="mb-4">
+                        <label for="remarks" class="form-label">
+                            <i class="fas fa-sticky-note me-1"></i>備考・特記事項
+                        </label>
+                        <textarea class="form-control" id="remarks" name="remarks" rows="3" 
+                                  placeholder="特記事項があれば入力してください"></textarea>
+                    </div>
+
+                    <!-- 保存ボタン -->
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-primary btn-lg px-5">
+                            <i class="fas fa-save me-2"></i>入庫記録を保存
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 操作ヘルプ -->
+        <div class="card">
+            <div class="card-header bg-light">
+                <i class="fas fa-question-circle me-2"></i>操作ガイド
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-mouse-pointer me-2 text-primary"></i>未入庫車両から選択</h6>
+                        <p class="small text-muted mb-0">上の「未入庫車両一覧」から該当車両をクリックすると、運転者・車両・出庫メーターが自動入力されます。</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-calculator me-2 text-success"></i>走行距離自動計算</h6>
+                        <p class="small text-muted mb-0">入庫メーターを入力すると、出庫メーターとの差から走行距離が自動計算されます。</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-shield-alt me-2 text-warning"></i>前提条件チェック</h6>
+                        <p class="small text-muted mb-0">出庫記録が存在しない場合は警告が表示されます。必ず出庫処理を先に完了してください。</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-arrow-right me-2 text-info"></i>次のステップ</h6>
+                        <p class="small text-muted mb-0">保存完了後、「乗務後点呼」へ進むボタンが表示されます。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- カスタムスタイル -->
+        <style>
+        .unreturned-item {
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 8px;
+            margin: 0.5rem;
+            padding: 1rem;
+        }
+
+        .unreturned-item:hover {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            transform: translateX(5px);
+        }
+
+        .unreturned-item.selected {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+        }
+
+        .form-control.border-warning {
+            border-color: #ffc107 !important;
+        }
+
+        .form-control.border-danger {
+            border-color: #dc3545 !important;
+        }
+        </style>
+
+        <!-- JavaScript -->
+        <script>
+            // 未入庫項目選択時の処理
+            function selectDeparture(departureId, driverName, vehicleNumber, departureMileage, vehicleId, driverId) {
+休憩時間変更時の検証
+                document.getElementById('break_start_time').addEventListener('change', validateBreakTime);
+                document.getElementById('break_end_time').addEventListener('change', validateBreakTime);
+
+                // フォーム送信時の検証
+                document.getElementById('arrivalForm').addEventListener('submit', function(e) {
+                    if (!validateForm() || !validateBreakTime()) {
+                        e.preventDefault();
+                    }
+                });
+
+                // リアルタイムバリデーション
+                const requiredFields = ['driver_id', 'vehicle_id', 'arrival_date', 'arrival_time', 'arrival_mileage'];
+                requiredFields.forEach(fieldId => {
+                    document.getElementById(fieldId).addEventListener('input', function() {
+                        this.classList.remove('border-danger');
+                    });
+                });
+            });
+        </script> フォームに値を設定
+                document.getElementById('departure_record_id').value = departureId;
+                document.getElementById('driver_id').value = driverId;
+                document.getElementById('vehicle_id').value = vehicleId;
+                
+                // 出庫メーターを保存
+                window.departureMileage = departureMileage;
+                
+                // 走行距離を再計算
+                calculateDistance();
+                
+                // ビジュアルフィードバック
+                document.querySelectorAll('.unreturned-item').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                event.currentTarget.classList.add('selected');
+                
+                // 通知表示
+                showNotification(`${driverName} (${vehicleNumber}) を選択しました`, 'success');
+            }
+
+            // 走行距離自動計算
+            function calculateDistance() {
+                const arrivalMileage = parseInt(document.getElementById('arrival_mileage').value) || 0;
+                const departureMileage = window.departureMileage || 0;
+                const totalDistance = arrivalMileage - departureMileage;
+                
+                const distanceField = document.getElementById('total_distance');
+                
+                if (totalDistance >= 0) {
+                    distanceField.value = totalDistance;
+                    distanceField.className = 'form-control';
+                    
+                    // 異常値チェック
+                    if (totalDistance > 500) {
+                        distanceField.className = 'form-control border-warning';
+                        showNotification('走行距離が500kmを超えています。確認してください。', 'warning');
+                    }
+                } else if (arrivalMileage > 0) {
+                    distanceField.value = '';
+                    distanceField.className = 'form-control border-danger';
+                    showNotification('入庫メーターが出庫メーターより小さくなっています。', 'error');
+                }
+            }
+
+            // 通知表示
+            function showNotification(message, type = 'info') {
+                // 既存のトーストを削除
+                const existingToast = document.querySelector('.toast');
+                if (existingToast) {
+                    existingToast.remove();
+                }
+
+                const colors = {
+                    success: 'bg-success',
+                    warning: 'bg-warning',
+                    error: 'bg-danger',
+                    info: 'bg-primary'
+                };
+
+                const toastHtml = `
+                    <div class="toast position-fixed top-0 end-0 m-3" style="z-index: 9999" role="alert">
+                        <div class="toast-header ${colors[type]} text-white">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong class="me-auto">通知</strong>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                        </div>
+                        <div class="toast-body">
+                            ${message}
+                        </div>
+                    </div>
+                `;
+
+                document.body.insertAdjacentHTML('beforeend', toastHtml);
+                const toast = new bootstrap.Toast(document.querySelector('.toast'));
+                toast.show();
+            }
+
+            // フォームバリデーション
+            function validateForm() {
+                const requiredFields = ['driver_id', 'vehicle_id', 'arrival_date', 'arrival_time', 'arrival_mileage'];
+                let isValid = true;
+
+                requiredFields.forEach(fieldId => {
+                    const field = document.getElementById(fieldId);
+                    if (!field.value.trim()) {
+                        field.classList.add('border-danger');
+                        isValid = false;
+                    } else {
+                        field.classList.remove('border-danger');
+                    }
+                });
+
+                if (!isValid) {
+                    showNotification('必須項目が入力されていません。', 'error');
+                    return false;
+                }
+
+                return true;
+            }
+
+            // 休憩時間の妥当性チェック
+            function validateBreakTime() {
+                const startTime = document.getElementById('break_start_time').value;
+                const endTime = document.getElementById('break_end_time').value;
+
+                if (startTime && endTime) {
+                    const start = new Date(`2000-01-01 ${startTime}`);
+                    const end = new Date(`2000-01-01 ${endTime}`);
+
+                    if (end <= start) {
+                        showNotification('休憩終了時刻は開始時刻より後に設定してください。', 'warning');
+                        return false;
+                    }
+
+                    const breakMinutes = (end - start) / (1000 * 60);
+                    if (breakMinutes > 480) { // 8時間
+                        showNotification('休憩時間が8時間を超えています。確認してください。', 'warning');
+                    }
+                }
+                return true;
+            }
+
+            // イベントリスナー設定
+            document.addEventListener('DOMContentLoaded', function() {
+                // 現在時刻を自動設定
+                const now = new Date();
+                const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                                  now.getMinutes().toString().padStart(2, '0');
+                document.getElementById('arrival_time').value = timeString;
+
+                // 入庫メーター変更時に走行距離を再計算
+                document.getElementById('arrival_mileage').addEventListener('input', calculateDistance);
+
+                //<?php
 /**
  * 入庫処理システム v3.1 - 改善実装版（統一ヘッダー適用・シンプル版）
  */
