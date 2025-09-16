@@ -294,8 +294,7 @@ echo $page_data['page_header'];
         </div>
         <?php endif; ?>
 
-        <!-- 業務フロー進捗表示 -->
-        <?= renderWorkflowProgress(6, $existing_call ? ['completed' => true] : []) ?>
+
 
         <form method="POST" id="postDutyForm">
             <!-- 基本情報セクション -->
