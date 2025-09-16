@@ -27,8 +27,8 @@ try {
     $stmt->execute();
     $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // 点呼者取得（is_callerフラグのみ）
-    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_caller = 1 AND is_active = 1 ORDER BY name");
+    // 点呼者取得（permission_levelがAdminまたはis_callerフラグ）
+    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE (permission_level = 'Admin' OR is_caller = 1) AND is_active = 1 ORDER BY name");
     $stmt->execute();
     $callers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
