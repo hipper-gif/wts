@@ -242,7 +242,7 @@ echo renderPageHeader('periodic_inspection', $page_actions);
                     'steering_effort' => 'ハンドルの操作具合',
                     'steering_connection' => 'ロッド及びアーム類の緩み、がた、損傷'
                 ];
-                foreach ($steering_items as $key => $label): ?>
+                foreach ($steering_items as $key => $label) { ?>
                 <div class="inspection-item mb-3">
                     <div class="row align-items-center">
                         <div class="col-md-4">
@@ -259,7 +259,7 @@ echo renderPageHeader('periodic_inspection', $page_actions);
                         </div>
                     </div>
                 </div>
-                <?php endforeach; ?>
+                <?php } ?>
             </div>
         </div>
 
@@ -274,7 +274,7 @@ echo renderPageHeader('periodic_inspection', $page_actions);
                     'exhaust_gas_condition' => '排気の状況',
                     'air_cleaner_element' => 'エア・クリーナー・エレメントの状況'
                 ];
-                foreach ($engine_items as $key => $label): ?>
+                foreach ($engine_items as $key => $label) { ?>
                 <div class="inspection-item mb-3">
                     <div class="row align-items-center">
                         <div class="col-md-4">
@@ -291,7 +291,7 @@ echo renderPageHeader('periodic_inspection', $page_actions);
                         </div>
                     </div>
                 </div>
-                <?php endforeach; ?>
+                <?php } ?>
             </div>
         </div>
 
@@ -595,7 +595,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     'brake_fluid_amount' => 'ブレーキ液の量',
                     'brake_line_condition' => 'ホース及びパイプの液漏れ'
                 ];
-                foreach ($braking_items as $key => $label): ?>
+                foreach ($braking_items as $key => $label) { ?>
                 <div class="inspection-item mb-3">
                     <div class="row align-items-center">
                         <div class="col-md-4">
@@ -612,7 +612,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                 </div>
-                <?php endforeach; ?>
+                <?php } ?>
             </div>
         </div>
 
@@ -625,7 +625,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     'wheel_bearing_play' => 'ホイール・ベアリングのがた',
                     'wheel_nut_looseness' => 'ホイール・ナットの緩み'
                 ];
-                foreach ($running_items as $key => $label): ?>
+                foreach ($running_items as $key => $label) { ?>
                 <div class="inspection-item mb-3">
                     <div class="row align-items-center">
                         <div class="col-md-4">
@@ -642,7 +642,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                 </div>
-                <?php endforeach; ?>
+                <?php } ?>
             </div>
         </div>
 
@@ -655,7 +655,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     'spring_damage' => 'スプリングの損傷',
                     'shock_absorber_condition' => 'ショック・アブソーバーの損傷及び油の漏れ'
                 ];
-                foreach ($suspension_items as $key => $label): ?>
+                foreach ($suspension_items as $key => $label) { ?>
                 <div class="inspection-item mb-3">
                     <div class="row align-items-center">
                         <div class="col-md-4">
@@ -672,7 +672,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                 </div>
-                <?php endforeach; ?>
+                <?php } ?>
             </div>
         </div>
 
