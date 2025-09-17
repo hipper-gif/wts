@@ -152,13 +152,13 @@ echo renderPageHeader('periodic_inspection', $page_actions);
 
 <div class="container-fluid px-4">
     <!-- アラート表示 -->
-    <?php if ($success_message): ?>
+    <?php if ($success_message) { ?>
         <?php echo renderAlert('success', $success_message, true); ?>
-    <?php endif; ?>
+    <?php } ?>
     
-    <?php if ($error_message): ?>
+    <?php if ($error_message) { ?>
         <?php echo renderAlert('danger', $error_message, true); ?>
-    <?php endif; ?>
+    <?php } ?>
 
     <form method="POST" id="inspectionForm">
         <!-- 基本情報セクション -->
@@ -181,16 +181,16 @@ echo renderPageHeader('periodic_inspection', $page_actions);
                         <label class="form-label required">車両</label>
                         <select class="form-select" name="vehicle_id" required onchange="updateMileage()">
                             <option value="">選択してください</option>
-                            <?php foreach ($vehicles as $vehicle): ?>
+                            <?php foreach ($vehicles as $vehicle) { ?>
                             <option value="<?php echo $vehicle['id']; ?>" 
                                     data-mileage="<?php echo $vehicle['current_mileage']; ?>"
                                     data-next-date="<?php echo $vehicle['next_inspection_date']; ?>">
                                 <?php echo htmlspecialchars($vehicle['vehicle_number']); ?>
-                                <?php if ($vehicle['model']): ?>
+                                <?php if ($vehicle['model']) { ?>
                                     (<?php echo htmlspecialchars($vehicle['model']); ?>)
-                                <?php endif; ?>
+                                <?php } ?>
                             </option>
-                            <?php endforeach; ?>
+                            <?php } ?>
                         </select>
                         <div id="nextInspectionInfo" class="form-text"></div>
                     </div>
@@ -204,11 +204,11 @@ echo renderPageHeader('periodic_inspection', $page_actions);
                         <label class="form-label required">点検者</label>
                         <select class="form-select" name="inspector_id" required>
                             <option value="">選択してください</option>
-                            <?php foreach ($inspectors as $inspector): ?>
+                            <?php foreach ($inspectors as $inspector) { ?>
                             <option value="<?php echo $inspector['id']; ?>">
                                 <?php echo htmlspecialchars($inspector['name']); ?>
                             </option>
-                            <?php endforeach; ?>
+                            <?php } ?>
                         </select>
                     </div>
                     
@@ -243,6 +243,165 @@ echo renderPageHeader('periodic_inspection', $page_actions);
                     'steering_connection' => 'ロッド及びアーム類の緩み、がた、損傷'
                 ];
                 foreach ($steering_items as $key => $label) { ?>
+                <div class="inspection-item mb-3">
+                    <div class="row align-items-center">
+                        <div class="col-md-4">
+                            <strong><?php echo $label; ?></strong>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
+                                <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-bad me-2" onclick="setResult('<?php echo $key; ?>', '不良')">不良</button>
+                            </div>
+                            <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
+                            <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
+                        </div>
+                    </div>
+                </div>
+                <?php } ?>
+            </div>
+        </div>
+
+        <!-- 2. 制動装置 -->
+        <?php echo renderSectionHeader('stop-circle', '制動装置', '6項目の点検'); ?>
+        <div class="card mb-4">
+            <div class="card-body">
+                <?php
+                $braking_items = [
+                    'brake_pedal_play' => 'ブレーキ・ペダルの遊び',
+                    'brake_pedal_clearance' => 'ブレーキ・ペダルの踏み込み時の床板とのすき間',
+                    'brake_effectiveness' => 'ブレーキの効き具合',
+                    'parking_brake_effectiveness' => '駐車ブレーキ機構の効き具合',
+                    'brake_fluid_amount' => 'ブレーキ液の量',
+                    'brake_line_condition' => 'ホース及びパイプの液漏れ'
+                ];
+                foreach ($braking_items as $key => $label) { ?>
+                <div class="inspection-item mb-3">
+                    <div class="row align-items-center">
+                        <div class="col-md-4">
+                            <strong><?php echo $label; ?></strong>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
+                                <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-bad me-2" onclick="setResult('<?php echo $key; ?>', '不良')">不良</button>
+                            </div>
+                            <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
+                            <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
+                        </div>
+                    </div>
+                </div>
+                <?php } ?>
+            </div>
+        </div>
+
+        <!-- 3. 走行装置 -->
+        <?php echo renderSectionHeader('circle', '走行装置', '2項目の点検'); ?>
+        <div class="card mb-4">
+            <div class="card-body">
+                <?php
+                $running_items = [
+                    'wheel_bearing_play' => 'ホイール・ベアリングのがた',
+                    'wheel_nut_looseness' => 'ホイール・ナットの緩み'
+                ];
+                foreach ($running_items as $key => $label) { ?>
+                <div class="inspection-item mb-3">
+                    <div class="row align-items-center">
+                        <div class="col-md-4">
+                            <strong><?php echo $label; ?></strong>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
+                                <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-bad me-2" onclick="setResult('<?php echo $key; ?>', '不良')">不良</button>
+                            </div>
+                            <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
+                            <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
+                        </div>
+                    </div>
+                </div>
+                <?php } ?>
+            </div>
+        </div>
+
+        <!-- 4. 緩衝装置 -->
+        <?php echo renderSectionHeader('wave-square', '緩衝装置', '2項目の点検'); ?>
+        <div class="card mb-4">
+            <div class="card-body">
+                <?php
+                $suspension_items = [
+                    'spring_damage' => 'スプリングの損傷',
+                    'shock_absorber_condition' => 'ショック・アブソーバーの損傷及び油の漏れ'
+                ];
+                foreach ($suspension_items as $key => $label) { ?>
+                <div class="inspection-item mb-3">
+                    <div class="row align-items-center">
+                        <div class="col-md-4">
+                            <strong><?php echo $label; ?></strong>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
+                                <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-bad me-2" onclick="setResult('<?php echo $key; ?>', '不良')">不良</button>
+                            </div>
+                            <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
+                            <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
+                        </div>
+                    </div>
+                </div>
+                <?php } ?>
+            </div>
+        </div>
+
+        <!-- 5. 動力伝達装置 -->
+        <?php echo renderSectionHeader('cogs', '動力伝達装置', '5項目の点検'); ?>
+        <div class="card mb-4">
+            <div class="card-body">
+                <?php
+                $power_transmission_items = [
+                    'clutch_pedal_play' => 'クラッチ・ペダルの遊び',
+                    'clutch_effectiveness' => 'クラッチの効き具合',
+                    'transmission_oil_amount' => 'トランスミッション・オイルの量',
+                    'transmission_oil_leakage' => 'トランスミッション・オイルの漏れ',
+                    'propeller_shaft_connection' => 'プロペラ・シャフト等の連結部の緩み'
+                ];
+                foreach ($power_transmission_items as $key => $label) { ?>
+                <div class="inspection-item mb-3">
+                    <div class="row align-items-center">
+                        <div class="col-md-4">
+                            <strong><?php echo $label; ?></strong>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
+                                <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-bad me-2" onclick="setResult('<?php echo $key; ?>', '不良')">不良</button>
+                            </div>
+                            <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
+                            <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
+                        </div>
+                    </div>
+                </div>
+                <?php } ?>
+            </div>
+        </div>
+
+        <!-- 6. 電気装置 -->
+        <?php echo renderSectionHeader('bolt', '電気装置', '4項目の点検'); ?>
+        <div class="card mb-4">
+            <div class="card-body">
+                <?php
+                $electrical_items = [
+                    'spark_plug_condition' => '点火プラグの状況',
+                    'battery_terminal' => 'バッテリー・ターミナルの接続状況',
+                    'ignition_timing' => '点火時期',
+                    'distributor_cap_condition' => 'デストリビューター・キャップの状況'
+                ];
+                foreach ($electrical_items as $key => $label) { ?>
                 <div class="inspection-item mb-3">
                     <div class="row align-items-center">
                         <div class="col-md-4">
@@ -568,173 +727,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<?php echo '</body></html>'; ?> me-1" onclick="setResult('<?php echo $key; ?>', 'V')">V</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-supply me-1" onclick="setResult('<?php echo $key; ?>', 'T')">T</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-na me-1" onclick="setResult('<?php echo $key; ?>', 'L')">L</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-repair me-1" onclick="setResult('<?php echo $key; ?>', '×')">×</button>
-                            </div>
-                            <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
-                            <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
-                        </div>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-
-        <!-- 2. 制動装置 -->
-        <?php echo renderSectionHeader('stop-circle', '制動装置', '6項目の点検'); ?>
-        <div class="card mb-4">
-            <div class="card-body">
-                <?php
-                $braking_items = [
-                    'brake_pedal_play' => 'ブレーキ・ペダルの遊び',
-                    'brake_pedal_clearance' => 'ブレーキ・ペダルの踏み込み時の床板とのすき間',
-                    'brake_effectiveness' => 'ブレーキの効き具合',
-                    'parking_brake_effectiveness' => '駐車ブレーキ機構の効き具合',
-                    'brake_fluid_amount' => 'ブレーキ液の量',
-                    'brake_line_condition' => 'ホース及びパイプの液漏れ'
-                ];
-                foreach ($braking_items as $key => $label) { ?>
-                <div class="inspection-item mb-3">
-                    <div class="row align-items-center">
-                        <div class="col-md-4">
-                            <strong><?php echo $label; ?></strong>
-                        </div>
-                        <div class="col-md-8">
-                            <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
-                                <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-bad me-2" onclick="setResult('<?php echo $key; ?>', '不良')">不良</button>
-                            </div>
-                            <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
-                            <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
-                        </div>
-                    </div>
-                </div>
-                <?php } ?>
-            </div>
-        </div>
-
-        <!-- 3. 走行装置 -->
-        <?php echo renderSectionHeader('circle', '走行装置', '2項目の点検'); ?>
-        <div class="card mb-4">
-            <div class="card-body">
-                <?php
-                $running_items = [
-                    'wheel_bearing_play' => 'ホイール・ベアリングのがた',
-                    'wheel_nut_looseness' => 'ホイール・ナットの緩み'
-                ];
-                foreach ($running_items as $key => $label) { ?>
-                <div class="inspection-item mb-3">
-                    <div class="row align-items-center">
-                        <div class="col-md-4">
-                            <strong><?php echo $label; ?></strong>
-                        </div>
-                        <div class="col-md-8">
-                            <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
-                                <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-bad me-2" onclick="setResult('<?php echo $key; ?>', '不良')">不良</button>
-                            </div>
-                            <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
-                            <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
-                        </div>
-                    </div>
-                </div>
-                <?php } ?>
-            </div>
-        </div>
-
-        <!-- 4. 緩衝装置 -->
-        <?php echo renderSectionHeader('wave-square', '緩衝装置', '2項目の点検'); ?>
-        <div class="card mb-4">
-            <div class="card-body">
-                <?php
-                $suspension_items = [
-                    'spring_damage' => 'スプリングの損傷',
-                    'shock_absorber_condition' => 'ショック・アブソーバーの損傷及び油の漏れ'
-                ];
-                foreach ($suspension_items as $key => $label) { ?>
-                <div class="inspection-item mb-3">
-                    <div class="row align-items-center">
-                        <div class="col-md-4">
-                            <strong><?php echo $label; ?></strong>
-                        </div>
-                        <div class="col-md-8">
-                            <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
-                                <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-bad me-2" onclick="setResult('<?php echo $key; ?>', '不良')">不良</button>
-                            </div>
-                            <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
-                            <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
-                        </div>
-                    </div>
-                </div>
-                <?php } ?>
-            </div>
-        </div>
-
-        <!-- 5. 動力伝達装置 -->
-        <?php echo renderSectionHeader('cogs', '動力伝達装置', '5項目の点検'); ?>
-        <div class="card mb-4">
-            <div class="card-body">
-                <?php
-                $power_transmission_items = [
-                    'clutch_pedal_play' => 'クラッチ・ペダルの遊び',
-                    'clutch_effectiveness' => 'クラッチの効き具合',
-                    'transmission_oil_amount' => 'トランスミッション・オイルの量',
-                    'transmission_oil_leakage' => 'トランスミッション・オイルの漏れ',
-                    'propeller_shaft_connection' => 'プロペラ・シャフト等の連結部の緩み'
-                ];
-                foreach ($power_transmission_items as $key => $label): ?>
-                <div class="inspection-item mb-3">
-                    <div class="row align-items-center">
-                        <div class="col-md-4">
-                            <strong><?php echo $label; ?></strong>
-                        </div>
-                        <div class="col-md-8">
-                            <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
-                                <button type="button" class="btn btn-sm result-btn result-btn-ok me-1" onclick="setResult('<?php echo $key; ?>', '○')">○</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-adjust me-1" onclick="setResult('<?php echo $key; ?>', '△')">△</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-clean me-1" onclick="setResult('<?php echo $key; ?>', 'A')">A</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-replace me-1" onclick="setResult('<?php echo $key; ?>', 'C')">C</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-check me-1" onclick="setResult('<?php echo $key; ?>', 'V')">V</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-supply me-1" onclick="setResult('<?php echo $key; ?>', 'T')">T</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-na me-1" onclick="setResult('<?php echo $key; ?>', 'L')">L</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-repair me-1" onclick="setResult('<?php echo $key; ?>', '×')">×</button>
-                            </div>
-                            <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
-                            <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
-                        </div>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-
-        <!-- 6. 電気装置 -->
-        <?php echo renderSectionHeader('bolt', '電気装置', '4項目の点検'); ?>
-        <div class="card mb-4">
-            <div class="card-body">
-                <?php
-                $electrical_items = [
-                    'spark_plug_condition' => '点火プラグの状況',
-                    'battery_terminal' => 'バッテリー・ターミナルの接続状況',
-                    'ignition_timing' => '点火時期',
-                    'distributor_cap_condition' => 'デストリビューター・キャップの状況'
-                ];
-                foreach ($electrical_items as $key => $label): ?>
-                <div class="inspection-item mb-3">
-                    <div class="row align-items-center">
-                        <div class="col-md-4">
-                            <strong><?php echo $label; ?></strong>
-                        </div>
-                        <div class="col-md-8">
-                            <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
-                                <button type="button" class="btn btn-sm result-btn result-btn-ok me-1" onclick="setResult('<?php echo $key; ?>', '○')">○</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-adjust me-1" onclick="setResult('<?php echo $key; ?>', '△')">△</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-clean me-1" onclick="setResult('<?php echo $key; ?>', 'A')">A</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-replace me-1" onclick="setResult('<?php echo $key; ?>', 'C')">C</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-check
+<?php echo '</body></html>'; ?>
