@@ -1,10 +1,11 @@
 <?php
 /**
- * 福祉輸送管理システム v3.1 - 統一ヘッダーシステム（関数順序修正版）
+ * 福祉輸送管理システム v3.1 - 統一ヘッダーシステム（ユーザー情報表示改善版）
  * 
  * ファイル名: includes/unified-header.php
- * バージョン: v3.1.1 (関数順序修正)
- * 修正内容: getPageConfiguration() を前方に移動
+ * バージョン: v3.1.2
+ * 修正内容: ユーザー情報表示を仕様書に準拠
+ * 修正日: 2025年9月17日
  */
 
 /**
@@ -249,6 +250,72 @@ function getPageConfiguration($page_type) {
 }
 
 /**
+ * 👤 ユーザー詳細情報取得（職務フラグ・権限情報含む）
+ * ✅ NEW: 仕様書に基づく詳細なユーザー情報取得
+ */
+function getUserDetailedInfo($user_id) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("SELECT 
+            id, 
+            login_id, 
+            NAME, 
+            permission_level,
+            is_driver,
+            is_caller, 
+            is_manager,
+            is_admin,
+            is_mechanic,
+            is_inspector,
+            last_login_at,
+            created_at
+        FROM users 
+        WHERE id = ? AND is_active = 1");
+        
+        $stmt->execute([$user_id]);
+        $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$user_data) {
+            return null;
+        }
+        
+        // 職務フラグの日本語表示名を生成
+        $roles = [];
+        if ($user_data['is_driver']) $roles[] = '運転者';
+        if ($user_data['is_caller']) $roles[] = '点呼者';
+        if ($user_data['is_manager']) $roles[] = '管理者';
+        if ($user_data['is_admin']) $roles[] = 'システム管理者';
+        if ($user_data['is_mechanic']) $roles[] = '整備者';
+        if ($user_data['is_inspector']) $roles[] = '検査者';
+        
+        // 基本権限レベルの日本語表示
+        $permission_display = match($user_data['permission_level']) {
+            'Admin' => '管理者権限',
+            'User' => '一般権限',
+            default => $user_data['permission_level']
+        };
+        
+        return [
+            'id' => $user_data['id'],
+            'login_id' => $user_data['login_id'],
+            'name' => $user_data['NAME'],
+            'permission_level' => $user_data['permission_level'],
+            'permission_display' => $permission_display,
+            'roles' => $roles,
+            'roles_display' => empty($roles) ? '一般' : implode('・', $roles),
+            'last_login_at' => $user_data['last_login_at'],
+            'created_at' => $user_data['created_at'],
+            'raw_data' => $user_data
+        ];
+        
+    } catch (Exception $e) {
+        error_log("getUserDetailedInfo error: " . $e->getMessage());
+        return null;
+    }
+}
+
+/**
  * 🎯 完全HTMLヘッダー生成（PWA対応）
  */
 function renderCompleteHTMLHead($page_title, $options = []) {
@@ -330,20 +397,38 @@ function renderCompleteHTMLHead($page_title, $options = []) {
 }
 
 /**
- * 🏠 統一システムヘッダー生成（3層構造）
+ * 🏠 統一システムヘッダー生成（3層構造・ユーザー情報表示改善版）
+ * ✅ 修正: 仕様書に基づく詳細なユーザー情報表示
  */
-function renderSystemHeader($user_name = '未設定', $user_role = 'User', $current_page = '', $show_dashboard_link = true) {
+function renderSystemHeader($user_name = '未設定', $user_role = 'User', $current_page = '', $show_dashboard_link = true, $user_id = null) {
     $system_names = getResponsiveSystemNames();
     $user_name_safe = htmlspecialchars($user_name, ENT_QUOTES, 'UTF-8');
     $user_role_safe = htmlspecialchars($user_role, ENT_QUOTES, 'UTF-8');
     
-    // 権限表示名変換
-    $role_display = match($user_role_safe) {
-        'Admin' => '管理者',
-        'User' => '一般',
-        default => $user_role_safe
-    };
+    // ✅ NEW: 詳細なユーザー情報を取得
+    $user_detail = null;
+    if ($user_id) {
+        $user_detail = getUserDetailedInfo($user_id);
+    }
     
+    // 権限表示名の決定（詳細情報がある場合は詳細表示、ない場合は従来表示）
+    if ($user_detail) {
+        $role_display = $user_detail['roles_display'];
+        $permission_display = $user_detail['permission_display'];
+        $last_login = $user_detail['last_login_at'] ? 
+            date('m/d H:i', strtotime($user_detail['last_login_at'])) : 'なし';
+    } else {
+        // フォールバック: 従来の簡単な表示
+        $role_display = match($user_role_safe) {
+            'Admin' => '管理者',
+            'User' => '一般',
+            default => $user_role_safe
+        };
+        $permission_display = $role_display;
+        $last_login = null;
+    }
+    
+    // ダッシュボードリンクの表示判定
     $is_dashboard = $current_page === 'dashboard';
     $show_dashboard_link = $show_dashboard_link && !$is_dashboard;
     
@@ -355,11 +440,21 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
         </a>';
     }
     
+    // ✅ NEW: 詳細ユーザー情報の追加HTML（ツールチップ対応）
+    $user_tooltip_content = '';
+    if ($user_detail) {
+        $user_tooltip_content = 'data-bs-toggle="tooltip" data-bs-placement="bottom" 
+            title="ログインID: ' . htmlspecialchars($user_detail['login_id']) . 
+            '&#10;最終ログイン: ' . $last_login . 
+            '&#10;権限: ' . htmlspecialchars($permission_display) . '"';
+    }
+    
     return '
     <div class="system-header-container">
         <header class="system-header">
             <div class="container-fluid">
                 <div class="d-flex align-items-center justify-content-between h-100">
+                    <!-- システムタイトル（レスポンシブ対応） -->
                     <div class="system-title-area">
                         <h1 class="system-title m-0">
                             <i class="fas fa-taxi text-primary"></i>
@@ -370,14 +465,17 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
                         </h1>
                     </div>
                     
+                    <!-- ユーザー情報エリア（改善版） -->
                     <div class="user-area d-flex align-items-center gap-3">
                         ' . $dashboard_link . '
                         
-                        <div class="user-info d-flex align-items-center gap-2">
-                            <i class="fas fa-user-circle text-muted"></i>
+                        <div class="user-info d-flex align-items-center gap-2" ' . $user_tooltip_content . '>
+                            <i class="fas fa-user-circle text-muted fs-4"></i>
                             <div class="user-details">
-                                <div class="user-name">' . $user_name_safe . '</div>
-                                <div class="user-role">' . $role_display . '</div>
+                                <div class="user-name fw-semibold">' . $user_name_safe . '</div>
+                                <div class="user-role text-muted small">' . htmlspecialchars($role_display) . '</div>
+                                ' . ($user_detail && $permission_display !== $role_display ? 
+                                    '<div class="user-permission text-info small">' . htmlspecialchars($permission_display) . '</div>' : '') . '
                             </div>
                         </div>
                         
@@ -642,7 +740,7 @@ function renderCompleteHTMLFooter($additional_js = []) {
             });
         }, 5000);
         
-        console.log("✅ 統一ヘッダーシステム v3.1.1 初期化完了");
+        console.log("✅ 統一ヘッダーシステム v3.1.2 初期化完了");
         if (window.SYSTEM_CONFIG) {
             console.log("📱 システム:", window.SYSTEM_CONFIG.names.full, window.SYSTEM_CONFIG.version);
         }
@@ -696,11 +794,12 @@ function renderStatsCards($stats) {
 }
 
 /**
- * 🎯 完全ページ生成ショートカット（PWA対応）
+ * 🎯 完全ページ生成ショートカット（PWA対応・ユーザー情報表示改善版）
+ * ✅ 修正: ユーザーIDを渡してrenderSystemHeaderで詳細情報表示
  */
-function renderCompletePage($page_title, $user_name, $user_role, $current_page, $icon, $title, $subtitle = '', $category = 'other', $options = []) {
+function renderCompletePage($page_title, $user_name, $user_role, $current_page, $icon, $title, $subtitle = '', $category = 'other', $options = [], $user_id = null) {
     $html_head = renderCompleteHTMLHead($page_title, $options);
-    $system_header = renderSystemHeader($user_name, $user_role, $current_page);
+    $system_header = renderSystemHeader($user_name, $user_role, $current_page, true, $user_id);
     $page_header = renderPageHeader($icon, $title, $subtitle, $category, $options['breadcrumb'] ?? []);
     
     return [
@@ -829,22 +928,28 @@ function renderSystemStats($stats = []) {
 }
 
 /**
- * 🎯 使用例・実装ガイド
+ * 🎯 使用例・実装ガイド（ユーザー情報表示改善版）
  */
 function renderUsageExample() {
     return '
-    <!-- 使用例: 日常点検ページ -->
+    <!-- 使用例: 日常点検ページ（ユーザー情報表示改善版） -->
     <?php
     require_once "includes/unified-header.php";
     
-    // ✅ 修正後: getPageConfiguration() は定義済みなのでエラーなし
+    // ✅ 修正: ユーザー情報の詳細表示に対応
+    // セッションからユーザーIDを取得
+    $user_id = $_SESSION["user_id"] ?? null;
+    $user_name = $_SESSION["user_name"] ?? "未設定";
+    $user_role = $_SESSION["user_role"] ?? "User";
+    
+    // ページ設定取得
     $page_config = getPageConfiguration("daily_inspection");
     
-    // 完全ページ生成
+    // 完全ページ生成（ユーザーIDを渡す）
     $page_data = renderCompletePage(
         $page_config["title"],           // ページタイトル
-        $_SESSION["user_name"],          // ユーザー名
-        $_SESSION["user_role"],          // ユーザー権限
+        $user_name,                      // ユーザー名
+        $user_role,                      // ユーザー権限
         "daily_inspection",              // 現在のページ
         $page_config["icon"],            // アイコン
         $page_config["title"],           // タイトル
@@ -859,7 +964,8 @@ function renderUsageExample() {
                 ["text" => "日次業務", "url" => "#"],
                 ["text" => "日常点検", "url" => "daily_inspection.php"]
             ]
-        ]
+        ],
+        $user_id                         // ✅ NEW: ユーザーIDを渡す
     );
     
     // HTML出力
