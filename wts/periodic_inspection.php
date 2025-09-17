@@ -250,14 +250,9 @@ echo renderPageHeader('periodic_inspection', $page_actions);
                         </div>
                         <div class="col-md-8">
                             <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
-                                <button type="button" class="btn btn-sm result-btn result-btn-ok me-1" onclick="setResult('<?php echo $key; ?>', '○')">○</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-adjust me-1" onclick="setResult('<?php echo $key; ?>', '△')">△</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-clean me-1" onclick="setResult('<?php echo $key; ?>', 'A')">A</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-replace me-1" onclick="setResult('<?php echo $key; ?>', 'C')">C</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-check me-1" onclick="setResult('<?php echo $key; ?>', 'V')">V</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-supply me-1" onclick="setResult('<?php echo $key; ?>', 'T')">T</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-na me-1" onclick="setResult('<?php echo $key; ?>', 'L')">L</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-repair me-1" onclick="setResult('<?php echo $key; ?>', '×')">×</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-bad me-2" onclick="setResult('<?php echo $key; ?>', '不良')">不良</button>
                             </div>
                             <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
                             <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
@@ -287,14 +282,9 @@ echo renderPageHeader('periodic_inspection', $page_actions);
                         </div>
                         <div class="col-md-8">
                             <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
-                                <button type="button" class="btn btn-sm result-btn result-btn-ok me-1" onclick="setResult('<?php echo $key; ?>', '○')">○</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-adjust me-1" onclick="setResult('<?php echo $key; ?>', '△')">△</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-clean me-1" onclick="setResult('<?php echo $key; ?>', 'A')">A</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-replace me-1" onclick="setResult('<?php echo $key; ?>', 'C')">C</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-check me-1" onclick="setResult('<?php echo $key; ?>', 'V')">V</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-supply me-1" onclick="setResult('<?php echo $key; ?>', 'T')">T</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-na me-1" onclick="setResult('<?php echo $key; ?>', 'L')">L</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-repair me-1" onclick="setResult('<?php echo $key; ?>', '×')">×</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-bad me-2" onclick="setResult('<?php echo $key; ?>', '不良')">不良</button>
                             </div>
                             <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
                             <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
@@ -382,105 +372,55 @@ echo renderPageHeader('periodic_inspection', $page_actions);
     border-color: #d1d5db;
 }
 
-/* 結果ボタンのスタイル */
+/* 結果ボタンのスタイル（3段階評価） */
 .result-btn {
-    min-width: 32px;
-    height: 32px;
-    border-radius: 6px;
+    min-width: 80px;
+    height: 36px;
+    border-radius: 8px;
     font-weight: 600;
     font-size: 0.875rem;
     transition: all 0.2s ease;
     border: 2px solid;
-    padding: 0;
+    padding: 0.25rem 0.75rem;
 }
 
 .result-btn:hover {
     transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 .result-btn.active {
-    transform: scale(1.05);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
-/* 各ボタンの色設定 */
-.result-btn-ok { 
+/* 3段階評価の色設定 */
+.result-btn-good { 
     background: #f0fdf4; 
     color: #16a34a; 
     border-color: #16a34a;
 }
-.result-btn-ok.active { 
+.result-btn-good.active { 
     background: #16a34a; 
     color: white;
 }
 
-.result-btn-adjust { 
+.result-btn-caution { 
     background: #fefce8; 
     color: #ca8a04; 
     border-color: #ca8a04;
 }
-.result-btn-adjust.active { 
+.result-btn-caution.active { 
     background: #ca8a04; 
     color: white;
 }
 
-.result-btn-clean { 
-    background: #eff6ff; 
-    color: #2563eb; 
-    border-color: #2563eb;
-}
-.result-btn-clean.active { 
-    background: #2563eb; 
-    color: white;
-}
-
-.result-btn-replace { 
-    background: #fff7ed; 
-    color: #ea580c; 
-    border-color: #ea580c;
-}
-.result-btn-replace.active { 
-    background: #ea580c; 
-    color: white;
-}
-
-.result-btn-check { 
-    background: #f0f9ff; 
-    color: #0284c7; 
-    border-color: #0284c7;
-}
-.result-btn-check.active { 
-    background: #0284c7; 
-    color: white;
-}
-
-.result-btn-supply { 
-    background: #faf5ff; 
-    color: #9333ea; 
-    border-color: #9333ea;
-}
-.result-btn-supply.active { 
-    background: #9333ea; 
-    color: white;
-}
-
-.result-btn-na { 
-    background: #f8fafc; 
-    color: #64748b; 
-    border-color: #64748b;
-}
-.result-btn-na.active { 
-    background: #64748b; 
-    color: white;
-}
-
-.result-btn-repair { 
+.result-btn-bad { 
     background: #fef2f2; 
     color: #dc2626; 
     border-color: #dc2626;
 }
-.result-btn-repair.active { 
+.result-btn-bad.active { 
     background: #dc2626; 
     color: white;
 }
@@ -508,13 +448,14 @@ echo renderPageHeader('periodic_inspection', $page_actions);
     .result-buttons {
         display: flex;
         flex-wrap: wrap;
-        gap: 4px;
+        gap: 6px;
     }
     
     .result-btn {
-        min-width: 28px;
-        height: 28px;
+        min-width: 64px;
+        height: 32px;
         font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
     }
     
     .inspection-item .col-md-4,
@@ -581,14 +522,14 @@ function setAllGood() {
     const allItems = document.querySelectorAll('.result-buttons');
     allItems.forEach(function(item) {
         const itemName = item.getAttribute('data-item');
-        setResult(itemName, '○');
+        setResult(itemName, '良好');
     });
     
     // 成功メッセージを表示
     const alertHtml = `
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             <i class="fas fa-check-circle me-2"></i>
-            全ての項目を「良好（○）」に設定しました。
+            全ての項目を「良好」に設定しました。
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     `;
@@ -637,7 +578,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                 </div>
-               
+                <?php endforeach; ?>
             </div>
         </div>
 
@@ -662,14 +603,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                         <div class="col-md-8">
                             <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
-                                <button type="button" class="btn btn-sm result-btn result-btn-ok me-1" onclick="setResult('<?php echo $key; ?>', '○')">○</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-adjust me-1" onclick="setResult('<?php echo $key; ?>', '△')">△</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-clean me-1" onclick="setResult('<?php echo $key; ?>', 'A')">A</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-replace me-1" onclick="setResult('<?php echo $key; ?>', 'C')">C</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-check me-1" onclick="setResult('<?php echo $key; ?>', 'V')">V</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-supply me-1" onclick="setResult('<?php echo $key; ?>', 'T')">T</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-na me-1" onclick="setResult('<?php echo $key; ?>', 'L')">L</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-repair me-1" onclick="setResult('<?php echo $key; ?>', '×')">×</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-bad me-2" onclick="setResult('<?php echo $key; ?>', '不良')">不良</button>
                             </div>
                             <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
                             <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
@@ -697,14 +633,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                         <div class="col-md-8">
                             <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
-                                <button type="button" class="btn btn-sm result-btn result-btn-ok me-1" onclick="setResult('<?php echo $key; ?>', '○')">○</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-adjust me-1" onclick="setResult('<?php echo $key; ?>', '△')">△</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-clean me-1" onclick="setResult('<?php echo $key; ?>', 'A')">A</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-replace me-1" onclick="setResult('<?php echo $key; ?>', 'C')">C</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-check me-1" onclick="setResult('<?php echo $key; ?>', 'V')">V</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-supply me-1" onclick="setResult('<?php echo $key; ?>', 'T')">T</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-na me-1" onclick="setResult('<?php echo $key; ?>', 'L')">L</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-repair me-1" onclick="setResult('<?php echo $key; ?>', '×')">×</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-bad me-2" onclick="setResult('<?php echo $key; ?>', '不良')">不良</button>
                             </div>
                             <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
                             <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
@@ -732,14 +663,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                         <div class="col-md-8">
                             <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
-                                <button type="button" class="btn btn-sm result-btn result-btn-ok me-1" onclick="setResult('<?php echo $key; ?>', '○')">○</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-adjust me-1" onclick="setResult('<?php echo $key; ?>', '△')">△</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-clean me-1" onclick="setResult('<?php echo $key; ?>', 'A')">A</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-replace me-1" onclick="setResult('<?php echo $key; ?>', 'C')">C</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-check me-1" onclick="setResult('<?php echo $key; ?>', 'V')">V</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-supply me-1" onclick="setResult('<?php echo $key; ?>', 'T')">T</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-na me-1" onclick="setResult('<?php echo $key; ?>', 'L')">L</button>
-                                <button type="button" class="btn btn-sm result-btn result-btn-repair me-1" onclick="setResult('<?php echo $key; ?>', '×')">×</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
+                                <button type="button" class="btn btn-sm result-btn result-btn-bad me-2" onclick="setResult('<?php echo $key; ?>', '不良')">不良</button>
                             </div>
                             <input type="hidden" name="<?php echo $key; ?>" id="<?php echo $key; ?>">
                             <input type="text" class="form-control form-control-sm" name="<?php echo $key; ?>_note" placeholder="備考（必要な場合）">
