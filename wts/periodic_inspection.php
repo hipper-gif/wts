@@ -45,22 +45,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mileage = $_POST['mileage'];
         $inspection_type = $_POST['inspection_type'] ?? '3months';
         
+        // 次回点検日を計算（3か月後）
+        $next_inspection_date = date('Y-m-d', strtotime($inspection_date . ' +3 months'));
+        
         // 点検記録をperiodic_inspectionsテーブルに保存
         $sql = "INSERT INTO periodic_inspections (
-            vehicle_id, inspection_date, inspector_id, mileage, inspection_type,
-            service_provider_name, service_provider_address, remarks, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+            vehicle_id, inspector_id, inspection_date, inspection_type, mileage,
+            service_provider_name, service_provider_address, 
+            co_concentration, hc_concentration, overall_result,
+            remarks, next_inspection_date, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+        
+        // CO・HC濃度の処理
+        $co_concentration = !empty($_POST['co_concentration']) ? (float)$_POST['co_concentration'] : null;
+        $hc_concentration = !empty($_POST['hc_concentration']) ? (int)$_POST['hc_concentration'] : null;
+        
+        // 総合結果の判定（不良があれば不合格、要注意があれば条件付合格）
+        $overall_result = '合格'; // デフォルト
         
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             $vehicle_id, 
-            $inspection_date, 
             $inspector_id, 
-            $mileage, 
+            $inspection_date, 
             $inspection_type,
+            $mileage,
             $_POST['service_provider_name'] ?? '',
             $_POST['service_provider_address'] ?? '',
-            $_POST['remarks'] ?? ''
+            $co_concentration,
+            $hc_concentration,
+            $overall_result,
+            $_POST['remarks'] ?? '',
+            $next_inspection_date
         ]);
         
         $inspection_id = $pdo->lastInsertId();
@@ -78,6 +94,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'engine' => ['valve_clearance', 'engine_oil_leakage', 'exhaust_gas_condition', 'air_cleaner_element']
         ];
         
+        $bad_count = 0;
+        $caution_count = 0;
+        
         // カテゴリーごとに項目を保存
         foreach ($categories as $category => $items) {
             foreach ($items as $item) {
@@ -85,9 +104,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $note = $_POST[$item . '_note'] ?? '';
                 
                 if ($result !== '') {
+                    // 結果による総合判定の更新
+                    if ($result === '不良') $bad_count++;
+                    if ($result === '要注意') $caution_count++;
+                    
                     $sql = "INSERT INTO periodic_inspection_items (
-                        inspection_id, category, item_name, result, note
-                    ) VALUES (?, ?, ?, ?, ?)";
+                        inspection_id, category, item_name, result, note, created_at
+                    ) VALUES (?, ?, ?, ?, ?, NOW())";
                     
                     $stmt = $pdo->prepare($sql);
                     $stmt->execute([$inspection_id, $category, $item, $result, $note]);
@@ -95,30 +118,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        // CO・HC濃度を保存
-        if (!empty($_POST['co_concentration'])) {
-            $sql = "INSERT INTO periodic_inspection_items (
-                inspection_id, category, item_name, result, note
-            ) VALUES (?, 'engine', 'co_concentration', ?, 'CO濃度')";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$inspection_id, $_POST['co_concentration']]);
+        // 総合結果の最終判定と更新
+        if ($bad_count > 0) {
+            $final_result = '不合格';
+        } elseif ($caution_count > 0) {
+            $final_result = '条件付合格';
+        } else {
+            $final_result = '合格';
         }
         
-        if (!empty($_POST['hc_concentration'])) {
-            $sql = "INSERT INTO periodic_inspection_items (
-                inspection_id, category, item_name, result, note
-            ) VALUES (?, 'engine', 'hc_concentration', ?, 'HC濃度')";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$inspection_id, $_POST['hc_concentration']]);
-        }
+        $stmt = $pdo->prepare("UPDATE periodic_inspections SET overall_result = ? WHERE id = ?");
+        $stmt->execute([$final_result, $inspection_id]);
         
-        // 車両の次回点検日を更新（3か月後）
-        $next_inspection_date = date('Y-m-d', strtotime($inspection_date . ' +3 months'));
+        // 車両の次回点検日を更新
         $stmt = $pdo->prepare("UPDATE vehicles SET next_inspection_date = ?, current_mileage = ? WHERE id = ?");
         $stmt->execute([$next_inspection_date, $mileage, $vehicle_id]);
         
         $pdo->commit();
-        $success_message = '定期点検記録を登録しました。次回点検日: ' . $next_inspection_date;
+        $success_message = '定期点検記録を登録しました。' . 
+                          '総合結果: ' . $final_result . ' / ' .
+                          '次回点検日: ' . $next_inspection_date;
         
     } catch (Exception $e) {
         $pdo->rollBack();
