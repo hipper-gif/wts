@@ -131,22 +131,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 echo renderCompleteHTMLHead('periodic_inspection');
 echo renderSystemHeader();
 
-$page_actions = [
+// ページヘッダーをシンプルに表示
+echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点検', [
     [
         'icon' => 'arrow-left',
-        'text' => 'ダッシュボード',
+        'text' => 'ダッシュボード', 
         'url' => 'dashboard.php',
-        'class' => 'btn-secondary'
+        'class' => 'btn-secondary btn-sm'
     ],
     [
         'icon' => 'check-double',
         'text' => '全て良好',
         'url' => 'javascript:setAllGood()',
-        'class' => 'btn-success'
+        'class' => 'btn-success btn-sm'
     ]
-];
-
-echo renderPageHeader('periodic_inspection', $page_actions);
+]);
 
 ?>
 
