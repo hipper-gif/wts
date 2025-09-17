@@ -128,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // 統一ヘッダーの表示
-echo renderCompleteHTMLHead();
+echo renderCompleteHTMLHead('periodic_inspection');
 echo renderSystemHeader();
 
 $page_actions = [
