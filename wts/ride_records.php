@@ -312,13 +312,7 @@ echo $page_data['page_header'];
 <main class="main-content">
     <div class="container-fluid">
         
-        <!-- 業務フロー進捗表示 -->
-        <?php
-        // 今日の乗車記録があるかチェック
-        $has_rides_today = !empty($rides);
-        $workflow_status = $has_rides_today ? ['status' => 'active'] : ['status' => 'pending'];
-        echo renderWorkflowProgress(4, $workflow_status);
-        ?>
+
 
         <!-- アラート表示 -->
         <?php if ($success_message): ?>
