@@ -541,8 +541,8 @@ echo $page_data['page_header'];
 </main>
 
 <!-- 乗車記録入力・編集モーダル -->
-<div class="modal fade" id="rideModal" tabindex="-1" aria-labelledby="rideModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade" id="rideModal" tabindex="-1" aria-labelledby="rideModalTitle" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content unified-modal">
             <div class="modal-header unified-modal-header">
                 <h5 class="modal-title" id="rideModalTitle">
@@ -823,20 +823,34 @@ echo $page_data['page_header'];
     border: none;
 }
 
+/* モーダル関連のスタイル - z-index問題解決 */
+.modal {
+    z-index: 1055 !important;
+}
+
+.modal-backdrop {
+    z-index: 1050 !important;
+    background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
 .unified-modal {
     border-radius: 16px;
     overflow: hidden;
+    border: none;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
 }
 
 .unified-modal-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     border: none;
+    padding: 1.5rem;
 }
 
 .unified-modal-footer {
     background: #f8f9fa;
     border-top: 1px solid rgba(0,0,0,0.06);
+    padding: 1.25rem 1.5rem;
 }
 
 .unified-label {
@@ -850,11 +864,13 @@ echo $page_data['page_header'];
     border-radius: 8px;
     padding: 0.75rem 1rem;
     transition: all 0.2s;
+    font-size: 0.95rem;
 }
 
 .unified-input:focus, .unified-select:focus, .unified-textarea:focus {
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
 }
 
 .unified-dropdown {
@@ -871,7 +887,7 @@ echo $page_data['page_header'];
     border-top: none;
     max-height: 200px;
     overflow-y: auto;
-    z-index: 1000;
+    z-index: 1060;
     border-radius: 0 0 8px 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
@@ -887,10 +903,22 @@ echo $page_data['page_header'];
     background-color: #f8f9fa;
 }
 
+.unified-suggestion:last-child {
+    border-bottom: none;
+}
+
 .passenger-btn {
     min-width: 60px;
     border-radius: 20px;
     transition: all 0.2s;
+    border: 2px solid #667eea;
+    color: #667eea;
+    background: white;
+}
+
+.passenger-btn:hover {
+    background: #667eea;
+    color: white;
 }
 
 .passenger-btn.active {
@@ -929,6 +957,47 @@ echo $page_data['page_header'];
         width: 100%;
         margin: 0;
     }
+    
+    .modal-dialog {
+        margin: 0.5rem;
+        max-width: calc(100% - 1rem);
+    }
+    
+    .unified-modal-header {
+        padding: 1rem;
+    }
+    
+    .unified-modal-footer {
+        padding: 1rem;
+    }
+}
+
+/* Bootstrap overrides for better modal behavior */
+.modal.show {
+    display: block !important;
+}
+
+.modal-open {
+    overflow: hidden;
+}
+
+.modal-dialog-centered {
+    min-height: calc(100% - 1rem);
+    display: flex;
+    align-items: center;
+}
+
+/* ボタンのホバー効果改善 */
+.btn {
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+.btn:active {
+    transform: translateY(0);
 }
 </style>
 
@@ -971,7 +1040,14 @@ function showAddModal() {
     document.querySelectorAll('.passenger-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelector('.passenger-btn[data-count="1"]').classList.add('active');
     
-    new bootstrap.Modal(document.getElementById('rideModal')).show();
+    // Bootstrap Modal を確実に表示
+    const modalElement = document.getElementById('rideModal');
+    const modal = new bootstrap.Modal(modalElement, {
+        backdrop: 'static',
+        keyboard: true,
+        focus: true
+    });
+    modal.show();
 }
 
 // 編集モーダル表示
@@ -998,7 +1074,14 @@ function editRecord(record) {
     // 人数ボタン設定
     updatePassengerButtons(record.passenger_count);
     
-    new bootstrap.Modal(document.getElementById('rideModal')).show();
+    // Bootstrap Modal を確実に表示
+    const modalElement = document.getElementById('rideModal');
+    const modal = new bootstrap.Modal(modalElement, {
+        backdrop: 'static',
+        keyboard: true,
+        focus: true
+    });
+    modal.show();
 }
 
 // 復路作成モーダル表示
@@ -1038,7 +1121,14 @@ function createReturnTrip(record) {
     // 人数ボタン設定
     updatePassengerButtons(record.passenger_count);
     
-    new bootstrap.Modal(document.getElementById('rideModal')).show();
+    // Bootstrap Modal を確実に表示
+    const modalElement = document.getElementById('rideModal');
+    const modal = new bootstrap.Modal(modalElement, {
+        backdrop: 'static',
+        keyboard: true,
+        focus: true
+    });
+    modal.show();
 }
 
 // 削除確認
