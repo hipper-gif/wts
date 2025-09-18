@@ -299,7 +299,7 @@ try {
             
             <!-- メッセージ表示 -->
             <?php if ($message): ?>
-                <?= renderAlert($message, $message_type) ?>
+<?= renderAlert($message_type, ($message_type === 'success' ? '保存完了' : ($message_type === 'danger' ? 'エラー' : 'お知らせ')), $message) ?>
             <?php endif; ?>
             
             <!-- 検索・フィルター -->
