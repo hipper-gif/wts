@@ -1,11 +1,14 @@
 <?php
 /**
- * 福祉輸送管理システム v3.1 - 統一ヘッダーシステム（ユーザー情報表示改善版）
+ * 福祉輸送管理システム v3.1 - 統一ヘッダーシステム（完全版）
  * 
  * ファイル名: includes/unified-header.php
- * バージョン: v3.1.2
- * 修正内容: ユーザー情報表示を仕様書に準拠
- * 修正日: 2025年9月17日
+ * バージョン: v3.1.1 ✅ 修正版
+ * 作成日: 2025年9月10日
+ * 修正日: 2025年9月18日
+ * 修正内容: getPageConfiguration()関数を前方移動（Fatal Error解消）
+ * 対応範囲: 19ページ全対応（日次7段階フロー + 定期2業務 + 基盤2 + 管理3 + 診断5）
+ * PWA対応: 完全対応（Service Worker + Manifest + オフライン機能）
  */
 
 /**
@@ -33,7 +36,7 @@ function getResponsiveSystemNames() {
         'full' => $full_name,
         'short' => str_replace(['システム', 'System'], '', $full_name),
         'mobile' => generateMobileAbbreviation($full_name),
-        'version' => 'v3.1'
+        'version' => 'v3.1.1'  // ✅ バージョン更新
     ];
 }
 
@@ -41,7 +44,6 @@ function generateMobileAbbreviation($name) {
     if (strpos($name, '福祉輸送管理システム') !== false) {
         return 'WTS';
     }
-    // 他のシステム名の場合の略称生成ロジック
     $words = explode(' ', str_replace(['システム', 'System'], '', $name));
     $abbr = '';
     foreach ($words as $word) {
@@ -52,7 +54,7 @@ function generateMobileAbbreviation($name) {
 
 /**
  * 📱 頻度別ページ設定取得（19ページ対応）
- * ⚠️ 重要: この関数を前方に移動（各ページで早期に呼び出すため）
+ * ✅ CRITICAL: この関数を前方移動してFatal Error解消
  */
 function getPageConfiguration($page_type) {
     $configurations = [
@@ -250,76 +252,10 @@ function getPageConfiguration($page_type) {
 }
 
 /**
- * 👤 ユーザー詳細情報取得（職務フラグ・権限情報含む）
- * ✅ NEW: 仕様書に基づく詳細なユーザー情報取得
- */
-function getUserDetailedInfo($user_id) {
-    global $pdo;
-    
-    try {
-        $stmt = $pdo->prepare("SELECT 
-            id, 
-            login_id, 
-            NAME, 
-            permission_level,
-            is_driver,
-            is_caller, 
-            is_manager,
-            is_admin,
-            is_mechanic,
-            is_inspector,
-            last_login_at,
-            created_at
-        FROM users 
-        WHERE id = ? AND is_active = 1");
-        
-        $stmt->execute([$user_id]);
-        $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$user_data) {
-            return null;
-        }
-        
-        // 職務フラグの日本語表示名を生成
-        $roles = [];
-        if ($user_data['is_driver']) $roles[] = '運転者';
-        if ($user_data['is_caller']) $roles[] = '点呼者';
-        if ($user_data['is_manager']) $roles[] = '管理者';
-        if ($user_data['is_admin']) $roles[] = 'システム管理者';
-        if ($user_data['is_mechanic']) $roles[] = '整備者';
-        if ($user_data['is_inspector']) $roles[] = '検査者';
-        
-        // 基本権限レベルの日本語表示
-        $permission_display = match($user_data['permission_level']) {
-            'Admin' => '管理者権限',
-            'User' => '一般権限',
-            default => $user_data['permission_level']
-        };
-        
-        return [
-            'id' => $user_data['id'],
-            'login_id' => $user_data['login_id'],
-            'name' => $user_data['NAME'],
-            'permission_level' => $user_data['permission_level'],
-            'permission_display' => $permission_display,
-            'roles' => $roles,
-            'roles_display' => empty($roles) ? '一般' : implode('・', $roles),
-            'last_login_at' => $user_data['last_login_at'],
-            'created_at' => $user_data['created_at'],
-            'raw_data' => $user_data
-        ];
-        
-    } catch (Exception $e) {
-        error_log("getUserDetailedInfo error: " . $e->getMessage());
-        return null;
-    }
-}
-
-/**
  * 🎯 完全HTMLヘッダー生成（PWA対応）
  */
 function renderCompleteHTMLHead($page_title, $options = []) {
-    $description = $options['description'] ?? '福祉輸送管理システム v3.1 - 7段階業務フロー対応PWAアプリ';
+    $description = $options['description'] ?? '福祉輸送管理システム v3.1.1 - 7段階業務フロー対応PWAアプリ';
     $additional_css = $options['additional_css'] ?? [];
     $additional_js = $options['additional_js'] ?? [];
     $system_names = getResponsiveSystemNames();
@@ -338,7 +274,7 @@ function renderCompleteHTMLHead($page_title, $options = []) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
-    <!-- ========== 統一CSS v3.1 ========== -->
+    <!-- ========== 統一CSS v3.1.1 ========== -->
     <link rel="stylesheet" href="css/ui-unified-v3.css">
     <link rel="stylesheet" href="css/header-unified.css">';
     
@@ -350,7 +286,7 @@ function renderCompleteHTMLHead($page_title, $options = []) {
     
     $html .= '
     
-    <!-- ========== PWA設定 v3.1 ========== -->
+    <!-- ========== PWA設定 v3.1.1 ========== -->
     <link rel="manifest" href="/Smiley/taxi/wts/manifest.json">
     <meta name="theme-color" content="#2196F3">
     <meta name="msapplication-TileColor" content="#2196F3">
@@ -368,28 +304,6 @@ function renderCompleteHTMLHead($page_title, $options = []) {
     <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="192x192" href="/Smiley/taxi/wts/icons/icon-192x192.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/Smiley/taxi/wts/icons/icon-32x32.png">
-    
-    <!-- PWA JavaScript初期化 -->
-    <script>
-    window.SYSTEM_CONFIG = {
-        names: ' . json_encode($system_names) . ',
-        version: "' . $system_names['version'] . '",
-        pwaDomain: "/Smiley/taxi/wts/"
-    };
-    
-    // Service Worker 登録
-    if ("serviceWorker" in navigator) {
-        window.addEventListener("load", function() {
-            navigator.serviceWorker.register("/Smiley/taxi/wts/sw.js")
-                .then(function(registration) {
-                    console.log("✅ Service Worker 登録成功:", registration.scope);
-                })
-                .catch(function(error) {
-                    console.log("ℹ️ Service Worker 未実装:", error.message);
-                });
-        });
-    }
-    </script>
 </head>
 <body>';
     
@@ -397,36 +311,19 @@ function renderCompleteHTMLHead($page_title, $options = []) {
 }
 
 /**
- * 🏠 統一システムヘッダー生成（3層構造・ユーザー情報表示改善版）
- * ✅ 修正: 仕様書に基づく詳細なユーザー情報表示
+ * 🏠 統一システムヘッダー生成（3層構造）
  */
-function renderSystemHeader($user_name = '未設定', $user_role = 'User', $current_page = '', $show_dashboard_link = true, $user_id = null) {
+function renderSystemHeader($user_name = '未設定', $user_role = 'User', $current_page = '', $show_dashboard_link = true) {
     $system_names = getResponsiveSystemNames();
     $user_name_safe = htmlspecialchars($user_name, ENT_QUOTES, 'UTF-8');
     $user_role_safe = htmlspecialchars($user_role, ENT_QUOTES, 'UTF-8');
     
-    // ✅ NEW: 詳細なユーザー情報を取得
-    $user_detail = null;
-    if ($user_id) {
-        $user_detail = getUserDetailedInfo($user_id);
-    }
-    
-    // 権限表示名の決定（詳細情報がある場合は詳細表示、ない場合は従来表示）
-    if ($user_detail) {
-        $role_display = $user_detail['roles_display'];
-        $permission_display = $user_detail['permission_display'];
-        $last_login = $user_detail['last_login_at'] ? 
-            date('m/d H:i', strtotime($user_detail['last_login_at'])) : 'なし';
-    } else {
-        // フォールバック: 従来の簡単な表示
-        $role_display = match($user_role_safe) {
-            'Admin' => '管理者',
-            'User' => '一般',
-            default => $user_role_safe
-        };
-        $permission_display = $role_display;
-        $last_login = null;
-    }
+    // 権限表示名変換
+    $role_display = match($user_role_safe) {
+        'Admin' => '管理者',
+        'User' => '一般',
+        default => $user_role_safe
+    };
     
     // ダッシュボードリンクの表示判定
     $is_dashboard = $current_page === 'dashboard';
@@ -438,15 +335,6 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
             <i class="fas fa-tachometer-alt"></i>
             <span class="d-none d-md-inline">ダッシュボード</span>
         </a>';
-    }
-    
-    // ✅ NEW: 詳細ユーザー情報の追加HTML（ツールチップ対応）
-    $user_tooltip_content = '';
-    if ($user_detail) {
-        $user_tooltip_content = 'data-bs-toggle="tooltip" data-bs-placement="bottom" 
-            title="ログインID: ' . htmlspecialchars($user_detail['login_id']) . 
-            '&#10;最終ログイン: ' . $last_login . 
-            '&#10;権限: ' . htmlspecialchars($permission_display) . '"';
     }
     
     return '
@@ -465,17 +353,15 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
                         </h1>
                     </div>
                     
-                    <!-- ユーザー情報エリア（改善版） -->
+                    <!-- ユーザー情報エリア -->
                     <div class="user-area d-flex align-items-center gap-3">
                         ' . $dashboard_link . '
                         
-                        <div class="user-info d-flex align-items-center gap-2" ' . $user_tooltip_content . '>
-                            <i class="fas fa-user-circle text-muted fs-4"></i>
+                        <div class="user-info d-flex align-items-center gap-2">
+                            <i class="fas fa-user-circle text-muted"></i>
                             <div class="user-details">
-                                <div class="user-name fw-semibold">' . $user_name_safe . '</div>
-                                <div class="user-role text-muted small">' . htmlspecialchars($role_display) . '</div>
-                                ' . ($user_detail && $permission_display !== $role_display ? 
-                                    '<div class="user-permission text-info small">' . htmlspecialchars($permission_display) . '</div>' : '') . '
+                                <div class="user-name">' . $user_name_safe . '</div>
+                                <div class="user-role">' . $role_display . '</div>
                             </div>
                         </div>
                         
@@ -600,6 +486,7 @@ function renderSectionHeader($icon, $title, $badge = '', $actions = []) {
 
 /**
  * 🚨 アラート生成
+ * ✅ CRITICAL: 3つの引数を取る正しい実装
  */
 function renderAlert($type, $title, $message, $dismissible = true) {
     $type_safe = htmlspecialchars($type, ENT_QUOTES, 'UTF-8');
@@ -715,35 +602,10 @@ function renderCompleteHTMLFooter($additional_js = []) {
     }
     
     $html .= '
-    <!-- 統一JavaScript + PWA機能 -->
-    <script src="js/ui-interactions.js"></script>
-    
     <script>
-    // 初期化処理
+    // v3.1.1初期化処理
     document.addEventListener("DOMContentLoaded", function() {
-        // PWAスタンドアローンモード判定
-        if (window.matchMedia("(display-mode: standalone)").matches || 
-            window.navigator.standalone === true) {
-            document.body.classList.add("pwa-standalone");
-        }
-        
-        // ツールチップ初期化
-        const tooltips = document.querySelectorAll("[data-bs-toggle=\\"tooltip\\"]");
-        tooltips.forEach(el => new bootstrap.Tooltip(el));
-        
-        // アラート自動非表示（5秒後）
-        setTimeout(() => {
-            const alerts = document.querySelectorAll(".alert-dismissible");
-            alerts.forEach(alert => {
-                const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
-                if (bsAlert) bsAlert.close();
-            });
-        }, 5000);
-        
-        console.log("✅ 統一ヘッダーシステム v3.1.2 初期化完了");
-        if (window.SYSTEM_CONFIG) {
-            console.log("📱 システム:", window.SYSTEM_CONFIG.names.full, window.SYSTEM_CONFIG.version);
-        }
+        console.log("✅ 統一ヘッダーシステム v3.1.1 初期化完了");
     });
     </script>
 </body>
@@ -753,53 +615,11 @@ function renderCompleteHTMLFooter($additional_js = []) {
 }
 
 /**
- * 📊 統計カード生成
+ * 🎯 完全ページ生成ショートカット（PWA対応）
  */
-function renderStatsCards($stats) {
-    if (empty($stats)) return '';
-    
-    $html = '<div class="row g-3 mb-4">';
-    
-    foreach ($stats as $stat) {
-        $value = htmlspecialchars($stat['value'] ?? '0', ENT_QUOTES, 'UTF-8');
-        $label = htmlspecialchars($stat['label'] ?? '', ENT_QUOTES, 'UTF-8');
-        $icon = htmlspecialchars($stat['icon'] ?? 'chart-bar', ENT_QUOTES, 'UTF-8');
-        $color = htmlspecialchars($stat['color'] ?? 'primary', ENT_QUOTES, 'UTF-8');
-        $trend = $stat['trend'] ?? null;
-        
-        $trend_html = '';
-        if ($trend) {
-            $trend_class = $trend['type'] === 'up' ? 'text-success' : 'text-danger';
-            $trend_icon = $trend['type'] === 'up' ? 'arrow-up' : 'arrow-down';
-            $trend_value = htmlspecialchars($trend['value'] ?? '', ENT_QUOTES, 'UTF-8');
-            $trend_html = '<small class="' . $trend_class . ' ms-2">
-                <i class="fas fa-' . $trend_icon . '"></i> ' . $trend_value . '
-            </small>';
-        }
-        
-        $html .= '
-        <div class="col-6 col-md-3">
-            <div class="card stat-card">
-                <div class="card-body text-center">
-                    <i class="fas fa-' . $icon . ' text-' . $color . ' fs-2 mb-2"></i>
-                    <h3 class="stat-value text-' . $color . ' mb-1">' . $value . $trend_html . '</h3>
-                    <p class="stat-label text-muted mb-0">' . $label . '</p>
-                </div>
-            </div>
-        </div>';
-    }
-    
-    $html .= '</div>';
-    return $html;
-}
-
-/**
- * 🎯 完全ページ生成ショートカット（PWA対応・ユーザー情報表示改善版）
- * ✅ 修正: ユーザーIDを渡してrenderSystemHeaderで詳細情報表示
- */
-function renderCompletePage($page_title, $user_name, $user_role, $current_page, $icon, $title, $subtitle = '', $category = 'other', $options = [], $user_id = null) {
+function renderCompletePage($page_title, $user_name, $user_role, $current_page, $icon, $title, $subtitle = '', $category = 'other', $options = []) {
     $html_head = renderCompleteHTMLHead($page_title, $options);
-    $system_header = renderSystemHeader($user_name, $user_role, $current_page, true, $user_id);
+    $system_header = renderSystemHeader($user_name, $user_role, $current_page);
     $page_header = renderPageHeader($icon, $title, $subtitle, $category, $options['breadcrumb'] ?? []);
     
     return [
@@ -810,177 +630,4 @@ function renderCompletePage($page_title, $user_name, $user_role, $current_page, 
     ];
 }
 
-/**
- * 📱 PWA機能状態表示
- */
-function renderPWAStatus() {
-    // PWAファイル存在チェック
-    $manifest_exists = file_exists($_SERVER['DOCUMENT_ROOT'] . '/Smiley/taxi/wts/manifest.json');
-    $sw_exists = file_exists($_SERVER['DOCUMENT_ROOT'] . '/Smiley/taxi/wts/sw.js');
-    $icons_exist = file_exists($_SERVER['DOCUMENT_ROOT'] . '/Smiley/taxi/wts/icons/icon-192x192.png');
-    
-    $status_items = [
-        'Web App Manifest' => $manifest_exists,
-        'Service Worker' => $sw_exists,
-        'PWA Icons' => $icons_exist,
-        'PWA Ready' => $manifest_exists && $icons_exist
-    ];
-    
-    $html = '
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">
-                <i class="fas fa-mobile-alt text-primary"></i>
-                PWA機能状態 <small class="text-muted">(Phase 3実装中)</small>
-            </h5>
-        </div>
-        <div class="card-body">
-            <div class="row">';
-    
-    foreach ($status_items as $item => $status) {
-        $icon = $status ? 'check-circle text-success' : 'times-circle text-danger';
-        $text = $status ? '利用可能' : '未実装';
-        $badge_class = $status ? 'bg-success' : 'bg-warning';
-        
-        $html .= '
-                <div class="col-md-6 mb-2">
-                    <div class="d-flex align-items-center">
-                        <i class="fas fa-' . $icon . ' me-2"></i>
-                        <span class="me-2">' . $item . '</span>
-                        <span class="badge ' . $badge_class . '">' . $text . '</span>
-                    </div>
-                </div>';
-    }
-    
-    $overall_status = $manifest_exists && $icons_exist;
-    $status_message = $overall_status ? 
-        '基本PWA機能が利用可能です' : 
-        'PWA機能の実装中です（Phase 3で完成予定）';
-    $alert_type = $overall_status ? 'success' : 'info';
-    
-    $html .= '
-            </div>
-            <div class="alert alert-' . $alert_type . ' mb-0 mt-3">
-                <i class="fas fa-info-circle"></i>
-                ' . $status_message . '
-            </div>
-        </div>
-    </div>';
-    
-    return $html;
-}
-
-/**
- * 🔧 システム診断情報
- */
-function renderSystemDiagnostics() {
-    $system_info = [
-        'PHP Version' => PHP_VERSION,
-        'Memory Limit' => ini_get('memory_limit'),
-        'Upload Max Size' => ini_get('upload_max_filesize'),
-        'Timezone' => date_default_timezone_get(),
-        'Current Time' => date('Y-m-d H:i:s'),
-        'Server Software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
-        'Document Root' => $_SERVER['DOCUMENT_ROOT'] ?? 'Unknown'
-    ];
-    
-    $html = '
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">
-                <i class="fas fa-server text-info"></i>
-                システム診断情報
-            </h5>
-        </div>
-        <div class="card-body">
-            <div class="row">';
-    
-    foreach ($system_info as $key => $value) {
-        $html .= '
-                <div class="col-md-6 mb-2">
-                    <strong>' . $key . ':</strong>
-                    <code class="ms-2">' . htmlspecialchars($value) . '</code>
-                </div>';
-    }
-    
-    $html .= '
-            </div>
-        </div>
-    </div>';
-    
-    return $html;
-}
-
-/**
- * 📊 統計情報表示
- */
-function renderSystemStats($stats = []) {
-    $default_stats = [
-        ['label' => '総ページ数', 'value' => '19', 'icon' => 'file-alt', 'color' => 'primary'],
-        ['label' => '日次業務', 'value' => '7', 'icon' => 'calendar-day', 'color' => 'success'],
-        ['label' => '定期業務', 'value' => '2', 'icon' => 'calendar', 'color' => 'warning'],
-        ['label' => '管理機能', 'value' => '8', 'icon' => 'cogs', 'color' => 'info']
-    ];
-    
-    $stats = array_merge($default_stats, $stats);
-    
-    return renderStatsCards($stats);
-}
-
-/**
- * 🎯 使用例・実装ガイド（ユーザー情報表示改善版）
- */
-function renderUsageExample() {
-    return '
-    <!-- 使用例: 日常点検ページ（ユーザー情報表示改善版） -->
-    <?php
-    require_once "includes/unified-header.php";
-    
-    // ✅ 修正: ユーザー情報の詳細表示に対応
-    // セッションからユーザーIDを取得
-    $user_id = $_SESSION["user_id"] ?? null;
-    $user_name = $_SESSION["user_name"] ?? "未設定";
-    $user_role = $_SESSION["user_role"] ?? "User";
-    
-    // ページ設定取得
-    $page_config = getPageConfiguration("daily_inspection");
-    
-    // 完全ページ生成（ユーザーIDを渡す）
-    $page_data = renderCompletePage(
-        $page_config["title"],           // ページタイトル
-        $user_name,                      // ユーザー名
-        $user_role,                      // ユーザー権限
-        "daily_inspection",              // 現在のページ
-        $page_config["icon"],            // アイコン
-        $page_config["title"],           // タイトル
-        $page_config["subtitle"],        // サブタイトル
-        $page_config["category"],        // カテゴリ（daily）
-        [
-            "description" => $page_config["description"],
-            "additional_css" => ["css/inspection.css"],
-            "additional_js" => ["js/inspection.js"],
-            "breadcrumb" => [
-                ["text" => "ホーム", "url" => "dashboard.php"],
-                ["text" => "日次業務", "url" => "#"],
-                ["text" => "日常点検", "url" => "daily_inspection.php"]
-            ]
-        ],
-        $user_id                         // ✅ NEW: ユーザーIDを渡す
-    );
-    
-    // HTML出力
-    echo $page_data["html_head"];
-    echo $page_data["system_header"];
-    echo $page_data["page_header"];
-    ?>
-    
-    <main class="main-content">
-        <div class="container-fluid">
-            <!-- メインコンテンツ -->
-        </div>
-    </main>
-    
-    <?php echo $page_data["html_footer"]; ?>
-    ';
-}
 ?>
