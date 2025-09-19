@@ -329,14 +329,40 @@ function generateForm4PDF($business, $transport, $accident, $year) {
 }
 
 // ページ設定を取得
-$page_config = getPageConfiguration();
-$page_title = $page_config['title'];
-$breadcrumbs = $page_config['breadcrumbs'];
+$page_config = getPageConfiguration('annual_report');
 
-// 統一ヘッダーの出力
-outputUnifiedHeader($page_title, $breadcrumbs, $page_config);
+// 統一ヘッダーでページ生成
+$page_options = [
+    'description' => $page_config['description'],
+    'additional_css' => [],
+    'additional_js' => [],
+    'breadcrumb' => [
+        ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
+        ['text' => '定期業務', 'url' => '#'],
+        ['text' => '陸運局提出', 'url' => 'annual_report.php']
+    ]
+];
+
+$page_data = renderCompletePage(
+    $page_config['title'],
+    $user['name'],
+    $user['permission_level'],
+    'annual_report',
+    $page_config['icon'],
+    $page_config['title'],
+    $page_config['subtitle'],
+    $page_config['category'],
+    $page_options
+);
+
+// HTMLヘッダー出力
+echo $page_data['html_head'];
+echo $page_data['system_header'];
+echo $page_data['page_header'];
 ?>
 
+<!-- メインコンテンツ開始 -->
+<main class="main-content">
 <div class="container-fluid px-4">
     <!-- メッセージ表示 -->
     <?php if ($message): ?>
@@ -375,6 +401,94 @@ outputUnifiedHeader($page_title, $breadcrumbs, $page_config);
                     </div>
                 </div>
             </div>
+    </div>
+</main>
+
+<!-- レポート作成モーダル -->
+<div class="modal fade" id="createReportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus me-2"></i>新規レポート作成</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="create_report">
+                    
+                    <div class="mb-3">
+                        <label for="fiscal_year" class="form-label">年度</label>
+                        <select name="fiscal_year" id="fiscal_year" class="form-select" required>
+                            <?php for ($year = $current_year; $year >= $current_year - 5; $year--): ?>
+                                <option value="<?= $year ?>" <?= $year == $selected_year ? 'selected' : '' ?>>
+                                    <?= $year ?>年度
+                                </option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="report_type" class="form-label">レポート種別</label>
+                        <select name="report_type" id="report_type" class="form-select" required>
+                            <option value="第4号様式">第4号様式（輸送実績報告書）</option>
+                            <option value="事故報告書">事故報告書</option>
+                            <option value="安全統括管理者選任届">安全統括管理者選任届</option>
+                            <option value="運行管理者選任届">運行管理者選任届</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>作成開始
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 状態更新モーダル -->
+<div class="modal fade" id="updateStatusModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>レポート状態更新</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="updateStatusForm">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="update_status">
+                    <input type="hidden" name="report_id" id="update_report_id">
+                    
+                    <div class="mb-3">
+                        <label for="status" class="form-label">状態</label>
+                        <select name="status" id="status" class="form-select" required>
+                            <option value="未作成">未作成</option>
+                            <option value="作成中">作成中</option>
+                            <option value="確認中">確認中</option>
+                            <option value="提出済み">提出済み</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3" id="submissionDateGroup" style="display: none;">
+                        <label for="submission_date" class="form-label">提出日</label>
+                        <input type="date" class="form-control" name="submission_date" id="submission_date">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="memo" class="form-label">メモ</label>
+                        <textarea class="form-control" name="memo" id="memo" rows="3" 
+                                  placeholder="進捗状況や注意事項があれば記入してください"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>更新
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -601,96 +715,6 @@ outputUnifiedHeader($page_title, $breadcrumbs, $page_config);
                 </div>
             </div>
         </div>
-    </div>
-</div>
-
-<!-- レポート作成モーダル -->
-<div class="modal fade" id="createReportModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-plus me-2"></i>新規レポート作成</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="POST">
-                <div class="modal-body">
-                    <input type="hidden" name="action" value="create_report">
-                    
-                    <div class="mb-3">
-                        <label for="fiscal_year" class="form-label">年度</label>
-                        <select name="fiscal_year" id="fiscal_year" class="form-select" required>
-                            <?php for ($year = $current_year; $year >= $current_year - 5; $year--): ?>
-                                <option value="<?= $year ?>" <?= $year == $selected_year ? 'selected' : '' ?>>
-                                    <?= $year ?>年度
-                                </option>
-                            <?php endfor; ?>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="report_type" class="form-label">レポート種別</label>
-                        <select name="report_type" id="report_type" class="form-select" required>
-                            <option value="第4号様式">第4号様式（輸送実績報告書）</option>
-                            <option value="事故報告書">事故報告書</option>
-                            <option value="安全統括管理者選任届">安全統括管理者選任届</option>
-                            <option value="運行管理者選任届">運行管理者選任届</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-plus me-1"></i>作成開始
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- 状態更新モーダル -->
-<div class="modal fade" id="updateStatusModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>レポート状態更新</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="POST" id="updateStatusForm">
-                <div class="modal-body">
-                    <input type="hidden" name="action" value="update_status">
-                    <input type="hidden" name="report_id" id="update_report_id">
-                    
-                    <div class="mb-3">
-                        <label for="status" class="form-label">状態</label>
-                        <select name="status" id="status" class="form-select" required>
-                            <option value="未作成">未作成</option>
-                            <option value="作成中">作成中</option>
-                            <option value="確認中">確認中</option>
-                            <option value="提出済み">提出済み</option>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3" id="submissionDateGroup" style="display: none;">
-                        <label for="submission_date" class="form-label">提出日</label>
-                        <input type="date" class="form-control" name="submission_date" id="submission_date">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="memo" class="form-label">メモ</label>
-                        <textarea class="form-control" name="memo" id="memo" rows="3" 
-                                  placeholder="進捗状況や注意事項があれば記入してください"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-1"></i>更新
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
 </div>
 
 <script>
@@ -744,7 +768,9 @@ outputUnifiedHeader($page_title, $breadcrumbs, $page_config);
     });
 </script>
 
+</main>
+
 <?php
-// 統一フッターの出力
-require_once 'includes/footer.php';
+// 統一フッターの出力（統一ヘッダーシステムに準拠）
+echo $page_data['system_footer'] ?? '';
 ?>
