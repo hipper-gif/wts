@@ -9,16 +9,16 @@ if (!isset($_SESSION['user_id'])) {
 
 // データベース接続
 require_once 'config/database.php';
+require_once 'includes/unified-header.php';
 
 try {
-    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET, DB_USER, DB_PASS);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo = getDBConnection();
 } catch (PDOException $e) {
     die('データベース接続エラー: ' . $e->getMessage());
 }
 
-// ユーザー情報取得
-$stmt = $pdo->prepare("SELECT name, role FROM users WHERE id = ?");
+// ユーザー情報取得（roleをpermission_levelに修正）
+$stmt = $pdo->prepare("SELECT name, permission_level FROM users WHERE id = ?");
 $stmt->execute([$_SESSION['user_id']]);
 $user = $stmt->fetch();
 
@@ -28,8 +28,8 @@ if (!$user) {
     exit();
 }
 
-// 権限チェック
-if (!in_array($user['role'], ['管理者', 'システム管理者'])) {
+// 権限チェック（permission_levelを使用）
+if ($user['permission_level'] !== 'Admin') {
     die('アクセス権限がありません。管理者のみ利用可能です。');
 }
 
@@ -165,12 +165,17 @@ function getBusinessOverview($pdo, $year) {
     $end_date = $year . '-03-31';
     
     // 車両数
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM vehicles WHERE created_at <= ?");
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM vehicles WHERE created_at <= ? AND is_active = 1");
     $stmt->execute([$end_date]);
     $vehicle_count = $stmt->fetchColumn();
     
-    // 従業員数
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role IN ('運転者', '管理者') AND created_at <= ?");
+    // 従業員数（permission_levelとis_driverフラグを使用）
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) FROM users 
+        WHERE is_active = 1 
+        AND (is_driver = 1 OR permission_level = 'Admin') 
+        AND created_at <= ?
+    ");
     $stmt->execute([$end_date]);
     $employee_count = $stmt->fetchColumn();
     
@@ -195,14 +200,15 @@ function getTransportResults($pdo, $year) {
     $stmt->execute([$start_date, $end_date]);
     $total_distance = $stmt->fetchColumn();
     
-    // 運送実績
+    // 運送実績（fare_amountではなくfare + chargeを使用）
     $stmt = $pdo->prepare("
         SELECT 
             COUNT(*) as ride_count,
             SUM(passenger_count) as total_passengers,
-            SUM(fare_amount) as total_revenue
+            SUM(fare + COALESCE(charge, 0)) as total_revenue
         FROM ride_records 
-        WHERE DATE(ride_date) BETWEEN ? AND ?
+        WHERE ride_date BETWEEN ? AND ? 
+        AND is_sample_data = 0
     ");
     $stmt->execute([$start_date, $end_date]);
     $transport_data = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -321,97 +327,37 @@ function generateForm4PDF($business, $transport, $accident, $year) {
     
     return $content;
 }
+
+// ページ設定を取得
+$page_config = getPageConfiguration();
+$page_title = $page_config['title'];
+$breadcrumbs = $page_config['breadcrumbs'];
+
+// 統一ヘッダーの出力
+outputUnifiedHeader($page_title, $breadcrumbs, $page_config);
 ?>
 
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>陸運局提出管理 - 福祉輸送管理システム</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
-    <style>
-        .navbar-brand {
-            font-weight: bold;
-        }
-        .overview-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 15px;
-        }
-        .transport-card {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            border-radius: 15px;
-        }
-        .accident-card {
-            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-            color: #333;
-            border-radius: 15px;
-        }
-        .status-badge {
-            font-size: 0.8rem;
-        }
-        .stats-number {
-            font-size: 2rem;
-            font-weight: bold;
-        }
-        .year-selector {
-            background-color: #f8f9fa;
-            border-radius: 10px;
-            padding: 1rem;
-        }
-        .report-actions {
-            background-color: #e9ecef;
-            border-radius: 8px;
-            padding: 1rem;
-        }
-    </style>
-</head>
-
-<body class="bg-light">
-    <!-- ナビゲーション -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="dashboard.php">
-                <i class="fas fa-file-alt me-2"></i>陸運局提出管理
-            </a>
-            <div class="navbar-nav ms-auto">
-                <span class="navbar-text me-3">
-                    <i class="fas fa-user me-1"></i><?= htmlspecialchars($user['name']) ?>さん
-                </span>
-                <a class="nav-link" href="dashboard.php">
-                    <i class="fas fa-home me-1"></i>ダッシュボード
-                </a>
-                <a class="nav-link" href="logout.php">
-                    <i class="fas fa-sign-out-alt me-1"></i>ログアウト
-                </a>
-            </div>
+<div class="container-fluid px-4">
+    <!-- メッセージ表示 -->
+    <?php if ($message): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($message) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
-    </nav>
+    <?php endif; ?>
 
-    <div class="container mt-4">
-        <!-- メッセージ表示 -->
-        <?php if ($message): ?>
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($message) ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
+    <?php if ($error): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i><?= htmlspecialchars($error) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endif; ?>
 
-        <?php if ($error): ?>
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="fas fa-exclamation-triangle me-2"></i><?= htmlspecialchars($error) ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
-
-        <!-- 年度選択 -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="year-selector">
+    <!-- 年度選択 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card bg-light">
+                <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>年度選択</h5>
                         <form method="GET" class="d-flex">
@@ -430,205 +376,207 @@ function generateForm4PDF($business, $transport, $accident, $year) {
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- 年度データサマリー -->
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card overview-card">
-                    <div class="card-body text-center">
-                        <div class="stats-number"><?= $business_overview['vehicle_count'] + $business_overview['employee_count'] ?></div>
-                        <div>事業規模</div>
-                        <small>車両<?= $business_overview['vehicle_count'] ?>台・従業員<?= $business_overview['employee_count'] ?>名</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card transport-card">
-                    <div class="card-body text-center">
-                        <div class="stats-number"><?= number_format($transport_results['ride_count']) ?></div>
-                        <div>年間運送回数</div>
-                        <small>収入¥<?= number_format($transport_results['total_revenue']) ?></small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card accident-card">
-                    <div class="card-body text-center">
-                        <div class="stats-number"><?= $accident_data['traffic_accidents'] + $accident_data['serious_accidents'] ?></div>
-                        <div>事故件数</div>
-                        <small>死傷者<?= $accident_data['total_deaths'] + $accident_data['total_injuries'] ?>名</small>
-                    </div>
+    <!-- 年度データサマリー -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <div class="display-4 mb-0"><?= $business_overview['vehicle_count'] + $business_overview['employee_count'] ?></div>
+                    <div class="h5">事業規模</div>
+                    <small>車両<?= $business_overview['vehicle_count'] ?>台・従業員<?= $business_overview['employee_count'] ?>名</small>
                 </div>
             </div>
         </div>
-
-        <!-- 詳細データ -->
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h6><i class="fas fa-building me-2"></i>事業概況（<?= $selected_year ?>年3月31日現在）</h6>
-                    </div>
-                    <div class="card-body">
-                        <table class="table table-sm">
-                            <tr>
-                                <td>事業用自動車数</td>
-                                <td class="text-end"><?= $business_overview['vehicle_count'] ?>台</td>
-                            </tr>
-                            <tr>
-                                <td>従業員数</td>
-                                <td class="text-end"><?= $business_overview['employee_count'] ?>名</td>
-                            </tr>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h6><i class="fas fa-chart-line me-2"></i>輸送実績（<?= $selected_year ?>年度）</h6>
-                    </div>
-                    <div class="card-body">
-                        <table class="table table-sm">
-                            <tr>
-                                <td>走行距離</td>
-                                <td class="text-end"><?= number_format($transport_results['total_distance']) ?>km</td>
-                            </tr>
-                            <tr>
-                                <td>運送回数</td>
-                                <td class="text-end"><?= number_format($transport_results['ride_count']) ?>回</td>
-                            </tr>
-                            <tr>
-                                <td>輸送人員</td>
-                                <td class="text-end"><?= number_format($transport_results['total_passengers']) ?>人</td>
-                            </tr>
-                            <tr>
-                                <td>営業収入</td>
-                                <td class="text-end">¥<?= number_format($transport_results['total_revenue']) ?></td>
-                            </tr>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h6><i class="fas fa-exclamation-triangle me-2"></i>事故データ（<?= $selected_year ?>年度）</h6>
-                    </div>
-                    <div class="card-body">
-                        <table class="table table-sm">
-                            <tr>
-                                <td>交通事故</td>
-                                <td class="text-end"><?= $accident_data['traffic_accidents'] ?>件</td>
-                            </tr>
-                            <tr>
-                                <td>重大事故</td>
-                                <td class="text-end"><?= $accident_data['serious_accidents'] ?>件</td>
-                            </tr>
-                            <tr>
-                                <td>死者数</td>
-                                <td class="text-end"><?= $accident_data['total_deaths'] ?>名</td>
-                            </tr>
-                            <tr>
-                                <td>負傷者数</td>
-                                <td class="text-end"><?= $accident_data['total_injuries'] ?>名</td>
-                            </tr>
-                        </table>
-                    </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <div class="display-4 mb-0"><?= number_format($transport_results['ride_count']) ?></div>
+                    <div class="h5">年間運送回数</div>
+                    <small>収入¥<?= number_format($transport_results['total_revenue']) ?></small>
                 </div>
             </div>
         </div>
+        <div class="col-md-4">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <div class="display-4 mb-0"><?= $accident_data['traffic_accidents'] + $accident_data['serious_accidents'] ?></div>
+                    <div class="h5">事故件数</div>
+                    <small>死傷者<?= $accident_data['total_deaths'] + $accident_data['total_injuries'] ?>名</small>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        <!-- レポート作成・管理 -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5><i class="fas fa-file-alt me-2"></i>陸運局提出レポート</h5>
-                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createReportModal">
-                            <i class="fas fa-plus me-1"></i>新規作成
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <?php if ($annual_reports): ?>
-                            <div class="table-responsive">
-                                <table class="table">
-                                    <thead>
+    <!-- 詳細データ -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-building me-2"></i>事業概況（<?= $selected_year ?>年3月31日現在）</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <tr>
+                            <td>事業用自動車数</td>
+                            <td class="text-end"><?= $business_overview['vehicle_count'] ?>台</td>
+                        </tr>
+                        <tr>
+                            <td>従業員数</td>
+                            <td class="text-end"><?= $business_overview['employee_count'] ?>名</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>輸送実績（<?= $selected_year ?>年度）</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <tr>
+                            <td>走行距離</td>
+                            <td class="text-end"><?= number_format($transport_results['total_distance']) ?>km</td>
+                        </tr>
+                        <tr>
+                            <td>運送回数</td>
+                            <td class="text-end"><?= number_format($transport_results['ride_count']) ?>回</td>
+                        </tr>
+                        <tr>
+                            <td>輸送人員</td>
+                            <td class="text-end"><?= number_format($transport_results['total_passengers']) ?>人</td>
+                        </tr>
+                        <tr>
+                            <td>営業収入</td>
+                            <td class="text-end">¥<?= number_format($transport_results['total_revenue']) ?></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>事故データ（<?= $selected_year ?>年度）</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <tr>
+                            <td>交通事故</td>
+                            <td class="text-end"><?= $accident_data['traffic_accidents'] ?>件</td>
+                        </tr>
+                        <tr>
+                            <td>重大事故</td>
+                            <td class="text-end"><?= $accident_data['serious_accidents'] ?>件</td>
+                        </tr>
+                        <tr>
+                            <td>死者数</td>
+                            <td class="text-end"><?= $accident_data['total_deaths'] ?>名</td>
+                        </tr>
+                        <tr>
+                            <td>負傷者数</td>
+                            <td class="text-end"><?= $accident_data['total_injuries'] ?>名</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- レポート作成・管理 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-file-alt me-2"></i>陸運局提出レポート</h5>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createReportModal">
+                        <i class="fas fa-plus me-1"></i>新規作成
+                    </button>
+                </div>
+                <div class="card-body">
+                    <?php if ($annual_reports): ?>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>年度</th>
+                                        <th>レポート種別</th>
+                                        <th>状態</th>
+                                        <th>提出日</th>
+                                        <th>担当者</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($annual_reports as $report): ?>
                                         <tr>
-                                            <th>年度</th>
-                                            <th>レポート種別</th>
-                                            <th>状態</th>
-                                            <th>提出日</th>
-                                            <th>担当者</th>
-                                            <th>操作</th>
+                                            <td><?= $report['fiscal_year'] ?>年度</td>
+                                            <td><?= htmlspecialchars($report['report_type']) ?></td>
+                                            <td>
+                                                <span class="badge 
+                                                    <?php
+                                                    switch($report['status']) {
+                                                        case '未作成': echo 'bg-secondary'; break;
+                                                        case '作成中': echo 'bg-warning'; break;
+                                                        case '確認中': echo 'bg-info'; break;
+                                                        case '提出済み': echo 'bg-success'; break;
+                                                    }
+                                                    ?>">
+                                                    <?= $report['status'] ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <?= $report['submission_date'] ? date('Y/m/d', strtotime($report['submission_date'])) : '-' ?>
+                                            </td>
+                                            <td><?= htmlspecialchars($report['submitted_by_name'] ?? '') ?></td>
+                                            <td>
+                                                <div class="btn-group" role="group">
+                                                    <?php if ($report['status'] !== '提出済み'): ?>
+                                                        <button class="btn btn-outline-primary btn-sm" 
+                                                                onclick="updateStatus(<?= $report['id'] ?>, '<?= $report['status'] ?>')">
+                                                            <i class="fas fa-edit"></i>
+                                                        </button>
+                                                    <?php endif; ?>
+                                                    
+                                                    <form method="POST" class="d-inline">
+                                                        <input type="hidden" name="action" value="export_form4">
+                                                        <input type="hidden" name="fiscal_year" value="<?= $report['fiscal_year'] ?>">
+                                                        <button type="submit" class="btn btn-outline-success btn-sm">
+                                                            <i class="fas fa-download"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($annual_reports as $report): ?>
-                                            <tr>
-                                                <td><?= $report['fiscal_year'] ?>年度</td>
-                                                <td><?= htmlspecialchars($report['report_type']) ?></td>
-                                                <td>
-                                                    <span class="badge status-badge 
-                                                        <?php
-                                                        switch($report['status']) {
-                                                            case '未作成': echo 'bg-secondary'; break;
-                                                            case '作成中': echo 'bg-warning'; break;
-                                                            case '確認中': echo 'bg-info'; break;
-                                                            case '提出済み': echo 'bg-success'; break;
-                                                        }
-                                                        ?>">
-                                                        <?= $report['status'] ?>
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <?= $report['submission_date'] ? date('Y/m/d', strtotime($report['submission_date'])) : '-' ?>
-                                                </td>
-                                                <td><?= htmlspecialchars($report['submitted_by_name'] ?? '') ?></td>
-                                                <td>
-                                                    <div class="btn-group" role="group">
-                                                        <?php if ($report['status'] !== '提出済み'): ?>
-                                                            <button class="btn btn-outline-primary btn-sm" 
-                                                                    onclick="updateStatus(<?= $report['id'] ?>, '<?= $report['status'] ?>')">
-                                                                <i class="fas fa-edit"></i>
-                                                            </button>
-                                                        <?php endif; ?>
-                                                        
-                                                        <form method="POST" class="d-inline">
-                                                            <input type="hidden" name="action" value="export_form4">
-                                                            <input type="hidden" name="fiscal_year" value="<?= $report['fiscal_year'] ?>">
-                                                            <button type="submit" class="btn btn-outline-success btn-sm">
-                                                                <i class="fas fa-download"></i>
-                                                            </button>
-                                                        </form>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php else: ?>
-                            <div class="text-center py-4">
-                                <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
-                                <p class="text-muted">まだレポートが作成されていません</p>
-                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createReportModal">
-                                    <i class="fas fa-plus me-1"></i>最初のレポートを作成
-                                </button>
-                            </div>
-                        <?php endif; ?>
-                    </div>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php else: ?>
+                        <div class="text-center py-4">
+                            <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">まだレポートが作成されていません</p>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createReportModal">
+                                <i class="fas fa-plus me-1"></i>最初のレポートを作成
+                            </button>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- 年度操作 -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="report-actions">
-                    <h6><i class="fas fa-tools me-2"></i>レポート操作</h6>
+    <!-- 年度操作 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card bg-light">
+                <div class="card-body">
+                    <h6 class="mb-3"><i class="fas fa-tools me-2"></i>レポート操作</h6>
                     <div class="row">
                         <div class="col-md-4">
                             <form method="POST" class="d-inline">
@@ -653,157 +601,150 @@ function generateForm4PDF($business, $transport, $accident, $year) {
                 </div>
             </div>
         </div>
-
-        <!-- 戻るボタン -->
-        <div class="row">
-            <div class="col-12 text-center">
-                <a href="dashboard.php" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left me-1"></i>ダッシュボードに戻る
-                </a>
-            </div>
-        </div>
     </div>
+</div>
 
-    <!-- レポート作成モーダル -->
-    <div class="modal fade" id="createReportModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-plus me-2"></i>新規レポート作成</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<!-- レポート作成モーダル -->
+<div class="modal fade" id="createReportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus me-2"></i>新規レポート作成</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="create_report">
+                    
+                    <div class="mb-3">
+                        <label for="fiscal_year" class="form-label">年度</label>
+                        <select name="fiscal_year" id="fiscal_year" class="form-select" required>
+                            <?php for ($year = $current_year; $year >= $current_year - 5; $year--): ?>
+                                <option value="<?= $year ?>" <?= $year == $selected_year ? 'selected' : '' ?>>
+                                    <?= $year ?>年度
+                                </option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="report_type" class="form-label">レポート種別</label>
+                        <select name="report_type" id="report_type" class="form-select" required>
+                            <option value="第4号様式">第4号様式（輸送実績報告書）</option>
+                            <option value="事故報告書">事故報告書</option>
+                            <option value="安全統括管理者選任届">安全統括管理者選任届</option>
+                            <option value="運行管理者選任届">運行管理者選任届</option>
+                        </select>
+                    </div>
                 </div>
-                <form method="POST">
-                    <div class="modal-body">
-                        <input type="hidden" name="action" value="create_report">
-                        
-                        <div class="mb-3">
-                            <label for="fiscal_year" class="form-label">年度</label>
-                            <select name="fiscal_year" id="fiscal_year" class="form-select" required>
-                                <?php for ($year = $current_year; $year >= $current_year - 5; $year--): ?>
-                                    <option value="<?= $year ?>" <?= $year == $selected_year ? 'selected' : '' ?>>
-                                        <?= $year ?>年度
-                                    </option>
-                                <?php endfor; ?>
-                            </select>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="report_type" class="form-label">レポート種別</label>
-                            <select name="report_type" id="report_type" class="form-select" required>
-                                <option value="第4号様式">第4号様式（輸送実績報告書）</option>
-                                <option value="事故報告書">事故報告書</option>
-                                <option value="安全統括管理者選任届">安全統括管理者選任届</option>
-                                <option value="運行管理者選任届">運行管理者選任届</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-plus me-1"></i>作成開始
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- 状態更新モーダル -->
-    <div class="modal fade" id="updateStatusModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i>レポート状態更新</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>作成開始
+                    </button>
                 </div>
-                <form method="POST" id="updateStatusForm">
-                    <div class="modal-body">
-                        <input type="hidden" name="action" value="update_status">
-                        <input type="hidden" name="report_id" id="update_report_id">
-                        
-                        <div class="mb-3">
-                            <label for="status" class="form-label">状態</label>
-                            <select name="status" id="status" class="form-select" required>
-                                <option value="未作成">未作成</option>
-                                <option value="作成中">作成中</option>
-                                <option value="確認中">確認中</option>
-                                <option value="提出済み">提出済み</option>
-                            </select>
-                        </div>
-                        
-                        <div class="mb-3" id="submissionDateGroup" style="display: none;">
-                            <label for="submission_date" class="form-label">提出日</label>
-                            <input type="date" class="form-control" name="submission_date" id="submission_date">
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="memo" class="form-label">メモ</label>
-                            <textarea class="form-control" name="memo" id="memo" rows="3" 
-                                      placeholder="進捗状況や注意事項があれば記入してください"></textarea>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save me-1"></i>更新
-                        </button>
-                    </div>
-                </form>
-            </div>
+            </form>
         </div>
     </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- 状態更新モーダル -->
+<div class="modal fade" id="updateStatusModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>レポート状態更新</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="updateStatusForm">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="update_status">
+                    <input type="hidden" name="report_id" id="update_report_id">
+                    
+                    <div class="mb-3">
+                        <label for="status" class="form-label">状態</label>
+                        <select name="status" id="status" class="form-select" required>
+                            <option value="未作成">未作成</option>
+                            <option value="作成中">作成中</option>
+                            <option value="確認中">確認中</option>
+                            <option value="提出済み">提出済み</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3" id="submissionDateGroup" style="display: none;">
+                        <label for="submission_date" class="form-label">提出日</label>
+                        <input type="date" class="form-control" name="submission_date" id="submission_date">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="memo" class="form-label">メモ</label>
+                        <textarea class="form-control" name="memo" id="memo" rows="3" 
+                                  placeholder="進捗状況や注意事項があれば記入してください"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>更新
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 状態更新モーダル
+    function updateStatus(reportId, currentStatus) {
+        document.getElementById('update_report_id').value = reportId;
+        document.getElementById('status').value = currentStatus;
+        
+        // 提出済みを選択した場合のみ提出日を表示
+        toggleSubmissionDate(currentStatus);
+        
+        new bootstrap.Modal(document.getElementById('updateStatusModal')).show();
+    }
     
-    <script>
-        // 状態更新モーダル
-        function updateStatus(reportId, currentStatus) {
-            document.getElementById('update_report_id').value = reportId;
-            document.getElementById('status').value = currentStatus;
-            
-            // 提出済みを選択した場合のみ提出日を表示
-            toggleSubmissionDate(currentStatus);
-            
-            new bootstrap.Modal(document.getElementById('updateStatusModal')).show();
+    // 状態変更時の処理
+    document.getElementById('status').addEventListener('change', function() {
+        toggleSubmissionDate(this.value);
+    });
+    
+    function toggleSubmissionDate(status) {
+        const submissionDateGroup = document.getElementById('submissionDateGroup');
+        const submissionDateInput = document.getElementById('submission_date');
+        
+        if (status === '提出済み') {
+            submissionDateGroup.style.display = 'block';
+            submissionDateInput.required = true;
+            if (!submissionDateInput.value) {
+                submissionDateInput.value = new Date().toISOString().split('T')[0];
+            }
+        } else {
+            submissionDateGroup.style.display = 'none';
+            submissionDateInput.required = false;
+            submissionDateInput.value = '';
         }
-        
-        // 状態変更時の処理
-        document.getElementById('status').addEventListener('change', function() {
-            toggleSubmissionDate(this.value);
-        });
-        
-        function toggleSubmissionDate(status) {
-            const submissionDateGroup = document.getElementById('submissionDateGroup');
-            const submissionDateInput = document.getElementById('submission_date');
-            
-            if (status === '提出済み') {
-                submissionDateGroup.style.display = 'block';
-                submissionDateInput.required = true;
-                if (!submissionDateInput.value) {
-                    submissionDateInput.value = new Date().toISOString().split('T')[0];
-                }
-            } else {
-                submissionDateGroup.style.display = 'none';
-                submissionDateInput.required = false;
-                submissionDateInput.value = '';
+    }
+    
+    // Excel出力
+    function exportExcel() {
+        const year = <?= $selected_year ?>;
+        window.open(`?action=export&type=excel&year=${year}`, '_blank');
+    }
+    
+    // フォーム送信確認
+    document.getElementById('updateStatusForm').addEventListener('submit', function(e) {
+        const status = document.getElementById('status').value;
+        if (status === '提出済み') {
+            if (!confirm('レポートを「提出済み」に変更します。よろしいですか？')) {
+                e.preventDefault();
             }
         }
-        
-        // Excel出力
-        function exportExcel() {
-            const year = <?= $selected_year ?>;
-            window.open(`?action=export&type=excel&year=${year}`, '_blank');
-        }
-        
-        // フォーム送信確認
-        document.getElementById('updateStatusForm').addEventListener('submit', function(e) {
-            const status = document.getElementById('status').value;
-            if (status === '提出済み') {
-                if (!confirm('レポートを「提出済み」に変更します。よろしいですか？')) {
-                    e.preventDefault();
-                }
-            }
-        });
-    </script>
-</body>
-</html>
+    });
+</script>
+
+<?php
+// 統一フッターの出力
+require_once 'includes/footer.php';
+?>
