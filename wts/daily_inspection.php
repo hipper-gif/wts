@@ -19,7 +19,8 @@ if ($mode === 'historical') {
 
 $pdo = getDBConnection();
 $user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'];
+$user_name = $_SESSION['user_name'] ?? '未設定';
+$user_role = $_SESSION['user_role'] ?? 'User';
 $today = date('Y-m-d');
 
 $success_message = '';
@@ -159,17 +160,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// ページ設定
-$page_config = [
-    'hide_workflow_progress' => true, // 7段階フロー進捗を非表示
-];
+// ページ設定を取得
+$page_config = getPageConfiguration('daily_inspection');
 ?>
 <!DOCTYPE html>
-<html lang="ja">
-<?= renderCompleteHTMLHead() ?>
+<?= renderCompleteHTMLHead($page_config['title'], [
+    'description' => $page_config['description'],
+    'additional_css' => [],
+    'additional_js' => []
+]) ?>
 <body>
-    <?= renderSystemHeader() ?>
-    <?= renderPageHeader('daily_inspection', $page_config) ?>
+    <?= renderSystemHeader($user_name, $user_role, 'daily_inspection') ?>
+    <?= renderPageHeader($page_config['icon'], $page_config['title'], $page_config['subtitle'], $page_config['category']) ?>
     
     <div class="container mt-4">
         <!-- モード切替ボタン -->
@@ -186,11 +188,11 @@ $page_config = [
 
         <!-- アラート表示 -->
         <?php if ($success_message): ?>
-            <?= renderAlert('success', $success_message) ?>
+            <?= renderAlert('success', '完了', $success_message) ?>
         <?php endif; ?>
         
         <?php if ($error_message): ?>
-            <?= renderAlert('danger', $error_message) ?>
+            <?= renderAlert('danger', 'エラー', $error_message) ?>
         <?php endif; ?>
         
         <form method="POST" id="inspectionForm">
@@ -475,6 +477,8 @@ $page_config = [
         </div>
     </div>
     
+    <?= renderCompleteHTMLFooter() ?>
+    
     <script>
         // 車両選択時の走行距離更新
         function updateMileage() {
@@ -611,5 +615,3 @@ $page_config = [
             }
         });
     </script>
-</body>
-</html>
