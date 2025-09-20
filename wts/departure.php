@@ -19,6 +19,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'];
+$user_role = $_SESSION['permission_level'] ?? 'User';
 
 // 今日の日付
 $today = date('Y-m-d');
@@ -207,10 +208,13 @@ $page_config = [
     'description' => '出庫時刻・天候・メーター記録'
 ];
 
-// 統一ヘッダー出力
-echo renderCompleteHTMLHead($page_config);
-echo renderSystemHeader($page_config);
-echo renderPageHeader($page_config);
+// 統一ヘッダー出力（正しい引数の順序）
+echo renderCompleteHTMLHead($page_config['title'], [
+    'description' => $page_config['description'],
+    'additional_css' => ['css/ui-unified-v3.css']
+]);
+echo renderSystemHeader($user_name, $user_role, 'departure', true);
+echo renderPageHeader($page_config['icon'], $page_config['title'], $page_config['description'], 'daily');
 ?>
 
 <main class="container-fluid mt-4">
@@ -754,4 +758,4 @@ echo renderPageHeader($page_config);
     }
 </style>
 
-<?php echo renderHTMLFooter(); ?>
+<?php echo renderCompleteHTMLFooter(); ?>
