@@ -511,4 +511,5 @@ echo $page_data['page_header'];
     });
 </script>
 
-<?= renderCompletePage('', '', '', '', '', '', '', '', ['page_end' => true])['page_end'] ?>
+</body>
+</html>
