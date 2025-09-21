@@ -478,52 +478,31 @@ echo $page_data['page_header'];
                     </div>
                 </div>
 
-                <!-- 業務フロー -->
+                <!-- 関連リンク -->
                 <?php
-                echo renderSectionHeader('list-check', '業務フロー', '7段階');
+                echo renderSectionHeader('link', '関連機能', 'クイックアクセス');
                 ?>
 
                 <div class="card mb-4">
                     <div class="card-body">
-                        <div class="workflow-steps">
-                            <div class="step completed">
-                                <i class="fas fa-check-circle text-success"></i>
-                                <span>1. 日常点検</span>
-                            </div>
-                            <div class="step <?= $existing_call ? 'completed' : 'current' ?>">
-                                <i class="fas fa-<?= $existing_call ? 'check-circle text-success' : 'circle text-primary' ?>"></i>
-                                <span>2. 乗務前点呼</span>
-                            </div>
-                            <div class="step">
-                                <i class="fas fa-circle text-muted"></i>
-                                <span>3. 出庫処理</span>
-                            </div>
-                            <div class="step">
-                                <i class="fas fa-circle text-muted"></i>
-                                <span>4. 乗車記録</span>
-                            </div>
-                            <div class="step">
-                                <i class="fas fa-circle text-muted"></i>
-                                <span>5. 入庫処理</span>
-                            </div>
-                            <div class="step">
-                                <i class="fas fa-circle text-muted"></i>
-                                <span>6. 乗務後点呼</span>
-                            </div>
-                            <div class="step">
-                                <i class="fas fa-circle text-muted"></i>
-                                <span>7. 集金管理</span>
-                            </div>
+                        <div class="d-grid gap-2">
+                            <a href="daily_inspection.php" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-tools me-2"></i>日常点検
+                            </a>
+                            <?php if ($existing_call && $existing_call['is_completed']): ?>
+                            <a href="departure.php?driver_id=<?= $existing_call['driver_id'] ?>" class="btn btn-outline-success btn-sm">
+                                <i class="fas fa-car me-2"></i>出庫処理
+                            </a>
+                            <?php endif; ?>
+                            <a href="dashboard.php" class="btn btn-outline-secondary btn-sm">
+                                <i class="fas fa-home me-2"></i>ダッシュボード
+                            </a>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 </main>
-
-<!-- フッター -->
-<?= $page_data['footer'] ?>
 
 <style>
 .check-item-clickable {
@@ -535,27 +514,6 @@ echo $page_data['page_header'];
     background-color: var(--bs-primary-bg-subtle) !important;
     border-color: var(--bs-primary) !important;
     transform: translateY(-1px);
-}
-
-.workflow-steps .step {
-    display: flex;
-    align-items: center;
-    padding: 8px 0;
-    font-size: 14px;
-}
-
-.workflow-steps .step i {
-    margin-right: 12px;
-    width: 16px;
-}
-
-.workflow-steps .current {
-    font-weight: 600;
-    color: var(--bs-primary);
-}
-
-.workflow-steps .completed {
-    color: var(--bs-success);
 }
 
 .input-group .btn {
