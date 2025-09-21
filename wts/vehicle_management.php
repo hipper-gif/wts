@@ -9,16 +9,42 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// 管理者権限チェック
-if (!in_array($_SESSION['permission_level'], ['Admin']) && $_SESSION['user_role'] !== 'admin') {
-    header('Location: dashboard.php');
+// 管理者権限チェック - 柔軟な権限確認
+$has_admin_permission = false;
+
+// 複数の権限パターンをチェック
+if (isset($_SESSION['permission_level']) && $_SESSION['permission_level'] === 'Admin') {
+    $has_admin_permission = true;
+} elseif (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin') {
+    $has_admin_permission = true;
+} elseif (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1) {
+    $has_admin_permission = true;
+} elseif (isset($_SESSION['is_manager']) && $_SESSION['is_manager'] == 1) {
+    $has_admin_permission = true;
+}
+
+// 権限がない場合はダッシュボードにリダイレクト
+if (!$has_admin_permission) {
+    header('Location: dashboard.php?error=permission_denied');
     exit;
 }
 
 $pdo = getDBConnection();
 $user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'] ?? $_SESSION['name'];
-$user_role = $_SESSION['permission_level'] ?? $_SESSION['user_role'];
+$user_name = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'ユーザー';
+$user_role = $_SESSION['permission_level'] ?? $_SESSION['user_role'] ?? 'User';
+
+// デバッグ用: セッション情報を表示（開発時のみ）
+$debug_mode = false; // 必要に応じてtrueに変更
+if ($debug_mode) {
+    echo '<div class="alert alert-info"><strong>デバッグ情報:</strong><br>';
+    echo 'user_id: ' . ($_SESSION['user_id'] ?? 'なし') . '<br>';
+    echo 'permission_level: ' . ($_SESSION['permission_level'] ?? 'なし') . '<br>';
+    echo 'user_role: ' . ($_SESSION['user_role'] ?? 'なし') . '<br>';
+    echo 'is_admin: ' . ($_SESSION['is_admin'] ?? 'なし') . '<br>';
+    echo 'is_manager: ' . ($_SESSION['is_manager'] ?? 'なし') . '<br>';
+    echo '</div>';
+}
 
 // 統一ヘッダーシステム
 require_once 'includes/unified-header.php';
