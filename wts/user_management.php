@@ -243,6 +243,23 @@ $page_options = [
     ]
 ];
 
+// ページオプション最終版（確実な読み込み順序）
+$page_options = [
+    'description' => $page_config['description'],
+    'additional_css' => [
+        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
+        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
+    ],
+    'additional_js' => [
+        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'
+    ],
+    'breadcrumb' => [
+        ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
+        ['text' => '管理機能', 'url' => 'master_menu.php'],
+        ['text' => 'ユーザー管理', 'url' => 'user_management.php']
+    ]
+];
+
 // 完全ページ生成
 $page_data = renderCompletePage(
     $page_config['title'],
@@ -263,6 +280,262 @@ echo $page_data['page_header'];
 ?>
 
 <main class="main-content">
+    <div class="container-fluid">
+        <!-- モーダル動作確認用CSS -->
+        <style>
+        .modal {
+            z-index: 1055 !important;
+        }
+        .modal-backdrop {
+            z-index: 1050 !important;
+        }
+        .modal-dialog {
+            pointer-events: auto !important;
+        }
+        .modal-content {
+            pointer-events: auto !important;
+        }
+        
+        /* ユーザー管理専用スタイル */
+        .user-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .user-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .user-item.user-inactive {
+            opacity: 0.6;
+            background: #f8f9fa;
+        }
+        
+        .user-avatar {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+            margin-right: 1rem;
+        }
+        
+        .user-info {
+            flex: 1;
+        }
+        
+        .user-name-section h4 {
+            margin: 0;
+            font-size: 1.1rem;
+            color: #333;
+        }
+        
+        .user-id {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .permission-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .permission-badge.admin {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .permission-badge.user {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .role-badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            margin: 0.2rem;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .role-badge.driver { background: #28a745; color: white; }
+        .role-badge.caller { background: #ffc107; color: #333; }
+        .role-badge.inspector { background: #17a2b8; color: white; }
+        .role-badge.admin { background: #dc3545; color: white; }
+        .role-badge.manager { background: #6f42c1; color: white; }
+        .role-badge.mechanic { background: #fd7e14; color: white; }
+        
+        .user-contact span {
+            display: block;
+            color: #666;
+            font-size: 0.8rem;
+        }
+        
+        .status-indicator {
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-align: center;
+        }
+        
+        .status-indicator.active {
+            background: #d1e7dd;
+            color: #0f5132;
+        }
+        
+        .status-indicator.inactive {
+            background: #f8d7da;
+            color: #842029;
+        }
+        
+        .last-login {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+        
+        .user-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .roles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+        
+        .role-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            transition: background-color 0.2s;
+        }
+        
+        .role-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .role-item input[type="checkbox"] {
+            margin-right: 0.75rem;
+        }
+        
+        .role-item label {
+            margin: 0;
+            cursor: pointer;
+            flex: 1;
+        }
+        
+        .role-description {
+            display: block;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+        
+        .action-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .action-icon {
+            font-size: 3rem;
+            margin-right: 1.5rem;
+            opacity: 0.8;
+        }
+        
+        .action-content h3 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.5rem;
+        }
+        
+        .action-content p {
+            margin: 0 0 1rem 0;
+            opacity: 0.9;
+        }
+        
+        .stats-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: 100%;
+        }
+        
+        .stats-content {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 1rem;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            display: block;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 0.8rem;
+            color: #666;
+        }
+        
+        .content-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .card-header-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .card-header-flex h2 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+        
+        .empty-state i {
+            color: #ddd;
+            margin-bottom: 1rem;
+        }
+        </style>
     <div class="container-fluid">
         <!-- アラート表示 -->
         <?php if ($success_message): ?>
@@ -582,8 +855,71 @@ echo $page_data['page_header'];
 </div>
 
 <script>
-// 新規追加モーダル
+// Bootstrap確実読み込み確認とフォールバック機能
+document.addEventListener('DOMContentLoaded', function() {
+    // Bootstrapが読み込まれていない場合の緊急対応
+    if (typeof bootstrap === 'undefined') {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js';
+        script.onload = function() {
+            console.log('Bootstrap loaded successfully');
+        };
+        document.head.appendChild(script);
+        
+        // Bootstrap CSSも確実に読み込み
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css';
+        document.head.appendChild(link);
+    }
+    
+    // シンプルなモーダル機能（フォールバック）
+    window.showModalFallback = function(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.style.display = 'block';
+            modal.classList.add('show');
+            document.body.classList.add('modal-open');
+            
+            // 背景を追加
+            let backdrop = document.querySelector('.modal-backdrop');
+            if (!backdrop) {
+                backdrop = document.createElement('div');
+                backdrop.className = 'modal-backdrop fade show';
+                document.body.appendChild(backdrop);
+                
+                // 背景クリックで閉じる
+                backdrop.addEventListener('click', function() {
+                    hideModalFallback(modalId);
+                });
+            }
+        }
+    };
+    
+    window.hideModalFallback = function(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('show');
+            document.body.classList.remove('modal-open');
+            
+            // 背景を削除
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+        }
+    };
+});
+
+// 新規追加モーダル（確実動作版）
 function showAddModal() {
+    const modalElement = document.getElementById('userModal');
+    if (!modalElement) {
+        console.error('Modal element not found');
+        return;
+    }
+    
     document.getElementById('userModalTitle').textContent = 'ユーザー追加';
     document.getElementById('modalAction').value = 'add';
     document.getElementById('modalUserId').value = '';
@@ -594,11 +930,38 @@ function showAddModal() {
     // フォームリセット
     document.getElementById('userForm').reset();
     
-    new bootstrap.Modal(document.getElementById('userModal')).show();
+    // Bootstrap使用可能かチェック
+    if (typeof bootstrap !== 'undefined') {
+        try {
+            const existingModal = bootstrap.Modal.getInstance(modalElement);
+            if (existingModal) {
+                existingModal.dispose();
+            }
+            
+            const modal = new bootstrap.Modal(modalElement, {
+                backdrop: true,
+                keyboard: true,
+                focus: true
+            });
+            modal.show();
+        } catch (error) {
+            console.error('Bootstrap modal error:', error);
+            showModalFallback('userModal');
+        }
+    } else {
+        // フォールバック使用
+        showModalFallback('userModal');
+    }
 }
 
-// 編集モーダル
+// 編集モーダル（確実動作版）
 function editUser(user) {
+    const modalElement = document.getElementById('userModal');
+    if (!modalElement) {
+        console.error('Modal element not found');
+        return;
+    }
+    
     document.getElementById('userModalTitle').textContent = 'ユーザー編集';
     document.getElementById('modalAction').value = 'edit';
     document.getElementById('modalUserId').value = user.id || '';
@@ -621,17 +984,113 @@ function editUser(user) {
     document.getElementById('isActiveField').style.display = 'block';
     document.getElementById('modalPassword').required = false;
     
-    new bootstrap.Modal(document.getElementById('userModal')).show();
+    // Bootstrap使用可能かチェック
+    if (typeof bootstrap !== 'undefined') {
+        try {
+            const existingModal = bootstrap.Modal.getInstance(modalElement);
+            if (existingModal) {
+                existingModal.dispose();
+            }
+            
+            const modal = new bootstrap.Modal(modalElement, {
+                backdrop: true,
+                keyboard: true,
+                focus: true
+            });
+            modal.show();
+        } catch (error) {
+            console.error('Bootstrap modal error:', error);
+            showModalFallback('userModal');
+        }
+    } else {
+        showModalFallback('userModal');
+    }
 }
 
-// パスワード変更モーダル
+// パスワード変更モーダル（確実動作版）
 function changePassword(userId, userName) {
+    const modalElement = document.getElementById('passwordModal');
+    if (!modalElement) {
+        console.error('Password modal element not found');
+        return;
+    }
+    
     document.getElementById('passwordUserId').value = userId;
     document.getElementById('passwordUserName').textContent = userName;
     document.getElementById('newPassword').value = '';
     
-    new bootstrap.Modal(document.getElementById('passwordModal')).show();
+    // Bootstrap使用可能かチェック
+    if (typeof bootstrap !== 'undefined') {
+        try {
+            const existingModal = bootstrap.Modal.getInstance(modalElement);
+            if (existingModal) {
+                existingModal.dispose();
+            }
+            
+            const modal = new bootstrap.Modal(modalElement, {
+                backdrop: true,
+                keyboard: true,
+                focus: true
+            });
+            modal.show();
+        } catch (error) {
+            console.error('Bootstrap modal error:', error);
+            showModalFallback('passwordModal');
+        }
+    } else {
+        showModalFallback('passwordModal');
+    }
 }
+
+// モーダル閉じるボタンのイベントハンドラー（確実動作版）
+document.addEventListener('DOMContentLoaded', function() {
+    // 閉じるボタンにイベントリスナーを追加
+    const closeButtons = document.querySelectorAll('[data-bs-dismiss="modal"]');
+    closeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const modal = button.closest('.modal');
+            if (modal) {
+                if (typeof bootstrap !== 'undefined') {
+                    try {
+                        const modalInstance = bootstrap.Modal.getInstance(modal);
+                        if (modalInstance) {
+                            modalInstance.hide();
+                        } else {
+                            hideModalFallback(modal.id);
+                        }
+                    } catch (error) {
+                        hideModalFallback(modal.id);
+                    }
+                } else {
+                    hideModalFallback(modal.id);
+                }
+            }
+        });
+    });
+    
+    // ESCキーでモーダルを閉じる
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const visibleModals = document.querySelectorAll('.modal.show');
+            visibleModals.forEach(modal => {
+                if (typeof bootstrap !== 'undefined') {
+                    try {
+                        const modalInstance = bootstrap.Modal.getInstance(modal);
+                        if (modalInstance) {
+                            modalInstance.hide();
+                        } else {
+                            hideModalFallback(modal.id);
+                        }
+                    } catch (error) {
+                        hideModalFallback(modal.id);
+                    }
+                } else {
+                    hideModalFallback(modal.id);
+                }
+            });
+        }
+    });
+});
 
 // 削除確認
 function deleteUser(userId, userName) {
@@ -652,16 +1111,32 @@ function refreshUserList() {
     location.reload();
 }
 
-// 職務選択バリデーション
-document.getElementById('userForm').addEventListener('submit', function(e) {
-    const checkboxes = ['modalIsDriver', 'modalIsCaller', 'modalIsInspector', 'modalIsAdmin', 'modalIsManager', 'modalIsMechanic'];
-    const isAnyChecked = checkboxes.some(id => document.getElementById(id).checked);
-    
-    if (!isAnyChecked) {
-        e.preventDefault();
-        alert('少なくとも1つの職務を選択してください。');
+// 職務選択バリデーション（確実動作版）
+document.addEventListener('DOMContentLoaded', function() {
+    const userForm = document.getElementById('userForm');
+    if (userForm) {
+        userForm.addEventListener('submit', function(e) {
+            const checkboxes = ['modalIsDriver', 'modalIsCaller', 'modalIsInspector', 'modalIsAdmin', 'modalIsManager', 'modalIsMechanic'];
+            const isAnyChecked = checkboxes.some(id => {
+                const element = document.getElementById(id);
+                return element && element.checked;
+            });
+            
+            if (!isAnyChecked) {
+                e.preventDefault();
+                alert('少なくとも1つの職務を選択してください。');
+                return false;
+            }
+        });
     }
 });
+
+// デバッグ用：モーダル状態確認
+function debugModal() {
+    console.log('Bootstrap available:', typeof bootstrap !== 'undefined');
+    console.log('User modal element:', document.getElementById('userModal'));
+    console.log('Password modal element:', document.getElementById('passwordModal'));
+}
 </script>
 
 <?= $page_data['html_footer'] ?>
