@@ -27,20 +27,19 @@ try {
     $driver_id = (int)$input['driver_id'];
     $date = $input['date'];
     
-    // 日常点検完了確認
+    // 日常点検完了確認（記録の存在をチェック）
     $daily_stmt = $pdo->prepare("
         SELECT COUNT(*) FROM daily_inspections 
-        WHERE inspector_id = ? AND inspection_date = ? 
-        AND (is_completed = 1 OR status = 'completed')
+        WHERE driver_id = ? AND inspection_date = ?
     ");
     $daily_stmt->execute([$driver_id, $date]);
     $daily_completed = $daily_stmt->fetchColumn() > 0;
 
-    // 乗務前点呼完了確認
+    // 乗務前点呼完了確認（is_completedカラム使用可能性を考慮）
     $preduty_stmt = $pdo->prepare("
         SELECT COUNT(*) FROM pre_duty_calls 
-        WHERE driver_id = ? AND call_date = ? 
-        AND (is_completed = 1 OR status = 'completed')
+        WHERE driver_id = ? AND call_date = ?
+        AND (is_completed = 1 OR is_completed IS NULL)
     ");
     $preduty_stmt->execute([$driver_id, $date]);
     $preduty_completed = $preduty_stmt->fetchColumn() > 0;
