@@ -101,11 +101,8 @@ $page_config = getPageConfiguration('cash_management');
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
-    ],
-    'additional_js' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'
+        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
+        'css/ui-unified-v3.css'
     ]
 ];
 
@@ -125,112 +122,91 @@ echo $page_data['html_head'];
 ?>
 
 <style>
-.summary-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 15px;
-    padding: 25px;
-    margin-bottom: 20px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+/* モダンミニマル追加スタイル */
+.filter-card {
+    margin-bottom: 24px;
 }
 
-.stat-box {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 10px;
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-item {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
     padding: 20px;
     text-align: center;
-    margin-bottom: 15px;
 }
 
-.stat-box h3 {
-    font-size: 2rem;
-    font-weight: bold;
-    margin: 0;
-    color: white;
-}
-
-.stat-box p {
-    margin: 5px 0 0 0;
-    font-size: 0.9rem;
-    opacity: 0.9;
-}
-
-.driver-detail-card {
-    background: white;
-    border-radius: 10px;
-    padding: 15px;
-    margin-bottom: 15px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    transition: transform 0.2s;
-}
-
-.driver-detail-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-}
-
-.driver-name {
-    font-size: 1.2rem;
-    font-weight: bold;
+.stat-value {
+    font-size: 1.75rem;
+    font-weight: 600;
     color: #333;
-    margin-bottom: 10px;
+    margin-bottom: 4px;
 }
 
-.detail-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid #eee;
-}
-
-.detail-row:last-child {
-    border-bottom: none;
-}
-
-.detail-label {
+.stat-label {
+    font-size: 0.875rem;
     color: #666;
     font-weight: 500;
 }
 
-.detail-value {
-    font-weight: bold;
+.period-badge {
+    display: inline-block;
+    padding: 8px 16px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    margin-bottom: 24px;
+}
+
+.driver-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.driver-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.driver-card-header {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #f5f5f5;
+}
+
+.driver-stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 0.9rem;
+}
+
+.driver-stat-label {
+    color: #666;
+}
+
+.driver-stat-value {
+    font-weight: 600;
     color: #333;
 }
 
-.filter-section {
-    background: #f8f9fa;
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 20px;
-}
-
-.btn-apply-filter {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    color: white;
-    padding: 10px 30px;
-    border-radius: 25px;
-    font-weight: bold;
-    transition: all 0.3s;
-}
-
-.btn-apply-filter:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-}
-
-.date-range-info {
-    background: #e3f2fd;
-    border-left: 4px solid #2196F3;
-    padding: 15px;
-    margin-bottom: 20px;
-    border-radius: 5px;
-}
-
-@media (max-width: 768px) {
-    .stat-box h3 {
-        font-size: 1.5rem;
-    }
+.additional-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
 }
 </style>
 
@@ -239,55 +215,55 @@ echo $page_data['html_head'];
 
 <div class="container-fluid mt-4">
     <!-- フィルターセクション -->
-    <div class="filter-section">
-        <h5 class="mb-3"><i class="fas fa-filter"></i> 検索条件</h5>
-        <form method="GET" action="cash_management.php">
-            <div class="row">
-                <div class="col-md-3 mb-3">
-                    <label for="driver_id" class="form-label">運転者</label>
-                    <select class="form-select" id="driver_id" name="driver_id">
-                        <option value="all" <?php echo $selected_driver_id === 'all' ? 'selected' : ''; ?>>
-                            すべて（全運転者）
-                        </option>
-                        <?php foreach ($driver_list as $driver): ?>
-                        <option value="<?php echo $driver['id']; ?>" 
-                                <?php echo $selected_driver_id == $driver['id'] ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($driver['name']); ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
+    <div class="card filter-card">
+        <div class="card-body">
+            <h6 class="card-title mb-3">検索条件</h6>
+            <form method="GET" action="cash_management.php">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label for="driver_id" class="form-label">運転者</label>
+                        <select class="form-select" id="driver_id" name="driver_id">
+                            <option value="all" <?php echo $selected_driver_id === 'all' ? 'selected' : ''; ?>>
+                                すべて
+                            </option>
+                            <?php foreach ($driver_list as $driver): ?>
+                            <option value="<?php echo $driver['id']; ?>" 
+                                    <?php echo $selected_driver_id == $driver['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($driver['name']); ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <label for="start_date" class="form-label">開始日</label>
+                        <input type="date" class="form-control" id="start_date" name="start_date" 
+                               value="<?php echo htmlspecialchars($start_date); ?>" required>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <label for="end_date" class="form-label">終了日</label>
+                        <input type="date" class="form-control" id="end_date" name="end_date" 
+                               value="<?php echo htmlspecialchars($end_date); ?>" required>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary w-100">
+                            検索
+                        </button>
+                    </div>
                 </div>
-                
-                <div class="col-md-3 mb-3">
-                    <label for="start_date" class="form-label">開始日</label>
-                    <input type="date" class="form-control" id="start_date" name="start_date" 
-                           value="<?php echo htmlspecialchars($start_date); ?>" required>
-                </div>
-                
-                <div class="col-md-3 mb-3">
-                    <label for="end_date" class="form-label">終了日</label>
-                    <input type="date" class="form-control" id="end_date" name="end_date" 
-                           value="<?php echo htmlspecialchars($end_date); ?>" required>
-                </div>
-                
-                <div class="col-md-3 mb-3">
-                    <label class="form-label d-block">&nbsp;</label>
-                    <button type="submit" class="btn btn-apply-filter w-100">
-                        <i class="fas fa-search"></i> 検索
-                    </button>
-                </div>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
 
-    <!-- 日付範囲表示 -->
-    <div class="date-range-info">
-        <i class="fas fa-calendar-alt"></i>
-        <strong>集計期間：</strong>
+    <!-- 集計期間表示 -->
+    <div class="period-badge">
         <?php echo date('Y年m月d日', strtotime($start_date)); ?> 〜 
         <?php echo date('Y年m月d日', strtotime($end_date)); ?>
         <?php if ($selected_driver_id === 'all'): ?>
-        <span class="badge bg-primary ms-2">全運転者</span>
+        <strong class="ms-2">（全運転者）</strong>
         <?php else: ?>
         <?php 
             $selected_driver_name = '';
@@ -298,83 +274,64 @@ echo $page_data['html_head'];
                 }
             }
         ?>
-        <span class="badge bg-success ms-2"><?php echo htmlspecialchars($selected_driver_name); ?></span>
+        <strong class="ms-2">（<?php echo htmlspecialchars($selected_driver_name); ?>）</strong>
         <?php endif; ?>
     </div>
 
     <!-- 合計サマリー -->
-    <div class="summary-card">
-        <h4 class="mb-4">
-            <i class="fas fa-chart-pie"></i> 
-            <?php echo $selected_driver_id === 'all' ? '全運転者合計' : '売上集計'; ?>
-        </h4>
-        <div class="row">
-            <div class="col-md-3 col-6">
-                <div class="stat-box">
-                    <h3>¥<?php echo number_format($revenue_data['total_revenue'] ?? 0); ?></h3>
-                    <p>総売上</p>
-                </div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="stat-box">
-                    <h3><?php echo number_format($revenue_data['ride_count'] ?? 0); ?>回</h3>
-                    <p>総回数</p>
-                </div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="stat-box">
-                    <h3>¥<?php echo number_format($revenue_data['cash_total'] ?? 0); ?></h3>
-                    <p>現金売上</p>
-                </div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="stat-box">
-                    <h3>¥<?php echo number_format($revenue_data['card_total'] ?? 0); ?></h3>
-                    <p>カード売上</p>
-                </div>
-            </div>
+    <div class="stats-grid">
+        <div class="stat-item">
+            <div class="stat-value">¥<?php echo number_format($revenue_data['total_revenue'] ?? 0); ?></div>
+            <div class="stat-label">総売上</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value"><?php echo number_format($revenue_data['ride_count'] ?? 0); ?>回</div>
+            <div class="stat-label">総回数</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">¥<?php echo number_format($revenue_data['cash_total'] ?? 0); ?></div>
+            <div class="stat-label">現金売上</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">¥<?php echo number_format($revenue_data['card_total'] ?? 0); ?></div>
+            <div class="stat-label">カード売上</div>
         </div>
     </div>
 
     <!-- 運転者別詳細（「すべて」選択時のみ表示） -->
     <?php if ($selected_driver_id === 'all' && !empty($driver_details)): ?>
-    <div class="card">
-        <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="fas fa-users"></i> 運転者別詳細</h5>
-        </div>
+    <div class="card mb-4">
         <div class="card-body">
-            <div class="row">
+            <h6 class="card-title mb-3">運転者別詳細</h6>
+            <div class="driver-grid">
                 <?php foreach ($driver_details as $detail): ?>
-                <div class="col-md-6 col-lg-4">
-                    <div class="driver-detail-card">
-                        <div class="driver-name">
-                            <i class="fas fa-user-circle text-primary"></i>
-                            <?php echo htmlspecialchars($detail['name']); ?>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">総売上</span>
-                            <span class="detail-value text-primary">
-                                ¥<?php echo number_format($detail['total_revenue'] ?? 0); ?>
-                            </span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">乗車回数</span>
-                            <span class="detail-value text-success">
-                                <?php echo number_format($detail['ride_count'] ?? 0); ?>回
-                            </span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">現金売上</span>
-                            <span class="detail-value text-warning">
-                                ¥<?php echo number_format($detail['cash_total'] ?? 0); ?>
-                            </span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">カード売上</span>
-                            <span class="detail-value text-info">
-                                ¥<?php echo number_format($detail['card_total'] ?? 0); ?>
-                            </span>
-                        </div>
+                <div class="driver-card">
+                    <div class="driver-card-header">
+                        <?php echo htmlspecialchars($detail['name']); ?>
+                    </div>
+                    <div class="driver-stat-row">
+                        <span class="driver-stat-label">総売上</span>
+                        <span class="driver-stat-value">
+                            ¥<?php echo number_format($detail['total_revenue'] ?? 0); ?>
+                        </span>
+                    </div>
+                    <div class="driver-stat-row">
+                        <span class="driver-stat-label">乗車回数</span>
+                        <span class="driver-stat-value">
+                            <?php echo number_format($detail['ride_count'] ?? 0); ?>回
+                        </span>
+                    </div>
+                    <div class="driver-stat-row">
+                        <span class="driver-stat-label">現金売上</span>
+                        <span class="driver-stat-value">
+                            ¥<?php echo number_format($detail['cash_total'] ?? 0); ?>
+                        </span>
+                    </div>
+                    <div class="driver-stat-row">
+                        <span class="driver-stat-label">カード売上</span>
+                        <span class="driver-stat-value">
+                            ¥<?php echo number_format($detail['card_total'] ?? 0); ?>
+                        </span>
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -383,61 +340,54 @@ echo $page_data['html_head'];
     </div>
     <?php elseif ($selected_driver_id === 'all'): ?>
     <div class="alert alert-info">
-        <i class="fas fa-info-circle"></i>
         選択した期間には乗車記録がありません。
     </div>
     <?php endif; ?>
 
     <!-- 個別運転者選択時の追加情報 -->
     <?php if ($selected_driver_id !== 'all'): ?>
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> 詳細情報</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-md-3">
-                            <h4 class="text-primary">
-                                <?php echo number_format($revenue_data['total_passengers'] ?? 0); ?>人
-                            </h4>
-                            <p class="text-muted">総乗客数</p>
-                        </div>
-                        <div class="col-md-3">
-                            <h4 class="text-success">
-                                <?php 
-                                $avg_per_ride = ($revenue_data['ride_count'] ?? 0) > 0 
-                                    ? round(($revenue_data['total_revenue'] ?? 0) / $revenue_data['ride_count']) 
-                                    : 0;
-                                echo '¥' . number_format($avg_per_ride); 
-                                ?>
-                            </h4>
-                            <p class="text-muted">平均単価</p>
-                        </div>
-                        <div class="col-md-3">
-                            <h4 class="text-warning">
-                                <?php 
-                                $cash_rate = ($revenue_data['total_revenue'] ?? 0) > 0 
-                                    ? round(($revenue_data['cash_total'] ?? 0) / $revenue_data['total_revenue'] * 100, 1) 
-                                    : 0;
-                                echo $cash_rate . '%'; 
-                                ?>
-                            </h4>
-                            <p class="text-muted">現金利用率</p>
-                        </div>
-                        <div class="col-md-3">
-                            <h4 class="text-info">
-                                <?php 
-                                $card_rate = ($revenue_data['total_revenue'] ?? 0) > 0 
-                                    ? round(($revenue_data['card_total'] ?? 0) / $revenue_data['total_revenue'] * 100, 1) 
-                                    : 0;
-                                echo $card_rate . '%'; 
-                                ?>
-                            </h4>
-                            <p class="text-muted">カード利用率</p>
-                        </div>
+    <div class="card">
+        <div class="card-body">
+            <h6 class="card-title mb-3">詳細統計</h6>
+            <div class="additional-stats">
+                <div class="stat-item">
+                    <div class="stat-value">
+                        <?php echo number_format($revenue_data['total_passengers'] ?? 0); ?>人
                     </div>
+                    <div class="stat-label">総乗客数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">
+                        <?php 
+                        $avg_per_ride = ($revenue_data['ride_count'] ?? 0) > 0 
+                            ? round(($revenue_data['total_revenue'] ?? 0) / $revenue_data['ride_count']) 
+                            : 0;
+                        echo '¥' . number_format($avg_per_ride); 
+                        ?>
+                    </div>
+                    <div class="stat-label">平均単価</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">
+                        <?php 
+                        $cash_rate = ($revenue_data['total_revenue'] ?? 0) > 0 
+                            ? round(($revenue_data['cash_total'] ?? 0) / $revenue_data['total_revenue'] * 100, 1) 
+                            : 0;
+                        echo $cash_rate . '%'; 
+                        ?>
+                    </div>
+                    <div class="stat-label">現金利用率</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">
+                        <?php 
+                        $card_rate = ($revenue_data['total_revenue'] ?? 0) > 0 
+                            ? round(($revenue_data['card_total'] ?? 0) / $revenue_data['total_revenue'] * 100, 1) 
+                            : 0;
+                        echo $card_rate . '%'; 
+                        ?>
+                    </div>
+                    <div class="stat-label">カード利用率</div>
                 </div>
             </div>
         </div>
