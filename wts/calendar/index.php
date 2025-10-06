@@ -253,5 +253,5 @@ window.calendarConfig = {
 
 <?php
 // 統一フッター出力
-echo $page_data['system_footer'];
+echo $page_data['html_footer'];
 ?>
