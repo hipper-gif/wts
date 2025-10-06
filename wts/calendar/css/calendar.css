@@ -1,146 +1,103 @@
-/* =================================================================
- * 介護タクシー予約管理カレンダーシステム - CSS
+/**
+ * =================================================================
+ * カレンダー専用CSS
  * 
  * ファイル: /Smiley/taxi/wts/calendar/css/calendar.css
- * 機能: FullCalendar拡張・予約表示・レスポンシブ対応
- * 基盤: 福祉輸送管理システム v3.1 統一デザイン
- * 作成日: 2025年9月27日
- * ================================================================= */
+ * 機能: カレンダー表示のスタイル定義
+ * =================================================================
+ */
 
 /* =================================================================
- * カレンダー基本設定
- * ================================================================= */
+   カレンダー基本設定
+   ================================================================= */
 
 #calendar {
+    padding: 1.5rem;
     min-height: 600px;
-    font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
 }
 
-/* FullCalendar基本調整 */
 .fc {
-    font-size: 14px;
-}
-
-.fc-header-toolbar {
-    padding: 1rem;
-    border-bottom: 2px solid #e9ecef;
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-}
-
-.fc-toolbar-title {
-    font-size: 1.75rem;
-    font-weight: 600;
-    color: #2c3e50;
+    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Meiryo', sans-serif;
 }
 
 /* =================================================================
- * 予約イベント表示
- * ================================================================= */
+   イベント（予約）表示
+   ================================================================= */
 
-/* 基本イベントスタイル */
 .fc-event {
-    border-radius: 6px;
-    border: 2px solid;
-    padding: 2px 6px;
-    font-size: 12px;
-    font-weight: 500;
+    border-radius: 4px;
+    padding: 2px 4px;
+    font-size: 0.85rem;
     cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .fc-event:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
-    z-index: 5;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    z-index: 10;
 }
 
-/* 予約ステータス別スタイル */
-.fc-event[data-status="予約"] {
-    background-color: #2196F3;
-    border-color: #1976D2;
-    color: white;
+.fc-event-main-frame {
+    padding: 2px 4px;
 }
 
-.fc-event[data-status="進行中"] {
-    background-color: #FF9800;
-    border-color: #F57C00;
-    color: white;
+.fc-event-time {
+    font-weight: bold;
+    font-size: 0.75rem;
 }
 
-.fc-event[data-status="完了"] {
-    background-color: #4CAF50;
-    border-color: #388E3C;
-    color: white;
-}
-
-.fc-event[data-status="キャンセル"] {
-    background-color: #757575;
-    border-color: #616161;
-    color: white;
-    opacity: 0.7;
-    text-decoration: line-through;
-}
-
-/* 復路予約マーク */
-.fc-event[data-return-trip="true"] {
-    border-style: dashed;
-    border-width: 2px;
-}
-
-.fc-event[data-return-trip="true"]::before {
-    content: "🔄 ";
-    font-size: 10px;
-}
-
-/* レンタルサービス表示 */
-.fc-event[data-rental-service="車いす"]::after {
-    content: " ♿";
-    font-size: 10px;
-}
-
-.fc-event[data-rental-service="リクライニング"]::after {
-    content: " 🛏️";
-    font-size: 10px;
-}
-
-.fc-event[data-rental-service="ストレッチャー"]::after {
-    content: " 🏥";
-    font-size: 10px;
-}
-
-/* 時間厳守フラグ */
-.fc-event[data-time-critical="false"] {
-    border-style: dotted;
-}
-
-.fc-event[data-time-critical="false"]::after {
-    content: " (~)";
-    font-size: 9px;
-    opacity: 0.8;
+.fc-event-title {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* =================================================================
- * 月表示専用スタイル
- * ================================================================= */
+   時間グリッド表示（週・日表示）
+   ================================================================= */
 
-.fc-dayGridMonth-view .fc-daygrid-day {
-    min-height: 120px;
+.fc-timegrid-slot {
+    height: 3rem;
 }
 
-.fc-dayGridMonth-view .fc-event {
-    margin: 1px 0;
-    font-size: 11px;
-    padding: 1px 4px;
+.fc-timegrid-event {
+    border-radius: 4px;
+    padding: 4px;
 }
 
-.fc-dayGridMonth-view .fc-daygrid-event {
-    margin-bottom: 2px;
+.fc-timegrid-event .fc-event-time {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: bold;
 }
 
-/* 今日の強調 */
+.fc-timegrid-event .fc-event-title {
+    display: block;
+    font-size: 0.85rem;
+    margin-top: 2px;
+}
+
+/* =================================================================
+   月表示
+   ================================================================= */
+
+.fc-daygrid-day {
+    cursor: pointer;
+}
+
+.fc-daygrid-day:hover {
+    background-color: rgba(33, 150, 243, 0.05);
+}
+
+.fc-daygrid-day-number {
+    padding: 4px;
+    font-weight: bold;
+}
+
 .fc-day-today {
-    background-color: rgba(33, 150, 243, 0.05) !important;
+    background-color: rgba(33, 150, 243, 0.1) !important;
 }
 
 .fc-day-today .fc-daygrid-day-number {
@@ -149,333 +106,133 @@
     border-radius: 50%;
     width: 28px;
     height: 28px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin: 4px;
-}
-
-/* 週末の背景色 */
-.fc-day-sat, .fc-day-sun {
-    background-color: rgba(255, 193, 7, 0.05);
 }
 
 /* =================================================================
- * 週表示・日表示専用スタイル
- * ================================================================= */
+   サイドバー統計
+   ================================================================= */
 
-.fc-timeGridWeek-view .fc-timegrid-slot,
-.fc-timeGridDay-view .fc-timegrid-slot {
-    height: 40px;
-}
-
-.fc-timeGridWeek-view .fc-event,
-.fc-timeGridDay-view .fc-event {
-    font-size: 11px;
-    padding: 2px 4px;
-}
-
-/* 営業時間外の背景 */
-.fc-timegrid-slot[data-time="07:00:00"],
-.fc-timegrid-slot[data-time^="19:"],
-.fc-timegrid-slot[data-time^="2"] {
-    background-color: rgba(0, 0, 0, 0.02);
-}
-
-/* 現在時刻線 */
-.fc-timegrid-now-indicator-line {
-    border-color: #f44336;
-    border-width: 2px;
-}
-
-.fc-timegrid-now-indicator-arrow {
-    border-color: #f44336;
+.card-body span.badge {
+    min-width: 50px;
+    text-align: center;
 }
 
 /* =================================================================
- * サイドバー
- * ================================================================= */
-
-.calendar-sidebar {
-    position: sticky;
-    top: 20px;
-}
-
-/* 概要カード */
-.summary-item, .vehicle-item, .driver-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid #f1f3f4;
-}
-
-.summary-item:last-child,
-.vehicle-item:last-child,
-.driver-item:last-child {
-    border-bottom: none;
-}
-
-/* ステータスバッジ */
-.status-badge {
-    font-size: 11px;
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-weight: 500;
-}
-
-.status-available {
-    background-color: #e8f5e8;
-    color: #2e7d32;
-}
-
-.status-busy {
-    background-color: #fff3e0;
-    color: #f57c00;
-}
-
-.status-maintenance {
-    background-color: #ffebee;
-    color: #c62828;
-}
-
-/* よく使う場所 */
-.frequent-location-item {
-    padding: 6px 0;
-    border-bottom: 1px solid #f1f3f4;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-}
-
-.frequent-location-item:hover {
-    background-color: #f8f9fa;
-    border-radius: 4px;
-    padding-left: 8px;
-    padding-right: 8px;
-}
-
-.location-name {
-    font-weight: 500;
-    color: #2c3e50;
-}
-
-.location-type {
-    font-size: 11px;
-    color: #6c757d;
-}
-
-.usage-count {
-    font-size: 10px;
-    background-color: #e9ecef;
-    color: #495057;
-    padding: 2px 6px;
-    border-radius: 10px;
-}
-
-/* =================================================================
- * コントロールパネル
- * ================================================================= */
-
-.calendar-controls {
-    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-}
-
-/* 表示切り替えボタン */
-.view-toggle .btn-check:checked + .btn-outline-primary {
-    background-color: #2196F3;
-    border-color: #2196F3;
-    color: white;
-    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
-}
-
-/* フィルター */
-.filter-select {
-    border: 2px solid #e9ecef;
-    border-radius: 8px;
-    transition: border-color 0.2s ease;
-}
-
-.filter-select:focus {
-    border-color: #2196F3;
-    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
-}
-
-/* アクションボタン */
-.action-btn {
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-weight: 500;
-    transition: all 0.2s ease;
-}
-
-.action-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-/* =================================================================
- * レスポンシブ対応
- * ================================================================= */
+   レスポンシブ対応
+   ================================================================= */
 
 @media (max-width: 768px) {
-    /* モバイル用カレンダー調整 */
     #calendar {
-        font-size: 12px;
-    }
-    
-    .fc-header-toolbar {
-        flex-direction: column;
-        gap: 10px;
-        padding: 15px;
-    }
-    
-    .fc-toolbar-title {
-        font-size: 1.3rem;
-        text-align: center;
-    }
-    
-    /* モバイル用コントロール */
-    .calendar-controls {
-        padding: 15px;
-    }
-    
-    .view-toggle {
-        justify-content: center;
-        margin-bottom: 15px;
-    }
-    
-    .view-toggle .btn {
-        padding: 8px 12px;
-        font-size: 12px;
-    }
-    
-    /* モバイル用イベント */
-    .fc-event {
-        font-size: 10px;
-        padding: 1px 3px;
-    }
-    
-    .fc-dayGridMonth-view .fc-daygrid-day {
-        min-height: 80px;
-    }
-    
-    /* サイドバーをモバイルで下に移動 */
-    .calendar-sidebar {
-        position: static;
-        margin-top: 20px;
-    }
-    
-    .calendar-sidebar .card {
-        margin-bottom: 15px;
-    }
-}
-
-@media (max-width: 576px) {
-    /* 小画面での調整 */
-    .fc-dayGridMonth-view .fc-daygrid-day {
-        min-height: 60px;
+        padding: 0.5rem;
     }
     
     .fc-event {
-        font-size: 9px;
-        padding: 1px 2px;
+        font-size: 0.75rem;
     }
     
     .fc-toolbar-title {
-        font-size: 1.1rem;
+        font-size: 1.2rem;
     }
     
-    /* コントロールを縦並びに */
-    .calendar-controls .row > div {
-        margin-bottom: 10px;
-    }
-    
-    .calendar-controls .col-lg-5 {
-        text-align: center;
+    .fc-timegrid-slot {
+        height: 2rem;
     }
 }
 
 /* =================================================================
- * ダークモード対応（オプション）
- * ================================================================= */
+   カスタムバッジ
+   ================================================================= */
 
-@media (prefers-color-scheme: dark) {
-    .fc {
-        background-color: #1a1a1a;
-        color: #ffffff;
-    }
-    
-    .fc-header-toolbar {
-        background: linear-gradient(135deg, #2c2c2c 0%, #1a1a1a 100%);
-        border-bottom-color: #404040;
-    }
-    
-    .fc-toolbar-title {
-        color: #ffffff;
-    }
-    
-    .fc-day-today {
-        background-color: rgba(33, 150, 243, 0.2) !important;
-    }
-    
-    .fc-event {
-        box-shadow: 0 1px 3px rgba(255, 255, 255, 0.1);
-    }
+.reservation-status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.status-reserved {
+    background-color: #2196F3;
+    color: white;
+}
+
+.status-in-progress {
+    background-color: #FF9800;
+    color: white;
+}
+
+.status-completed {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.status-cancelled {
+    background-color: #9E9E9E;
+    color: white;
 }
 
 /* =================================================================
- * アニメーション効果
- * ================================================================= */
+   予約詳細モーダル
+   ================================================================= */
 
-@keyframes eventPulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.7; }
-    100% { opacity: 1; }
+.reservation-detail {
+    padding: 1rem;
 }
 
-.fc-event.creating {
-    animation: eventPulse 1s infinite;
+.reservation-detail h5 {
+    color: #2196F3;
+    margin-bottom: 1rem;
+    font-weight: bold;
 }
 
-@keyframes slideInFromRight {
+.reservation-detail p {
+    margin-bottom: 0.5rem;
+}
+
+.reservation-detail strong {
+    display: inline-block;
+    min-width: 100px;
+    color: #666;
+}
+
+/* =================================================================
+   アニメーション
+   ================================================================= */
+
+@keyframes fadeIn {
     from {
-        transform: translateX(20px);
         opacity: 0;
+        transform: translateY(10px);
     }
     to {
-        transform: translateX(0);
         opacity: 1;
+        transform: translateY(0);
     }
 }
 
-.calendar-sidebar .card {
-    animation: slideInFromRight 0.3s ease-out;
+.fc-event {
+    animation: fadeIn 0.3s ease-out;
 }
 
 /* =================================================================
- * プリント対応
- * ================================================================= */
+   印刷スタイル
+   ================================================================= */
 
 @media print {
-    .calendar-controls,
-    .calendar-sidebar,
-    .btn,
-    .modal {
-        display: none !important;
-    }
-    
     #calendar {
-        width: 100% !important;
-        height: auto !important;
+        padding: 0;
     }
     
     .fc-event {
-        background-color: white !important;
-        color: black !important;
-        border: 1px solid black !important;
+        page-break-inside: avoid;
+    }
+    
+    .card-header,
+    .btn,
+    .btn-group {
+        display: none !important;
     }
 }
