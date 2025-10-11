@@ -6,6 +6,7 @@
 // 機能: カレンダー表示・予約管理・WTS連携
 // 基盤: 福祉輸送管理システム v3.1 統一ヘッダー対応
 // 作成日: 2025年9月27日
+// 最終更新: 2025年10月6日（パス修正版）
 // =================================================================
 
 session_start();
@@ -14,7 +15,7 @@ session_start();
 require_once '../config/database.php';
 require_once '../includes/unified-header.php';
 
-// ログインチェック（正しい方法）
+// ログインチェック
 if (!isset($_SESSION['user_id'])) {
     header('Location: ../index.php');
     exit;
@@ -29,18 +30,10 @@ $user_name = $_SESSION['user_name'];
 $user_role = $_SESSION['user_role'] ?? 'User';
 
 // カレンダー設定取得
-$view_mode = $_GET['view'] ?? 'month'; // month, week, day
+$view_mode = $_GET['view'] ?? 'month';
 $current_date = $_GET['date'] ?? date('Y-m-d');
 $driver_filter = $_GET['driver'] ?? 'all';
-
-// 権限チェック - 協力会社の場合は制限
 $access_level = 'full';
-if ($user_role === 'partner_company') {
-    $stmt = $pdo->prepare("SELECT access_level FROM partner_companies WHERE id = ?");
-    $stmt->execute([$user_id]);
-    $company_data = $stmt->fetch();
-    $access_level = $company_data['access_level'] ?? '閲覧のみ';
-}
 
 // 運転者一覧取得
 $stmt = $pdo->query("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");
@@ -50,38 +43,31 @@ $drivers = $stmt->fetchAll();
 $stmt = $pdo->query("SELECT id, vehicle_number, model FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number");
 $vehicles = $stmt->fetchAll();
 
-// 協力会社一覧取得（テーブルが存在する場合）
-try {
-    $stmt = $pdo->query("SELECT id, company_name, display_color FROM partner_companies WHERE is_active = 1 ORDER BY sort_order");
-    $partner_companies = $stmt->fetchAll();
-} catch (Exception $e) {
-    // partner_companiesテーブルが存在しない場合は空配列
-    $partner_companies = [];
-}
-
 // ページ設定
 $page_config = [
     'title' => '予約管理カレンダー',
     'subtitle' => '介護タクシー予約の作成・管理・スケジュール確認',
-    'description' => 'タイムツリーから移行した予約管理システム。復路作成機能、車両制約、協力会社管理に対応',
+    'description' => 'タイムツリーから移行した予約管理システム',
     'icon' => 'calendar-alt',
     'category' => '予約管理'
 ];
 
-// 統一ヘッダーでページ生成
+// 統一ヘッダーでページ生成（正しいパス指定）
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [
+        // FullCalendar CDN
         'https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/main.min.css',
-        'calendar/css/calendar.css',
-        'calendar/css/reservation.css'
+        // 既存のWTS統一CSS（相対パスで正しく指定）
+        '../css/header-unified.css',
+        '../css/ui-unified-v3.css'
     ],
     'additional_js' => [
+        // FullCalendar CDN
         'https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/main.min.js',
         'https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/locales/ja.min.js',
-        'calendar/js/calendar.js',
-        'calendar/js/reservation.js',
-        'calendar/js/vehicle_constraints.js'
+        // 既存のWTS統一JS（相対パスで正しく指定）
+        '../js/ui-interactions.js'
     ],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => '../dashboard.php'],
@@ -107,6 +93,57 @@ echo $page_data['html_head'];
 echo $page_data['system_header'];
 echo $page_data['page_header'];
 ?>
+
+<!-- カレンダー専用CSS（インライン） -->
+<style>
+/* カレンダー基本設定 */
+#calendar {
+    padding: 1.5rem;
+    min-height: 600px;
+    background: white;
+    border-radius: 8px;
+}
+
+.fc {
+    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+}
+
+/* イベント表示 */
+.fc-event {
+    border-radius: 4px;
+    padding: 2px 4px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.fc-event:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* 今日の日付 */
+.fc-day-today {
+    background-color: rgba(33, 150, 243, 0.1) !important;
+}
+
+.fc-day-today .fc-daygrid-day-number {
+    background-color: #2196F3;
+    color: white;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+    #calendar { padding: 0.5rem; }
+    .fc-event { font-size: 0.75rem; }
+}
+</style>
 
 <!-- メインコンテンツ開始 -->
 <main class="main-content">
@@ -152,15 +189,13 @@ echo $page_data['page_header'];
                             
                             <!-- 新規予約作成ボタン -->
                             <div class="col-lg-5 text-lg-end">
-                                <?php if ($access_level !== '閲覧のみ'): ?>
-                                    <button type="button" class="btn btn-success btn-lg me-2" id="createReservationBtn">
-                                        <i class="fas fa-plus me-2"></i>新規予約作成
-                                    </button>
-                                <?php endif; ?>
+                                <button type="button" class="btn btn-success btn-lg me-2" id="createReservationBtn">
+                                    <i class="fas fa-plus me-2"></i>新規予約作成
+                                </button>
                                 
                                 <button type="button" class="btn btn-primary" id="todayBtn">
                                     <i class="fas fa-calendar-day me-1"></i>今日
-                                    </button>
+                                </button>
                                 
                                 <div class="btn-group ms-2">
                                     <button type="button" class="btn btn-outline-secondary" id="prevBtn">
@@ -221,7 +256,7 @@ echo $page_data['page_header'];
                         </h5>
                     </div>
                     <div class="card-body" id="vehicleStatusArea">
-                        <!-- 車両状況はJavaScriptで動的生成 -->
+                        <p class="text-muted text-center">データを読み込み中...</p>
                     </div>
                 </div>
             </div>
@@ -229,29 +264,155 @@ echo $page_data['page_header'];
     </div>
 </main>
 
+<!-- カレンダー制御JavaScript（インライン） -->
 <script>
-// JavaScript変数として必要なデータを出力
-window.calendarConfig = {
-    currentDate: '<?= $current_date ?>',
-    viewMode: '<?= $view_mode ?>',
-    driverFilter: '<?= $driver_filter ?>',
-    accessLevel: '<?= $access_level ?>',
-    userId: <?= $user_id ?>,
-    userRole: '<?= $user_role ?>',
-    apiUrls: {
-        getReservations: 'api/get_reservations.php',
-        saveReservation: 'api/save_reservation.php',
-        createReturnTrip: 'api/create_return_trip.php',
-        getAvailability: 'api/get_availability.php',
-        convertToRide: 'api/convert_to_ride.php'
-    },
-    drivers: <?= json_encode($drivers) ?>,
-    vehicles: <?= json_encode($vehicles) ?>,
-    partnerCompanies: <?= json_encode($partner_companies) ?>
-};
+console.log('🔧 カレンダーシステム初期化開始');
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📅 FullCalendar初期化中...');
+    
+    // FullCalendar 読み込み確認
+    if (typeof FullCalendar === 'undefined') {
+        console.error('❌ FullCalendar が読み込まれていません');
+        alert('カレンダーライブラリの読み込みに失敗しました。');
+        return;
+    }
+    
+    const calendarEl = document.getElementById('calendar');
+    if (!calendarEl) {
+        console.error('❌ カレンダー要素が見つかりません');
+        return;
+    }
+    
+    // 設定値
+    const currentDate = '<?= $current_date ?>';
+    const viewMode = '<?= $view_mode ?>';
+    const driverFilter = '<?= $driver_filter ?>';
+    
+    console.log('📊 設定値:', { currentDate, viewMode, driverFilter });
+    
+    // FullCalendar初期化
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: getViewName(viewMode),
+        initialDate: currentDate,
+        locale: 'ja',
+        headerToolbar: false,
+        slotMinTime: '08:00:00',
+        slotMaxTime: '19:00:00',
+        slotDuration: '01:00:00',
+        height: 'auto',
+        expandRows: true,
+        nowIndicator: true,
+        weekends: true,
+        
+        events: function(info, successCallback, failureCallback) {
+            console.log('🔄 予約データ取得中...', info);
+            
+            const apiUrl = `api/get_reservations.php?start=${info.startStr}&end=${info.endStr}&driver_id=${driverFilter}&view=${viewMode}`;
+            
+            fetch(apiUrl)
+                .then(response => {
+                    console.log('📡 API レスポンス:', response);
+                    if (!response.ok) throw new Error('API呼び出しエラー: ' + response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('✅ データ取得成功:', data);
+                    if (data.success) {
+                        successCallback(data.data || []);
+                        updateDashboardStats(data.data || []);
+                    } else {
+                        console.warn('⚠️ データ取得失敗:', data.error);
+                        successCallback([]);
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ 予約データ取得エラー:', error);
+                    successCallback([]);
+                });
+        },
+        
+        eventClick: function(info) {
+            console.log('🖱️ イベントクリック:', info.event);
+            alert('予約詳細（実装予定）\n\n' + info.event.title);
+        },
+        
+        dateClick: function(info) {
+            console.log('📅 日付クリック:', info.dateStr);
+            if (confirm('この日付で新規予約を作成しますか？\n日付: ' + info.dateStr)) {
+                alert('予約作成機能は次のフェーズで実装予定です');
+            }
+        }
+    });
+    
+    try {
+        calendar.render();
+        console.log('✅ カレンダーレンダリング成功');
+    } catch (error) {
+        console.error('❌ カレンダーレンダリングエラー:', error);
+        alert('カレンダーの表示に失敗しました: ' + error.message);
+    }
+    
+    window.mainCalendar = calendar;
+    
+    // コントロールボタン設定
+    document.querySelectorAll('input[name="viewMode"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            calendar.changeView(getViewName(this.value));
+            updateUrlParam('view', this.value);
+        });
+    });
+    
+    document.getElementById('todayBtn')?.addEventListener('click', () => {
+        calendar.today();
+        updateUrlParam('date', new Date().toISOString().split('T')[0]);
+    });
+    
+    document.getElementById('prevBtn')?.addEventListener('click', () => {
+        calendar.prev();
+        updateUrlParam('date', calendar.getDate().toISOString().split('T')[0]);
+    });
+    
+    document.getElementById('nextBtn')?.addEventListener('click', () => {
+        calendar.next();
+        updateUrlParam('date', calendar.getDate().toISOString().split('T')[0]);
+    });
+    
+    document.getElementById('driverFilter')?.addEventListener('change', function() {
+        updateUrlParam('driver', this.value);
+        calendar.refetchEvents();
+    });
+    
+    document.getElementById('createReservationBtn')?.addEventListener('click', () => {
+        alert('新規予約作成機能は次のフェーズで実装予定です');
+    });
+    
+    console.log('✅ カレンダーシステム初期化完了');
+});
+
+function getViewName(mode) {
+    const viewMap = { 'month': 'dayGridMonth', 'week': 'timeGridWeek', 'day': 'timeGridDay' };
+    return viewMap[mode] || 'dayGridMonth';
+}
+
+function updateUrlParam(key, value) {
+    const url = new URL(window.location);
+    url.searchParams.set(key, value);
+    window.history.pushState({}, '', url);
+}
+
+function updateDashboardStats(events) {
+    const today = new Date().toISOString().split('T')[0];
+    const todayEvents = events.filter(e => e.start && e.start.startsWith(today));
+    const completedEvents = todayEvents.filter(e => e.extendedProps?.status === '完了');
+    const inProgressEvents = todayEvents.filter(e => e.extendedProps?.status === '進行中');
+    
+    document.getElementById('todayReservationCount').textContent = todayEvents.length + '件';
+    document.getElementById('todayCompletedCount').textContent = completedEvents.length + '件';
+    document.getElementById('todayInProgressCount').textContent = inProgressEvents.length + '件';
+}
+
+console.log('✅ カレンダースクリプト読み込み完了');
 </script>
 
-<?php
-// 統一フッター出力
-echo $page_data['html_footer'];
-?>
+<?php echo $page_data['html_footer']; ?>
