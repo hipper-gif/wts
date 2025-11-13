@@ -1,0 +1,275 @@
+/* =================================================================
+ * 福祉輸送管理システム v3.1 - ログインページ専用CSS
+ *
+ * ファイル: /css/login.css
+ * 作成日: 2025年11月13日
+ * 説明: index.phpのインラインCSSを外部ファイル化
+ * ================================================================= */
+
+/* モダンミニマル統一スタイル */
+:root {
+    --primary: #2196F3;
+    --primary-dark: #1976D2;
+    --success: #4CAF50;
+    --warning: #FFC107;
+    --danger: #F44336;
+    --info: #00BCD4;
+    --white: #FFFFFF;
+    --light-gray: #F8F9FA;
+    --medium-gray: #6C757D;
+    --dark-gray: #343A40;
+    --black: #1A1A1A;
+}
+
+body {
+    font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 20px;
+}
+
+.login-container {
+    background: var(--white);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    padding: 0;
+    width: 100%;
+    max-width: 420px;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+    animation: fadeInUp 0.6s ease-out;
+}
+
+.login-header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: var(--white);
+    padding: 2rem;
+    text-align: center;
+    position: relative;
+}
+
+.login-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.login-header h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.login-header .subtitle {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    margin: 0;
+    font-weight: 400;
+}
+
+.login-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: var(--white);
+    opacity: 0.9;
+}
+
+.login-body {
+    padding: 2rem;
+}
+
+.form-floating {
+    margin-bottom: 1.5rem;
+    position: relative;
+}
+
+.form-control {
+    border: 2px solid #E9ECEF;
+    border-radius: 12px;
+    padding: 1rem;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background-color: var(--light-gray);
+}
+
+.form-control:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 0.2rem rgba(33, 150, 243, 0.25);
+    background-color: var(--white);
+}
+
+.form-floating > label {
+    color: var(--medium-gray);
+    font-weight: 500;
+    padding: 1rem;
+}
+
+.btn-login {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border: none;
+    border-radius: 12px;
+    color: var(--white);
+    padding: 1rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    width: 100%;
+    margin-top: 1rem;
+    transition: all 0.3s ease;
+    text-transform: none;
+}
+
+.btn-login:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(33, 150, 243, 0.4);
+    background: linear-gradient(135deg, var(--primary-dark) 0%, #1565C0 100%);
+    color: var(--white);
+}
+
+.btn-login:active {
+    transform: translateY(0);
+}
+
+.alert {
+    border: none;
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+    border-left: 4px solid var(--danger);
+}
+
+.alert-danger {
+    background-color: #FFF5F5;
+    color: #C53030;
+}
+
+.system-info {
+    text-align: center;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #E9ECEF;
+    font-size: 0.85rem;
+    color: var(--medium-gray);
+}
+
+.version-badge {
+    display: inline-block;
+    background: var(--primary);
+    color: var(--white);
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-top: 0.5rem;
+}
+
+/* PWAインストール促進バナー */
+.pwa-banner {
+    display: none;
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    color: white;
+    padding: 1rem;
+    text-align: center;
+    margin: -2rem -2rem 2rem -2rem;
+    font-size: 0.9rem;
+    animation: slideDown 0.5s ease;
+}
+
+.pwa-banner.show {
+    display: block;
+}
+
+.pwa-banner button {
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    margin-left: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.pwa-banner button:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 576px) {
+    .login-container {
+        margin: 10px;
+        border-radius: 12px;
+    }
+
+    .login-header {
+        padding: 1.5rem;
+    }
+
+    .login-header h1 {
+        font-size: 1.5rem;
+    }
+
+    .login-body {
+        padding: 1.5rem;
+    }
+
+    .login-icon {
+        font-size: 2rem;
+    }
+}
+
+/* ダークモード対応 */
+@media (prefers-color-scheme: dark) {
+    .login-container {
+        background: #2D2D2D;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .form-control {
+        background-color: #404040;
+        border-color: #555555;
+        color: #FFFFFF;
+    }
+
+    .form-floating > label {
+        color: #CCCCCC;
+    }
+
+    .system-info {
+        color: #CCCCCC;
+        border-color: #555555;
+    }
+}
+
+/* アニメーション */
+@keyframes slideDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        transform: translateY(30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}

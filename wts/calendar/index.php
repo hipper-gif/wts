@@ -58,9 +58,8 @@ $page_options = [
     'additional_css' => [
         // FullCalendar CDN
         'https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/main.min.css',
-        // 既存のWTS統一CSS（相対パスで正しく指定）
-        '../css/header-unified.css',
-        '../css/ui-unified-v3.css'
+        // カレンダー専用CSS
+        'css/calendar-custom.css'
     ],
     'additional_js' => [
         // FullCalendar CDN
@@ -93,57 +92,6 @@ echo $page_data['html_head'];
 echo $page_data['system_header'];
 echo $page_data['page_header'];
 ?>
-
-<!-- カレンダー専用CSS（インライン） -->
-<style>
-/* カレンダー基本設定 */
-#calendar {
-    padding: 1.5rem;
-    min-height: 600px;
-    background: white;
-    border-radius: 8px;
-}
-
-.fc {
-    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
-}
-
-/* イベント表示 */
-.fc-event {
-    border-radius: 4px;
-    padding: 2px 4px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.fc-event:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-/* 今日の日付 */
-.fc-day-today {
-    background-color: rgba(33, 150, 243, 0.1) !important;
-}
-
-.fc-day-today .fc-daygrid-day-number {
-    background-color: #2196F3;
-    color: white;
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* レスポンシブ対応 */
-@media (max-width: 768px) {
-    #calendar { padding: 0.5rem; }
-    .fc-event { font-size: 0.75rem; }
-}
-</style>
 
 <!-- メインコンテンツ開始 -->
 <main class="main-content">
