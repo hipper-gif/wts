@@ -1,30 +1,18 @@
 <?php
 session_start();
 
-// データベース接続設定
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'twinklemark_wts');
-define('DB_USER', 'twinklemark_taxi');
-define('DB_PASS', 'Smiley2525');
-define('DB_CHARSET', 'utf8mb4');
-
-// データベース接続
-try {
-    $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
-    $pdo = new PDO($dsn, DB_USER, DB_PASS, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false
-    ]);
-} catch (PDOException $e) {
-    die("データベース接続エラー: " . $e->getMessage());
-}
+// 統一ヘッダーシステム読み込み
+require_once 'config/database.php';
+require_once 'includes/unified-header.php';
 
 // ログインチェック
 if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
     exit;
 }
+
+// データベース接続
+$pdo = getDBConnection();
 
 // ユーザー情報取得
 try {
@@ -235,340 +223,35 @@ usort($alerts, function($a, $b) {
     $priority_order = ['critical' => 0, 'high' => 1, 'normal' => 2];
     return $priority_order[$a['priority']] - $priority_order[$b['priority']];
 });
+
+// 統一ヘッダーシステムでページ生成
+$page_options = [
+    'description' => '業務状況の総合管理 - 7段階業務フローの進捗管理',
+    'additional_css' => ['css/dashboard.css'],
+    'breadcrumb' => [
+        ['text' => 'ダッシュボード', 'url' => 'dashboard.php']
+    ]
+];
+
+$page_data = renderCompletePage(
+    'ダッシュボード',
+    $user_name,
+    $user_role_display,
+    'dashboard',
+    'tachometer-alt',
+    'ダッシュボード',
+    '業務状況の総合管理',
+    '基盤',
+    $page_options
+);
+
+// HTMLヘッダー出力
+echo $page_data['html_head'];
+echo $page_data['system_header'];
+echo $page_data['page_header'];
 ?>
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ダッシュボード - <?= htmlspecialchars($system_name) ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        :root {
-            --primary-color: #2196F3;
-            --success-color: #28a745;
-            --warning-color: #ffc107;
-            --danger-color: #dc3545;
-            --info-color: #17a2b8;
-        }
-        
-        body {
-            background-color: #f8f9fa;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding-bottom: 100px; /* 浮動フッター用スペース */
-        }
 
-        /* PWAモード対応 */
-        @media (display-mode: standalone) {
-            body {
-                padding-top: 0;
-            }
-            .navbar {
-                display: none;
-            }
-            .revenue-header {
-                margin-top: 20px;
-            }
-        }
-        
-        /* Layer 1: 売上情報ヘッダー（sticky） */
-        .revenue-header {
-            position: sticky;
-            top: 0;
-            background: linear-gradient(135deg, var(--primary-color) 0%, #1976D2 100%);
-            color: white;
-            padding: 15px 0;
-            z-index: 1000;
-            box-shadow: 0 2px 10px rgba(33, 150, 243, 0.3);
-        }
-
-        .revenue-item {
-            padding: 0 15px;
-            border-right: 1px solid rgba(255,255,255,0.2);
-            text-align: center;
-        }
-
-        .revenue-item:last-child {
-            border-right: none;
-        }
-
-        .revenue-item .amount {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: #FFFFFF;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
-            margin-bottom: 2px;
-        }
-
-        .revenue-item .detail {
-            opacity: 0.9;
-            font-size: 0.85rem;
-            margin-bottom: 2px;
-        }
-
-        .revenue-item .average {
-            opacity: 0.7;
-            font-size: 0.75rem;
-        }
-
-        .comparison .badge {
-            font-size: 0.9rem;
-            border-radius: 20px;
-            padding: 8px 16px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        /* Layer 2: アラート表示エリア */
-        .alert-area {
-            padding: 20px 0;
-        }
-
-        .alert-area .alert {
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            border-left: 4px solid;
-            animation: fadeIn 0.3s ease-in;
-        }
-
-        .alert-danger {
-            border-left-color: var(--danger-color) !important;
-            background-color: #f8d7da;
-        }
-
-        .alert-warning {
-            border-left-color: var(--warning-color) !important;
-            background-color: #fff3cd;
-        }
-
-        .alert-icon {
-            min-width: 50px;
-            text-align: center;
-            font-size: 1.5rem;
-        }
-
-        .alert.pulse {
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-
-        /* Layer 3: クイック金額入力セクション */
-        .quick-amount-section {
-            background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-            border: 2px solid var(--success-color);
-        }
-
-        .amount-presets {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-            gap: 10px;
-            margin: 1rem 0;
-        }
-
-        .preset-btn {
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-            background: white;
-            padding: 10px;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .preset-btn:hover, .preset-btn.active {
-            border-color: var(--success-color);
-            background: var(--success-color);
-            color: white;
-        }
-
-        /* Layer 4: 業務フロー（4グループ） */
-        .business-flow {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin: 30px 0;
-        }
-
-        .workflow-group {
-            background: #ffffff;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            border: 1px solid #e9ecef;
-        }
-
-        .workflow-header {
-            border-bottom: 2px solid #e9ecef;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
-        }
-
-        .workflow-item {
-            display: flex;
-            align-items: center;
-            padding: 12px;
-            margin-bottom: 8px;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            color: inherit;
-            border: 1px solid #e9ecef;
-        }
-
-        .workflow-item:hover {
-            background: #f8f9fa;
-            color: var(--primary-color);
-            border-color: var(--primary-color);
-            transform: translateX(3px);
-        }
-
-        .workflow-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 15px;
-            font-size: 1.2rem;
-        }
-
-        .start-group .workflow-icon { background: rgba(108, 117, 125, 0.1); color: #6c757d; }
-        .operation-group .workflow-icon { background: rgba(40, 167, 69, 0.1); color: var(--success-color); }
-        .end-group .workflow-icon { background: rgba(255, 193, 7, 0.1); color: var(--warning-color); }
-        .periodic-group .workflow-icon { background: rgba(33, 150, 243, 0.1); color: var(--primary-color); }
-
-        /* 浮動フッター: 乗車記録アクセス */
-        .ride-access-floating {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(135deg, var(--success-color) 0%, #20c997 100%);
-            color: white;
-            z-index: 1020;
-            box-shadow: 0 -2px 10px rgba(40, 167, 69, 0.3);
-            transform: translateY(100%);
-            transition: transform 0.3s ease;
-            border-top-left-radius: 20px;
-            border-top-right-radius: 20px;
-        }
-
-        .ride-access-floating.show {
-            transform: translateY(0);
-        }
-
-        .ride-access-floating .btn {
-            border-radius: 20px;
-            margin: 0 5px;
-            font-weight: 600;
-        }
-
-        .ride-access-floating .title-section {
-            display: flex;
-            align-items: center;
-            font-weight: 600;
-        }
-
-        .ride-access-floating .title-section i {
-            margin-right: 8px;
-            font-size: 1.2rem;
-        }
-
-        /* レスポンシブ対応 */
-        @media (max-width: 768px) {
-            .revenue-header .amount {
-                font-size: 1.1rem;
-            }
-            
-            .revenue-item .detail {
-                font-size: 0.8rem;
-            }
-            
-            .revenue-item .average {
-                font-size: 0.7rem;
-            }
-
-            .business-flow {
-                grid-template-columns: 1fr;
-                gap: 15px;
-            }
-
-            .workflow-group {
-                padding: 15px;
-            }
-
-            .ride-access-floating .action-buttons .btn {
-                font-size: 0.8rem;
-                padding: 8px 12px;
-                margin: 0 2px;
-            }
-
-            .ride-access-floating .title-section span {
-                font-size: 0.9rem;
-            }
-        }
-
-        @media (max-width: 576px) {
-            .container {
-                padding-left: 10px;
-                padding-right: 10px;
-            }
-
-            .revenue-header {
-                padding: 10px 0;
-            }
-
-            .ride-access-floating .title-section span {
-                display: none;
-            }
-        }
-
-        /* アニメーション */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes slideInDown {
-            from { transform: translateY(-30px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        .revenue-header {
-            animation: slideInDown 0.5s ease-out;
-        }
-
-        .workflow-group {
-            animation: fadeIn 0.4s ease-in;
-        }
-
-        /* 管理機能（管理者のみ） */
-        .admin-section {
-            background: #f8f9fa;
-            border: 2px dashed #dee2e6;
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            margin-top: 20px;
-        }
-
-        .admin-section h6 {
-            color: #6c757d;
-            margin-bottom: 15px;
-        }
-    </style>
-</head>
-<body>
+<!-- メインコンテンツ開始 -->
     <!-- Layer 1: 売上情報ヘッダー（sticky） -->
     <div class="revenue-header">
         <div class="container">
@@ -1075,5 +758,6 @@ usort($alerts, function($a, $b) {
         });
         <?php endif; ?>
     </script>
-</body>
-</html>
+</main>
+
+<?php echo $page_data['html_footer']; ?>
