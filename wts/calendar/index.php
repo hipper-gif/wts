@@ -59,7 +59,9 @@ $page_options = [
         // FullCalendar CDN
         'https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/main.min.css',
         // カレンダー専用CSS
-        'css/calendar-custom.css'
+        'css/calendar.css',
+        'css/calendar-custom.css',
+        'css/reservation.css'
     ],
     'additional_js' => [
         // FullCalendar CDN
@@ -110,17 +112,17 @@ echo $page_data['page_header'];
                             <!-- 表示切り替え -->
                             <div class="col-lg-4 col-md-6 mb-3 mb-lg-0">
                                 <div class="btn-group" role="group">
-                                    <input type="radio" class="btn-check" name="viewMode" id="monthView" value="month" <?= $view_mode === 'month' ? 'checked' : '' ?>>
+                                    <input type="radio" class="btn-check" name="viewMode" id="monthView" value="dayGridMonth" <?= $view_mode === 'month' || $view_mode === 'dayGridMonth' ? 'checked' : '' ?>>
                                     <label class="btn btn-outline-primary" for="monthView">
                                         <i class="fas fa-calendar me-1"></i>月表示
                                     </label>
-                                    
-                                    <input type="radio" class="btn-check" name="viewMode" id="weekView" value="week" <?= $view_mode === 'week' ? 'checked' : '' ?>>
+
+                                    <input type="radio" class="btn-check" name="viewMode" id="weekView" value="timeGridWeek" <?= $view_mode === 'week' || $view_mode === 'timeGridWeek' ? 'checked' : '' ?>>
                                     <label class="btn btn-outline-primary" for="weekView">
                                         <i class="fas fa-calendar-week me-1"></i>週表示
                                     </label>
-                                    
-                                    <input type="radio" class="btn-check" name="viewMode" id="dayView" value="day" <?= $view_mode === 'day' ? 'checked' : '' ?>>
+
+                                    <input type="radio" class="btn-check" name="viewMode" id="dayView" value="timeGridDay" <?= $view_mode === 'day' || $view_mode === 'timeGridDay' ? 'checked' : '' ?>>
                                     <label class="btn btn-outline-primary" for="dayView">
                                         <i class="fas fa-calendar-day me-1"></i>日表示
                                     </label>
@@ -445,11 +447,24 @@ echo $page_data['page_header'];
 
 <!-- カレンダー設定オブジェクト初期化 -->
 <script>
+// ビューモード変換ヘルパー
+function convertViewMode(mode) {
+    const viewMap = {
+        'month': 'dayGridMonth',
+        'week': 'timeGridWeek',
+        'day': 'timeGridDay',
+        'dayGridMonth': 'dayGridMonth',
+        'timeGridWeek': 'timeGridWeek',
+        'timeGridDay': 'timeGridDay'
+    };
+    return viewMap[mode] || 'dayGridMonth';
+}
+
 // グローバルカレンダー設定
 window.calendarConfig = {
-    // 初期設定
-    initialDate: '<?= $current_date ?>',
-    initialView: '<?= $view_mode ?>',
+    // 初期設定（calendar.jsが期待するプロパティ名）
+    currentDate: '<?= $current_date ?>',
+    viewMode: convertViewMode('<?= $view_mode ?>'),
     driverFilter: '<?= $driver_filter ?>',
     accessLevel: '<?= $access_level ?>',
 
@@ -489,6 +504,12 @@ window.calendarConfig = {
 };
 
 console.log('✅ カレンダー設定初期化完了', window.calendarConfig);
+
+// デバッグ情報
+console.log('🔍 FullCalendar読み込み確認:', typeof FullCalendar);
+console.log('🔍 Bootstrap読み込み確認:', typeof bootstrap);
+console.log('🔍 カレンダー要素確認:', document.getElementById('calendar'));
+console.log('🔍 予約モーダル要素確認:', document.getElementById('reservationModal'));
 </script>
 
 <?php echo $page_data['html_footer']; ?>
