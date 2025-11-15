@@ -444,7 +444,9 @@ echo $page_data['page_header'];
     </div>
 </div>
 
-<!-- カレンダー設定オブジェクト初期化 -->
+<?php echo $page_data['html_footer']; ?>
+
+<!-- カレンダー設定オブジェクト初期化（FullCalendar読み込み後に実行） -->
 <script>
 // ビューモード変換ヘルパー
 function convertViewMode(mode) {
@@ -510,5 +512,5 @@ console.log('🔍 Bootstrap読み込み確認:', typeof bootstrap);
 console.log('🔍 カレンダー要素確認:', document.getElementById('calendar'));
 console.log('🔍 予約モーダル要素確認:', document.getElementById('reservationModal'));
 </script>
-
-<?php echo $page_data['html_footer']; ?>
+</body>
+</html>
