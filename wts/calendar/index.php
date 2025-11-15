@@ -65,6 +65,10 @@ $page_options = [
         // FullCalendar CDN
         'https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/main.min.js',
         'https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/locales/ja.min.js',
+        // カレンダー専用JS
+        'js/calendar.js',
+        'js/reservation.js',
+        'js/vehicle_constraints.js',
         // 既存のWTS統一JS（相対パスで正しく指定）
         '../js/ui-interactions.js'
     ],
@@ -212,155 +216,279 @@ echo $page_data['page_header'];
     </div>
 </main>
 
-<!-- カレンダー制御JavaScript（インライン） -->
+<!-- 予約作成・編集モーダル -->
+<div class="modal fade" id="reservationModal" tabindex="-1" aria-labelledby="reservationModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="reservationModalTitle">新規予約作成</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <form id="reservationForm">
+                    <!-- 隠しフィールド -->
+                    <input type="hidden" id="reservationId" name="reservationId">
+                    <input type="hidden" id="parentReservationId" name="parentReservationId">
+
+                    <!-- 基本情報 -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-calendar-check me-2"></i>基本情報</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="reservationDate" class="form-label">予約日 <span class="text-danger">*</span></label>
+                                    <input type="date" class="form-control" id="reservationDate" name="reservationDate" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="reservationTime" class="form-label">予約時刻 <span class="text-danger">*</span></label>
+                                    <input type="time" class="form-control" id="reservationTime" name="reservationTime" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="clientName" class="form-label">利用者名 <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="clientName" name="clientName" placeholder="例: 山田太郎" required>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="pickupLocation" class="form-label">乗車場所 <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="pickupLocation" name="pickupLocation" placeholder="例: 東京都渋谷区..." required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="dropoffLocation" class="form-label">降車場所 <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="dropoffLocation" name="dropoffLocation" placeholder="例: 渋谷駅" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- サービス詳細 -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>サービス詳細</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <label for="passengerCount" class="form-label">乗客数</label>
+                                    <input type="number" class="form-control" id="passengerCount" name="passengerCount" min="1" max="4" value="1">
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label for="serviceType" class="form-label">サービス種別 <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="serviceType" name="serviceType" required>
+                                        <option value="お迎え">お迎え</option>
+                                        <option value="送り">送り</option>
+                                        <option value="往復">往復</option>
+                                        <option value="病院">病院</option>
+                                        <option value="買い物">買い物</option>
+                                        <option value="その他">その他</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label for="driverId" class="form-label">運転者</label>
+                                    <select class="form-select" id="driverId" name="driverId">
+                                        <option value="">未指定</option>
+                                        <?php foreach ($drivers as $driver): ?>
+                                            <option value="<?= $driver['id'] ?>"><?= htmlspecialchars($driver['name']) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label for="vehicleId" class="form-label">車両</label>
+                                    <select class="form-select" id="vehicleId" name="vehicleId">
+                                        <option value="">未指定</option>
+                                        <?php foreach ($vehicles as $vehicle): ?>
+                                            <option value="<?= $vehicle['id'] ?>"><?= htmlspecialchars($vehicle['vehicle_number']) ?> (<?= htmlspecialchars($vehicle['model']) ?>)</option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="rentalService" class="form-label">レンタルサービス</label>
+                                    <select class="form-select" id="rentalService" name="rentalService">
+                                        <option value="なし">なし</option>
+                                        <option value="車椅子">車椅子</option>
+                                        <option value="ストレッチャー">ストレッチャー</option>
+                                        <option value="酸素ボンベ">酸素ボンベ</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label">追加サービス</label>
+                                    <div class="d-flex flex-wrap gap-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="entranceAssistance" name="entranceAssistance">
+                                            <label class="form-check-label" for="entranceAssistance">玄関介助</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="disabilityCard" name="disabilityCard">
+                                            <label class="form-check-label" for="disabilityCard">障害者手帳</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="careServiceUser" name="careServiceUser">
+                                            <label class="form-check-label" for="careServiceUser">介護保険利用</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="isTimeCritical" name="isTimeCritical" checked>
+                                            <label class="form-check-label" for="isTimeCritical">時間厳守</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="hospitalEscortStaff" class="form-label">病院付き添いスタッフ</label>
+                                    <input type="text" class="form-control" id="hospitalEscortStaff" name="hospitalEscortStaff" placeholder="スタッフ名">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="dualAssistanceStaff" class="form-label">2名介助スタッフ</label>
+                                    <input type="text" class="form-control" id="dualAssistanceStaff" name="dualAssistanceStaff" placeholder="スタッフ名">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 紹介者情報 -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-user-tie me-2"></i>紹介者情報</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="referrerType" class="form-label">紹介者種別 <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="referrerType" name="referrerType" required>
+                                        <option value="CM">CM (ケアマネージャー)</option>
+                                        <option value="MSW">MSW (医療ソーシャルワーカー)</option>
+                                        <option value="病院">病院</option>
+                                        <option value="施設">施設</option>
+                                        <option value="個人">個人</option>
+                                        <option value="その他">その他</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="referrerName" class="form-label">紹介者名</label>
+                                    <input type="text" class="form-control" id="referrerName" name="referrerName" placeholder="紹介者の氏名">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="referrerContact" class="form-label">紹介者連絡先</label>
+                                    <input type="text" class="form-control" id="referrerContact" name="referrerContact" placeholder="電話番号またはメール">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 料金・支払い -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-yen-sign me-2"></i>料金・支払い</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="estimatedFare" class="form-label">見積料金</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="estimatedFare" name="estimatedFare" placeholder="0">
+                                        <span class="input-group-text">円</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="actualFare" class="form-label">実際の料金</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="actualFare" name="actualFare" placeholder="0">
+                                        <span class="input-group-text">円</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="paymentMethod" class="form-label">支払い方法</label>
+                                    <select class="form-select" id="paymentMethod" name="paymentMethod">
+                                        <option value="現金">現金</option>
+                                        <option value="クレジットカード">クレジットカード</option>
+                                        <option value="請求書">請求書</option>
+                                        <option value="介護保険">介護保険</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 備考 -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-sticky-note me-2"></i>備考・特記事項</h6>
+                        </div>
+                        <div class="card-body">
+                            <textarea class="form-control" id="specialNotes" name="specialNotes" rows="3" placeholder="特記事項や注意事項を入力してください"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- エラー表示エリア -->
+                    <div id="reservationFormErrors" class="alert alert-danger d-none" role="alert"></div>
+
+                    <!-- 制約警告エリア -->
+                    <div id="constraintWarnings" class="alert alert-warning d-none" role="alert"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-info" id="saveAndCreateReturnBtn">
+                    <i class="fas fa-exchange-alt me-2"></i>保存して復路作成
+                </button>
+                <button type="button" class="btn btn-primary" id="saveReservationBtn">
+                    <i class="fas fa-save me-2"></i>保存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- カレンダー設定オブジェクト初期化 -->
 <script>
-console.log('🔧 カレンダーシステム初期化開始');
+// グローバルカレンダー設定
+window.calendarConfig = {
+    // 初期設定
+    initialDate: '<?= $current_date ?>',
+    initialView: '<?= $view_mode ?>',
+    driverFilter: '<?= $driver_filter ?>',
+    accessLevel: '<?= $access_level ?>',
 
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('📅 FullCalendar初期化中...');
-    
-    // FullCalendar 読み込み確認
-    if (typeof FullCalendar === 'undefined') {
-        console.error('❌ FullCalendar が読み込まれていません');
-        alert('カレンダーライブラリの読み込みに失敗しました。');
-        return;
+    // API URLs
+    apiUrls: {
+        getReservations: 'api/get_reservations.php',
+        saveReservation: 'api/save_reservation.php',
+        getAvailability: 'api/get_availability.php',
+        createReturnTrip: 'api/create_return_trip.php',
+        convertToRide: 'api/convert_to_ride.php'
+    },
+
+    // マスターデータ
+    drivers: <?= json_encode($drivers, JSON_UNESCAPED_UNICODE) ?>,
+    vehicles: <?= json_encode($vehicles, JSON_UNESCAPED_UNICODE) ?>,
+
+    // ユーザー情報
+    currentUser: {
+        id: <?= $user_id ?>,
+        name: '<?= addslashes($user_name) ?>',
+        role: '<?= $user_role ?>'
+    },
+
+    // カレンダー表示設定
+    businessHours: {
+        startTime: '08:00:00',
+        endTime: '19:00:00'
+    },
+
+    // ステータス色設定
+    statusColors: {
+        '予約': '#2196F3',
+        '進行中': '#FF9800',
+        '完了': '#4CAF50',
+        'キャンセル': '#757575'
     }
-    
-    const calendarEl = document.getElementById('calendar');
-    if (!calendarEl) {
-        console.error('❌ カレンダー要素が見つかりません');
-        return;
-    }
-    
-    // 設定値
-    const currentDate = '<?= $current_date ?>';
-    const viewMode = '<?= $view_mode ?>';
-    const driverFilter = '<?= $driver_filter ?>';
-    
-    console.log('📊 設定値:', { currentDate, viewMode, driverFilter });
-    
-    // FullCalendar初期化
-    const calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: getViewName(viewMode),
-        initialDate: currentDate,
-        locale: 'ja',
-        headerToolbar: false,
-        slotMinTime: '08:00:00',
-        slotMaxTime: '19:00:00',
-        slotDuration: '01:00:00',
-        height: 'auto',
-        expandRows: true,
-        nowIndicator: true,
-        weekends: true,
-        
-        events: function(info, successCallback, failureCallback) {
-            console.log('🔄 予約データ取得中...', info);
-            
-            const apiUrl = `api/get_reservations.php?start=${info.startStr}&end=${info.endStr}&driver_id=${driverFilter}&view=${viewMode}`;
-            
-            fetch(apiUrl)
-                .then(response => {
-                    console.log('📡 API レスポンス:', response);
-                    if (!response.ok) throw new Error('API呼び出しエラー: ' + response.status);
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('✅ データ取得成功:', data);
-                    if (data.success) {
-                        successCallback(data.data || []);
-                        updateDashboardStats(data.data || []);
-                    } else {
-                        console.warn('⚠️ データ取得失敗:', data.error);
-                        successCallback([]);
-                    }
-                })
-                .catch(error => {
-                    console.error('❌ 予約データ取得エラー:', error);
-                    successCallback([]);
-                });
-        },
-        
-        eventClick: function(info) {
-            console.log('🖱️ イベントクリック:', info.event);
-            alert('予約詳細（実装予定）\n\n' + info.event.title);
-        },
-        
-        dateClick: function(info) {
-            console.log('📅 日付クリック:', info.dateStr);
-            if (confirm('この日付で新規予約を作成しますか？\n日付: ' + info.dateStr)) {
-                alert('予約作成機能は次のフェーズで実装予定です');
-            }
-        }
-    });
-    
-    try {
-        calendar.render();
-        console.log('✅ カレンダーレンダリング成功');
-    } catch (error) {
-        console.error('❌ カレンダーレンダリングエラー:', error);
-        alert('カレンダーの表示に失敗しました: ' + error.message);
-    }
-    
-    window.mainCalendar = calendar;
-    
-    // コントロールボタン設定
-    document.querySelectorAll('input[name="viewMode"]').forEach(radio => {
-        radio.addEventListener('change', function() {
-            calendar.changeView(getViewName(this.value));
-            updateUrlParam('view', this.value);
-        });
-    });
-    
-    document.getElementById('todayBtn')?.addEventListener('click', () => {
-        calendar.today();
-        updateUrlParam('date', new Date().toISOString().split('T')[0]);
-    });
-    
-    document.getElementById('prevBtn')?.addEventListener('click', () => {
-        calendar.prev();
-        updateUrlParam('date', calendar.getDate().toISOString().split('T')[0]);
-    });
-    
-    document.getElementById('nextBtn')?.addEventListener('click', () => {
-        calendar.next();
-        updateUrlParam('date', calendar.getDate().toISOString().split('T')[0]);
-    });
-    
-    document.getElementById('driverFilter')?.addEventListener('change', function() {
-        updateUrlParam('driver', this.value);
-        calendar.refetchEvents();
-    });
-    
-    document.getElementById('createReservationBtn')?.addEventListener('click', () => {
-        alert('新規予約作成機能は次のフェーズで実装予定です');
-    });
-    
-    console.log('✅ カレンダーシステム初期化完了');
-});
+};
 
-function getViewName(mode) {
-    const viewMap = { 'month': 'dayGridMonth', 'week': 'timeGridWeek', 'day': 'timeGridDay' };
-    return viewMap[mode] || 'dayGridMonth';
-}
-
-function updateUrlParam(key, value) {
-    const url = new URL(window.location);
-    url.searchParams.set(key, value);
-    window.history.pushState({}, '', url);
-}
-
-function updateDashboardStats(events) {
-    const today = new Date().toISOString().split('T')[0];
-    const todayEvents = events.filter(e => e.start && e.start.startsWith(today));
-    const completedEvents = todayEvents.filter(e => e.extendedProps?.status === '完了');
-    const inProgressEvents = todayEvents.filter(e => e.extendedProps?.status === '進行中');
-    
-    document.getElementById('todayReservationCount').textContent = todayEvents.length + '件';
-    document.getElementById('todayCompletedCount').textContent = completedEvents.length + '件';
-    document.getElementById('todayInProgressCount').textContent = inProgressEvents.length + '件';
-}
-
-console.log('✅ カレンダースクリプト読み込み完了');
+console.log('✅ カレンダー設定初期化完了', window.calendarConfig);
 </script>
 
 <?php echo $page_data['html_footer']; ?>
