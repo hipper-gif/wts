@@ -109,6 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'edit') {
             // 編集
             $record_id = $_POST['record_id'];
+            $driver_id = $_POST['driver_id'];
+            $vehicle_id = $_POST['vehicle_id'];
             $ride_time = $_POST['ride_time'];
             $passenger_count = $_POST['passenger_count'];
             $pickup_location = $_POST['pickup_location'];
@@ -118,24 +120,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $transportation_type = $_POST['transportation_type'];
             $payment_method = $_POST['payment_method'];
             $notes = $_POST['notes'] ?? '';
-            
+
             // 料金システム統一仕様に準拠
             $total_fare = $fare + $charge;
             $cash_amount = ($payment_method === '現金') ? $total_fare : 0;
             $card_amount = ($payment_method === 'カード') ? $total_fare : 0;
-            
-            $update_sql = "UPDATE ride_records SET 
-                ride_time = ?, passenger_count = ?, pickup_location = ?, dropoff_location = ?, 
+
+            $update_sql = "UPDATE ride_records SET
+                driver_id = ?, vehicle_id = ?,
+                ride_time = ?, passenger_count = ?, pickup_location = ?, dropoff_location = ?,
                 fare = ?, charge = ?, total_fare = ?, cash_amount = ?, card_amount = ?,
-                transportation_type = ?, payment_method = ?, notes = ?, updated_at = NOW() 
+                transportation_type = ?, payment_method = ?, notes = ?, updated_at = NOW()
                 WHERE id = ?";
             $update_stmt = $pdo->prepare($update_sql);
             $update_stmt->execute([
+                $driver_id, $vehicle_id,
                 $ride_time, $passenger_count, $pickup_location, $dropoff_location,
                 $fare, $charge, $total_fare, $cash_amount, $card_amount,
                 $transportation_type, $payment_method, $notes, $record_id
             ]);
-            
+
             $success_message = '乗車記録を更新しました。';
             
         } elseif ($action === 'delete') {

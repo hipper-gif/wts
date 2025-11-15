@@ -364,6 +364,22 @@ body.dashboard-page {
 
 /* レスポンシブ対応 */
 @media (max-width: 768px) {
+    .revenue-header {
+        padding: 15px 0;
+    }
+
+    .revenue-item .amount {
+        font-size: 1.2rem;
+    }
+
+    .revenue-item .detail {
+        font-size: 0.8rem;
+    }
+
+    .revenue-item .average {
+        font-size: 0.7rem;
+    }
+
     .business-flow {
         grid-template-columns: 1fr;
         gap: 15px;
@@ -373,20 +389,93 @@ body.dashboard-page {
         padding: 15px;
     }
 
+    .workflow-item {
+        min-height: 56px; /* Android最適化: タッチターゲット拡大 */
+        padding: 14px;
+    }
+
+    .workflow-icon {
+        width: 48px; /* Android最適化 */
+        height: 48px;
+        font-size: 1.3rem;
+    }
+
     .ride-access-floating .action-buttons .btn {
         font-size: 0.8rem;
         padding: 8px 12px;
         margin: 0 2px;
+        min-height: 48px; /* Android最適化 */
     }
 
     .ride-access-floating .title-section span {
         font-size: 0.9rem;
     }
+
+    /* Android: タッチ操作の改善 */
+    .workflow-item,
+    .preset-btn {
+        -webkit-tap-highlight-color: rgba(33, 150, 243, 0.2);
+        touch-action: manipulation;
+    }
 }
 
 @media (max-width: 576px) {
+    .revenue-header {
+        padding: 12px 0;
+    }
+
+    .revenue-header h5 {
+        font-size: 0.9rem;
+        margin-bottom: 10px !important;
+    }
+
+    .revenue-item {
+        padding: 5px;
+    }
+
+    .revenue-item .amount {
+        font-size: 1rem;
+    }
+
+    .revenue-item .detail {
+        font-size: 0.7rem;
+    }
+
+    .revenue-item .average {
+        font-size: 0.65rem;
+    }
+
+    .comparison .badge {
+        font-size: 0.75rem;
+        padding: 6px 12px;
+    }
+
     .ride-access-floating .title-section span {
         display: none;
+    }
+
+    .ride-access-floating .action-buttons .btn {
+        font-size: 0.75rem;
+        padding: 6px 10px;
+    }
+
+    /* Android: クイック金額入力の最適化 */
+    .preset-btn {
+        min-height: 48px;
+        min-width: 72px;
+        font-size: 0.9375rem; /* 15px */
+        padding: 12px 8px;
+    }
+
+    /* Android: アラートの最適化 */
+    .alert {
+        font-size: 0.9375rem; /* 15px */
+        padding: 14px;
+    }
+
+    .alert-icon {
+        min-width: 44px;
+        font-size: 1.4rem;
     }
 }
 

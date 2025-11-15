@@ -556,45 +556,91 @@ body {
 
 /* === レスポンシブデザイン === */
 
-/* XS: スマートフォン (0px-575px) */
+/* XS: スマートフォン (0px-575px) - Android最適化 */
 @media (max-width: 575.98px) {
     :root {
-        --spacing-xs: 2px;
-        --spacing-sm: 6px;
-        --spacing-md: 12px;
-        --spacing-lg: 18px;
-        --spacing-xl: 24px;
+        --spacing-xs: 4px;
+        --spacing-sm: 8px;
+        --spacing-md: 16px;
+        --spacing-lg: 20px;
+        --spacing-xl: 28px;
+        --header-height: 64px;
+        --subheader-height: 52px;
     }
-    
+
     body {
-        font-size: 14px;
+        font-size: 16px; /* Android最適化: 最小16pxでズーム防止 */
         padding-top: calc(var(--header-height) + var(--subheader-height));
+        -webkit-text-size-adjust: 100%; /* Androidテキストサイズ調整 */
+        text-size-adjust: 100%;
     }
-    
+
     .system-title {
-        font-size: 1rem;
+        font-size: 1.125rem;
     }
-    
+
     .header-content,
     .page-header,
     .content-container {
-        padding-left: var(--spacing-sm);
-        padding-right: var(--spacing-sm);
+        padding-left: var(--spacing-md);
+        padding-right: var(--spacing-md);
     }
-    
-    .text-3xl { font-size: 1.75rem; }
-    .text-2xl { font-size: 1.5rem; }
-    .text-xl { font-size: 1.125rem; }
-    
+
+    .text-3xl { font-size: 1.875rem; }
+    .text-2xl { font-size: 1.625rem; }
+    .text-xl { font-size: 1.25rem; }
+    .text-base { font-size: 1rem; }
+    .text-sm { font-size: 0.9375rem; } /* Android最適化: 15px */
+
     .btn {
+        min-height: 48px; /* Android最適化: 推奨タッチサイズ48px */
+        min-width: 48px;
+        padding: 14px 20px;
+        font-size: 1rem;
+    }
+
+    .btn-sm {
         min-height: 44px;
         min-width: 44px;
+        padding: 12px 16px;
+        font-size: 0.9375rem;
     }
-    
+
     .card-body,
     .card-header,
     .card-footer {
-        padding: var(--spacing-sm);
+        padding: var(--spacing-md);
+    }
+
+    /* Android Chrome: 固定ヘッダーの最適化 */
+    .system-header,
+    .page-header {
+        position: fixed;
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+        transform: translateZ(0);
+    }
+
+    /* タッチ操作最適化 */
+    .btn,
+    .form-control,
+    .form-select,
+    a {
+        -webkit-tap-highlight-color: rgba(59, 130, 246, 0.2);
+        touch-action: manipulation;
+    }
+
+    /* フォーム要素のAndroid最適化 */
+    .form-control,
+    .form-select {
+        min-height: 48px;
+        font-size: 16px; /* ズーム防止 */
+        padding: 14px 16px;
+    }
+
+    /* テーブルのスクロール改善 */
+    .table-responsive {
+        -webkit-overflow-scrolling: touch;
     }
 }
 
@@ -1214,12 +1260,100 @@ body {
         --text-secondary: #000;
         --text-muted: #000;
     }
-    
+
     .btn {
         border-width: 2px;
     }
-    
+
     .form-control {
         border-width: 2px;
+    }
+}
+
+/* === Android端末専用最適化 === */
+@supports (-webkit-touch-callout: none) {
+    /* iOS除外のためのAndroid専用スタイル */
+}
+
+/* Android Chrome最適化 */
+@media screen and (max-width: 767px) {
+    /* スクロール最適化 */
+    * {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* 入力フィールドのズーム防止（最小16px） */
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="number"],
+    input[type="date"],
+    input[type="time"],
+    textarea,
+    select {
+        font-size: 16px !important;
+    }
+
+    /* タップハイライト最適化 */
+    a, button, .btn, .clickable {
+        -webkit-tap-highlight-color: rgba(59, 130, 246, 0.3);
+        tap-highlight-color: rgba(59, 130, 246, 0.3);
+    }
+
+    /* Android固有のレンダリング最適化 */
+    .system-header,
+    .page-header {
+        will-change: transform;
+        transform: translate3d(0, 0, 0);
+    }
+
+    /* オーバースクロール効果の改善 */
+    body {
+        overscroll-behavior-y: contain;
+    }
+
+    /* モバイル環境でのフォーカス状態改善 */
+    .form-control:focus,
+    .form-select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+    }
+}
+
+/* 横向き対応（Android） */
+@media screen and (max-width: 767px) and (orientation: landscape) {
+    :root {
+        --header-height: 48px;
+        --subheader-height: 44px;
+    }
+
+    .system-header {
+        height: var(--header-height);
+    }
+
+    .page-header {
+        height: var(--subheader-height);
+    }
+
+    body {
+        padding-top: calc(var(--header-height) + var(--subheader-height));
+    }
+}
+
+/* Android WebView対応 */
+@media screen and (max-width: 767px) {
+    /* WebViewでの固定位置改善 */
+    .modal,
+    .dropdown-menu {
+        position: absolute;
+        transform: translate3d(0, 0, 0);
+    }
+
+    /* スクロールパフォーマンス向上 */
+    .content-container,
+    .main-content {
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
     }
 }
