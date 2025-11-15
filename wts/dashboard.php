@@ -250,8 +250,11 @@ $page_data = renderCompletePage(
 echo $page_data['html_head'];
 ?>
 
+<!-- ダッシュボード専用クラスをbodyに追加 -->
+<script>document.body.classList.add('dashboard-page');</script>
+
 <!-- ダッシュボード専用：簡易ヘッダー -->
-<div class="dashboard-mini-header" style="position: fixed; top: 0; left: 0; right: 0; background: white; padding: 10px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 1100; display: flex; justify-content: space-between; align-items: center; height: 50px;">
+<div class="dashboard-mini-header">
     <div class="d-flex align-items-center">
         <i class="fas fa-taxi text-primary me-2"></i>
         <strong class="d-none d-sm-inline"><?= htmlspecialchars($system_name) ?></strong>
@@ -269,18 +272,17 @@ echo $page_data['html_head'];
     </div>
 </div>
 
-<!-- メインコンテンツ開始（ヘッダー分のマージン追加） -->
+<!-- メインコンテンツ開始 -->
     <!-- Layer 1: 売上情報ヘッダー（sticky） -->
     <div class="revenue-header">
         <div class="container">
-            <!-- システム名 -->
-            <div class="text-center mb-2">
-                <h4 class="mb-1">
-                    <i class="fas fa-taxi me-2"></i><?= htmlspecialchars($system_name) ?>
-                </h4>
-                <small><?= htmlspecialchars($user_name) ?> (<?= htmlspecialchars($user_role_display) ?>) | <?= date('Y年n月j日') ?> <?= $current_time ?></small>
+            <!-- 日付表示 -->
+            <div class="text-center mb-3">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar-alt me-2"></i><?= date('Y年n月j日') ?> (<?= ['日', '月', '火', '水', '木', '金', '土'][date('w')] ?>) <?= $current_time ?>
+                </h5>
             </div>
-            
+
             <!-- メイン売上表示 -->
             <div class="row text-center mb-2">
                 <div class="col-4">
