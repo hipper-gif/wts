@@ -231,47 +231,101 @@
     font-size: 1.2rem;
 }
 
-/* レスポンシブ対応 */
+/* レスポンシブ対応 - Android最適化 */
 @media (max-width: 768px) {
+    .revenue-header {
+        top: 116px; /* Android最適化: 拡大されたヘッダーに対応 */
+    }
+
     .revenue-header .amount {
-        font-size: 1.1rem;
+        font-size: 1.25rem; /* Android最適化: より大きく */
     }
 
     .revenue-item .detail {
-        font-size: 0.8rem;
+        font-size: 0.875rem; /* Android最適化: 14px */
     }
 
     .revenue-item .average {
-        font-size: 0.7rem;
+        font-size: 0.8125rem; /* Android最適化: 13px */
     }
 
     .business-flow {
         grid-template-columns: 1fr;
-        gap: 15px;
+        gap: 16px; /* Android最適化: タッチしやすい間隔 */
     }
 
     .workflow-group {
-        padding: 15px;
+        padding: 16px; /* Android最適化 */
+    }
+
+    .workflow-item {
+        min-height: 56px; /* Android最適化: タッチターゲット拡大 */
+        padding: 14px;
+    }
+
+    .workflow-icon {
+        width: 48px; /* Android最適化 */
+        height: 48px;
+        font-size: 1.3rem;
     }
 
     .ride-access-floating .action-buttons .btn {
-        font-size: 0.8rem;
-        padding: 8px 12px;
-        margin: 0 2px;
+        font-size: 0.875rem; /* Android最適化: 14px */
+        padding: 12px 16px;
+        margin: 0 4px;
+        min-height: 48px; /* Android最適化 */
     }
 
     .ride-access-floating .title-section span {
-        font-size: 0.9rem;
+        font-size: 1rem;
+    }
+
+    /* Android: タッチ操作の改善 */
+    .workflow-item,
+    .preset-btn {
+        -webkit-tap-highlight-color: rgba(33, 150, 243, 0.2);
+        touch-action: manipulation;
     }
 }
 
 @media (max-width: 576px) {
     .revenue-header {
-        padding: 10px 0;
+        padding: 12px 0; /* Android最適化 */
+        position: sticky;
+        top: 116px; /* システムヘッダー(64px) + ページヘッダー(52px) */
+    }
+
+    .revenue-item {
+        padding: 0 12px;
     }
 
     .ride-access-floating .title-section span {
-        display: none;
+        display: inline; /* Android最適化: 表示維持 */
+        font-size: 0.9375rem; /* 15px */
+    }
+
+    .ride-access-floating .action-buttons .btn {
+        font-size: 0.8125rem; /* 13px */
+        padding: 10px 14px;
+    }
+
+    /* Android: クイック金額入力の最適化 */
+    .preset-btn {
+        min-height: 48px;
+        min-width: 72px;
+        font-size: 0.9375rem; /* 15px */
+        padding: 12px 8px;
+    }
+
+    /* Android: アラートの最適化 */
+    .alert {
+        font-size: 0.9375rem; /* 15px */
+        padding: 14px;
+    }
+
+    .alert-icon {
+        min-width: 44px;
+        font-size: 1.4rem;
     }
 }
 

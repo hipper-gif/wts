@@ -264,9 +264,13 @@ function renderCompleteHTMLHead($page_title, $options = []) {
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <meta name="description" content="' . htmlspecialchars($description) . '">
     <meta name="keywords" content="福祉輸送,タクシー,業務管理,PWA,オフライン,法令遵守,7段階フロー">
+
+    <!-- Android最適化 -->
+    <meta name="format-detection" content="telephone=yes">
+    <meta name="mobile-web-app-capable" content="yes">
     
     <title>' . htmlspecialchars($page_title) . ' - ' . htmlspecialchars($system_names['full']) . ' ' . $system_names['version'] . '</title>
     

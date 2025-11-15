@@ -813,131 +813,201 @@ body {
 
 /* ========== レスポンシブデザイン ========== */
 
-/* タブレット（768px以下） */
+/* タブレット（768px以下） - Android最適化 */
 @media (max-width: 768px) {
     :root {
-        --header-height: 56px;
-        --page-header-height: 44px;
-        --spacing-md: 12px;
-        --spacing-lg: 16px;
-        --spacing-xl: 24px;
+        --header-height: 60px; /* Android最適化 */
+        --page-header-height: 48px; /* Android最適化 */
+        --spacing-md: 14px;
+        --spacing-lg: 18px;
+        --spacing-xl: 26px;
     }
-    
+
     body {
-        font-size: 15px;
+        font-size: 16px; /* Android最適化 */
         padding-top: calc(var(--header-height) + var(--page-header-height));
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
     }
-    
+
     .system-header .container-fluid,
     .page-header .container-fluid {
         padding: 0 var(--spacing-md);
     }
-    
+
     .container-fluid {
         padding: var(--spacing-md);
     }
-    
+
     .system-title {
         font-size: 1.125rem;
     }
-    
+
     .page-title {
-        font-size: 1rem;
+        font-size: 1.0625rem; /* Android最適化: 17px */
     }
-    
+
     .user-area {
         gap: var(--spacing-sm);
     }
-    
+
     .user-details {
         display: none;
     }
-    
+
     .dashboard-link span,
     .logout-btn span {
         display: none;
     }
-    
+
+    .dashboard-link,
+    .logout-btn {
+        min-height: 44px; /* Android最適化 */
+        min-width: 44px;
+    }
+
     .card-body,
     .card-header {
         padding: var(--spacing-md);
     }
-    
+
+    /* Android: ボタンサイズの最適化 */
+    .btn {
+        min-height: 48px;
+        padding: 12px 18px;
+    }
+
+    .btn-sm {
+        min-height: 44px;
+        padding: 10px 14px;
+    }
+
     .pwa-notification {
         top: calc(var(--header-height) + var(--page-header-height) + var(--spacing-sm));
         right: var(--spacing-sm);
         left: var(--spacing-sm);
         max-width: none;
     }
-    
+
     #pwa-install-btn {
         bottom: var(--spacing-md);
         right: var(--spacing-md);
         left: var(--spacing-md);
         justify-content: center;
+        min-height: 48px; /* Android最適化 */
+    }
+
+    /* Android: タッチ操作の改善 */
+    a, button, .btn, .check-option {
+        -webkit-tap-highlight-color: rgba(33, 150, 243, 0.2);
+        touch-action: manipulation;
     }
 }
 
-/* スマートフォン（576px以下） */
+/* スマートフォン（576px以下） - Android最適化 */
 @media (max-width: 576px) {
     :root {
-        --header-height: 52px;
-        --page-header-height: 40px;
-        --spacing-sm: 6px;
-        --spacing-md: 10px;
-        --spacing-lg: 14px;
+        --header-height: 64px; /* Android最適化 */
+        --page-header-height: 52px; /* Android最適化 */
+        --spacing-sm: 8px;
+        --spacing-md: 12px;
+        --spacing-lg: 16px;
     }
-    
+
     body {
-        font-size: 14px;
+        font-size: 16px; /* Android最適化: ズーム防止 */
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
     }
-    
+
     .system-header .container-fluid,
     .page-header .container-fluid {
-        padding: 0 var(--spacing-sm);
+        padding: 0 var(--spacing-md);
     }
-    
+
     .container-fluid {
-        padding: var(--spacing-sm);
+        padding: var(--spacing-md);
     }
-    
+
     .system-title {
-        font-size: 1rem;
+        font-size: 1.125rem; /* Android最適化 */
     }
-    
+
     .page-title {
-        font-size: 0.9rem;
+        font-size: 1rem; /* Android最適化 */
     }
-    
+
     .version-badge {
-        display: none;
+        font-size: 0.625rem;
+        padding: 2px 4px;
     }
-    
+
     .user-area {
-        gap: var(--spacing-xs);
+        gap: var(--spacing-sm);
     }
-    
+
     .dashboard-link,
     .logout-btn {
-        padding: 6px 8px;
-        font-size: 0.8rem;
+        padding: 10px 12px; /* Android最適化: タッチターゲット拡大 */
+        font-size: 0.875rem; /* Android最適化: 14px */
+        min-height: 44px; /* Android最適化 */
     }
-    
+
     .card-body,
     .card-header {
-        padding: var(--spacing-sm);
+        padding: var(--spacing-md);
     }
-    
+
     .btn {
-        padding: 8px 12px;
-        font-size: 0.8rem;
-        min-height: 36px;
+        padding: 12px 16px; /* Android最適化 */
+        font-size: 0.9375rem; /* Android最適化: 15px */
+        min-height: 48px; /* Android最適化 */
     }
-    
+
     .btn-sm {
-        padding: 4px 8px;
-        font-size: 0.7rem;
-        min-height: 28px;
+        padding: 8px 12px; /* Android最適化 */
+        font-size: 0.875rem; /* Android最適化: 14px */
+        min-height: 44px; /* Android最適化 */
+    }
+
+    /* Android: タッチ操作の改善 */
+    .btn,
+    .dashboard-link,
+    .logout-btn,
+    a {
+        -webkit-tap-highlight-color: rgba(33, 150, 243, 0.2);
+        touch-action: manipulation;
+    }
+
+    /* Android: フォーム要素の最適化 */
+    .form-control,
+    .form-select {
+        font-size: 16px !important; /* Android最適化: ズーム防止 */
+        min-height: 48px;
+        padding: 12px 14px;
+    }
+
+    /* Android: チェックオプションの最適化 */
+    .check-option {
+        min-width: 48px; /* Android最適化 */
+        min-height: 44px;
+        padding: 10px 14px;
+    }
+
+    /* Android: 固定ヘッダーの最適化 */
+    .system-header-container,
+    .page-header {
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+        transform: translateZ(0);
+        will-change: transform;
+    }
+
+    /* Android: スクロール最適化 */
+    .table-responsive,
+    .modal-body,
+    .dropdown-menu {
+        -webkit-overflow-scrolling: touch;
     }
 }
 
@@ -1848,20 +1918,100 @@ a:focus, button:focus, input:focus, select:focus, textarea:focus, [tabindex]:not
 .g-2 > * { padding: 0.5rem; }
 .g-3 > * { padding: 1rem; }
 
+/* ========== Android端末専用最適化 ========== */
+@media screen and (max-width: 767px) {
+    /* Android Chrome: スクロール性能向上 */
+    * {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* 入力フィールドのズーム防止（最小16px） */
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="number"],
+    input[type="date"],
+    input[type="time"],
+    textarea,
+    select {
+        font-size: 16px !important;
+    }
+
+    /* Android: オーバースクロール効果の改善 */
+    body {
+        overscroll-behavior-y: contain;
+    }
+
+    /* Android: 固定ヘッダーのスクロール問題対策 */
+    .system-header-container,
+    .page-header {
+        -webkit-transform: translate3d(0, 0, 0);
+        transform: translate3d(0, 0, 0);
+        will-change: transform;
+    }
+}
+
+/* Android横向き対応 */
+@media screen and (max-width: 767px) and (orientation: landscape) {
+    :root {
+        --header-height: 48px;
+        --page-header-height: 44px;
+    }
+
+    .system-header-container {
+        height: var(--header-height);
+    }
+
+    .page-header {
+        height: var(--page-header-height);
+    }
+
+    body {
+        padding-top: calc(var(--header-height) + var(--page-header-height));
+    }
+
+    .system-title {
+        font-size: 1rem;
+    }
+
+    .page-title {
+        font-size: 0.9375rem;
+    }
+}
+
+/* Android WebView対応 */
+@media screen and (max-width: 767px) {
+    /* WebViewでの固定位置改善 */
+    .modal,
+    .dropdown-menu {
+        position: absolute;
+        transform: translate3d(0, 0, 0);
+    }
+
+    /* スクロールパフォーマンス向上 */
+    .container-fluid,
+    .card-body {
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
+    }
+}
+
 /* ========== 終了メッセージ ========== */
-/* 
- * 福祉輸送管理システム v3.1 統一CSS完成
- * 
+/*
+ * 福祉輸送管理システム v3.1 統一CSS完成（Android最適化版）
+ *
  * 🎯 対応範囲:
  * - 19ページ全対応（日次7 + 定期2 + 基盤2 + 管理3 + 診断5）
  * - PWA完全対応（オフライン・インストール・通知）
  * - レスポンシブデザイン（スマホ・タブレット・デスクトップ）
  * - アクセシビリティ対応（高コントラスト・フォーカス管理）
  * - 印刷対応・ダークモード準備
- * 
+ * - Android端末最適化（タッチターゲット・ズーム防止・スクロール改善）
+ *
  * 💡 特徴:
  * - モダンミニマルデザイン
  * - 頻度別カテゴリカラー対応
  * - 統一されたアニメーション・トランジション
  * - 福祉輸送管理システム専用コンポーネント
+ * - Android Chrome・WebView完全対応
  */
