@@ -257,9 +257,8 @@ echo $page_data['html_head'];
 <div class="dashboard-mini-header">
     <div class="d-flex align-items-center">
         <i class="fas fa-taxi text-primary me-2"></i>
-        <strong class="d-none d-sm-inline"><?= htmlspecialchars($system_name) ?></strong>
-        <span class="text-muted ms-2 d-none d-md-inline" style="font-size: 0.9rem;"><?= htmlspecialchars($user_name) ?> (<?= htmlspecialchars($user_role_display) ?>)</span>
-        <span class="text-muted ms-2 d-sm-none" style="font-size: 0.85rem;">Dashboard</span>
+        <strong class="dashboard-title"><?= htmlspecialchars($system_name) ?></strong>
+        <span class="text-muted ms-2 d-none d-md-inline dashboard-user-info"><?= htmlspecialchars($user_name) ?> (<?= htmlspecialchars($user_role_display) ?>)</span>
     </div>
     <div class="d-flex align-items-center gap-2">
         <a href="master_menu.php" class="btn btn-sm btn-outline-primary d-none d-md-inline-block">
