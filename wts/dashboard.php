@@ -227,7 +227,7 @@ usort($alerts, function($a, $b) {
 // 統一ヘッダーシステムでページ生成（ヘッダー非表示モード）
 $page_options = [
     'description' => '業務状況の総合管理 - 7段階業務フローの進捗管理',
-    'additional_css' => ['css/dashboard.css'],
+    'additional_css' => ['css/dashboard.css?v=' . filemtime('css/dashboard.css')],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => 'dashboard.php']
     ],
