@@ -30,10 +30,36 @@ body.dashboard-page {
     border-bottom: 1px solid #e9ecef;
 }
 
+/* ダッシュボードタイトルのレスポンシブ */
+.dashboard-title {
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.dashboard-user-info {
+    font-size: 0.9rem;
+}
+
+/* タブレット以上 */
+@media (min-width: 768px) {
+    .dashboard-title {
+        font-size: 1.1rem;
+        max-width: none;
+    }
+}
+
 /* スマホでの簡易ヘッダー調整 */
 @media (max-width: 576px) {
     .dashboard-mini-header {
         padding: 5px 10px;
+    }
+
+    .dashboard-title {
+        font-size: 0.9rem;
+        max-width: 150px;
     }
 }
 
