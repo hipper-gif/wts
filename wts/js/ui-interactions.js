@@ -892,9 +892,5 @@
         console.error('Unhandled Promise Rejection:', e.reason);
         e.preventDefault();
     });
-    
-})();万円')) return 10000;
-        if (denomination.includes('5千円') || denomination.includes('5000円')) return 5000;
-        if (denomination.includes('2千円') || denomination.includes('2000円')) return 2000;
-        if (denomination.includes('千円') || denomination.includes('1000円')) return 1000;
-        if (denomination.includes('
+
+})();
