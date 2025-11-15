@@ -3,13 +3,14 @@
  *
  * ファイル: /css/dashboard.css
  * 作成日: 2025年11月13日
- * 説明: dashboard.phpのページ固有CSS
+ * 更新日: 2025年11月15日
+ * 説明: dashboard.phpのページ固有CSS - レイアウト修正版
  * ================================================================= */
 
 /* ダッシュボード専用のbodyスタイル - 統一ヘッダーのpadding-topを上書き */
 body.dashboard-page {
     padding-top: 50px !important; /* 簡易ヘッダー分 */
-    padding-bottom: 100px; /* 浮動フッター用スペース */
+    padding-bottom: 100px !important; /* 浮動フッター用スペース */
     background-color: #f8f9fa;
 }
 
@@ -20,7 +21,7 @@ body.dashboard-page {
     left: 0;
     right: 0;
     background: white;
-    padding: 10px 20px;
+    padding: 12px 20px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     z-index: 1100;
     display: flex;
@@ -30,6 +31,19 @@ body.dashboard-page {
     border-bottom: 1px solid #e9ecef;
 }
 
+.dashboard-mini-header > div {
+    display: flex;
+    align-items: center;
+}
+
+.dashboard-mini-header .d-flex.gap-2 > * {
+    margin-left: 8px;
+}
+
+.dashboard-mini-header .d-flex.gap-2 > *:first-child {
+    margin-left: 0;
+}
+
 /* ダッシュボードタイトルのレスポンシブ */
 .dashboard-title {
     font-size: 1rem;
@@ -37,39 +51,38 @@ body.dashboard-page {
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 200px;
+    margin: 0;
 }
 
 .dashboard-user-info {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
 }
 
 /* タブレット以上 */
 @media (min-width: 768px) {
     .dashboard-title {
         font-size: 1.1rem;
-        max-width: none;
+        max-width: 300px;
     }
 }
 
 /* スマホでの簡易ヘッダー調整 */
 @media (max-width: 576px) {
     .dashboard-mini-header {
-        padding: 5px 10px;
+        padding: 8px 15px;
     }
 
     .dashboard-title {
-        font-size: 0.9rem;
-        max-width: 150px;
+        font-size: 0.85rem;
+        max-width: 120px;
     }
 }
 
 /* PWAモード対応 */
 @media (display-mode: standalone) {
     body.dashboard-page {
-        padding-top: 0;
-    }
-    .navbar {
-        display: none;
+        padding-top: 0 !important;
     }
     .revenue-header {
         margin-top: 20px;
@@ -82,45 +95,104 @@ body.dashboard-page {
     top: 50px; /* ダッシュボード簡易ヘッダー(50px) */
     background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
     color: white;
-    padding: 15px 0;
+    padding: 20px 0;
     z-index: 900;
     box-shadow: 0 2px 10px rgba(33, 150, 243, 0.3);
+    margin-bottom: 20px;
+}
+
+.revenue-header h5 {
+    color: white;
+    font-weight: 600;
 }
 
 .revenue-item {
-    padding: 0 15px;
-    border-right: 1px solid rgba(255,255,255,0.2);
+    padding: 10px;
     text-align: center;
 }
 
-.revenue-item:last-child {
-    border-right: none;
-}
-
 .revenue-item .amount {
-    font-size: 1.25rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: #FFFFFF;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    margin-bottom: 2px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    margin-bottom: 5px;
+    display: block;
 }
 
 .revenue-item .detail {
-    opacity: 0.9;
-    font-size: 0.85rem;
-    margin-bottom: 2px;
+    opacity: 0.95;
+    font-size: 0.9rem;
+    margin-bottom: 3px;
+    display: block;
 }
 
 .revenue-item .average {
-    opacity: 0.7;
-    font-size: 0.75rem;
+    opacity: 0.85;
+    font-size: 0.8rem;
+    display: block;
+}
+
+.comparison {
+    margin-top: 15px;
 }
 
 .comparison .badge {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     border-radius: 20px;
-    padding: 8px 16px;
+    padding: 10px 20px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* モバイル対応 - 売上ヘッダー */
+@media (max-width: 768px) {
+    .revenue-header {
+        padding: 15px 0;
+    }
+
+    .revenue-item .amount {
+        font-size: 1.2rem;
+    }
+
+    .revenue-item .detail {
+        font-size: 0.8rem;
+    }
+
+    .revenue-item .average {
+        font-size: 0.7rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .revenue-header {
+        padding: 12px 0;
+    }
+
+    .revenue-header h5 {
+        font-size: 0.9rem;
+        margin-bottom: 10px !important;
+    }
+
+    .revenue-item {
+        padding: 5px;
+    }
+
+    .revenue-item .amount {
+        font-size: 1rem;
+    }
+
+    .revenue-item .detail {
+        font-size: 0.7rem;
+    }
+
+    .revenue-item .average {
+        font-size: 0.65rem;
+    }
+
+    .comparison .badge {
+        font-size: 0.75rem;
+        padding: 6px 12px;
+    }
 }
 
 /* Layer 2: アラート表示エリア */
@@ -186,6 +258,7 @@ body.dashboard-page {
     padding: 10px;
     transition: all 0.3s ease;
     cursor: pointer;
+    text-align: center;
 }
 
 .preset-btn:hover, .preset-btn.active {
@@ -197,7 +270,7 @@ body.dashboard-page {
 /* Layer 4: 業務フロー（4グループ） */
 .business-flow {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 20px;
     margin: 30px 0;
 }
@@ -244,6 +317,7 @@ body.dashboard-page {
     justify-content: center;
     margin-right: 15px;
     font-size: 1.2rem;
+    flex-shrink: 0;
 }
 
 .start-group .workflow-icon { background: rgba(108, 117, 125, 0.1); color: #6c757d; }
@@ -288,31 +362,31 @@ body.dashboard-page {
     font-size: 1.2rem;
 }
 
-/* レスポンシブ対応 - Android最適化 */
+/* レスポンシブ対応 */
 @media (max-width: 768px) {
     .revenue-header {
-        top: 116px; /* Android最適化: 拡大されたヘッダーに対応 */
+        padding: 15px 0;
     }
 
-    .revenue-header .amount {
-        font-size: 1.25rem; /* Android最適化: より大きく */
+    .revenue-item .amount {
+        font-size: 1.2rem;
     }
 
     .revenue-item .detail {
-        font-size: 0.875rem; /* Android最適化: 14px */
+        font-size: 0.8rem;
     }
 
     .revenue-item .average {
-        font-size: 0.8125rem; /* Android最適化: 13px */
+        font-size: 0.7rem;
     }
 
     .business-flow {
         grid-template-columns: 1fr;
-        gap: 16px; /* Android最適化: タッチしやすい間隔 */
+        gap: 15px;
     }
 
     .workflow-group {
-        padding: 16px; /* Android最適化 */
+        padding: 15px;
     }
 
     .workflow-item {
@@ -327,14 +401,14 @@ body.dashboard-page {
     }
 
     .ride-access-floating .action-buttons .btn {
-        font-size: 0.875rem; /* Android最適化: 14px */
-        padding: 12px 16px;
-        margin: 0 4px;
+        font-size: 0.8rem;
+        padding: 8px 12px;
+        margin: 0 2px;
         min-height: 48px; /* Android最適化 */
     }
 
     .ride-access-floating .title-section span {
-        font-size: 1rem;
+        font-size: 0.9rem;
     }
 
     /* Android: タッチ操作の改善 */
@@ -347,23 +421,42 @@ body.dashboard-page {
 
 @media (max-width: 576px) {
     .revenue-header {
-        padding: 12px 0; /* Android最適化 */
-        position: sticky;
-        top: 116px; /* システムヘッダー(64px) + ページヘッダー(52px) */
+        padding: 12px 0;
+    }
+
+    .revenue-header h5 {
+        font-size: 0.9rem;
+        margin-bottom: 10px !important;
     }
 
     .revenue-item {
-        padding: 0 12px;
+        padding: 5px;
+    }
+
+    .revenue-item .amount {
+        font-size: 1rem;
+    }
+
+    .revenue-item .detail {
+        font-size: 0.7rem;
+    }
+
+    .revenue-item .average {
+        font-size: 0.65rem;
+    }
+
+    .comparison .badge {
+        font-size: 0.75rem;
+        padding: 6px 12px;
     }
 
     .ride-access-floating .title-section span {
-        display: inline; /* Android最適化: 表示維持 */
-        font-size: 0.9375rem; /* 15px */
+        display: none;
     }
 
     .ride-access-floating .action-buttons .btn {
-        font-size: 0.8125rem; /* 13px */
-        padding: 10px 14px;
+        font-size: 0.75rem;
+        padding: 6px 10px;
     }
 
     /* Android: クイック金額入力の最適化 */
