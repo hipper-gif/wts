@@ -56,17 +56,16 @@ $page_config = [
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [
-        // FullCalendar CDN
-        'https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/main.min.css',
+        // FullCalendar CDN (v6.1.11)
+        'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css',
         // カレンダー専用CSS
         'css/calendar.css',
         'css/calendar-custom.css',
         'css/reservation.css'
     ],
     'additional_js' => [
-        // FullCalendar CDN
-        'https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/main.min.js',
-        'https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.8/locales/ja.min.js',
+        // FullCalendar CDN (v6.1.11 - includes all plugins)
+        'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js',
         // カレンダー専用JS
         'js/calendar.js',
         'js/reservation.js',
