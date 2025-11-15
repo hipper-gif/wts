@@ -224,13 +224,14 @@ usort($alerts, function($a, $b) {
     return $priority_order[$a['priority']] - $priority_order[$b['priority']];
 });
 
-// 統一ヘッダーシステムでページ生成
+// 統一ヘッダーシステムでページ生成（ヘッダー非表示モード）
 $page_options = [
     'description' => '業務状況の総合管理 - 7段階業務フローの進捗管理',
     'additional_css' => ['css/dashboard.css'],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => 'dashboard.php']
-    ]
+    ],
+    'hide_headers' => true  // ダッシュボード専用：ヘッダーを非表示
 ];
 
 $page_data = renderCompletePage(
@@ -245,13 +246,30 @@ $page_data = renderCompletePage(
     $page_options
 );
 
-// HTMLヘッダー出力
+// HTMLヘッダー出力（ヘッダーは非表示）
 echo $page_data['html_head'];
-echo $page_data['system_header'];
-echo $page_data['page_header'];
 ?>
 
-<!-- メインコンテンツ開始 -->
+<!-- ダッシュボード専用：簡易ヘッダー -->
+<div class="dashboard-mini-header" style="position: fixed; top: 0; left: 0; right: 0; background: white; padding: 10px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 1100; display: flex; justify-content: space-between; align-items: center; height: 50px;">
+    <div class="d-flex align-items-center">
+        <i class="fas fa-taxi text-primary me-2"></i>
+        <strong class="d-none d-sm-inline"><?= htmlspecialchars($system_name) ?></strong>
+        <span class="text-muted ms-2 d-none d-md-inline" style="font-size: 0.9rem;"><?= htmlspecialchars($user_name) ?> (<?= htmlspecialchars($user_role_display) ?>)</span>
+        <span class="text-muted ms-2 d-sm-none" style="font-size: 0.85rem;">Dashboard</span>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="master_menu.php" class="btn btn-sm btn-outline-primary d-none d-md-inline-block">
+            <i class="fas fa-th-large me-1"></i>メニュー
+        </a>
+        <a href="logout.php" class="btn btn-sm btn-outline-danger">
+            <i class="fas fa-sign-out-alt"></i>
+            <span class="d-none d-sm-inline ms-1">ログアウト</span>
+        </a>
+    </div>
+</div>
+
+<!-- メインコンテンツ開始（ヘッダー分のマージン追加） -->
     <!-- Layer 1: 売上情報ヘッダー（sticky） -->
     <div class="revenue-header">
         <div class="container">
@@ -760,4 +778,7 @@ echo $page_data['page_header'];
     </script>
 </main>
 
-<?php echo $page_data['html_footer']; ?>
+<!-- ダッシュボードではフッターを非表示（浮動フッターを使用） -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

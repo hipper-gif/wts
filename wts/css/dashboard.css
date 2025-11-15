@@ -22,12 +22,17 @@
 /* Layer 1: 売上情報ヘッダー（sticky） */
 .revenue-header {
     position: sticky;
-    top: 108px; /* システムヘッダー(60px) + ページヘッダー(48px) */
+    top: 50px; /* ダッシュボード簡易ヘッダー(50px) */
     background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
     color: white;
     padding: 15px 0;
     z-index: 900;
     box-shadow: 0 2px 10px rgba(33, 150, 243, 0.3);
+}
+
+/* ダッシュボード全体のマージン調整 */
+body {
+    padding-top: 50px; /* 簡易ヘッダー分 */
 }
 
 .revenue-item {
