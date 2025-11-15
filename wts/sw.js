@@ -1,7 +1,7 @@
 // 福祉輸送管理システム (WTS) - Service Worker
-// Version 1.0.0
+// Version 1.1.0 - Android Layout Optimization
 
-const CACHE_VERSION = 'wts-v1.0.0';
+const CACHE_VERSION = 'wts-v1.1.0-android';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_DYNAMIC = `${CACHE_VERSION}-dynamic`;
 const CACHE_API = `${CACHE_VERSION}-api`;
@@ -16,6 +16,7 @@ const STATIC_CACHE_URLS = [
     // CSS
     '/Smiley/taxi/wts/css/ui-unified-v3.css',
     '/Smiley/taxi/wts/css/header-unified.css',
+    '/Smiley/taxi/wts/css/dashboard.css',
     '/Smiley/taxi/wts/calendar/css/calendar.css',
     '/Smiley/taxi/wts/calendar/css/reservation.css',
 
