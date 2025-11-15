@@ -131,6 +131,29 @@ body {
     font-size: 1.4rem;
 }
 
+/* システム名表示（レスポンシブ対応） */
+.system-name-display {
+    display: inline;
+}
+
+/* タブレット以下ではフォントサイズを小さく */
+@media (max-width: 768px) {
+    .system-name-display {
+        font-size: 0.9rem;
+    }
+}
+
+/* スマホでは更に小さく */
+@media (max-width: 576px) {
+    .system-name-display {
+        font-size: 0.8rem;
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
 .version-badge {
     background: var(--primary);
     color: var(--white);
@@ -138,7 +161,6 @@ body {
     border-radius: 12px;
     font-size: 0.65rem;
     font-weight: 500;
-    margin-left: var(--spacing-xs);
     vertical-align: top;
 }
 

@@ -31,7 +31,7 @@ function getSystemName() {
  */
 function getResponsiveSystemNames() {
     $full_name = getSystemName();
-    
+
     return [
         'full' => $full_name,
         'short' => str_replace(['システム', 'System'], '', $full_name),
@@ -41,15 +41,35 @@ function getResponsiveSystemNames() {
 }
 
 function generateMobileAbbreviation($name) {
+    // 福祉輸送管理システムの場合
     if (strpos($name, '福祉輸送管理システム') !== false) {
         return 'WTS';
     }
-    $words = explode(' ', str_replace(['システム', 'System'], '', $name));
-    $abbr = '';
-    foreach ($words as $word) {
-        $abbr .= mb_substr($word, 0, 1);
+
+    // システム、Systemを除去
+    $cleaned = str_replace(['システム', 'System'], '', $name);
+
+    // 短すぎる場合はそのまま返す（10文字以下）
+    if (mb_strlen($cleaned) <= 10) {
+        return $cleaned;
     }
-    return strtoupper($abbr);
+
+    // スペース区切りで単語に分解
+    $words = preg_split('/[\s　]+/u', $cleaned);
+
+    // 単語が複数ある場合は各単語の頭文字を取る
+    if (count($words) > 1) {
+        $abbr = '';
+        foreach ($words as $word) {
+            if (!empty($word)) {
+                $abbr .= mb_substr($word, 0, 1);
+            }
+        }
+        return mb_strtoupper($abbr);
+    }
+
+    // 単語が1つの場合は最初の5文字を返す
+    return mb_substr($cleaned, 0, 5);
 }
 
 /**
@@ -350,10 +370,8 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
                     <div class="system-title-area">
                         <h1 class="system-title m-0">
                             <i class="fas fa-taxi text-primary"></i>
-                            <span class="d-none d-lg-inline">' . htmlspecialchars($system_names['full']) . '</span>
-                            <span class="d-none d-md-inline d-lg-none">' . htmlspecialchars($system_names['short']) . '</span>
-                            <span class="d-md-none">' . htmlspecialchars($system_names['mobile']) . '</span>
-                            <small class="version-badge">' . $system_names['version'] . '</small>
+                            <span class="system-name-display">' . htmlspecialchars($system_names['full']) . '</span>
+                            <small class="version-badge ms-2">' . $system_names['version'] . '</small>
                         </h1>
                     </div>
                     
