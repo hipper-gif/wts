@@ -12,7 +12,7 @@ header('Content-Type: application/json; charset=utf-8');
 session_start();
 
 // 基盤システム読み込み
-require_once '../../functions.php';
+require_once '../../config/database.php';
 require_once '../includes/calendar_functions.php';
 
 // 認証チェック
@@ -21,7 +21,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // データベース接続
-$pdo = getDatabaseConnection();
+$pdo = getDBConnection();
 
 try {
     // パラメータ取得・検証
