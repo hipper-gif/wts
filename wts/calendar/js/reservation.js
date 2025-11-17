@@ -706,7 +706,9 @@ document.addEventListener('DOMContentLoaded', function() {
     function saveReservation(data, createReturn = false) {
         isSubmitting = true;
         setFormLoading(true);
-        
+
+        console.log('予約保存データ:', data);
+
         fetch(window.calendarConfig.apiUrls.saveReservation, {
             method: 'POST',
             headers: {
@@ -714,16 +716,32 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify(data)
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('APIレスポンスステータス:', response.status);
+
+            // レスポンスのContent-Typeをチェック
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                // JSONでない場合はテキストとして読み取る
+                return response.text().then(text => {
+                    console.error('APIエラーレスポンス（HTML）:', text);
+                    throw new Error('サーバーエラーが発生しました。詳細はコンソールを確認してください。');
+                });
+            }
+
+            return response.json();
+        })
         .then(result => {
+            console.log('API結果:', result);
+
             if (result.success) {
-                showNotification(result.message, 'success');
-                
+                showNotification(result.message || '予約を保存しました', 'success');
+
                 // カレンダー更新
                 if (window.calendarMethods) {
                     window.calendarMethods.refreshEvents();
                 }
-                
+
                 if (createReturn && result.can_create_return) {
                     // 復路作成処理
                     createReturnTrip(result.reservation_id);
