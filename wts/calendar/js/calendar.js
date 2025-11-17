@@ -105,14 +105,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function loadReservations(start, end, successCallback, failureCallback) {
         if (isLoading) return;
-        
+
         isLoading = true;
-        
+
         const params = new URLSearchParams({
             start: start.toISOString().split('T')[0],
             end: end.toISOString().split('T')[0],
             driver_id: currentConfig.driverFilter || 'all',
-            view_type: calendar.view.type
+            view_type: currentConfig.viewMode || 'dayGridMonth'
         });
         
         fetch(`${currentConfig.apiUrls.getReservations}?${params}`)
@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         const selectedDate = info.start.toISOString().split('T')[0];
-        const selectedTime = calendar.view.type.includes('timeGrid') ? 
+        const selectedTime = currentConfig.viewMode.includes('timeGrid') ?
             info.start.toTimeString().split(' ')[0].substring(0, 5) : '09:00';
         
         openReservationModal('create', {
@@ -191,6 +191,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function handleDatesChange(info) {
         // 表示期間変更時の処理
+        // ビューが変更された場合、currentConfigを更新
+        if (info.view && info.view.type) {
+            currentConfig.viewMode = info.view.type;
+        }
         updateSidebarContent(info.start, info.end);
     }
     
@@ -498,7 +502,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.calendarMethods = {
         refreshEvents: () => calendar.refetchEvents(),
         gotoDate: (date) => calendar.gotoDate(date),
-        getCurrentView: () => calendar.view.type,
+        getCurrentView: () => calendar ? calendar.view.type : currentConfig.viewMode,
         addEvent: (eventData) => calendar.addEvent(eventData),
         removeEvent: (eventId) => {
             const event = calendar.getEventById(eventId);
