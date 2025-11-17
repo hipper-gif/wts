@@ -655,18 +655,44 @@ document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('reservationForm');
         const formData = new FormData(form);
         const data = {};
-        
-        // 基本データ収集
+
+        // フィールド名のマッピング（キャメルケース → スネークケース）
+        const fieldMapping = {
+            'reservationId': 'id',
+            'reservationDate': 'reservation_date',
+            'reservationTime': 'reservation_time',
+            'clientName': 'client_name',
+            'pickupLocation': 'pickup_location',
+            'dropoffLocation': 'dropoff_location',
+            'passengerCount': 'passenger_count',
+            'serviceType': 'service_type',
+            'driverId': 'driver_id',
+            'vehicleId': 'vehicle_id',
+            'rentalService': 'rental_service',
+            'hospitalEscortStaff': 'hospital_escort_staff',
+            'dualAssistanceStaff': 'dual_assistance_staff',
+            'referrerType': 'referrer_type',
+            'referrerName': 'referrer_name',
+            'referrerContact': 'referrer_contact',
+            'estimatedFare': 'estimated_fare',
+            'actualFare': 'actual_fare',
+            'paymentMethod': 'payment_method',
+            'specialNotes': 'special_notes',
+            'parentReservationId': 'parent_reservation_id'
+        };
+
+        // 基本データ収集（フィールド名を変換）
         for (let [key, value] of formData.entries()) {
-            data[key] = value;
+            const mappedKey = fieldMapping[key] || key;
+            data[mappedKey] = value;
         }
-        
+
         // チェックボックスの処理
         data.entrance_assistance = document.getElementById('entranceAssistance').checked;
         data.disability_card = document.getElementById('disabilityCard').checked;
         data.care_service_user = document.getElementById('careServiceUser').checked;
         data.is_time_critical = document.getElementById('isTimeCritical').checked;
-        
+
         // 空値の処理
         Object.keys(data).forEach(key => {
             if (data[key] === '') {
