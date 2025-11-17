@@ -719,17 +719,27 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => {
             console.log('APIレスポンスステータス:', response.status);
 
-            // レスポンスのContent-Typeをチェック
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                // JSONでない場合はテキストとして読み取る
-                return response.text().then(text => {
-                    console.error('APIエラーレスポンス（HTML）:', text);
-                    throw new Error('サーバーエラーが発生しました。詳細はコンソールを確認してください。');
-                });
-            }
+            // 常にテキストとして読み取り、JSONか確認
+            return response.text().then(text => {
+                console.log('API生レスポンス (最初の500文字):', text.substring(0, 500));
 
-            return response.json();
+                // HTMLエラーやPHP警告が含まれているかチェック
+                if (text.trim().startsWith('<') || text.includes('<br />') || text.includes('Warning:') || text.includes('Notice:') || text.includes('Fatal error:')) {
+                    console.error('=== APIエラーレスポンス（HTML/PHP Error）===');
+                    console.error(text);
+                    console.error('=== エラー終了 ===');
+                    throw new Error('サーバーエラーが発生しました。詳細はコンソールを確認してください。');
+                }
+
+                // JSONとしてパース
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    console.error('JSON解析エラー:', e);
+                    console.error('レスポンステキスト:', text);
+                    throw new Error('無効なレスポンス形式です');
+                }
+            });
         })
         .then(result => {
             console.log('API結果:', result);
