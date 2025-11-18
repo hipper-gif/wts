@@ -49,21 +49,9 @@ try {
         }
     }
 
-    // 権限チェック
+    // ユーザーID取得
     $user_id = $_SESSION['user_id'];
-    $user_role = $_SESSION['user_role'] ?? 'user';
 
-    if ($user_role === 'partner_company') {
-        // 協力会社の権限確認
-        $stmt = $pdo->prepare("SELECT access_level FROM partner_companies WHERE id = ?");
-        $stmt->execute([$user_id]);
-        $company = $stmt->fetch();
-        
-        if (!$company || $company['access_level'] === '閲覧のみ') {
-            sendErrorResponse('予約作成権限がありません', 403);
-        }
-    }
-    
     // 車両制約チェック
     if (!empty($input['vehicle_id']) && !empty($input['rental_service'])) {
         $constraint_check = checkVehicleConstraints($input['vehicle_id'], $input['rental_service']);
@@ -212,9 +200,7 @@ function logCalendarAction($user_id, $action, $target_type, $target_id, $old_dat
     global $pdo;
 
     try {
-        $user_role = $_SESSION['user_role'] ?? 'user';
-        $user_type = $user_role === 'partner_company' ? 'partner_company' :
-                    ($user_role === 'admin' ? 'admin' : 'driver');
+        $user_type = 'user';
         
         $sql = "
             INSERT INTO calendar_audit_logs 
