@@ -45,7 +45,6 @@ try {
     
     // ユーザー情報
     $user_id = $_SESSION['user_id'];
-    $user_role = $_SESSION['user_role'];
     
     // 予約データ取得
     $reservations = getReservationsForCalendar($start_date, $end_date, $driver_id, $user_role);

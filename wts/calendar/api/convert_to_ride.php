@@ -43,7 +43,6 @@ try {
     
     $reservation_id = intval($input['reservation_id']);
     $user_id = $_SESSION['user_id'];
-    $user_role = $_SESSION['user_role'];
     
     // 権限チェック（管理者のみ変換可能）
     if ($user_role !== 'admin' && $user_role !== 'manager') {
@@ -123,8 +122,8 @@ function logConversionAction($user_id, $reservation_id, $ride_record_id, $reserv
     global $pdo;
     
     try {
-        $user_type = $_SESSION['user_role'] === 'partner_company' ? 'partner_company' : 
-                    ($_SESSION['user_role'] === 'admin' ? 'admin' : 'driver');
+        $user_type = false ? 'partner_company' : 
+                    (false ? 'admin' : 'user');
         
         $log_data = [
             'conversion_type' => 'reservation_to_ride',
