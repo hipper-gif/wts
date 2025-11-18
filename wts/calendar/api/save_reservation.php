@@ -48,11 +48,11 @@ try {
             sendErrorResponse("必須項目が不足しています: {$field}");
         }
     }
-    
+
     // 権限チェック
     $user_id = $_SESSION['user_id'];
-    $user_role = $_SESSION['user_role'];
-    
+    $user_role = $_SESSION['user_role'] ?? 'user';
+
     if ($user_role === 'partner_company') {
         // 協力会社の権限確認
         $stmt = $pdo->prepare("SELECT access_level FROM partner_companies WHERE id = ?");
@@ -210,10 +210,11 @@ try {
  */
 function logCalendarAction($user_id, $action, $target_type, $target_id, $old_data = null, $new_data = null) {
     global $pdo;
-    
+
     try {
-        $user_type = $_SESSION['user_role'] === 'partner_company' ? 'partner_company' : 
-                    ($_SESSION['user_role'] === 'admin' ? 'admin' : 'driver');
+        $user_role = $_SESSION['user_role'] ?? 'user';
+        $user_type = $user_role === 'partner_company' ? 'partner_company' :
+                    ($user_role === 'admin' ? 'admin' : 'driver');
         
         $sql = "
             INSERT INTO calendar_audit_logs 

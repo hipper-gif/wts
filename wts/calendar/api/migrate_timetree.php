@@ -16,7 +16,7 @@ require_once '../../config/database.php';
 require_once '../includes/calendar_functions.php';
 
 // 認証チェック（管理者のみ）
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
+if (!isset($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'admin') {
     sendErrorResponse('管理者権限が必要です', 403);
 }
 

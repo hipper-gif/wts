@@ -47,7 +47,7 @@ try {
     
     // 権限チェック
     $user_id = $_SESSION['user_id'];
-    $user_role = $_SESSION['user_role'];
+    $user_role = $_SESSION['user_role'] ?? 'user';
     
     // 親予約データ取得
     $stmt = $pdo->prepare("
@@ -184,8 +184,8 @@ function logReturnTripAction($user_id, $parent_id, $return_id, $return_data) {
     global $pdo;
     
     try {
-        $user_type = $_SESSION['user_role'] === 'partner_company' ? 'partner_company' : 
-                    ($_SESSION['user_role'] === 'admin' ? 'admin' : 'driver');
+        $user_type = ($_SESSION['user_role'] ?? 'user') === 'partner_company' ? 'partner_company' : 
+                    (($_SESSION['user_role'] ?? 'user') === 'admin' ? 'admin' : 'driver');
         
         $log_data = [
             'parent_reservation_id' => $parent_id,
