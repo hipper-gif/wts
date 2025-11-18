@@ -485,8 +485,7 @@ window.calendarConfig = {
     // ユーザー情報
     currentUser: {
         id: <?= $user_id ?>,
-        name: '<?= addslashes($user_name) ?>',
-        role: '<?= $user_role ?>'
+        name: '<?= addslashes($user_name) ?>'
     },
 
     // カレンダー表示設定
