@@ -43,7 +43,7 @@ function getCalendarConfiguration($view_mode = 'month') {
 /**
  * 予約データ取得（FullCalendar形式）
  */
-function getReservationsForCalendar($start_date, $end_date, $driver_id = null, $user_role = 'admin') {
+function getReservationsForCalendar($start_date, $end_date, $driver_id = null) {
     global $pdo;
     
     $sql = "
@@ -63,7 +63,7 @@ function getReservationsForCalendar($start_date, $end_date, $driver_id = null, $
             r.parent_reservation_id,
             r.estimated_fare,
             r.actual_fare,
-            u.full_name as driver_name,
+            u.name as driver_name,
             v.vehicle_number,
             v.model as vehicle_model,
             pc.company_name as partner_company,
@@ -82,11 +82,6 @@ function getReservationsForCalendar($start_date, $end_date, $driver_id = null, $
         $params[] = $driver_id;
     }
     
-    // 協力会社の場合は自社予約のみ
-    if ($user_role === 'partner_company') {
-        $sql .= " AND r.created_by = ?";
-        $params[] = $_SESSION['user_id'];
-    }
     
     $sql .= " ORDER BY r.reservation_date, r.reservation_time";
     
@@ -246,7 +241,7 @@ function getDriverReservationStats($date, $driver_id = null) {
     $sql = "
         SELECT 
             u.id,
-            u.full_name,
+            u.name,
             COUNT(r.id) as total_reservations,
             SUM(CASE WHEN r.status = '完了' THEN 1 ELSE 0 END) as completed_reservations,
             SUM(CASE WHEN r.status = '進行中' THEN 1 ELSE 0 END) as in_progress_reservations,
@@ -263,7 +258,7 @@ function getDriverReservationStats($date, $driver_id = null) {
         $params[] = $driver_id;
     }
     
-    $sql .= " GROUP BY u.id, u.full_name ORDER BY u.full_name";
+    $sql .= " GROUP BY u.id, u.name ORDER BY u.name";
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
