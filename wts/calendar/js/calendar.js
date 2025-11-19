@@ -142,14 +142,60 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleEventClick(info) {
         const event = info.event;
         const reservation = event.extendedProps;
-        
-        // 予約詳細を表示（編集モーダルを開く）
-        if (currentConfig.accessLevel !== '閲覧のみ') {
-            openReservationModal('edit', reservation);
-        } else {
-            showReservationDetails(reservation);
-        }
+
+        // 確認モーダルを表示
+        showReservationDetailModal(reservation);
     }
+
+    function showReservationDetailModal(reservation) {
+        // モーダル要素取得
+        const modalElement = document.getElementById('reservationDetailModal');
+        if (!modalElement) return;
+
+        // データ表示
+        document.getElementById('detailDateTime').textContent =
+            `${reservation.reservation_date} ${reservation.reservation_time}`;
+        document.getElementById('detailClientName').textContent =
+            `${reservation.clientName}様`;
+        document.getElementById('detailPickupLocation').textContent =
+            reservation.pickupLocation || '-';
+        document.getElementById('detailDropoffLocation').textContent =
+            reservation.dropoffLocation || '-';
+        document.getElementById('detailPassengerCount').textContent =
+            `${reservation.passengerCount}名`;
+        document.getElementById('detailServiceType').textContent =
+            reservation.serviceType || '-';
+        document.getElementById('detailStatus').textContent =
+            reservation.status || '予約';
+        document.getElementById('detailDriverName').textContent =
+            reservation.driverName || '未割り当て';
+        document.getElementById('detailVehicleInfo').textContent =
+            reservation.vehicleInfo || '未割り当て';
+        document.getElementById('detailRentalService').textContent =
+            reservation.rentalService || 'なし';
+        document.getElementById('detailFare').textContent =
+            reservation.fare ? `¥${reservation.fare.toLocaleString()}` : '-';
+
+        // 備考の表示
+        const notesRow = document.getElementById('detailNotesRow');
+        const notesElement = document.getElementById('detailSpecialNotes');
+        if (reservation.specialNotes) {
+            notesElement.textContent = reservation.specialNotes;
+            notesRow.style.display = 'block';
+        } else {
+            notesRow.style.display = 'none';
+        }
+
+        // 現在の予約データを保存（編集・削除用）
+        currentDetailReservation = reservation;
+
+        // モーダル表示
+        const detailModal = new bootstrap.Modal(modalElement);
+        detailModal.show();
+    }
+
+    // 確認モーダル用の現在の予約データ
+    let currentDetailReservation = null;
     
     function handleDateSelect(info) {
         // 新規予約作成
@@ -493,6 +539,69 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             });
         }
+
+        // 確認モーダルの編集ボタン
+        const editBtn = document.getElementById('editReservationBtn');
+        if (editBtn) {
+            editBtn.addEventListener('click', function() {
+                if (currentDetailReservation) {
+                    // 確認モーダルを閉じる
+                    const detailModalElement = document.getElementById('reservationDetailModal');
+                    const detailModal = bootstrap.Modal.getInstance(detailModalElement);
+                    if (detailModal) {
+                        detailModal.hide();
+                    }
+
+                    // 編集モーダルを開く
+                    setTimeout(() => {
+                        openReservationModal('edit', currentDetailReservation);
+                    }, 300);
+                }
+            });
+        }
+
+        // 確認モーダルの削除ボタン
+        const deleteBtn = document.getElementById('deleteReservationBtn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', function() {
+                if (currentDetailReservation && confirm('この予約を削除しますか？')) {
+                    deleteReservation(currentDetailReservation.reservationId);
+                }
+            });
+        }
+    }
+
+    // 予約削除処理
+    function deleteReservation(reservationId) {
+        fetch('api/delete_reservation.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ id: reservationId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('予約を削除しました', 'success');
+
+                // 確認モーダルを閉じる
+                const detailModalElement = document.getElementById('reservationDetailModal');
+                const detailModal = bootstrap.Modal.getInstance(detailModalElement);
+                if (detailModal) {
+                    detailModal.hide();
+                }
+
+                // カレンダー更新
+                calendar.refetchEvents();
+            } else {
+                throw new Error(data.message || '削除に失敗しました');
+            }
+        })
+        .catch(error => {
+            console.error('削除エラー:', error);
+            showNotification(error.message, 'error');
+        });
     }
     
     // =================================================================

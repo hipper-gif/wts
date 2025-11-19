@@ -444,6 +444,89 @@ echo $page_data['page_header'];
     </div>
 </div>
 
+<!-- 予約確認モーダル -->
+<div class="modal fade" id="reservationDetailModal" tabindex="-1" aria-labelledby="reservationDetailModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="reservationDetailModalTitle">予約詳細</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>予約日時</strong>
+                        <p id="detailDateTime" class="mb-0"></p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>利用者名</strong>
+                        <p id="detailClientName" class="mb-0"></p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>乗車場所</strong>
+                        <p id="detailPickupLocation" class="mb-0"></p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>降車場所</strong>
+                        <p id="detailDropoffLocation" class="mb-0"></p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <strong>乗客数</strong>
+                        <p id="detailPassengerCount" class="mb-0"></p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <strong>サービス種別</strong>
+                        <p id="detailServiceType" class="mb-0"></p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <strong>ステータス</strong>
+                        <p id="detailStatus" class="mb-0"></p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>運転者</strong>
+                        <p id="detailDriverName" class="mb-0"></p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>車両</strong>
+                        <p id="detailVehicleInfo" class="mb-0"></p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>レンタルサービス</strong>
+                        <p id="detailRentalService" class="mb-0"></p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>料金</strong>
+                        <p id="detailFare" class="mb-0"></p>
+                    </div>
+                </div>
+                <div class="row" id="detailNotesRow">
+                    <div class="col-12 mb-3">
+                        <strong>備考</strong>
+                        <p id="detailSpecialNotes" class="mb-0"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+                <button type="button" class="btn btn-danger" id="deleteReservationBtn">
+                    <i class="fas fa-trash me-2"></i>削除
+                </button>
+                <button type="button" class="btn btn-primary" id="editReservationBtn">
+                    <i class="fas fa-edit me-2"></i>編集
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php echo $page_data['html_footer']; ?>
 
 <!-- カレンダー設定オブジェクト初期化（FullCalendar読み込み後に実行） -->
