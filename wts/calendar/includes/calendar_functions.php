@@ -47,7 +47,7 @@ function getReservationsForCalendar($start_date, $end_date, $driver_id = null) {
     global $pdo;
     
     $sql = "
-        SELECT 
+        SELECT
             r.id,
             r.reservation_date,
             r.reservation_time,
@@ -63,6 +63,18 @@ function getReservationsForCalendar($start_date, $end_date, $driver_id = null) {
             r.parent_reservation_id,
             r.estimated_fare,
             r.actual_fare,
+            r.driver_id,
+            r.vehicle_id,
+            r.entrance_assistance,
+            r.disability_card,
+            r.care_service_user,
+            r.hospital_escort_staff,
+            r.dual_assistance_staff,
+            r.referrer_type,
+            r.referrer_name,
+            r.referrer_contact,
+            r.payment_method,
+            r.special_notes,
             u.name as driver_name,
             v.vehicle_number,
             v.model as vehicle_model,
@@ -111,6 +123,8 @@ function convertReservationToEvent($reservation) {
         'textColor' => getEventTextColor($reservation),
         'extendedProps' => [
             'reservationId' => $reservation['id'],
+            'reservation_date' => $reservation['reservation_date'],
+            'reservation_time' => $reservation['reservation_time'],
             'clientName' => $reservation['client_name'],
             'pickupLocation' => $reservation['pickup_location'],
             'dropoffLocation' => $reservation['dropoff_location'],
@@ -122,9 +136,23 @@ function convertReservationToEvent($reservation) {
             'isReturnTrip' => $reservation['is_return_trip'],
             'parentReservationId' => $reservation['parent_reservation_id'],
             'driverName' => $reservation['driver_name'],
-            'vehicleInfo' => $reservation['vehicle_number'] . ' (' . $reservation['vehicle_model'] . ')',
+            'driverId' => $reservation['driver_id'],
+            'vehicleId' => $reservation['vehicle_id'],
+            'vehicleInfo' => $reservation['vehicle_number'] ? $reservation['vehicle_number'] . ' (' . $reservation['vehicle_model'] . ')' : '',
             'partnerCompany' => $reservation['partner_company'],
-            'fare' => $reservation['actual_fare'] ?: $reservation['estimated_fare']
+            'fare' => $reservation['actual_fare'] ?: $reservation['estimated_fare'],
+            'estimatedFare' => $reservation['estimated_fare'],
+            'actualFare' => $reservation['actual_fare'],
+            'entranceAssistance' => $reservation['entrance_assistance'],
+            'disabilityCard' => $reservation['disability_card'],
+            'careServiceUser' => $reservation['care_service_user'],
+            'hospitalEscortStaff' => $reservation['hospital_escort_staff'],
+            'dualAssistanceStaff' => $reservation['dual_assistance_staff'],
+            'referrerType' => $reservation['referrer_type'],
+            'referrerName' => $reservation['referrer_name'],
+            'referrerContact' => $reservation['referrer_contact'],
+            'paymentMethod' => $reservation['payment_method'],
+            'specialNotes' => $reservation['special_notes']
         ]
     ];
     

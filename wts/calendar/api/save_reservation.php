@@ -39,8 +39,7 @@ try {
     // 必須項目チェック
     $required_fields = [
         'reservation_date', 'reservation_time', 'client_name',
-        'pickup_location', 'dropoff_location', 'service_type',
-        'referrer_type', 'referrer_name'
+        'pickup_location', 'dropoff_location', 'service_type'
     ];
     
     foreach ($required_fields as $field) {
@@ -93,8 +92,8 @@ try {
         'care_service_user' => isset($input['care_service_user']) ? 1 : 0,
         'hospital_escort_staff' => trim($input['hospital_escort_staff'] ?? ''),
         'dual_assistance_staff' => trim($input['dual_assistance_staff'] ?? ''),
-        'referrer_type' => $input['referrer_type'],
-        'referrer_name' => trim($input['referrer_name']),
+        'referrer_type' => $input['referrer_type'] ?? '',
+        'referrer_name' => trim($input['referrer_name'] ?? ''),
         'referrer_contact' => trim($input['referrer_contact'] ?? ''),
         'is_return_trip' => intval($input['is_return_trip'] ?? 0),
         'parent_reservation_id' => !empty($input['parent_reservation_id']) ? intval($input['parent_reservation_id']) : null,
@@ -123,10 +122,6 @@ try {
             throw new Exception('更新対象の予約が見つかりません');
         }
         
-        // 権限チェック（協力会社は自社予約のみ編集可能）
-        if ($user_role === 'partner_company' && $old_data['created_by'] != $user_id) {
-            throw new Exception('他社の予約は編集できません');
-        }
         
         // 更新実行
         $update_fields = [];
