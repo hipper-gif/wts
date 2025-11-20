@@ -127,18 +127,41 @@
 @media (max-width: 768px) {
     #calendar {
         padding: 0.5rem;
+        min-height: 400px;
     }
-    
+
     .fc-event {
         font-size: 0.75rem;
     }
-    
+
     .fc-toolbar-title {
-        font-size: 1.2rem;
+        font-size: 1rem;
     }
-    
+
     .fc-timegrid-slot {
         height: 2rem;
+    }
+
+    .fc .fc-toolbar {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .fc .fc-toolbar-chunk {
+        display: flex;
+        justify-content: center;
+    }
+
+    .fc-header-toolbar .fc-toolbar-chunk:first-child {
+        order: 2;
+    }
+
+    .fc-header-toolbar .fc-toolbar-chunk:nth-child(2) {
+        order: 1;
+    }
+
+    .fc-header-toolbar .fc-toolbar-chunk:last-child {
+        order: 3;
     }
 }
 
