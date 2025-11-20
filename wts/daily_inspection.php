@@ -186,11 +186,28 @@ $page_config = getPageConfiguration('daily_inspection');
             </div>
         </div>
 
+        <!-- 次のステップへの案内バナー -->
+        <?php if ($success_message && $existing_inspection): ?>
+        <div class="alert alert-success border-0 shadow-sm mb-4">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-check-circle text-success fs-3 me-3"></i>
+                <div class="flex-grow-1">
+                    <h5 class="alert-heading mb-1">日常点検完了</h5>
+                    <p class="mb-0">次は乗務前点呼を行ってください</p>
+                </div>
+                <a href="pre_duty_call.php?driver_id=<?= $existing_inspection['driver_id'] ?>"
+                   class="btn btn-success btn-lg">
+                    <i class="fas fa-clipboard-check me-2"></i>乗務前点呼へ進む
+                </a>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- アラート表示 -->
         <?php if ($success_message): ?>
             <?= renderAlert('success', '完了', $success_message) ?>
         <?php endif; ?>
-        
+
         <?php if ($error_message): ?>
             <?= renderAlert('danger', 'エラー', $error_message) ?>
         <?php endif; ?>
