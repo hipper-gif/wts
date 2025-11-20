@@ -370,8 +370,8 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
                     <div class="system-title-area">
                         <h1 class="system-title m-0">
                             <i class="fas fa-taxi text-primary"></i>
-                            <span class="system-name-display">' . htmlspecialchars($system_names['full']) . '</span>
-                            <small class="version-badge ms-2">' . $system_names['version'] . '</small>
+                            <span class="system-name-display d-none d-md-inline">' . htmlspecialchars($system_names['full']) . '</span>
+                            <span class="system-name-mobile d-inline d-md-none">' . htmlspecialchars($system_names['mobile']) . '</span>
                         </h1>
                     </div>
                     

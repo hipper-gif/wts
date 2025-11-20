@@ -45,9 +45,9 @@ $vehicles = $stmt->fetchAll();
 
 // ページ設定
 $page_config = [
-    'title' => '予約管理カレンダー',
-    'subtitle' => '介護タクシー予約の作成・管理・スケジュール確認',
-    'description' => 'タイムツリーから移行した予約管理システム',
+    'title' => '予約カレンダー',
+    'subtitle' => '',
+    'description' => '予約管理システム',
     'icon' => 'calendar-alt',
     'category' => '予約管理'
 ];
