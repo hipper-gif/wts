@@ -109,27 +109,30 @@ echo $page_data['page_header'];
                     <div class="card-body">
                         <div class="row align-items-center">
                             <!-- 表示切り替え -->
-                            <div class="col-lg-4 col-md-6 mb-3 mb-lg-0">
-                                <div class="btn-group" role="group">
+                            <div class="col-12 col-md-4 mb-3 mb-md-0">
+                                <div class="btn-group w-100" role="group">
                                     <input type="radio" class="btn-check" name="viewMode" id="monthView" value="dayGridMonth" <?= $view_mode === 'month' || $view_mode === 'dayGridMonth' ? 'checked' : '' ?>>
                                     <label class="btn btn-outline-primary" for="monthView">
-                                        <i class="fas fa-calendar me-1"></i>月表示
+                                        <i class="fas fa-calendar d-md-none"></i>
+                                        <span class="d-none d-md-inline"><i class="fas fa-calendar me-1"></i>月表示</span>
                                     </label>
 
                                     <input type="radio" class="btn-check" name="viewMode" id="weekView" value="timeGridWeek" <?= $view_mode === 'week' || $view_mode === 'timeGridWeek' ? 'checked' : '' ?>>
                                     <label class="btn btn-outline-primary" for="weekView">
-                                        <i class="fas fa-calendar-week me-1"></i>週表示
+                                        <i class="fas fa-calendar-week d-md-none"></i>
+                                        <span class="d-none d-md-inline"><i class="fas fa-calendar-week me-1"></i>週表示</span>
                                     </label>
 
                                     <input type="radio" class="btn-check" name="viewMode" id="dayView" value="timeGridDay" <?= $view_mode === 'day' || $view_mode === 'timeGridDay' ? 'checked' : '' ?>>
                                     <label class="btn btn-outline-primary" for="dayView">
-                                        <i class="fas fa-calendar-day me-1"></i>日表示
+                                        <i class="fas fa-calendar-day d-md-none"></i>
+                                        <span class="d-none d-md-inline"><i class="fas fa-calendar-day me-1"></i>日表示</span>
                                     </label>
                                 </div>
                             </div>
-                            
+
                             <!-- 運転者フィルター -->
-                            <div class="col-lg-3 col-md-6 mb-3 mb-lg-0">
+                            <div class="col-12 col-md-3 mb-3 mb-md-0">
                                 <select class="form-select" id="driverFilter">
                                     <option value="all">全運転者</option>
                                     <?php foreach ($drivers as $driver): ?>
@@ -139,24 +142,26 @@ echo $page_data['page_header'];
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            
+
                             <!-- 新規予約作成ボタン -->
-                            <div class="col-lg-5 text-lg-end">
-                                <button type="button" class="btn btn-success btn-lg me-2" id="createReservationBtn">
-                                    <i class="fas fa-plus me-2"></i>新規予約作成
-                                </button>
-                                
-                                <button type="button" class="btn btn-primary" id="todayBtn">
-                                    <i class="fas fa-calendar-day me-1"></i>今日
-                                </button>
-                                
-                                <div class="btn-group ms-2">
-                                    <button type="button" class="btn btn-outline-secondary" id="prevBtn">
-                                        <i class="fas fa-chevron-left"></i>
+                            <div class="col-12 col-md-5">
+                                <div class="d-flex flex-wrap gap-2 justify-content-md-end">
+                                    <button type="button" class="btn btn-success flex-grow-1 flex-md-grow-0" id="createReservationBtn">
+                                        <i class="fas fa-plus me-2"></i>新規予約作成
                                     </button>
-                                    <button type="button" class="btn btn-outline-secondary" id="nextBtn">
-                                        <i class="fas fa-chevron-right"></i>
+
+                                    <button type="button" class="btn btn-primary" id="todayBtn">
+                                        <i class="fas fa-calendar-day me-1"></i>今日
                                     </button>
+
+                                    <div class="btn-group">
+                                        <button type="button" class="btn btn-outline-secondary" id="prevBtn">
+                                            <i class="fas fa-chevron-left"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" id="nextBtn">
+                                            <i class="fas fa-chevron-right"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -168,16 +173,16 @@ echo $page_data['page_header'];
         <!-- カレンダー表示エリア -->
         <div class="row">
             <!-- メインカレンダー -->
-            <div class="col-lg-9">
+            <div class="col-12 col-lg-9 mb-4 mb-lg-0">
                 <div class="card border-0 shadow-sm">
                     <div class="card-body p-0">
                         <div id="calendar"></div>
                     </div>
                 </div>
             </div>
-            
+
             <!-- サイドバー -->
-            <div class="col-lg-3">
+            <div class="col-12 col-lg-3">
                 <!-- 本日の概要 -->
                 <div class="card border-0 shadow-sm mb-4">
                     <div class="card-header bg-primary text-white">
@@ -200,9 +205,9 @@ echo $page_data['page_header'];
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- 車両状況 -->
-                <div class="card border-0 shadow-sm mb-4">
+                <div class="card border-0 shadow-sm mb-4 d-none d-lg-block">
                     <div class="card-header bg-info text-white">
                         <h5 class="card-title mb-0">
                             <i class="fas fa-car me-2"></i>車両状況
