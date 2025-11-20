@@ -25,6 +25,7 @@ $today = date('Y-m-d');
 
 $success_message = '';
 $error_message = '';
+$is_edit_mode = false;
 
 // 車両とドライバーの取得
 try {
@@ -50,10 +51,25 @@ if (($_GET['inspector_id'] ?? null) && ($_GET['vehicle_id'] ?? null)) {
     $stmt = $pdo->prepare("SELECT * FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
     $stmt->execute([$_GET['inspector_id'], $_GET['vehicle_id'], $target_date]);
     $existing_inspection = $stmt->fetch();
+    $is_edit_mode = (bool)$existing_inspection;
 }
 
-// フォーム送信処理
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// 削除処理
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
+    try {
+        $stmt = $pdo->prepare("DELETE FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
+        $stmt->execute([$_POST['inspector_id'], $_POST['vehicle_id'], $_POST['inspection_date']]);
+        $success_message = '日常点検記録を削除しました。';
+        $existing_inspection = null;
+        $is_edit_mode = false;
+    } catch (Exception $e) {
+        $error_message = '削除中にエラーが発生しました: ' . $e->getMessage();
+        error_log("Daily inspection delete error: " . $e->getMessage());
+    }
+}
+
+// フォーム送信処理（登録・更新）
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     $inspector_id = $_POST['inspector_id'];
     $vehicle_id = $_POST['vehicle_id'];
     $inspection_date = $_POST['inspection_date'] ?? $today;
@@ -146,7 +162,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("SELECT * FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
             $stmt->execute([$inspector_id, $vehicle_id, $inspection_date]);
             $existing_inspection = $stmt->fetch();
-            
+            $is_edit_mode = true;
+
             // 車両の走行距離を更新
             if ($mileage) {
                 $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ?");
@@ -213,22 +230,31 @@ $page_config = getPageConfiguration('daily_inspection');
         <?php endif; ?>
         
         <form method="POST" id="inspectionForm">
+            <?php if ($is_edit_mode): ?>
+                <input type="hidden" name="inspector_id" value="<?= $existing_inspection['driver_id'] ?>">
+                <input type="hidden" name="vehicle_id" value="<?= $existing_inspection['vehicle_id'] ?>">
+                <input type="hidden" name="inspection_date" value="<?= $existing_inspection['inspection_date'] ?>">
+            <?php endif; ?>
+
             <!-- 基本情報 -->
             <?php
-            $actions = [
-                [
-                    'icon' => 'check-circle',
-                    'text' => '全て可',
-                    'url' => 'javascript:setAllOk()',
-                    'class' => 'btn-success btn-sm'
-                ],
-                [
-                    'icon' => 'times-circle', 
-                    'text' => '全て否',
-                    'url' => 'javascript:setAllNg()',
-                    'class' => 'btn-danger btn-sm'
-                ]
-            ];
+            $actions = [];
+            if (!$is_edit_mode) {
+                $actions = [
+                    [
+                        'icon' => 'check-circle',
+                        'text' => '全て可',
+                        'url' => 'javascript:setAllOk()',
+                        'class' => 'btn-success btn-sm'
+                    ],
+                    [
+                        'icon' => 'times-circle',
+                        'text' => '全て否',
+                        'url' => 'javascript:setAllNg()',
+                        'class' => 'btn-danger btn-sm'
+                    ]
+                ];
+            }
             echo renderSectionHeader('info-circle', '基本情報', '必須項目の入力', $actions);
             ?>
             
@@ -237,56 +263,90 @@ $page_config = getPageConfiguration('daily_inspection');
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">点検日 <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" name="inspection_date" 
-                                   value="<?= $existing_inspection ? $existing_inspection['inspection_date'] : $target_date ?>" required>
+                            <input type="<?= $is_edit_mode ? 'text' : 'date' ?>" class="form-control" name="<?= $is_edit_mode ? 'inspection_date_display' : 'inspection_date' ?>"
+                                   value="<?= $existing_inspection ? $existing_inspection['inspection_date'] : $target_date ?>"
+                                   <?= $is_edit_mode ? 'readonly' : 'required' ?>>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">点検時間</label>
-                            <input type="time" class="form-control" name="inspection_time" 
-                                   value="<?= $existing_inspection ? $existing_inspection['inspection_time'] : date('H:i') ?>">
+                            <input type="time" class="form-control" name="inspection_time"
+                                   value="<?= $existing_inspection ? $existing_inspection['inspection_time'] : date('H:i') ?>"
+                                   <?= $is_edit_mode ? 'readonly' : '' ?>>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">点検者（運転手） <span class="text-danger">*</span></label>
-                            <select class="form-select" name="inspector_id" required>
-                                <option value="">運転者を選択</option>
-                                <?php foreach ($drivers as $driver): ?>
-                                    <option value="<?= $driver['id'] ?>" 
-                                        <?= ($driver['id'] == $user_id) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($driver['name']) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>
-                                日常点検は運転手が実施します
-                            </div>
+                            <?php if ($is_edit_mode): ?>
+                                <?php
+                                $inspector_name = '';
+                                foreach ($drivers as $driver) {
+                                    if ($driver['id'] == $existing_inspection['driver_id']) {
+                                        $inspector_name = htmlspecialchars($driver['name']);
+                                        break;
+                                    }
+                                }
+                                ?>
+                                <input type="text" class="form-control" value="<?= $inspector_name ?>" readonly>
+                            <?php else: ?>
+                                <select class="form-select" name="inspector_id" required>
+                                    <option value="">運転者を選択</option>
+                                    <?php foreach ($drivers as $driver): ?>
+                                        <option value="<?= $driver['id'] ?>"
+                                            <?= ($driver['id'] == $user_id) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($driver['name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    日常点検は運転手が実施します
+                                </div>
+                            <?php endif; ?>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">車両 <span class="text-danger">*</span></label>
-                            <select class="form-select" name="vehicle_id" required onchange="updateMileage()">
-                                <option value="">車両を選択してください</option>
-                                <?php foreach ($vehicles as $vehicle): ?>
-                                <option value="<?= $vehicle['id'] ?>" 
-                                        data-mileage="<?= $vehicle['current_mileage'] ?>"
-                                        <?= ($existing_inspection && $existing_inspection['vehicle_id'] == $vehicle['id']) ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($vehicle['vehicle_number']) ?>
-                                    <?= $vehicle['model'] ? ' (' . htmlspecialchars($vehicle['model']) . ')' : '' ?>
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
+                            <?php if ($is_edit_mode): ?>
+                                <?php
+                                $vehicle_name = '';
+                                foreach ($vehicles as $vehicle) {
+                                    if ($vehicle['id'] == $existing_inspection['vehicle_id']) {
+                                        $vehicle_name = htmlspecialchars($vehicle['vehicle_number']);
+                                        if ($vehicle['model']) {
+                                            $vehicle_name .= ' (' . htmlspecialchars($vehicle['model']) . ')';
+                                        }
+                                        break;
+                                    }
+                                }
+                                ?>
+                                <input type="text" class="form-control" value="<?= $vehicle_name ?>" readonly>
+                            <?php else: ?>
+                                <select class="form-select" name="vehicle_id" required onchange="updateMileage()">
+                                    <option value="">車両を選択してください</option>
+                                    <?php foreach ($vehicles as $vehicle): ?>
+                                    <option value="<?= $vehicle['id'] ?>"
+                                            data-mileage="<?= $vehicle['current_mileage'] ?>"
+                                            <?= ($existing_inspection && $existing_inspection['vehicle_id'] == $vehicle['id']) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($vehicle['vehicle_number']) ?>
+                                        <?= $vehicle['model'] ? ' (' . htmlspecialchars($vehicle['model']) . ')' : '' ?>
+                                    </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php endif; ?>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">走行距離</label>
                             <div class="input-group">
                                 <input type="number" class="form-control" name="mileage" id="mileage"
                                        value="<?= $existing_inspection ? $existing_inspection['mileage'] : '' ?>"
-                                       placeholder="現在の走行距離">
+                                       placeholder="現在の走行距離"
+                                       <?= $is_edit_mode ? 'readonly' : '' ?>>
                                 <span class="input-group-text">km</span>
                             </div>
+                            <?php if (!$is_edit_mode): ?>
                             <div class="alert alert-info mt-2" id="mileageInfo" style="display: none;">
                                 <i class="fas fa-info-circle me-1"></i>
                                 <span id="mileageText">前回記録: </span>
                             </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -322,16 +382,19 @@ $page_config = getPageConfiguration('daily_inspection');
                             <div class="col-md-6 text-end">
                                 <div class="btn-group" role="group">
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="可" id="<?= $key ?>_ok"
-                                           <?= ($existing_inspection && $existing_inspection[$key] == '可') ? 'checked' : '' ?>>
+                                           <?= ($existing_inspection && $existing_inspection[$key] == '可') ? 'checked' : '' ?>
+                                           <?= $is_edit_mode ? 'disabled' : '' ?>>
                                     <label class="btn btn-outline-success" for="<?= $key ?>_ok">可</label>
-                                    
+
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="否" id="<?= $key ?>_ng"
-                                           <?= ($existing_inspection && $existing_inspection[$key] == '否') ? 'checked' : '' ?>>
+                                           <?= ($existing_inspection && $existing_inspection[$key] == '否') ? 'checked' : '' ?>
+                                           <?= $is_edit_mode ? 'disabled' : '' ?>>
                                     <label class="btn btn-outline-danger" for="<?= $key ?>_ng">否</label>
-                                    
+
                                     <?php if (!$item['required']): ?>
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="省略" id="<?= $key ?>_skip"
-                                           <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>>
+                                           <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>
+                                           <?= $is_edit_mode ? 'disabled' : '' ?>>
                                     <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略</label>
                                     <?php endif; ?>
                                 </div>
@@ -372,16 +435,19 @@ $page_config = getPageConfiguration('daily_inspection');
                             <div class="col-md-6 text-end">
                                 <div class="btn-group" role="group">
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="可" id="<?= $key ?>_ok"
-                                           <?= ($existing_inspection && $existing_inspection[$key] == '可') ? 'checked' : '' ?>>
+                                           <?= ($existing_inspection && $existing_inspection[$key] == '可') ? 'checked' : '' ?>
+                                           <?= $is_edit_mode ? 'disabled' : '' ?>>
                                     <label class="btn btn-outline-success" for="<?= $key ?>_ok">可</label>
-                                    
+
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="否" id="<?= $key ?>_ng"
-                                           <?= ($existing_inspection && $existing_inspection[$key] == '否') ? 'checked' : '' ?>>
+                                           <?= ($existing_inspection && $existing_inspection[$key] == '否') ? 'checked' : '' ?>
+                                           <?= $is_edit_mode ? 'disabled' : '' ?>>
                                     <label class="btn btn-outline-danger" for="<?= $key ?>_ng">否</label>
-                                    
+
                                     <?php if (!$item['required']): ?>
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="省略" id="<?= $key ?>_skip"
-                                           <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>>
+                                           <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>
+                                           <?= $is_edit_mode ? 'disabled' : '' ?>>
                                     <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略</label>
                                     <?php endif; ?>
                                 </div>
@@ -421,16 +487,19 @@ $page_config = getPageConfiguration('daily_inspection');
                             <div class="col-md-6 text-end">
                                 <div class="btn-group" role="group">
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="可" id="<?= $key ?>_ok"
-                                           <?= ($existing_inspection && $existing_inspection[$key] == '可') ? 'checked' : '' ?>>
+                                           <?= ($existing_inspection && $existing_inspection[$key] == '可') ? 'checked' : '' ?>
+                                           <?= $is_edit_mode ? 'disabled' : '' ?>>
                                     <label class="btn btn-outline-success" for="<?= $key ?>_ok">可</label>
-                                    
+
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="否" id="<?= $key ?>_ng"
-                                           <?= ($existing_inspection && $existing_inspection[$key] == '否') ? 'checked' : '' ?>>
+                                           <?= ($existing_inspection && $existing_inspection[$key] == '否') ? 'checked' : '' ?>
+                                           <?= $is_edit_mode ? 'disabled' : '' ?>>
                                     <label class="btn btn-outline-danger" for="<?= $key ?>_ng">否</label>
-                                    
+
                                     <?php if (!$item['required']): ?>
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="省略" id="<?= $key ?>_skip"
-                                           <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>>
+                                           <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>
+                                           <?= $is_edit_mode ? 'disabled' : '' ?>>
                                     <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略</label>
                                     <?php endif; ?>
                                 </div>
@@ -447,25 +516,46 @@ $page_config = getPageConfiguration('daily_inspection');
                 <div class="card-body">
                     <div class="mb-3">
                         <label class="form-label">不良個所及び処置</label>
-                        <textarea class="form-control" name="defect_details" rows="3" 
-                                  placeholder="点検で「否」となった項目の詳細と処置内容を記入"><?= $existing_inspection ? htmlspecialchars($existing_inspection['defect_details']) : '' ?></textarea>
+                        <textarea class="form-control" name="defect_details" rows="3"
+                                  placeholder="点検で「否」となった項目の詳細と処置内容を記入"
+                                  <?= $is_edit_mode ? 'readonly' : '' ?>><?= $existing_inspection ? htmlspecialchars($existing_inspection['defect_details']) : '' ?></textarea>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">備考</label>
-                        <textarea class="form-control" name="remarks" rows="2" 
-                                  placeholder="その他特記事項があれば記入"><?= $existing_inspection ? htmlspecialchars($existing_inspection['remarks']) : '' ?></textarea>
+                        <textarea class="form-control" name="remarks" rows="2"
+                                  placeholder="その他特記事項があれば記入"
+                                  <?= $is_edit_mode ? 'readonly' : '' ?>><?= $existing_inspection ? htmlspecialchars($existing_inspection['remarks']) : '' ?></textarea>
                     </div>
                 </div>
             </div>
             
-            <!-- 保存ボタン -->
-            <div class="text-center mb-4">
-                <button type="submit" class="btn btn-success btn-lg">
-                    <i class="fas fa-save me-2"></i>
-                    <?= $existing_inspection ? '更新する' : '登録する' ?>
-                </button>
+            <!-- 操作ボタン -->
+            <div class="text-center mb-4" id="actionButtons">
+                <?php if ($is_edit_mode): ?>
+                    <button type="button" class="btn btn-warning btn-lg me-2" onclick="enableEditMode()">
+                        <i class="fas fa-edit me-2"></i>修正
+                    </button>
+                    <button type="button" class="btn btn-danger btn-lg" onclick="confirmDelete()">
+                        <i class="fas fa-trash me-2"></i>削除
+                    </button>
+                <?php else: ?>
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="fas fa-save me-2"></i>
+                        <?= $existing_inspection ? '更新する' : '登録する' ?>
+                    </button>
+                <?php endif; ?>
             </div>
         </form>
+
+        <!-- 削除フォーム -->
+        <?php if ($is_edit_mode): ?>
+        <form method="POST" id="deleteForm" style="display: none;">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="inspector_id" value="<?= $existing_inspection['driver_id'] ?>">
+            <input type="hidden" name="vehicle_id" value="<?= $existing_inspection['vehicle_id'] ?>">
+            <input type="hidden" name="inspection_date" value="<?= $existing_inspection['inspection_date'] ?>">
+        </form>
+        <?php endif; ?>
         
         <!-- ナビゲーションリンク -->
         <div class="card bg-light">
@@ -631,4 +721,47 @@ $page_config = getPageConfiguration('daily_inspection');
                 }
             }
         });
+
+        // 編集モード有効化
+        function enableEditMode() {
+            // readonly/disabled属性を削除
+            document.querySelectorAll('input[readonly], textarea[readonly]').forEach(element => {
+                element.removeAttribute('readonly');
+            });
+
+            document.querySelectorAll('input[disabled]').forEach(element => {
+                element.removeAttribute('disabled');
+            });
+
+            // 基本情報の選択フィールドを復元
+            const inspectorId = document.querySelector('input[name="inspector_id"]').value;
+            const vehicleId = document.querySelector('input[name="vehicle_id"]').value;
+            const inspectionDate = document.querySelector('input[name="inspection_date"]').value;
+
+            // 点検日フィールドを復元
+            const dateInput = document.querySelector('input[name="inspection_date_display"]');
+            if (dateInput) {
+                dateInput.name = 'inspection_date';
+                dateInput.type = 'date';
+                dateInput.removeAttribute('readonly');
+            }
+
+            // ボタンを変更
+            const actionButtons = document.getElementById('actionButtons');
+            actionButtons.innerHTML = `
+                <button type="submit" class="btn btn-success btn-lg">
+                    <i class="fas fa-save me-2"></i>変更を保存
+                </button>
+                <button type="button" class="btn btn-secondary btn-lg ms-2" onclick="location.reload()">
+                    <i class="fas fa-times me-2"></i>キャンセル
+                </button>
+            `;
+        }
+
+        // 削除確認
+        function confirmDelete() {
+            if (confirm('本当に削除しますか？この操作は取り消せません。')) {
+                document.getElementById('deleteForm').submit();
+            }
+        }
     </script>
