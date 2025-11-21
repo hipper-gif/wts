@@ -106,7 +106,22 @@ try {
 }
 
 // renderCompletePageを使用してページ構造を取得
-$page_data = renderCompletePage('マスタ管理', $user_name, $_SESSION['user_role'] ?? 'User');
+$page_data = renderCompletePage(
+    'マスタ管理',
+    $user_name,
+    $_SESSION['user_role'] ?? 'User',
+    'master_menu',
+    'cogs',
+    'マスタ管理',
+    'システムの基本設定とマスタデータの管理',
+    'system',
+    [
+        'breadcrumb' => [
+            ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
+            ['text' => 'マスタ管理', 'url' => 'master_menu.php']
+        ]
+    ]
+);
 ?>
 <?= $page_data['html_head'] ?>
 <style>
