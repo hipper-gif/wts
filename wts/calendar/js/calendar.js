@@ -33,18 +33,18 @@ document.addEventListener('DOMContentLoaded', function() {
             locale: 'ja',
             timeZone: 'Asia/Tokyo',
             height: 'auto',
-            
+
             // 初期表示
             initialView: currentConfig.viewMode || 'dayGridMonth',
             initialDate: currentConfig.currentDate || new Date(),
-            
+
             // ヘッダー設定
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
                 right: 'dayGridMonth,timeGridWeek,timeGridDay'
             },
-            
+
             // ボタンテキスト
             buttonText: {
                 today: '今日',
@@ -52,7 +52,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 week: '週',
                 day: '日'
             },
-            
+
+            // ビュー別設定
+            views: {
+                timeGridWeek: {
+                    // 週表示: 日と曜日のみ
+                    dayHeaderFormat: {
+                        day: 'numeric',
+                        weekday: 'short'
+                    }
+                },
+                timeGridDay: {
+                    // 日表示: 月/日(曜)
+                    dayHeaderFormat: {
+                        month: 'numeric',
+                        day: 'numeric',
+                        weekday: 'short'
+                    }
+                }
+            },
+
             // 表示設定
             weekends: true,
             navLinks: true,
@@ -62,34 +81,34 @@ document.addEventListener('DOMContentLoaded', function() {
             moreLinkText: function(num) {
                 return '他 ' + num + ' 件';
             },
-            
+
             // 営業時間設定
             businessHours: {
                 daysOfWeek: [1, 2, 3, 4, 5, 6], // 月-土
                 startTime: '08:00',
                 endTime: '18:00'
             },
-            
+
             // 時間軸設定
             slotMinTime: '07:00:00',
             slotMaxTime: '19:00:00',
             slotDuration: '00:30:00',
-            
+
             // イベントソース
             events: function(info, successCallback, failureCallback) {
                 loadReservations(info.start, info.end, successCallback, failureCallback);
             },
-            
+
             // イベントハンドラー
             eventClick: handleEventClick,
             select: handleDateSelect,
             eventDrop: handleEventDrop,
             eventResize: handleEventResize,
             datesSet: handleDatesChange,
-            
+
             // カスタムレンダリング
             eventDidMount: customizeEventDisplay,
-            
+
             // ローディング表示
             loading: function(bool) {
                 toggleLoading(bool);
