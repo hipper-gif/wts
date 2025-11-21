@@ -2,7 +2,11 @@
 // includes/historical_daily_inspection.php
 // 日常点検 - 過去データ入力モード
 
+require_once 'config/database.php';
 require_once 'includes/historical_common.php';
+
+// データベース接続を取得
+$pdo = getDBConnection();
 
 // POST処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
