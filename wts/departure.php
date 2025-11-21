@@ -3,7 +3,6 @@ session_start();
 
 // データベース接続
 require_once 'config/database.php';
-require_once 'functions.php';
 require_once 'includes/unified-header.php';
 
 try {
@@ -20,7 +19,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'];
-$user_role = $_SESSION['permission_level'] ?? 'User';
+$user_role = $_SESSION['user_role'] ?? 'User';
 
 // 今日の日付
 $today = date('Y-m-d');
@@ -210,25 +209,15 @@ echo $page_data['page_header'];
         <div class="row">
             <!-- メイン入力フォーム -->
             <div class="col-lg-8">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header gradient-primary text-white">
-                        <h4 class="mb-0">
-                            <i class="fas fa-sign-out-alt me-2"></i>
-                            <?= $edit_mode ? '出庫記録修正' : '出庫処理' ?>
-                        </h4>
-                        <small><?= $edit_mode ? '既存の出庫記録を修正します' : '素早く簡単に出庫登録' ?></small>
-                    </div>
-                    <div class="card-body p-4">
-                        <form method="POST" id="departureForm">
-                            <?php if ($edit_mode): ?>
-                                <input type="hidden" name="edit_id" value="<?= $edit_record['id'] ?>">
-                            <?php endif; ?>
-                            
-                            <!-- 基本情報セクション -->
-                            <div class="form-section mb-4">
-                                <div class="section-title">
-                                    <i class="fas fa-info-circle me-2"></i>基本情報
-                                </div>
+                <form method="POST" id="departureForm">
+                    <?php if ($edit_mode): ?>
+                        <input type="hidden" name="edit_id" value="<?= $edit_record['id'] ?>">
+                    <?php endif; ?>
+
+                    <!-- 基本情報セクション -->
+                    <?= renderSectionHeader('info-circle', '基本情報', $edit_mode ? '出庫記録修正' : '運転者・車両選択') ?>
+                    <div class="card mb-4">
+                        <div class="card-body">
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label for="driver_id" class="form-label">
@@ -280,13 +269,14 @@ echo $page_data['page_header'];
                                 <div id="vehicleInfo" class="vehicle-info" style="display: none;">
                                     <div id="vehicleDetails"></div>
                                 </div>
-                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                            <!-- 出庫情報セクション -->
-                            <div class="form-section mb-4">
-                                <div class="section-title">
-                                    <i class="fas fa-clock me-2"></i>出庫情報
-                                </div>
+                <!-- 出庫情報セクション -->
+                <?= renderSectionHeader('clock', '出庫情報', '日時・天候・メーター') ?>
+                <div class="card mb-4">
+                    <div class="card-body">
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label for="departure_date" class="form-label">
@@ -340,51 +330,49 @@ echo $page_data['page_header'];
                                     </div>
                                     <div class="form-text" id="mileageInfo"></div>
                                 </div>
-                            </div>
-
-                            <!-- 送信ボタン -->
-                            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
-                                <?php if ($edit_mode): ?>
-                                    <button type="submit" class="btn btn-warning btn-lg">
-                                        <i class="fas fa-save me-2"></i>修正を保存
-                                    </button>
-                                    <a href="departure.php" class="btn btn-secondary btn-lg">
-                                        <i class="fas fa-times me-2"></i>修正を中止
-                                    </a>
-                                <?php else: ?>
-                                    <button type="submit" class="btn btn-primary btn-lg">
-                                        <i class="fas fa-sign-out-alt me-2"></i>出庫登録
-                                    </button>
-                                <?php endif; ?>
-                            </div>
-                        </form>
-                        
-                        <!-- クイックアクションボタン（成功時のみ表示） -->
-                        <?php if ($success_message && !$edit_mode): ?>
-                        <div class="mt-4 p-3 bg-light rounded">
-                            <h6 class="mb-3"><i class="fas fa-bolt text-primary me-1"></i>次のアクション</h6>
-                            <div class="d-flex gap-2 flex-wrap">
-                                <a href="ride_records.php" class="btn btn-outline-success">
-                                    <i class="fas fa-users me-1"></i>乗車記録へ
-                                </a>
-                                <a href="dashboard.php" class="btn btn-outline-primary">
-                                    <i class="fas fa-tachometer-alt me-1"></i>ダッシュボードへ
-                                </a>
-                            </div>
                         </div>
-                        <?php endif; ?>
                     </div>
                 </div>
+
+                <!-- 送信ボタン -->
+                <div class="text-center mb-4">
+                    <?php if ($edit_mode): ?>
+                        <button type="submit" class="btn btn-warning btn-lg me-2">
+                            <i class="fas fa-save me-2"></i>修正を保存
+                        </button>
+                        <a href="departure.php" class="btn btn-secondary btn-lg">
+                            <i class="fas fa-times me-2"></i>修正を中止
+                        </a>
+                    <?php else: ?>
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-sign-out-alt me-2"></i>出庫登録
+                        </button>
+                    <?php endif; ?>
+                </div>
+            </form>
+
+            <!-- 次のステップへの案内 -->
+            <?php if ($success_message && !$edit_mode): ?>
+            <div class="alert alert-success border-0 shadow-sm mb-4">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-check-circle text-success fs-3 me-3"></i>
+                    <div class="flex-grow-1">
+                        <h5 class="alert-heading mb-1">出庫処理完了</h5>
+                        <p class="mb-0">次は乗車記録を登録してください</p>
+                    </div>
+                    <a href="ride_records.php" class="btn btn-success btn-lg">
+                        <i class="fas fa-users me-2"></i>乗車記録へ進む
+                    </a>
+                </div>
+            </div>
+            <?php endif; ?>
             </div>
 
             <!-- サイドバー（本日の出庫記録） -->
             <div class="col-lg-4">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header gradient-info text-white">
-                        <h5 class="mb-0"><i class="fas fa-list me-2"></i>本日の出庫記録</h5>
-                        <small>複数出庫対応：入庫済みは再出庫可能</small>
-                    </div>
-                    <div class="card-body p-3">
+                <?= renderSectionHeader('list', '本日の出庫記録', '複数出庫対応') ?>
+                <div class="card mb-4">
+                    <div class="card-body">
                         <?php if (empty($today_departures)): ?>
                             <div class="text-center py-4 text-muted">
                                 <i class="fas fa-info-circle fa-2x mb-2 d-block opacity-50"></i>
@@ -436,11 +424,9 @@ echo $page_data['page_header'];
                 </div>
 
                 <!-- クイックアクション -->
-                <div class="card border-0 shadow-sm mt-3">
-                    <div class="card-header gradient-secondary text-white">
-                        <h6 class="mb-0"><i class="fas fa-bolt me-2"></i>関連業務</h6>
-                    </div>
-                    <div class="card-body p-3">
+                <?= renderSectionHeader('bolt', '関連業務', 'クイックアクセス') ?>
+                <div class="card mb-4">
+                    <div class="card-body">
                         <div class="d-grid gap-2">
                             <a href="pre_duty_call.php" class="btn btn-outline-primary btn-sm">
                                 <i class="fas fa-clipboard-check me-1"></i>乗務前点呼
@@ -459,8 +445,8 @@ echo $page_data['page_header'];
                 </div>
                 
                 <!-- 複数出庫説明 -->
-                <div class="card border-0 shadow-sm mt-3">
-                    <div class="card-body p-3 bg-light">
+                <div class="card bg-light mb-4">
+                    <div class="card-body">
                         <h6 class="text-muted mb-2">
                             <i class="fas fa-info-circle me-1"></i>複数出庫について
                         </h6>
