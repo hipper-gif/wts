@@ -370,8 +370,11 @@ echo $page_data['page_header'];
 
             <!-- サイドバー（本日の出庫記録） -->
             <div class="col-lg-4">
-                <?= renderSectionHeader('list', '本日の出庫記録', '複数出庫対応') ?>
                 <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="fas fa-list me-2"></i>本日の出庫記録
+                        <small class="d-block text-muted">複数出庫対応</small>
+                    </div>
                     <div class="card-body">
                         <?php if (empty($today_departures)): ?>
                             <div class="text-center py-4 text-muted">
@@ -424,8 +427,10 @@ echo $page_data['page_header'];
                 </div>
 
                 <!-- クイックアクション -->
-                <?= renderSectionHeader('bolt', '関連業務', 'クイックアクセス') ?>
                 <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="fas fa-bolt me-2"></i>関連業務
+                    </div>
                     <div class="card-body">
                         <div class="d-grid gap-2">
                             <a href="pre_duty_call.php" class="btn btn-outline-primary btn-sm">
