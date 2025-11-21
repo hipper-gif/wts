@@ -605,5 +605,5 @@ document.getElementById('postDutyForm').addEventListener('submit', function(e) {
 
 <?php
 // フッター出力
-echo $page_data['footer'];
+echo $page_data['html_footer'];
 ?>
