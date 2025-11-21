@@ -489,10 +489,10 @@ echo $page_data['page_header'];
         document.getElementById('departure_record_id').value = departureId;
         document.getElementById('driver_id').value = driverId;
         document.getElementById('vehicle_id').value = vehicleId;
-        
-        // 出庫メーターを保存
-        window.departureMileage = departureMileage;
-        
+
+        // 出庫メーターを保存（数値として明示的に変換）
+        window.departureMileage = Number(departureMileage);
+
         // 走行距離を再計算
         calculateDistance();
         
@@ -509,7 +509,7 @@ echo $page_data['page_header'];
     // 走行距離自動計算
     function calculateDistance() {
         const arrivalMileage = parseInt(document.getElementById('arrival_mileage').value) || 0;
-        const departureMileage = window.departureMileage || 0;
+        const departureMileage = Number(window.departureMileage) || 0;
         const totalDistance = arrivalMileage - departureMileage;
         
         const distanceField = document.getElementById('total_distance');
