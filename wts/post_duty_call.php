@@ -92,121 +92,118 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     $driver_id = $_POST['driver_id'];
     $call_time = $_POST['call_time'];
 
-    // 今日の出庫記録から車両IDを取得
+    // 今日の出庫記録から車両IDを取得（出庫記録がない場合はNULL）
     $stmt = $pdo->prepare("SELECT vehicle_id FROM departure_records WHERE driver_id = ? AND departure_date = ? LIMIT 1");
     $stmt->execute([$driver_id, $today]);
     $departure_record = $stmt->fetch();
 
-    if (!$departure_record) {
-        $error_message = '本日の出庫記録が見つかりません。先に出庫処理を行ってください。';
-    } else {
-        $vehicle_id = $departure_record['vehicle_id'];
+    // 出庫記録がなくても点呼は実施可能
+    $vehicle_id = $departure_record ? $departure_record['vehicle_id'] : null;
 
-        // 点呼者名の処理
-        $caller_name = $_POST['caller_name'];
-        if ($caller_name === 'その他') {
-            $caller_name = $_POST['other_caller'];
+    // 点呼者名の処理
+    $caller_name = $_POST['caller_name'];
+    if ($caller_name === 'その他') {
+        $caller_name = $_POST['other_caller'];
+    }
+
+    $alcohol_check_value = $_POST['alcohol_check_value'];
+
+    // 12項目確認事項のチェック（仕様書準拠）
+    $check_items = [
+        'duty_record_check',         // 1. 乗務記録確認
+        'vehicle_condition_check',   // 2. 車両状態確認
+        'health_condition_check',    // 3. 健康状態確認
+        'fatigue_check',            // 4. 疲労度確認
+        'alcohol_drug_check',       // 5. 酒気・薬物確認
+        'accident_violation_check', // 6. 事故・違反確認
+        'equipment_return_check',   // 7. 用具返却確認
+        'report_completion_check',  // 8. 報告完了確認
+        'lost_items_check',        // 9. 忘れ物確認
+        'violation_accident_check', // 10. 違反・事故確認（重複チェック）
+        'route_operation_check',   // 11. 路線運行確認
+        'passenger_condition_check' // 12. 乗客状態確認
+    ];
+
+    try {
+        // 対応する乗務前点呼の確認
+        $stmt = $pdo->prepare("SELECT id FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
+        $stmt->execute([$driver_id, $today]);
+        $pre_duty_record = $stmt->fetch();
+
+        if (!$pre_duty_record) {
+            throw new Exception('対応する乗務前点呼記録が見つかりません。先に乗務前点呼を実施してください。');
         }
 
-        $alcohol_check_value = $_POST['alcohol_check_value'];
+        $pre_duty_call_id = $pre_duty_record['id'];
 
-        // 12項目確認事項のチェック（仕様書準拠）
-        $check_items = [
-            'duty_record_check',         // 1. 乗務記録確認
-            'vehicle_condition_check',   // 2. 車両状態確認
-            'health_condition_check',    // 3. 健康状態確認
-            'fatigue_check',            // 4. 疲労度確認
-            'alcohol_drug_check',       // 5. 酒気・薬物確認
-            'accident_violation_check', // 6. 事故・違反確認
-            'equipment_return_check',   // 7. 用具返却確認
-            'report_completion_check',  // 8. 報告完了確認
-            'lost_items_check',        // 9. 忘れ物確認
-            'violation_accident_check', // 10. 違反・事故確認（重複チェック）
-            'route_operation_check',   // 11. 路線運行確認
-            'passenger_condition_check' // 12. 乗客状態確認
-        ];
+        // 既存レコードの確認
+        $stmt = $pdo->prepare("SELECT id FROM post_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
+        $stmt->execute([$driver_id, $today]);
+        $existing = $stmt->fetch();
 
-        try {
-            // 対応する乗務前点呼の確認
-            $stmt = $pdo->prepare("SELECT id FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
-            $stmt->execute([$driver_id, $today]);
-            $pre_duty_record = $stmt->fetch();
+        if ($existing) {
+            // 更新
+            $sql = "UPDATE post_duty_calls SET
+                    call_time = ?, caller_name = ?, alcohol_check_value = ?, alcohol_check_time = ?,
+                    pre_duty_call_id = ?,";
 
-            if (!$pre_duty_record) {
-                throw new Exception('対応する乗務前点呼記録が見つかりません。先に乗務前点呼を実施してください。');
+            foreach ($check_items as $item) {
+                $sql .= " $item = ?,";
             }
 
-            $pre_duty_call_id = $pre_duty_record['id'];
+            $sql .= " remarks = ?, is_completed = TRUE, updated_at = NOW()
+                    WHERE driver_id = ? AND call_date = ?";
 
-            // 既存レコードの確認
-            $stmt = $pdo->prepare("SELECT id FROM post_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
-            $stmt->execute([$driver_id, $today]);
-            $existing = $stmt->fetch();
+            $stmt = $pdo->prepare($sql);
+            $params = [$call_time, $caller_name, $alcohol_check_value, $call_time, $pre_duty_call_id];
 
-            if ($existing) {
-                // 更新
-                $sql = "UPDATE post_duty_calls SET 
-                        call_time = ?, caller_name = ?, alcohol_check_value = ?, alcohol_check_time = ?, 
-                        pre_duty_call_id = ?,";
-
-                foreach ($check_items as $item) {
-                    $sql .= " $item = ?,";
-                }
-
-                $sql .= " remarks = ?, is_completed = TRUE, updated_at = NOW() 
-                        WHERE driver_id = ? AND call_date = ?";
-
-                $stmt = $pdo->prepare($sql);
-                $params = [$call_time, $caller_name, $alcohol_check_value, $call_time, $pre_duty_call_id];
-
-                foreach ($check_items as $item) {
-                    $params[] = isset($_POST[$item]) ? 1 : 0;
-                }
-
-                $params[] = $_POST['remarks'] ?? '';
-                $params[] = $driver_id;
-                $params[] = $today;
-
-                $stmt->execute($params);
-                $success_message = '乗務後点呼記録を更新しました。';
-            } else {
-                // 新規挿入
-                $sql = "INSERT INTO post_duty_calls (
-                        driver_id, vehicle_id, call_date, call_time, caller_name, 
-                        alcohol_check_value, alcohol_check_time, pre_duty_call_id,";
-
-                foreach ($check_items as $item) {
-                    $sql .= " $item,";
-                }
-
-                $sql .= " remarks, is_completed) VALUES (?, ?, ?, ?, ?, ?, ?, ?,";
-
-                $sql .= str_repeat('?,', count($check_items));
-                $sql .= " ?, TRUE)";
-
-                $stmt = $pdo->prepare($sql);
-                $params = [$driver_id, $vehicle_id, $today, $call_time, $caller_name, $alcohol_check_value, $call_time, $pre_duty_call_id];
-
-                foreach ($check_items as $item) {
-                    $params[] = isset($_POST[$item]) ? 1 : 0;
-                }
-
-                $params[] = $_POST['remarks'] ?? '';
-
-                $stmt->execute($params);
-                $success_message = '乗務後点呼記録を登録しました。';
+            foreach ($check_items as $item) {
+                $params[] = isset($_POST[$item]) ? 1 : 0;
             }
 
-            // 記録を再取得
-            $stmt = $pdo->prepare("SELECT * FROM post_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
-            $stmt->execute([$driver_id, $today]);
-            $existing_call = $stmt->fetch();
-            $is_edit_mode = true;
+            $params[] = $_POST['remarks'] ?? '';
+            $params[] = $driver_id;
+            $params[] = $today;
 
-        } catch (Exception $e) {
-            $error_message = '記録の保存中にエラーが発生しました: ' . $e->getMessage();
-            error_log("Post duty call error: " . $e->getMessage());
+            $stmt->execute($params);
+            $success_message = '乗務後点呼記録を更新しました。';
+        } else {
+            // 新規挿入
+            $sql = "INSERT INTO post_duty_calls (
+                    driver_id, vehicle_id, call_date, call_time, caller_name,
+                    alcohol_check_value, alcohol_check_time, pre_duty_call_id,";
+
+            foreach ($check_items as $item) {
+                $sql .= " $item,";
+            }
+
+            $sql .= " remarks, is_completed) VALUES (?, ?, ?, ?, ?, ?, ?, ?,";
+
+            $sql .= str_repeat('?,', count($check_items));
+            $sql .= " ?, TRUE)";
+
+            $stmt = $pdo->prepare($sql);
+            $params = [$driver_id, $vehicle_id, $today, $call_time, $caller_name, $alcohol_check_value, $call_time, $pre_duty_call_id];
+
+            foreach ($check_items as $item) {
+                $params[] = isset($_POST[$item]) ? 1 : 0;
+            }
+
+            $params[] = $_POST['remarks'] ?? '';
+
+            $stmt->execute($params);
+            $success_message = '乗務後点呼記録を登録しました。';
         }
+
+        // 記録を再取得
+        $stmt = $pdo->prepare("SELECT * FROM post_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
+        $stmt->execute([$driver_id, $today]);
+        $existing_call = $stmt->fetch();
+        $is_edit_mode = true;
+
+    } catch (Exception $e) {
+        $error_message = '記録の保存中にエラーが発生しました: ' . $e->getMessage();
+        error_log("Post duty call error: " . $e->getMessage());
     }
 }
 
