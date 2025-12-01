@@ -2,17 +2,26 @@
 
 ## 問題の概要
 
-出庫処理で以下のエラーが発生します：
+出庫処理および入庫処理で以下のエラーが発生します：
 
+**出庫処理:**
 ```
 SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry '2-2025-12-01' for key 'uk_vehicle_date'
 ```
 
+**入庫処理:**
+```
+SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry '1-2025-12-01' for key 'uk_vehicle_date'
+```
+
 ## 原因
 
-`departure_records` テーブルに設定されている `uk_vehicle_date` ユニークキー制約が、同じ車両が同じ日に複数回出庫することを禁止しています。
+`departure_records` と `arrival_records` の両方のテーブルに設定されている `uk_vehicle_date` ユニークキー制約が、同じ車両が同じ日に複数回出庫・入庫することを禁止しています。
 
-一方、アプリケーションコード (`departure.php` 77-94行) では、入庫済みの場合に同じ車両が再度出庫することを許可するロジックが実装されており、テーブル制約とコードが矛盾しています。
+一方、アプリケーションコードでは、入庫済みの場合に同じ車両が再度出庫・入庫することを許可するロジックが実装されており、テーブル制約とコードが矛盾しています：
+
+- `departure.php` 77-94行: 未入庫の場合のみエラーとし、入庫済みなら再出庫を許可
+- `arrival.php` 125-148行: 出庫記録に対応する入庫記録を作成
 
 ## 解決方法
 
@@ -44,6 +53,7 @@ mysql -h localhost -u twinklemark_taxi -pSmiley2525 twinklemark_wts < remove_uk_
 
 ```sql
 ALTER TABLE departure_records DROP INDEX uk_vehicle_date;
+ALTER TABLE arrival_records DROP INDEX uk_vehicle_date;
 ```
 
 ## 実行後の確認
@@ -52,15 +62,16 @@ ALTER TABLE departure_records DROP INDEX uk_vehicle_date;
 
 ```sql
 SHOW INDEX FROM departure_records;
+SHOW INDEX FROM arrival_records;
 ```
 
-`uk_vehicle_date` がインデックス一覧に表示されなければ成功です。
+両テーブルで `uk_vehicle_date` がインデックス一覧に表示されなければ成功です。
 
 ## 影響範囲
 
-- **変更対象**: `departure_records` テーブルのインデックス
+- **変更対象**: `departure_records` と `arrival_records` テーブルのインデックス
 - **データへの影響**: なし（既存データは変更されません）
-- **機能への影響**: 同じ車両が同じ日に複数回出庫できるようになります
+- **機能への影響**: 同じ車両が同じ日に複数回出庫・入庫できるようになります
 
 ## 注意事項
 

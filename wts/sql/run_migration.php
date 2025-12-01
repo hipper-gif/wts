@@ -44,30 +44,59 @@ try {
 
     // 制約削除の確認
     echo "\n=== 制約削除の確認 ===\n";
-    $stmt = $pdo->query("SHOW INDEX FROM departure_records");
-    $indexes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $has_uk_vehicle_date = false;
-    foreach ($indexes as $index) {
+    // departure_recordsテーブルの確認
+    echo "\n1. departure_records テーブル:\n";
+    $stmt = $pdo->query("SHOW INDEX FROM departure_records");
+    $departure_indexes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $has_departure_uk = false;
+    foreach ($departure_indexes as $index) {
         if ($index['Key_name'] === 'uk_vehicle_date') {
-            $has_uk_vehicle_date = true;
+            $has_departure_uk = true;
             break;
         }
     }
 
-    if ($has_uk_vehicle_date) {
-        echo "❌ エラー: uk_vehicle_date制約がまだ存在します\n";
+    if ($has_departure_uk) {
+        echo "❌ エラー: departure_recordsのuk_vehicle_date制約がまだ存在します\n";
         exit(1);
     } else {
-        echo "✓ uk_vehicle_date制約が正常に削除されました\n\n";
+        echo "✓ departure_recordsのuk_vehicle_date制約が正常に削除されました\n";
     }
 
-    echo "現在のインデックス一覧:\n";
-    foreach ($indexes as $index) {
+    // arrival_recordsテーブルの確認
+    echo "\n2. arrival_records テーブル:\n";
+    $stmt = $pdo->query("SHOW INDEX FROM arrival_records");
+    $arrival_indexes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $has_arrival_uk = false;
+    foreach ($arrival_indexes as $index) {
+        if ($index['Key_name'] === 'uk_vehicle_date') {
+            $has_arrival_uk = true;
+            break;
+        }
+    }
+
+    if ($has_arrival_uk) {
+        echo "❌ エラー: arrival_recordsのuk_vehicle_date制約がまだ存在します\n";
+        exit(1);
+    } else {
+        echo "✓ arrival_recordsのuk_vehicle_date制約が正常に削除されました\n";
+    }
+
+    echo "\n現在のインデックス一覧:\n";
+    echo "\ndeparture_records:\n";
+    foreach ($departure_indexes as $index) {
         echo "  - {$index['Key_name']} ({$index['Column_name']})\n";
     }
 
-    echo "\nマイグレーション完了!\n";
+    echo "\narrival_records:\n";
+    foreach ($arrival_indexes as $index) {
+        echo "  - {$index['Key_name']} ({$index['Column_name']})\n";
+    }
+
+    echo "\n✓ マイグレーション完了!\n";
 
 } catch (PDOException $e) {
     echo "❌ データベースエラー: " . $e->getMessage() . "\n";
