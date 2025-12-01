@@ -507,26 +507,28 @@ echo $page_data['page_header'];
     }
 
     // 走行距離自動計算
-    function calculateDistance() {
+    function calculateDistance(showWarnings = false) {
         const arrivalMileage = parseInt(document.getElementById('arrival_mileage').value) || 0;
         const departureMileage = Number(window.departureMileage) || 0;
         const totalDistance = arrivalMileage - departureMileage;
-        
+
         const distanceField = document.getElementById('total_distance');
-        
+
         if (totalDistance >= 0) {
             distanceField.value = totalDistance;
             distanceField.className = 'form-control';
-            
-            // 異常値チェック
-            if (totalDistance > 500) {
+
+            // 異常値チェック（警告表示が有効な場合のみ）
+            if (showWarnings && totalDistance > 500) {
                 distanceField.className = 'form-control border-warning';
                 showNotification('走行距離が500kmを超えています。確認してください。', 'warning');
             }
         } else if (arrivalMileage > 0) {
             distanceField.value = '';
-            distanceField.className = 'form-control border-danger';
-            showNotification('入庫メーターが出庫メーターより小さくなっています。', 'error');
+            if (showWarnings) {
+                distanceField.className = 'form-control border-danger';
+                showNotification('入庫メーターが出庫メーターより小さくなっています。', 'error');
+            }
         }
     }
 
@@ -616,8 +618,15 @@ echo $page_data['page_header'];
                           now.getMinutes().toString().padStart(2, '0');
         document.getElementById('arrival_time').value = timeString;
 
-        // 入庫メーター変更時に走行距離を再計算
-        document.getElementById('arrival_mileage').addEventListener('input', calculateDistance);
+        // 入庫メーター入力中は警告なしで計算のみ実行
+        document.getElementById('arrival_mileage').addEventListener('input', function() {
+            calculateDistance(false);
+        });
+
+        // 入庫メーター入力完了時に警告付きで検証
+        document.getElementById('arrival_mileage').addEventListener('blur', function() {
+            calculateDistance(true);
+        });
 
         // 休憩時間変更時の検証
         document.getElementById('break_start_time').addEventListener('change', validateBreakTime);
