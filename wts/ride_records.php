@@ -42,14 +42,25 @@ $error_message = '';
 $default_driver_id = $user_is_driver ? $user_id : '';
 $default_vehicle_id = '';
 
-// 最近使用した車両を取得（デフォルト車両設定）
+// 出庫記録からデフォルト車両を取得
 if ($user_is_driver) {
-    $recent_vehicle_sql = "SELECT vehicle_id FROM ride_records WHERE driver_id = ? ORDER BY created_at DESC LIMIT 1";
-    $recent_vehicle_stmt = $pdo->prepare($recent_vehicle_sql);
-    $recent_vehicle_stmt->execute([$user_id]);
-    $recent_vehicle = $recent_vehicle_stmt->fetchColumn();
-    if ($recent_vehicle) {
-        $default_vehicle_id = $recent_vehicle;
+    // 当日の最新出庫記録から車両を取得
+    $departure_vehicle_sql = "SELECT vehicle_id FROM departure_records WHERE driver_id = ? AND departure_date = ? ORDER BY created_at DESC LIMIT 1";
+    $departure_vehicle_stmt = $pdo->prepare($departure_vehicle_sql);
+    $departure_vehicle_stmt->execute([$user_id, $today]);
+    $departure_vehicle = $departure_vehicle_stmt->fetchColumn();
+
+    if ($departure_vehicle) {
+        $default_vehicle_id = $departure_vehicle;
+    } else {
+        // 出庫記録がない場合は最近使用した車両を取得（フォールバック）
+        $recent_vehicle_sql = "SELECT vehicle_id FROM ride_records WHERE driver_id = ? ORDER BY created_at DESC LIMIT 1";
+        $recent_vehicle_stmt = $pdo->prepare($recent_vehicle_sql);
+        $recent_vehicle_stmt->execute([$user_id]);
+        $recent_vehicle = $recent_vehicle_stmt->fetchColumn();
+        if ($recent_vehicle) {
+            $default_vehicle_id = $recent_vehicle;
+        }
     }
 }
 
@@ -571,7 +582,10 @@ echo $page_data['page_header'];
                     <?php if ($user_is_driver): ?>
                     <div class="unified-alert alert-info mb-4">
                         <h6 class="mb-2"><i class="fas fa-user-check me-2"></i>デフォルト設定</h6>
-                        <p class="mb-0">あなたが運転者として自動選択されます。変更も可能です。</p>
+                        <p class="mb-0">
+                            運転者として自動選択されます。<br>
+                            車両は当日の出庫記録から自動取得されます。変更も可能です。
+                        </p>
                     </div>
                     <?php endif; ?>
 
