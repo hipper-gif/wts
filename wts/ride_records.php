@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $driver_id = $_POST['driver_id'];
             $vehicle_id = $_POST['vehicle_id'];
             $ride_date = $_POST['ride_date'];
-            $ride_time = $_POST['ride_time'];
+            $ride_time = !empty($_POST['ride_time']) ? $_POST['ride_time'] : date('H:i');
             $passenger_count = $_POST['passenger_count'];
             $pickup_location = $_POST['pickup_location'];
             $dropoff_location = $_POST['dropoff_location'];
@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $record_id = $_POST['record_id'];
             $driver_id = $_POST['driver_id'];
             $vehicle_id = $_POST['vehicle_id'];
-            $ride_time = $_POST['ride_time'];
+            $ride_time = !empty($_POST['ride_time']) ? $_POST['ride_time'] : date('H:i');
             $passenger_count = $_POST['passenger_count'];
             $pickup_location = $_POST['pickup_location'];
             $dropoff_location = $_POST['dropoff_location'];
