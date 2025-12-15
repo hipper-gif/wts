@@ -523,7 +523,7 @@ function convertReservationToRideRecord($reservation_id) {
         // 乗車記録作成
         $ride_data = [
             'ride_date' => $reservation['reservation_date'],
-            'ride_time' => $reservation['reservation_time'],
+            'ride_time' => !empty($reservation['reservation_time']) ? $reservation['reservation_time'] : date('H:i'),
             'passenger_count' => $reservation['passenger_count'],
             'boarding_location' => $reservation['pickup_location'],
             'alighting_location' => $reservation['dropoff_location'],
