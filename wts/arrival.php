@@ -223,6 +223,13 @@ echo $page_data['page_header'];
         </div>
         <?php endif; ?>
 
+        <!-- 入庫記録一覧へのリンク -->
+        <div class="mb-4">
+            <a href="arrival_list.php" class="btn btn-outline-primary">
+                <i class="fas fa-list me-2"></i>過去の入庫記録を確認・修正
+            </a>
+        </div>
+
         <!-- アラート表示 -->
         <?php if ($success_message): ?>
             <div class="alert alert-success alert-dismissible fade show">
