@@ -124,6 +124,15 @@ function getPageConfiguration($page_type) {
             'frequency' => '毎日',
             'priority' => 'critical'
         ],
+        'arrival_list' => [
+            'category' => 'daily',
+            'icon' => 'list-alt',
+            'title' => '入庫記録一覧',
+            'subtitle' => '過去の入庫記録確認・修正',
+            'description' => '入庫記録の一覧表示と修正機能',
+            'frequency' => '随時',
+            'priority' => 'normal'
+        ],
         'post_duty_call' => [
             'category' => 'daily',
             'icon' => 'check-circle',
