@@ -74,6 +74,16 @@ if ($user_permission !== 'Admin') {
     $params[] = $user_id;
 }
 
+// 編集履歴カラムの存在チェック
+$has_edit_columns = false;
+try {
+    $check_columns = $pdo->query("SHOW COLUMNS FROM arrival_records LIKE 'is_edited'");
+    $has_edit_columns = $check_columns->rowCount() > 0;
+} catch (Exception $e) {
+    $has_edit_columns = false;
+}
+
+// SQLクエリ構築
 $arrivals_sql = "SELECT
     a.*,
     u.name as driver_name,
@@ -81,13 +91,15 @@ $arrivals_sql = "SELECT
     v.vehicle_name,
     d.departure_mileage,
     d.departure_date,
-    d.departure_time,
-    COALESCE(editor.name, '') as edited_by_name
+    d.departure_time" .
+    ($has_edit_columns ? ",
+    COALESCE(editor.name, '') as edited_by_name" : "") . "
     FROM arrival_records a
     JOIN users u ON a.driver_id = u.id
     JOIN vehicles v ON a.vehicle_id = v.id
-    LEFT JOIN departure_records d ON a.departure_record_id = d.id
-    LEFT JOIN users editor ON a.last_edited_by = editor.id
+    LEFT JOIN departure_records d ON a.departure_record_id = d.id" .
+    ($has_edit_columns ? "
+    LEFT JOIN users editor ON a.last_edited_by = editor.id" : "") . "
     WHERE " . implode(' AND ', $where_conditions) . "
     ORDER BY a.arrival_time DESC";
 
@@ -170,6 +182,20 @@ echo $page_data['page_header'];
             </div>
         </div>
 
+        <!-- マイグレーション警告 -->
+        <?php if (!$has_edit_columns): ?>
+        <div class="alert alert-warning border-0 mb-4">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle fs-3 me-3"></i>
+                <div class="flex-grow-1">
+                    <h5 class="alert-heading mb-1">編集履歴機能が無効です</h5>
+                    <p class="mb-0">入庫記録の修正履歴を記録するには、データベースマイグレーションを実行する必要があります。</p>
+                    <p class="mb-0 mt-2 small">管理者に <code>sql/add_arrival_edit_columns.sql</code> の実行を依頼してください。</p>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- 検索フォーム -->
         <div class="unified-card mb-4">
             <div class="unified-card-body">
@@ -232,12 +258,12 @@ echo $page_data['page_header'];
                             </div>
                         <?php else: ?>
                             <?php foreach ($arrivals as $arrival): ?>
-                                <div class="unified-record-item <?php echo $arrival['is_edited'] ? 'edited-record' : ''; ?> mb-3">
+                                <div class="unified-record-item <?php echo ($has_edit_columns && isset($arrival['is_edited']) && $arrival['is_edited']) ? 'edited-record' : ''; ?> mb-3">
                                     <div class="row align-items-center">
                                         <div class="col-md-8">
                                             <div class="d-flex align-items-center mb-2">
                                                 <strong class="me-3 fs-5"><?php echo substr($arrival['arrival_time'], 0, 5); ?></strong>
-                                                <?php if ($arrival['is_edited']): ?>
+                                                <?php if ($has_edit_columns && isset($arrival['is_edited']) && $arrival['is_edited']): ?>
                                                     <span class="badge badge-warning">
                                                         <i class="fas fa-edit me-1"></i>修正済み
                                                     </span>
@@ -268,10 +294,10 @@ echo $page_data['page_header'];
                                                 <?php if ($arrival['remarks']): ?>
                                                     <br><i class="fas fa-sticky-note me-1"></i><?php echo htmlspecialchars($arrival['remarks']); ?>
                                                 <?php endif; ?>
-                                                <?php if ($arrival['is_edited']): ?>
+                                                <?php if ($has_edit_columns && isset($arrival['is_edited']) && $arrival['is_edited']): ?>
                                                     <br><i class="fas fa-info-circle me-1 text-warning"></i>
-                                                    修正理由: <?php echo htmlspecialchars($arrival['edit_reason']); ?>
-                                                    <?php if ($arrival['edited_by_name']): ?>
+                                                    修正理由: <?php echo htmlspecialchars($arrival['edit_reason'] ?? ''); ?>
+                                                    <?php if (!empty($arrival['edited_by_name'])): ?>
                                                         (修正者: <?php echo htmlspecialchars($arrival['edited_by_name']); ?>)
                                                     <?php endif; ?>
                                                 <?php endif; ?>
@@ -435,6 +461,7 @@ echo $page_data['page_header'];
                         <textarea class="form-control unified-textarea" id="modalRemarks" name="remarks" rows="2"></textarea>
                     </div>
 
+                    <?php if ($has_edit_columns): ?>
                     <div class="mb-3">
                         <label for="modalEditReason" class="form-label unified-label">
                             <i class="fas fa-comment me-1"></i>修正理由 <span class="text-danger">*</span>
@@ -443,6 +470,13 @@ echo $page_data['page_header'];
                                placeholder="例: メーター読み間違い、費用追加、時刻修正など" required maxlength="100">
                         <div class="form-text text-danger">※修正理由の入力は必須です</div>
                     </div>
+                    <?php else: ?>
+                    <div class="alert alert-warning mb-3">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>注意:</strong> 編集履歴機能が無効のため、修正履歴は記録されません。
+                    </div>
+                    <input type="hidden" id="modalEditReason" name="edit_reason" value="編集履歴機能未対応">
+                    <?php endif; ?>
                 </div>
 
                 <div class="modal-footer unified-modal-footer">
@@ -638,6 +672,7 @@ echo $page_data['page_header'];
 </style>
 
 <script>
+const hasEditColumns = <?php echo $has_edit_columns ? 'true' : 'false'; ?>;
 let currentDepartureMileage = 0;
 
 // 編集モーダル表示
