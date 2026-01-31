@@ -60,6 +60,63 @@ function getRevenueByDateRange($pdo, $start_date, $end_date, $driver_id = null) 
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
+// 集金ステータス取得関数（cash_count_detailsテーブルを参照）
+function getCollectionStatus($pdo, $start_date, $end_date, $driver_id = null) {
+    $sql = "SELECT
+                c.driver_id,
+                c.confirmation_date,
+                c.total_amount,
+                c.created_at,
+                c.updated_at,
+                u.name as driver_name
+            FROM cash_count_details c
+            LEFT JOIN users u ON c.driver_id = u.id
+            WHERE c.confirmation_date BETWEEN ? AND ?";
+
+    $params = [$start_date, $end_date];
+
+    if ($driver_id && $driver_id !== 'all') {
+        $sql .= " AND c.driver_id = ?";
+        $params[] = $driver_id;
+    }
+
+    $sql .= " ORDER BY c.confirmation_date DESC, c.driver_id";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // driver_id => [date => record] のマップに変換
+    $status_map = [];
+    foreach ($records as $record) {
+        $did = $record['driver_id'];
+        $date = $record['confirmation_date'];
+        if (!isset($status_map[$did])) {
+            $status_map[$did] = [];
+        }
+        $status_map[$did][$date] = $record;
+    }
+
+    return $status_map;
+}
+
+// 期間内の営業日数を取得（ride_recordsが存在する日数）
+function getWorkingDates($pdo, $start_date, $end_date, $driver_id = null) {
+    $sql = "SELECT DISTINCT ride_date FROM ride_records WHERE ride_date BETWEEN ? AND ?";
+    $params = [$start_date, $end_date];
+
+    if ($driver_id && $driver_id !== 'all') {
+        $sql .= " AND driver_id = ?";
+        $params[] = $driver_id;
+    }
+
+    $sql .= " ORDER BY ride_date";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
+
 // 運転者別の売上詳細取得関数（「すべて」選択時用）
 function getRevenueByDriver($pdo, $start_date, $end_date) {
     $sql = "SELECT 
@@ -89,10 +146,54 @@ function getRevenueByDriver($pdo, $start_date, $end_date) {
 // 売上データ取得
 $revenue_data = getRevenueByDateRange($pdo, $start_date, $end_date, $selected_driver_id);
 
+// 集金ステータス取得
+$collection_status = getCollectionStatus($pdo, $start_date, $end_date, $selected_driver_id);
+
 // 運転者別詳細データ（「すべて」選択時のみ）
 $driver_details = [];
 if ($selected_driver_id === 'all') {
     $driver_details = getRevenueByDriver($pdo, $start_date, $end_date);
+
+    // 各運転者ごとの営業日と集金完了日数を計算
+    $collection_summary = ['total_drivers' => 0, 'collected_drivers' => 0];
+    foreach ($driver_details as &$detail) {
+        // この運転者の乗車がある場合のみカウント
+        if (($detail['ride_count'] ?? 0) > 0) {
+            $collection_summary['total_drivers']++;
+            // 期間内に集金レコードがあるか確認
+            $driver_working_dates = getWorkingDates($pdo, $start_date, $end_date, $detail['id']);
+            $collected_dates = isset($collection_status[$detail['id']]) ? array_keys($collection_status[$detail['id']]) : [];
+            $uncollected_dates = array_diff($driver_working_dates, $collected_dates);
+
+            $detail['working_dates'] = $driver_working_dates;
+            $detail['collected_dates'] = $collected_dates;
+            $detail['is_fully_collected'] = empty($uncollected_dates);
+            $detail['collection_count'] = count($collected_dates);
+            $detail['working_count'] = count($driver_working_dates);
+
+            if ($detail['is_fully_collected']) {
+                $collection_summary['collected_drivers']++;
+            }
+        } else {
+            $detail['is_fully_collected'] = null; // 乗車なし
+            $detail['collection_count'] = 0;
+            $detail['working_count'] = 0;
+        }
+    }
+    unset($detail);
+} else {
+    // 個別運転者の集金ステータス
+    $driver_working_dates = getWorkingDates($pdo, $start_date, $end_date, $selected_driver_id);
+    $collected_dates = isset($collection_status[$selected_driver_id]) ? array_keys($collection_status[$selected_driver_id]) : [];
+    $uncollected_dates = array_diff($driver_working_dates, $collected_dates);
+    $single_driver_collection = [
+        'working_dates' => $driver_working_dates,
+        'collected_dates' => $collected_dates,
+        'uncollected_dates' => array_values($uncollected_dates),
+        'is_fully_collected' => empty($uncollected_dates) && !empty($driver_working_dates),
+        'collection_count' => count($collected_dates),
+        'working_count' => count($driver_working_dates),
+    ];
 }
 
 // ページ設定
@@ -208,6 +309,172 @@ echo $page_data['html_head'];
     gap: 16px;
     margin-top: 24px;
 }
+
+/* 集金ステータスインジケーター */
+.collection-summary {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding: 16px 20px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+}
+
+.collection-summary-icon {
+    font-size: 1.5rem;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.collection-summary-icon.all-done {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.collection-summary-icon.partial {
+    background: #fff3e0;
+    color: #e65100;
+}
+
+.collection-summary-icon.none {
+    background: #f5f5f5;
+    color: #9e9e9e;
+}
+
+.collection-summary-text {
+    flex: 1;
+}
+
+.collection-summary-title {
+    font-size: 0.875rem;
+    color: #666;
+    margin-bottom: 2px;
+}
+
+.collection-summary-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.collection-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.collection-badge.collected {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.collection-badge.uncollected {
+    background: #fbe9e7;
+    color: #c62828;
+}
+
+.collection-badge.no-rides {
+    background: #f5f5f5;
+    color: #9e9e9e;
+}
+
+.collection-status-card {
+    margin-bottom: 24px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.collection-status-card .status-header {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.collection-status-card .status-header.collected {
+    background: #e8f5e9;
+    border-bottom: 2px solid #4caf50;
+}
+
+.collection-status-card .status-header.uncollected {
+    background: #fbe9e7;
+    border-bottom: 2px solid #e53935;
+}
+
+.collection-status-card .status-header.no-data {
+    background: #f5f5f5;
+    border-bottom: 2px solid #bdbdbd;
+}
+
+.collection-status-card .status-icon {
+    font-size: 1.5rem;
+}
+
+.collection-status-card .status-text {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.collection-status-card .status-detail {
+    padding: 12px 20px;
+    background: white;
+    font-size: 0.875rem;
+    color: #555;
+}
+
+.collection-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.collection-progress-bar {
+    flex: 1;
+    height: 6px;
+    background: #e0e0e0;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.collection-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.collection-progress-fill.complete {
+    background: #4caf50;
+}
+
+.collection-progress-fill.partial {
+    background: #ff9800;
+}
+
+.collection-progress-text {
+    font-size: 0.75rem;
+    color: #666;
+    white-space: nowrap;
+}
+
+.driver-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
 </style>
 
 <?php echo $page_data['system_header']; ?>
@@ -278,6 +545,44 @@ echo $page_data['html_head'];
         <?php endif; ?>
     </div>
 
+    <!-- 集金状況サマリー -->
+    <?php if ($selected_driver_id === 'all' && !empty($driver_details)): ?>
+    <?php
+        $summary_icon_class = 'none';
+        $summary_icon = 'fa-clock';
+        if ($collection_summary['total_drivers'] > 0) {
+            if ($collection_summary['collected_drivers'] === $collection_summary['total_drivers']) {
+                $summary_icon_class = 'all-done';
+                $summary_icon = 'fa-check-circle';
+            } elseif ($collection_summary['collected_drivers'] > 0) {
+                $summary_icon_class = 'partial';
+                $summary_icon = 'fa-exclamation-circle';
+            }
+        }
+        $progress_pct = $collection_summary['total_drivers'] > 0
+            ? round($collection_summary['collected_drivers'] / $collection_summary['total_drivers'] * 100)
+            : 0;
+    ?>
+    <div class="collection-summary">
+        <div class="collection-summary-icon <?php echo $summary_icon_class; ?>">
+            <i class="fas <?php echo $summary_icon; ?>"></i>
+        </div>
+        <div class="collection-summary-text">
+            <div class="collection-summary-title">集金処理状況</div>
+            <div class="collection-summary-value">
+                <?php echo $collection_summary['collected_drivers']; ?> / <?php echo $collection_summary['total_drivers']; ?> 名完了
+            </div>
+            <div class="collection-progress">
+                <div class="collection-progress-bar">
+                    <div class="collection-progress-fill <?php echo $progress_pct === 100 ? 'complete' : 'partial'; ?>"
+                         style="width: <?php echo $progress_pct; ?>%"></div>
+                </div>
+                <span class="collection-progress-text"><?php echo $progress_pct; ?>%</span>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- 合計サマリー -->
     <div class="stats-grid">
         <div class="stat-item">
@@ -307,7 +612,23 @@ echo $page_data['html_head'];
                 <?php foreach ($driver_details as $detail): ?>
                 <div class="driver-card">
                     <div class="driver-card-header">
-                        <?php echo htmlspecialchars($detail['name']); ?>
+                        <span><?php echo htmlspecialchars($detail['name']); ?></span>
+                        <?php if ($detail['is_fully_collected'] === true): ?>
+                            <span class="collection-badge collected">
+                                <i class="fas fa-check-circle"></i> 集金済み
+                            </span>
+                        <?php elseif ($detail['is_fully_collected'] === false): ?>
+                            <span class="collection-badge uncollected">
+                                <i class="fas fa-exclamation-circle"></i> 未集金
+                                <?php if ($detail['working_count'] > 1): ?>
+                                    (<?php echo $detail['collection_count']; ?>/<?php echo $detail['working_count']; ?>日)
+                                <?php endif; ?>
+                            </span>
+                        <?php else: ?>
+                            <span class="collection-badge no-rides">
+                                <i class="fas fa-minus-circle"></i> 乗車なし
+                            </span>
+                        <?php endif; ?>
                     </div>
                     <div class="driver-stat-row">
                         <span class="driver-stat-label">総売上</span>
@@ -341,6 +662,51 @@ echo $page_data['html_head'];
     <?php elseif ($selected_driver_id === 'all'): ?>
     <div class="alert alert-info">
         選択した期間には乗車記録がありません。
+    </div>
+    <?php endif; ?>
+
+    <!-- 個別運転者選択時の集金ステータス -->
+    <?php if ($selected_driver_id !== 'all'): ?>
+    <?php
+        $sc = $single_driver_collection;
+        if ($sc['working_count'] === 0) {
+            $status_class = 'no-data';
+            $status_icon = 'fa-minus-circle';
+            $status_text = '該当期間に乗車記録がありません';
+            $status_color = '#9e9e9e';
+        } elseif ($sc['is_fully_collected']) {
+            $status_class = 'collected';
+            $status_icon = 'fa-check-circle';
+            $status_text = '集金処理完了';
+            $status_color = '#2e7d32';
+        } else {
+            $status_class = 'uncollected';
+            $status_icon = 'fa-exclamation-circle';
+            $status_text = '未集金あり（' . $sc['collection_count'] . '/' . $sc['working_count'] . '日完了）';
+            $status_color = '#c62828';
+        }
+    ?>
+    <div class="collection-status-card">
+        <div class="status-header <?php echo $status_class; ?>">
+            <span class="status-icon" style="color: <?php echo $status_color; ?>">
+                <i class="fas <?php echo $status_icon; ?>"></i>
+            </span>
+            <span class="status-text"><?php echo $status_text; ?></span>
+        </div>
+        <?php if ($sc['working_count'] > 0): ?>
+        <div class="status-detail">
+            <?php if (!empty($sc['uncollected_dates'])): ?>
+                <strong>未集金の日付:</strong>
+                <?php foreach ($sc['uncollected_dates'] as $ud): ?>
+                    <span class="collection-badge uncollected ms-1">
+                        <?php echo date('n/j', strtotime($ud)); ?>
+                    </span>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <span style="color: #2e7d32;">すべての営業日で集金処理が完了しています。</span>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 
