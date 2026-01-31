@@ -4,11 +4,14 @@
  * POST: 集金済み/未集金を切り替え
  */
 header('Content-Type: application/json; charset=utf-8');
-session_start();
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
-    echo json_encode(['success' => false, 'message' => '認証が必要です']);
+    echo json_encode(['success' => false, 'message' => '認証が必要です。ログインし直してください。']);
     exit;
 }
 
@@ -22,19 +25,22 @@ require_once dirname(__DIR__) . '/config/database.php';
 
 try {
     $pdo = getDBConnection();
+    if (!$pdo) {
+        throw new Exception('データベース接続に失敗しました');
+    }
 
     $input = file_get_contents('php://input');
     $data = json_decode($input, true);
 
     if (json_last_error() !== JSON_ERROR_NONE) {
-        throw new Exception('JSONパースエラー');
+        throw new Exception('JSONパースエラー: ' . json_last_error_msg() . ' | 入力: ' . substr($input, 0, 200));
     }
 
     $driver_id = (int)($data['driver_id'] ?? 0);
     $collection_date = $data['collection_date'] ?? '';
 
     if (!$driver_id || !$collection_date) {
-        throw new Exception('driver_id と collection_date は必須です');
+        throw new Exception('driver_id(' . $driver_id . ') と collection_date(' . $collection_date . ') は必須です');
     }
 
     // テーブル存在確認・自動作成
@@ -86,7 +92,15 @@ try {
         'collection_date' => $collection_date
     ]);
 
+} catch (PDOException $e) {
+    error_log('toggle_collection DB error: ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'DBエラー: ' . $e->getMessage()
+    ]);
 } catch (Exception $e) {
+    error_log('toggle_collection error: ' . $e->getMessage());
     http_response_code(400);
     echo json_encode([
         'success' => false,

@@ -827,41 +827,55 @@ echo $page_data['html_head'];
 <script>
 // 集金チェックボックスのトグル
 function toggleCollection(checkbox) {
-    const driverId = checkbox.dataset.driverId;
-    const date = checkbox.dataset.date;
-    const label = checkbox.parentElement.querySelector('.check-label');
+    var driverId = checkbox.getAttribute('data-driver-id');
+    var date = checkbox.getAttribute('data-date');
+    var label = checkbox.parentElement.querySelector('.check-label');
 
     checkbox.disabled = true;
+
+    var payload = JSON.stringify({ driver_id: parseInt(driverId), collection_date: date });
+    console.log('集金チェック送信:', payload);
 
     fetch('api/toggle_collection.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ driver_id: parseInt(driverId), collection_date: date })
+        body: payload
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(function(r) {
+        console.log('APIレスポンス status:', r.status);
+        return r.text();
+    })
+    .then(function(text) {
+        console.log('APIレスポンス body:', text);
+        try {
+            return JSON.parse(text);
+        } catch(e) {
+            throw new Error('JSONパース失敗: ' + text.substring(0, 200));
+        }
+    })
+    .then(function(data) {
         if (data.success) {
-            const isCollected = data.is_collected;
+            var isCollected = data.is_collected;
             checkbox.checked = isCollected;
             if (label) {
-                // 全運転者ビュー: ラベルテキスト更新
-                if (label.textContent.includes('集金済') || label.textContent.includes('未集金')) {
+                var txt = label.textContent.trim();
+                if (txt.indexOf('集金済') !== -1 || txt.indexOf('未集金') !== -1) {
                     label.textContent = isCollected ? '集金済' : '未集金';
                 }
                 label.className = 'check-label ' + (isCollected ? 'collected' : 'uncollected');
             }
             updateSummary();
         } else {
-            // 失敗時は元に戻す
             checkbox.checked = !checkbox.checked;
-            alert('エラー: ' + (data.message || '保存に失敗しました'));
+            alert('保存エラー: ' + (data.message || '不明なエラー'));
         }
     })
-    .catch(err => {
+    .catch(function(err) {
         checkbox.checked = !checkbox.checked;
         console.error('通信エラー:', err);
+        alert('通信エラー: ' + err.message);
     })
-    .finally(() => {
+    .finally(function() {
         checkbox.disabled = false;
     });
 }

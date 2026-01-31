@@ -4,11 +4,26 @@
  * 集金管理システムの分割実装 - 運転者専用画面
  */
 
+session_start();
 require_once 'config/database.php';
-require_once 'includes/auth_check.php';
+
+if (!isset($_SESSION['user_id'])) {
+    header('Location: index.php');
+    exit;
+}
 
 $pdo = getDBConnection();
-$current_user = getCurrentUser();
+
+// ユーザー情報取得（is_driver含む）
+$stmt = $pdo->prepare("SELECT id, name, permission_level, is_driver FROM users WHERE id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$current_user = $stmt->fetch(PDO::FETCH_OBJ);
+
+if (!$current_user) {
+    session_destroy();
+    header('Location: index.php');
+    exit;
+}
 
 // 権限チェック: 運転者フラグまたはAdmin権限
 if (!$current_user->is_driver && $current_user->permission_level !== 'Admin') {
