@@ -151,6 +151,15 @@ function getPageConfiguration($page_type) {
             'frequency' => '毎日',
             'priority' => 'critical'
         ],
+        'driver_cash_count' => [
+            'category' => 'daily',
+            'icon' => 'calculator',
+            'title' => '現金カウント',
+            'subtitle' => '金種別枚数入力・差額確認',
+            'description' => '運転者向け現金カウント入力',
+            'frequency' => '毎日',
+            'priority' => 'normal'
+        ],
         
         // 🗓️ 定期業務（2ページ）
         'periodic_inspection' => [
