@@ -33,6 +33,66 @@ try {
     // テーブルが既に存在する場合は無視
 }
 
+// --- AJAX POST ハンドラ（集金チェックのトグル） ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        $input = file_get_contents('php://input');
+        if (empty($input)) {
+            throw new Exception('入力データが空です');
+        }
+        $data = json_decode($input, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new Exception('JSONパースエラー: ' . json_last_error_msg());
+        }
+
+        $driver_id = (int)($data['driver_id'] ?? 0);
+        $collection_date = $data['collection_date'] ?? '';
+
+        if (!$driver_id || !$collection_date) {
+            throw new Exception('driver_id と collection_date は必須です');
+        }
+
+        $check_stmt = $pdo->prepare("
+            SELECT id, is_collected FROM cash_collections
+            WHERE driver_id = ? AND collection_date = ?
+        ");
+        $check_stmt->execute([$driver_id, $collection_date]);
+        $existing = $check_stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($existing) {
+            $new_status = $existing['is_collected'] ? 0 : 1;
+            $update_stmt = $pdo->prepare("
+                UPDATE cash_collections
+                SET is_collected = ?, collected_by = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ");
+            $update_stmt->execute([$new_status, $user_id, $existing['id']]);
+        } else {
+            $new_status = 1;
+            $insert_stmt = $pdo->prepare("
+                INSERT INTO cash_collections (driver_id, collection_date, is_collected, collected_by)
+                VALUES (?, ?, 1, ?)
+            ");
+            $insert_stmt->execute([$driver_id, $collection_date, $user_id]);
+        }
+
+        echo json_encode([
+            'success' => true,
+            'is_collected' => (bool)$new_status,
+            'driver_id' => $driver_id,
+            'collection_date' => $collection_date
+        ]);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'DBエラー: ' . $e->getMessage()]);
+    } catch (Exception $e) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
 // --- データ取得関数 ---
 
 function getDriverList($pdo) {
@@ -836,7 +896,7 @@ function toggleCollection(checkbox) {
     var payload = JSON.stringify({ driver_id: parseInt(driverId), collection_date: date });
     console.log('集金チェック送信:', payload);
 
-    fetch('api/toggle_collection.php', {
+    fetch('cash_management.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: payload
@@ -882,32 +942,32 @@ function toggleCollection(checkbox) {
 
 // サマリーの動的更新（全運転者ビュー用）
 function updateSummary() {
-    const summaryEl = document.getElementById('summaryValue');
+    var summaryEl = document.getElementById('summaryValue');
     if (!summaryEl) return;
 
-    const cards = document.querySelectorAll('.driver-card');
-    let total = 0, collected = 0;
-    cards.forEach(card => {
-        const cb = card.querySelector('input[type="checkbox"]');
+    var cards = document.querySelectorAll('.driver-card');
+    var total = 0, collected = 0;
+    for (var i = 0; i < cards.length; i++) {
+        var cb = cards[i].querySelector('input[type="checkbox"]');
         if (cb) {
             total++;
             if (cb.checked) collected++;
         }
-    });
+    }
 
     if (total === 0) return;
     summaryEl.textContent = collected + ' / ' + total + ' 名完了';
 
-    const pct = Math.round(collected / total * 100);
-    const bar = document.getElementById('summaryBar');
-    const pctText = document.getElementById('summaryPct');
+    var pct = Math.round(collected / total * 100);
+    var bar = document.getElementById('summaryBar');
+    var pctText = document.getElementById('summaryPct');
     if (bar) {
         bar.style.width = pct + '%';
         bar.className = 'collection-progress-fill ' + (pct === 100 ? 'complete' : 'partial');
     }
     if (pctText) pctText.textContent = pct + '%';
 
-    const icon = document.getElementById('summaryIcon');
+    var icon = document.getElementById('summaryIcon');
     if (icon) {
         icon.className = 'collection-summary-icon ' + (pct === 100 ? 'all-done' : (collected > 0 ? 'partial' : 'none'));
         icon.innerHTML = '<i class="fas ' + (pct === 100 ? 'fa-check-circle' : (collected > 0 ? 'fa-exclamation-circle' : 'fa-clock')) + '"></i>';
