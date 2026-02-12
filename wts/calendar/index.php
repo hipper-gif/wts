@@ -53,25 +53,32 @@ $page_config = [
 ];
 
 // 統一ヘッダーでページ生成（正しいパス指定）
+// キャッシュバスティング: ファイル更新時にブラウザキャッシュを自動無効化
+$cache_bust = function($path) {
+    $full_path = __DIR__ . '/' . $path;
+    $v = file_exists($full_path) ? filemtime($full_path) : time();
+    return $path . '?v=' . $v;
+};
+
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [
         // FullCalendar CDN (v6.1.11)
         'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css',
         // カレンダー専用CSS
-        'css/calendar.css',
-        'css/calendar-custom.css',
-        'css/reservation.css'
+        $cache_bust('css/calendar.css'),
+        $cache_bust('css/calendar-custom.css'),
+        $cache_bust('css/reservation.css')
     ],
     'additional_js' => [
         // FullCalendar CDN (v6.1.11 - includes all plugins)
         'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js',
         // カレンダー専用JS
-        'js/calendar.js',
-        'js/reservation.js',
-        'js/vehicle_constraints.js',
+        $cache_bust('js/calendar.js'),
+        $cache_bust('js/reservation.js'),
+        $cache_bust('js/vehicle_constraints.js'),
         // 既存のWTS統一JS（相対パスで正しく指定）
-        '../js/ui-interactions.js'
+        '../js/ui-interactions.js?v=' . (file_exists(__DIR__ . '/../js/ui-interactions.js') ? filemtime(__DIR__ . '/../js/ui-interactions.js') : time())
     ],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => '../dashboard.php'],
