@@ -498,6 +498,32 @@ body.dashboard-page {
     animation: fadeIn 0.4s ease-in;
 }
 
+/* カレンダーリンク */
+.calendar-link {
+    border: 2px solid #2196F3 !important;
+    background: rgba(33, 150, 243, 0.05) !important;
+}
+
+.calendar-link:hover {
+    background: rgba(33, 150, 243, 0.12) !important;
+    border-color: #1976D2 !important;
+    color: #1976D2 !important;
+}
+
+.calendar-link strong {
+    color: #1976D2;
+}
+
+.calendar-icon {
+    background: #2196F3 !important;
+    color: white !important;
+}
+
+.calendar-link .badge {
+    font-size: 0.7rem;
+    vertical-align: middle;
+}
+
 /* 管理機能（管理者のみ） */
 .admin-section {
     background: #f8f9fa;

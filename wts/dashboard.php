@@ -218,6 +218,21 @@ try {
     error_log("Dashboard error: " . $e->getMessage());
 }
 
+// カレンダー予約統計（テーブル未作成時のエラーハンドリング付き）
+$today_reservations = 0;
+$upcoming_reservations = 0;
+try {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM reservations WHERE reservation_date = ? AND status != 'cancelled'");
+    $stmt->execute([$today]);
+    $today_reservations = $stmt->fetchColumn();
+
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM reservations WHERE reservation_date > ? AND reservation_date <= DATE_ADD(?, INTERVAL 7 DAY) AND status != 'cancelled'");
+    $stmt->execute([$today, $today]);
+    $upcoming_reservations = $stmt->fetchColumn();
+} catch (Exception $e) {
+    // reservationsテーブルが未作成の場合は0のまま
+}
+
 // アラート優先度ソート
 usort($alerts, function($a, $b) {
     $priority_order = ['critical' => 0, 'high' => 1, 'normal' => 2];
@@ -392,6 +407,15 @@ echo $page_data['html_head'];
                 <div>
                     <strong style="font-size: 1.1rem; color: #28a745;">乗車記録</strong><br>
                     <small>復路作成機能付き乗車管理（メイン表示）</small>
+                </div>
+            </a>
+            <a href="calendar/index.php" class="workflow-item calendar-link">
+                <div class="workflow-icon calendar-icon">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+                <div>
+                    <strong>予約・スケジュール</strong><br>
+                    <small>予約管理カレンダー<?php if ($today_reservations > 0): ?> <span class="badge bg-primary"><?= $today_reservations ?>件</span><?php endif; ?><?php if ($upcoming_reservations > 0): ?> <span class="badge bg-secondary ms-1">7日間 <?= $upcoming_reservations ?>件</span><?php endif; ?></small>
                 </div>
             </a>
         </div>
