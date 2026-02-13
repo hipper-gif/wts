@@ -43,15 +43,32 @@ $drivers = $stmt->fetchAll();
 $stmt = $pdo->query("SELECT id, vehicle_number, model FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number");
 $vehicles = $stmt->fetchAll();
 
-// カスタマイズ選択肢取得
+// カスタマイズ選択肢取得（テーブル未作成の場合は自動作成）
 $field_options = [];
 try {
+    $pdo->query("SELECT 1 FROM reservation_field_options LIMIT 1");
     $stmt = $pdo->query("SELECT field_name, option_value, option_label FROM reservation_field_options WHERE is_active = 1 ORDER BY field_name, sort_order, id");
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $field_options[$row['field_name']][] = ['value' => $row['option_value'], 'label' => $row['option_label']];
     }
 } catch (Exception $e) {
-    // テーブル未作成の場合はデフォルト値を使用
+    // テーブル未作成 → 自動作成
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS reservation_field_options (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            field_name VARCHAR(50) NOT NULL,
+            option_value VARCHAR(100) NOT NULL,
+            option_label VARCHAR(100) NOT NULL,
+            sort_order INT NOT NULL DEFAULT 0,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_field_option (field_name, option_value),
+            INDEX idx_field_active (field_name, is_active, sort_order)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    } catch (Exception $e2) {
+        // 作成失敗時はデフォルト値を使用
+    }
 }
 
 // ページ設定

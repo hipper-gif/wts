@@ -31,6 +31,40 @@ $field_definitions = [
     'payment_method' => ['label' => '支払い方法', 'icon' => 'yen-sign'],
 ];
 
+// テーブル自動作成（未作成の場合）
+try {
+    $pdo->query("SELECT 1 FROM reservation_field_options LIMIT 1");
+} catch (Exception $e) {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS reservation_field_options (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        field_name VARCHAR(50) NOT NULL,
+        option_value VARCHAR(100) NOT NULL,
+        option_label VARCHAR(100) NOT NULL,
+        sort_order INT NOT NULL DEFAULT 0,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_field_option (field_name, option_value),
+        INDEX idx_field_active (field_name, is_active, sort_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+    // デフォルト選択肢を投入
+    $defaults = [
+        ['service_type', 'お迎え', 'お迎え', 1], ['service_type', '送り', '送り', 2],
+        ['service_type', '往復', '往復', 3], ['service_type', '病院', '病院', 4],
+        ['service_type', '買い物', '買い物', 5], ['service_type', 'その他', 'その他', 99],
+        ['rental_service', 'なし', 'なし', 0], ['rental_service', '車椅子', '車椅子', 1],
+        ['rental_service', 'ストレッチャー', 'ストレッチャー', 2], ['rental_service', '酸素ボンベ', '酸素ボンベ', 3],
+        ['referrer_type', 'CM', 'CM (ケアマネージャー)', 1], ['referrer_type', 'MSW', 'MSW (医療ソーシャルワーカー)', 2],
+        ['referrer_type', '病院', '病院', 3], ['referrer_type', '施設', '施設', 4],
+        ['referrer_type', '個人', '個人', 5], ['referrer_type', 'その他', 'その他', 99],
+        ['payment_method', '現金', '現金', 1], ['payment_method', 'クレジットカード', 'クレジットカード', 2],
+        ['payment_method', '請求書', '請求書', 3], ['payment_method', '介護保険', '介護保険', 4],
+    ];
+    $stmt = $pdo->prepare("INSERT IGNORE INTO reservation_field_options (field_name, option_value, option_label, sort_order) VALUES (?, ?, ?, ?)");
+    foreach ($defaults as $d) { $stmt->execute($d); }
+}
+
 // 既存データ取得
 $stmt = $pdo->query("SELECT * FROM reservation_field_options ORDER BY field_name, sort_order, id");
 $all_options = $stmt->fetchAll(PDO::FETCH_ASSOC);

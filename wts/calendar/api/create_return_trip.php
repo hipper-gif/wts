@@ -50,7 +50,7 @@ try {
     
     // 親予約データ取得
     $stmt = $pdo->prepare("
-        SELECT r.*, u.name as driver_name, v.vehicle_number, v.model
+        SELECT r.*, u.name as driver_name, v.vehicle_number, v.model as vehicle_model
         FROM reservations r
         LEFT JOIN users u ON r.driver_id = u.id
         LEFT JOIN vehicles v ON r.vehicle_id = v.id
@@ -140,7 +140,7 @@ try {
     
     // 復路予約データ取得（レスポンス用）
     $stmt = $pdo->prepare("
-        SELECT r.*, u.name as driver_name, v.vehicle_number, v.model
+        SELECT r.*, u.name as driver_name, v.vehicle_number, v.model as vehicle_model
         FROM reservations r
         LEFT JOIN users u ON r.driver_id = u.id
         LEFT JOIN vehicles v ON r.vehicle_id = v.id
@@ -157,7 +157,7 @@ try {
         'dropoff_location' => $return_data['dropoff_location'],
         'service_type' => $return_data['service_type'],
         'driver_name' => $return_reservation['driver_name'],
-        'vehicle_info' => $return_reservation['vehicle_number'] . ' (' . $return_reservation['model'] . ')',
+        'vehicle_info' => $return_reservation['vehicle_number'] ? $return_reservation['vehicle_number'] . ' (' . $return_reservation['vehicle_model'] . ')' : '',
         'estimated_fare' => $return_data['estimated_fare'],
         'calendar_event' => convertReservationToEvent($return_reservation)
     ], '復路を作成しました');
