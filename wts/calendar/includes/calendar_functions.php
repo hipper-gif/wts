@@ -358,20 +358,20 @@ function getFrequentLocations($location_type = null, $limit = 10) {
  */
 function updateLocationUsage($location_name, $location_type = 'その他') {
     global $pdo;
-    
+
     try {
-        // 既存場所の更新または新規作成
-        $sql = "
-            INSERT INTO frequent_locations 
-            (location_name, location_type, usage_count, last_used_date) 
-            VALUES (?, ?, 1, CURDATE())
-            ON DUPLICATE KEY UPDATE 
-                usage_count = usage_count + 1,
-                last_used_date = CURDATE()";
-        
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$location_name, $location_type]);
-        
+        // usage_countを増加、またはレコード新規作成
+        $stmt = $pdo->prepare("SELECT id FROM frequent_locations WHERE location_name = ?");
+        $stmt->execute([$location_name]);
+
+        if ($stmt->fetch()) {
+            $stmt = $pdo->prepare("UPDATE frequent_locations SET usage_count = usage_count + 1 WHERE location_name = ?");
+            $stmt->execute([$location_name]);
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO frequent_locations (location_name, location_type, usage_count) VALUES (?, ?, 1)");
+            $stmt->execute([$location_name, $location_type]);
+        }
+
         return true;
     } catch (Exception $e) {
         error_log("場所使用回数更新エラー: " . $e->getMessage());
