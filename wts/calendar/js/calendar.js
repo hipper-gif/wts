@@ -107,6 +107,7 @@ document.addEventListener('DOMContentLoaded', function() {
             datesSet: handleDatesChange,
 
             // カスタムレンダリング
+            eventContent: customizeEventContent,
             eventDidMount: customizeEventDisplay,
 
             // ローディング表示
@@ -267,6 +268,40 @@ document.addEventListener('DOMContentLoaded', function() {
     // カスタム表示
     // =================================================================
     
+    function customizeEventContent(arg) {
+        const event = arg.event;
+        const props = event.extendedProps;
+        const viewType = arg.view.type;
+
+        // 日表示・週表示: 時間 名前 乗車場所→降車場所
+        if (viewType === 'timeGridDay' || viewType === 'timeGridWeek') {
+            const time = props.reservation_time ? props.reservation_time.substring(0, 5) : '';
+            const name = props.clientName || '';
+            const pickup = props.pickupLocation || '';
+            const dropoff = props.dropoffLocation || '';
+
+            const container = document.createElement('div');
+            container.className = 'fc-event-custom';
+
+            const timeName = document.createElement('div');
+            timeName.className = 'fc-event-time-name';
+            timeName.textContent = time + ' ' + name + '様';
+            container.appendChild(timeName);
+
+            if (pickup || dropoff) {
+                const route = document.createElement('div');
+                route.className = 'fc-event-route';
+                route.textContent = pickup + '→' + dropoff;
+                container.appendChild(route);
+            }
+
+            return { domNodes: [container] };
+        }
+
+        // 月表示: デフォルトのtitleをそのまま使用
+        return true;
+    }
+
     function customizeEventDisplay(info) {
         const event = info.event;
         const props = event.extendedProps;

@@ -48,6 +48,28 @@
     justify-content: center;
 }
 
+/* 日表示・週表示: イベント内カスタム表示 */
+.fc-event-custom {
+    line-height: 1.3;
+    padding: 1px 0;
+    overflow: hidden;
+}
+
+.fc-event-time-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fc-event-route {
+    font-size: 0.8em;
+    opacity: 0.9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* レスポンシブ対応 */
 @media (max-width: 768px) {
     #calendar { padding: 0.5rem; }
