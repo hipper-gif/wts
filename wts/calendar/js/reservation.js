@@ -752,9 +752,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     window.calendarMethods.refreshEvents();
                 }
 
-                if (createReturn && result.can_create_return) {
+                const resData = result.data || result;
+                if (createReturn && resData.can_create_return) {
                     // 復路作成処理
-                    createReturnTrip(result.reservation_id);
+                    createReturnTrip(resData.reservation_id);
                 } else {
                     // モーダル閉じる
                     reservationModal.hide();
@@ -818,8 +819,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const saveAndReturnBtn = document.getElementById('saveAndCreateReturnBtn');
         
         if (saveAndReturnBtn) {
-            // お迎え予約で復路でない場合のみ表示
-            const show = serviceType === 'お迎え' && !isReturnTrip && currentMode === 'create';
+            // 復路でない新規予約の場合に表示
+            const show = !isReturnTrip && currentMode === 'create';
             saveAndReturnBtn.style.display = show ? 'inline-block' : 'none';
         }
     }

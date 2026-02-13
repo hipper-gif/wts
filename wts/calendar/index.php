@@ -43,6 +43,17 @@ $drivers = $stmt->fetchAll();
 $stmt = $pdo->query("SELECT id, vehicle_number, model FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number");
 $vehicles = $stmt->fetchAll();
 
+// カスタマイズ選択肢取得
+$field_options = [];
+try {
+    $stmt = $pdo->query("SELECT field_name, option_value, option_label FROM reservation_field_options WHERE is_active = 1 ORDER BY field_name, sort_order, id");
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $field_options[$row['field_name']][] = ['value' => $row['option_value'], 'label' => $row['option_label']];
+    }
+} catch (Exception $e) {
+    // テーブル未作成の場合はデフォルト値を使用
+}
+
 // ページ設定
 $page_config = [
     'title' => '予約カレンダー',
@@ -169,6 +180,10 @@ echo $page_data['page_header'];
                                             <i class="fas fa-chevron-right"></i>
                                         </button>
                                     </div>
+
+                                    <a href="settings.php" class="btn btn-outline-secondary" title="項目カスタマイズ">
+                                        <i class="fas fa-sliders-h"></i>
+                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -290,12 +305,18 @@ echo $page_data['page_header'];
                                 <div class="col-md-3 mb-3">
                                     <label for="serviceType" class="form-label">サービス種別 <span class="text-danger">*</span></label>
                                     <select class="form-select" id="serviceType" name="serviceType" required>
-                                        <option value="お迎え">お迎え</option>
-                                        <option value="送り">送り</option>
-                                        <option value="往復">往復</option>
-                                        <option value="病院">病院</option>
-                                        <option value="買い物">買い物</option>
-                                        <option value="その他">その他</option>
+                                        <?php if (!empty($field_options['service_type'])): ?>
+                                            <?php foreach ($field_options['service_type'] as $opt): ?>
+                                                <option value="<?= htmlspecialchars($opt['value']) ?>"><?= htmlspecialchars($opt['label']) ?></option>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <option value="お迎え">お迎え</option>
+                                            <option value="送り">送り</option>
+                                            <option value="往復">往復</option>
+                                            <option value="病院">病院</option>
+                                            <option value="買い物">買い物</option>
+                                            <option value="その他">その他</option>
+                                        <?php endif; ?>
                                     </select>
                                 </div>
                                 <div class="col-md-3 mb-3">
@@ -321,10 +342,16 @@ echo $page_data['page_header'];
                                 <div class="col-md-4 mb-3">
                                     <label for="rentalService" class="form-label">レンタルサービス</label>
                                     <select class="form-select" id="rentalService" name="rentalService">
-                                        <option value="なし">なし</option>
-                                        <option value="車椅子">車椅子</option>
-                                        <option value="ストレッチャー">ストレッチャー</option>
-                                        <option value="酸素ボンベ">酸素ボンベ</option>
+                                        <?php if (!empty($field_options['rental_service'])): ?>
+                                            <?php foreach ($field_options['rental_service'] as $opt): ?>
+                                                <option value="<?= htmlspecialchars($opt['value']) ?>"><?= htmlspecialchars($opt['label']) ?></option>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <option value="なし">なし</option>
+                                            <option value="車椅子">車椅子</option>
+                                            <option value="ストレッチャー">ストレッチャー</option>
+                                            <option value="酸素ボンベ">酸素ボンベ</option>
+                                        <?php endif; ?>
                                     </select>
                                 </div>
                                 <div class="col-md-8">
@@ -372,12 +399,18 @@ echo $page_data['page_header'];
                                 <div class="col-md-4 mb-3">
                                     <label for="referrerType" class="form-label">紹介者種別 <span class="text-danger">*</span></label>
                                     <select class="form-select" id="referrerType" name="referrerType" required>
-                                        <option value="CM">CM (ケアマネージャー)</option>
-                                        <option value="MSW">MSW (医療ソーシャルワーカー)</option>
-                                        <option value="病院">病院</option>
-                                        <option value="施設">施設</option>
-                                        <option value="個人">個人</option>
-                                        <option value="その他">その他</option>
+                                        <?php if (!empty($field_options['referrer_type'])): ?>
+                                            <?php foreach ($field_options['referrer_type'] as $opt): ?>
+                                                <option value="<?= htmlspecialchars($opt['value']) ?>"><?= htmlspecialchars($opt['label']) ?></option>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <option value="CM">CM (ケアマネージャー)</option>
+                                            <option value="MSW">MSW (医療ソーシャルワーカー)</option>
+                                            <option value="病院">病院</option>
+                                            <option value="施設">施設</option>
+                                            <option value="個人">個人</option>
+                                            <option value="その他">その他</option>
+                                        <?php endif; ?>
                                     </select>
                                 </div>
                                 <div class="col-md-4 mb-3">
@@ -416,10 +449,16 @@ echo $page_data['page_header'];
                                 <div class="col-md-4 mb-3">
                                     <label for="paymentMethod" class="form-label">支払い方法</label>
                                     <select class="form-select" id="paymentMethod" name="paymentMethod">
-                                        <option value="現金">現金</option>
-                                        <option value="クレジットカード">クレジットカード</option>
-                                        <option value="請求書">請求書</option>
-                                        <option value="介護保険">介護保険</option>
+                                        <?php if (!empty($field_options['payment_method'])): ?>
+                                            <?php foreach ($field_options['payment_method'] as $opt): ?>
+                                                <option value="<?= htmlspecialchars($opt['value']) ?>"><?= htmlspecialchars($opt['label']) ?></option>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <option value="現金">現金</option>
+                                            <option value="クレジットカード">クレジットカード</option>
+                                            <option value="請求書">請求書</option>
+                                            <option value="介護保険">介護保険</option>
+                                        <?php endif; ?>
                                     </select>
                                 </div>
                             </div>

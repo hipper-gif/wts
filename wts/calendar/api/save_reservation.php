@@ -169,8 +169,8 @@ try {
     // トランザクションコミット
     $pdo->commit();
     
-    // 復路作成可能かチェック
-    $can_create_return = !$reservation_data['is_return_trip'] && $reservation_data['service_type'] === 'お迎え';
+    // 復路作成可能かチェック（復路でなければ作成可能）
+    $can_create_return = !$reservation_data['is_return_trip'];
     
     // レスポンス送信
     sendSuccessResponse([
