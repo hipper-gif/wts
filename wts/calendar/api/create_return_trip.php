@@ -50,7 +50,7 @@ try {
     
     // 親予約データ取得
     $stmt = $pdo->prepare("
-        SELECT r.*, u.full_name as driver_name, v.vehicle_number, v.model 
+        SELECT r.*, u.name as driver_name, v.vehicle_number, v.model
         FROM reservations r
         LEFT JOIN users u ON r.driver_id = u.id
         LEFT JOIN vehicles v ON r.vehicle_id = v.id
@@ -140,7 +140,7 @@ try {
     
     // 復路予約データ取得（レスポンス用）
     $stmt = $pdo->prepare("
-        SELECT r.*, u.full_name as driver_name, v.vehicle_number, v.model 
+        SELECT r.*, u.name as driver_name, v.vehicle_number, v.model
         FROM reservations r
         LEFT JOIN users u ON r.driver_id = u.id
         LEFT JOIN vehicles v ON r.vehicle_id = v.id
