@@ -83,10 +83,6 @@ try {
         sendErrorResponse('復路から復路は作成できません');
     }
     
-    if ($parent_reservation['service_type'] !== 'お迎え') {
-        sendErrorResponse('お迎え予約からのみ復路を作成できます');
-    }
-    
     // 既存復路チェック
     $stmt = $pdo->prepare("SELECT id FROM reservations WHERE parent_reservation_id = ?");
     $stmt->execute([$parent_reservation_id]);
