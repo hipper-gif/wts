@@ -51,7 +51,18 @@ try {
     // トランザクション開始
     $pdo->beginTransaction();
 
-    // 削除実行
+    // 復路が存在する場合は先に削除
+    $stmt = $pdo->prepare("SELECT id FROM reservations WHERE parent_reservation_id = ?");
+    $stmt->execute([$reservation_id]);
+    $child_reservations = $stmt->fetchAll();
+
+    foreach ($child_reservations as $child) {
+        $stmt = $pdo->prepare("DELETE FROM reservations WHERE id = ?");
+        $stmt->execute([$child['id']]);
+        logCalendarAction($user_id, 'delete', 'reservation', $child['id'], null, null);
+    }
+
+    // 本体削除
     $stmt = $pdo->prepare("DELETE FROM reservations WHERE id = ?");
     $stmt->execute([$reservation_id]);
 
@@ -62,7 +73,10 @@ try {
     $pdo->commit();
 
     // レスポンス送信
-    sendSuccessResponse([], '予約を削除しました');
+    $msg = count($child_reservations) > 0
+        ? '予約と復路（' . count($child_reservations) . '件）を削除しました'
+        : '予約を削除しました';
+    sendSuccessResponse([], $msg);
 
 } catch (Exception $e) {
     // トランザクションロールバック
