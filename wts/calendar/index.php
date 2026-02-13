@@ -209,6 +209,22 @@ echo $page_data['page_header'];
             </div>
         </div>
         
+        <!-- 色分け凡例 -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body py-2">
+                <div class="calendar-legend">
+                    <span class="text-muted fw-bold me-1"><i class="fas fa-palette me-1"></i>ステータス:</span>
+                    <span class="calendar-legend-item"><span class="calendar-legend-color" style="background:#2196F3"></span>予約</span>
+                    <span class="calendar-legend-item"><span class="calendar-legend-color" style="background:#FF9800"></span>進行中</span>
+                    <span class="calendar-legend-item"><span class="calendar-legend-color" style="background:#4CAF50"></span>完了</span>
+                    <span class="calendar-legend-item"><span class="calendar-legend-color" style="background:#757575"></span>キャンセル</span>
+                    <span class="text-muted fw-bold ms-2 me-1">|</span>
+                    <span class="calendar-legend-item"><span class="calendar-legend-color dashed"></span>復路</span>
+                    <span class="calendar-legend-item"><span class="calendar-legend-color rental" style="background:#2196F3"></span>レンタルあり</span>
+                </div>
+            </div>
+        </div>
+
         <!-- カレンダー表示エリア -->
         <div class="row">
             <!-- メインカレンダー -->
