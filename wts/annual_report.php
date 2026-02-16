@@ -57,9 +57,25 @@ try {
     $stmt->execute();
     if ($stmt->fetchColumn() == 0) {
         $pdo->exec("
-            INSERT INTO company_info (company_name, address, phone, representative_name) 
-            VALUES ('近畿介護タクシー株式会社', '大阪市中央区天満橋1-7-10', '06-6949-6446', '代表取締役　田中　太郎')
+            INSERT INTO company_info (company_name, address, phone)
+            VALUES ('近畿介護タクシー株式会社', '大阪市中央区天満橋1-7-10', '06-6949-6446')
         ");
+    }
+
+    // 既存テーブルに不足カラムがあれば追加
+    $company_columns = [
+        'company_kana' => "VARCHAR(200) DEFAULT ''",
+        'representative_name' => "VARCHAR(100) DEFAULT ''",
+        'postal_code' => "VARCHAR(10) DEFAULT ''",
+        'license_number' => "VARCHAR(50) DEFAULT ''",
+        'business_type' => "VARCHAR(100) DEFAULT '一般乗用旅客自動車運送事業（福祉）'"
+    ];
+    foreach ($company_columns as $col => $def) {
+        try {
+            $pdo->exec("ALTER TABLE company_info ADD COLUMN {$col} {$def}");
+        } catch (PDOException $e) {
+            // カラムが既に存在する場合は無視
+        }
     }
     
     // 年度マスタの確認・作成
