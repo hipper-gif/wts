@@ -1016,15 +1016,6 @@ body {
         padding: 10px 14px;
     }
 
-    /* Android: 固定ヘッダーの最適化 */
-    .system-header-container,
-    .page-header {
-        -webkit-backface-visibility: hidden;
-        backface-visibility: hidden;
-        transform: translateZ(0);
-        will-change: transform;
-    }
-
     /* Android: スクロール最適化 */
     .table-responsive,
     .modal-body,
@@ -1479,20 +1470,8 @@ body {
     to { background-position: 0 0; }
 }
 
-/* モーダル（Bootstrap 5 との互換性を維持） */
-.modal-dialog {
-    border-radius: var(--border-radius-lg);
-    box-shadow: var(--shadow-lg);
-    max-height: 90vh;
-    overflow-y: auto;
-}
-
+/* モーダル（Bootstrap 5 デフォルトを利用） */
 .modal-header {
-    padding: var(--spacing-lg);
-    border-bottom: 1px solid var(--gray-200);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
     background: var(--gray-50);
 }
 
@@ -1524,18 +1503,7 @@ body {
     color: var(--gray-800);
 }
 
-.modal-body {
-    padding: var(--spacing-lg);
-    max-height: 60vh;
-    overflow-y: auto;
-}
-
 .modal-footer {
-    padding: var(--spacing-lg);
-    border-top: 1px solid var(--gray-200);
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--spacing-sm);
     background: var(--gray-50);
 }
 
@@ -1940,13 +1908,6 @@ a:focus, button:focus, input:focus, select:focus, textarea:focus, [tabindex]:not
         overscroll-behavior-y: contain;
     }
 
-    /* Android: 固定ヘッダーのスクロール問題対策 */
-    .system-header-container,
-    .page-header {
-        -webkit-transform: translate3d(0, 0, 0);
-        transform: translate3d(0, 0, 0);
-        will-change: transform;
-    }
 }
 
 /* Android横向き対応 */
