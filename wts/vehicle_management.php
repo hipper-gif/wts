@@ -226,7 +226,8 @@ $statuses = [
 
 $vehicle_types = [
     'welfare' => '福祉車両',
-    'taxi' => 'タクシー'
+    'taxi' => 'タクシー',
+    'other' => 'その他'
 ];
 
 // ページオプション設定
@@ -411,8 +412,8 @@ echo $page_data['page_header'];
                                 <td><?= htmlspecialchars($vehicle['vehicle_name']) ?></td>
                                 <td><?= htmlspecialchars($vehicle['model'] ?? '-') ?></td>
                                 <td>
-                                    <span class="badge bg-<?= $vehicle['vehicle_type'] === 'welfare' ? 'info' : 'warning' ?>">
-                                        <?= $vehicle_types[$vehicle['vehicle_type']] ?>
+                                    <span class="badge bg-<?= $vehicle['vehicle_type'] === 'welfare' ? 'info' : ($vehicle['vehicle_type'] === 'taxi' ? 'warning' : 'secondary') ?>">
+                                        <?= $vehicle_types[$vehicle['vehicle_type']] ?? 'その他' ?>
                                     </span>
                                 </td>
                                 <td>
