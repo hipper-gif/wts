@@ -612,15 +612,6 @@ body {
         padding: var(--spacing-md);
     }
 
-    /* Android Chrome: 固定ヘッダーの最適化 */
-    .system-header,
-    .page-header {
-        position: fixed;
-        -webkit-backface-visibility: hidden;
-        backface-visibility: hidden;
-        transform: translateZ(0);
-    }
-
     /* タッチ操作最適化 */
     .btn,
     .form-control,
@@ -864,14 +855,7 @@ body {
     margin: 4px 0;
 }
 
-/* モーダル（Bootstrap 5 との互換性を維持） */
-.modal-dialog {
-    border-radius: var(--border-radius-lg);
-    box-shadow: var(--shadow-lg);
-    max-height: 90vh;
-    overflow-y: auto;
-}
-
+/* モーダル（Bootstrap 5 デフォルトを利用） */
 .modal-header {
     padding: var(--spacing-md);
     border-bottom: 1px solid var(--border-light);
@@ -1275,13 +1259,6 @@ body {
     a, button, .btn, .clickable {
         -webkit-tap-highlight-color: rgba(59, 130, 246, 0.3);
         tap-highlight-color: rgba(59, 130, 246, 0.3);
-    }
-
-    /* Android固有のレンダリング最適化 */
-    .system-header,
-    .page-header {
-        will-change: transform;
-        transform: translate3d(0, 0, 0);
     }
 
     /* オーバースクロール効果の改善 */

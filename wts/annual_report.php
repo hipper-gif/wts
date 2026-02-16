@@ -280,8 +280,7 @@ function getTransportResults($pdo, $year) {
     $stmt = $pdo->prepare("
         SELECT COALESCE(SUM(ar.total_distance), 0) as total_distance
         FROM arrival_records ar
-        JOIN departure_records dr ON ar.departure_record_id = dr.id
-        JOIN vehicles v ON dr.vehicle_id = v.id
+        JOIN vehicles v ON ar.vehicle_id = v.id
         WHERE ar.arrival_date BETWEEN ? AND ?
         AND (v.vehicle_type IS NULL OR v.vehicle_type != 'other')
     ");
