@@ -35,12 +35,12 @@ if ($user['permission_level'] !== 'Admin') {
 
 // 必要テーブルの確認・作成
 try {
-    // 事業者情報テーブル拡張
+    // 事業者情報テーブル
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS company_info (
             id INT PRIMARY KEY AUTO_INCREMENT,
             company_name VARCHAR(200) NOT NULL DEFAULT '近畿介護タクシー株式会社',
-            company_kana VARCHAR(200) DEFAULT 'キンキカイゴタクシーカブシキガイシャ',
+            company_kana VARCHAR(200) DEFAULT '',
             representative_name VARCHAR(100) DEFAULT '',
             postal_code VARCHAR(10) DEFAULT '',
             address VARCHAR(300) DEFAULT '大阪市中央区天満橋1-7-10',
@@ -51,7 +51,7 @@ try {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
     ");
-    
+
     // デフォルトデータの挿入
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM company_info");
     $stmt->execute();
@@ -62,22 +62,6 @@ try {
         ");
     }
 
-    // 既存テーブルに不足カラムがあれば追加
-    $company_columns = [
-        'company_kana' => "VARCHAR(200) DEFAULT ''",
-        'representative_name' => "VARCHAR(100) DEFAULT ''",
-        'postal_code' => "VARCHAR(10) DEFAULT ''",
-        'license_number' => "VARCHAR(50) DEFAULT ''",
-        'business_type' => "VARCHAR(100) DEFAULT '一般乗用旅客自動車運送事業（福祉）'"
-    ];
-    foreach ($company_columns as $col => $def) {
-        try {
-            $pdo->exec("ALTER TABLE company_info ADD COLUMN {$col} {$def}");
-        } catch (PDOException $e) {
-            // カラムが既に存在する場合は無視
-        }
-    }
-    
     // 年度マスタの確認・作成
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS fiscal_years (
@@ -90,7 +74,7 @@ try {
             INDEX idx_fiscal_year (fiscal_year)
         )
     ");
-    
+
     // 陸運局提出記録テーブル
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS annual_reports (
@@ -107,7 +91,7 @@ try {
             FOREIGN KEY (submitted_by) REFERENCES users(id)
         )
     ");
-    
+
     // 事故管理テーブル
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS accidents (
@@ -126,14 +110,35 @@ try {
             prevention_measures TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_accident_date (accident_date),
-            FOREIGN KEY (vehicle_id) REFERENCES vehicles(id),
-            FOREIGN KEY (driver_id) REFERENCES users(id)
+            INDEX idx_accident_date (accident_date)
         )
     ");
-    
+
 } catch (PDOException $e) {
     $error = "テーブル作成エラー: " . $e->getMessage();
+}
+
+// 不足カラムの追加（テーブル作成とは別にエラーハンドリング）
+function ensureColumnExists($pdo, $table, $column, $definition) {
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM `{$table}` LIKE ?");
+    $stmt->execute([$column]);
+    if ($stmt->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE `{$table}` ADD COLUMN `{$column}` {$definition}");
+    }
+}
+
+try {
+    // company_info テーブルの不足カラム
+    ensureColumnExists($pdo, 'company_info', 'company_kana', "VARCHAR(200) DEFAULT ''");
+    ensureColumnExists($pdo, 'company_info', 'representative_name', "VARCHAR(100) DEFAULT ''");
+    ensureColumnExists($pdo, 'company_info', 'postal_code', "VARCHAR(10) DEFAULT ''");
+    ensureColumnExists($pdo, 'company_info', 'license_number', "VARCHAR(50) DEFAULT ''");
+    ensureColumnExists($pdo, 'company_info', 'business_type', "VARCHAR(100) DEFAULT ''");
+
+    // vehicles テーブルに vehicle_type がなければ追加
+    ensureColumnExists($pdo, 'vehicles', 'vehicle_type', "VARCHAR(20) DEFAULT 'welfare'");
+} catch (PDOException $e) {
+    error_log("カラム追加エラー: " . $e->getMessage());
 }
 
 // 現在の年度取得
