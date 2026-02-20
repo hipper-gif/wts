@@ -279,7 +279,7 @@ function getBusinessOverview($pdo, $year) {
     $end_date = $year . '-03-31';
     try {
         // 車両数（アクティブな車両のみ、「その他」を除外）
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM vehicles WHERE is_active = 1 AND (vehicle_type IS NULL OR vehicle_type != 'other')");
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM vehicles WHERE is_active = 1 AND COALESCE(vehicle_type, '') != 'other' AND vehicle_number NOT LIKE '%その他%'");
         $stmt->execute();
         $vehicle_count = $stmt->fetchColumn();
 
@@ -331,7 +331,8 @@ function getTransportResults($pdo, $year) {
             FROM arrival_records ar
             JOIN vehicles v ON ar.vehicle_id = v.id
             WHERE ar.arrival_date BETWEEN ? AND ?
-            AND (v.vehicle_type IS NULL OR v.vehicle_type != 'other')
+            AND COALESCE(v.vehicle_type, '') != 'other'
+            AND v.vehicle_number NOT LIKE '%その他%'
         ");
         $stmt->execute([$start_date, $end_date]);
         $total_distance = $stmt->fetchColumn();
@@ -346,7 +347,8 @@ function getTransportResults($pdo, $year) {
             JOIN vehicles v ON rr.vehicle_id = v.id
             WHERE rr.ride_date BETWEEN ? AND ?
             AND COALESCE(rr.is_sample_data, 0) = 0
-            AND (v.vehicle_type IS NULL OR v.vehicle_type != 'other')
+            AND COALESCE(v.vehicle_type, '') != 'other'
+            AND v.vehicle_number NOT LIKE '%その他%'
         ");
         $stmt->execute([$start_date, $end_date]);
         $transport_data = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -362,7 +364,8 @@ function getTransportResults($pdo, $year) {
             JOIN vehicles v ON rr.vehicle_id = v.id
             WHERE rr.ride_date BETWEEN ? AND ?
             AND COALESCE(rr.is_sample_data, 0) = 0
-            AND (v.vehicle_type IS NULL OR v.vehicle_type != 'other')
+            AND COALESCE(v.vehicle_type, '') != 'other'
+            AND v.vehicle_number NOT LIKE '%その他%'
             GROUP BY rr.transportation_type
         ");
         $stmt->execute([$start_date, $end_date]);
