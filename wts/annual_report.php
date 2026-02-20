@@ -675,6 +675,25 @@ echo $page_data['system_header'];
 echo $page_data['page_header'];
 ?>
 
+<!-- モーダル確実動作のための追加スタイル -->
+<style>
+/* Bootstrap モーダルの z-index を明示的に設定（カスタムCSSとの競合を防ぐ） */
+.modal-backdrop {
+    z-index: 1040 !important;
+}
+.modal {
+    z-index: 1055 !important;
+}
+/* モバイル端末でのスタッキングコンテキスト問題を防ぐ */
+@media (max-width: 767px) {
+    .modal,
+    .modal-backdrop {
+        -webkit-transform: none !important;
+        transform: none !important;
+    }
+}
+</style>
+
 <!-- メインコンテンツ開始 -->
 <main class="main-content">
 <div class="container-fluid px-4">
@@ -700,7 +719,7 @@ echo $page_data['page_header'];
             <div class="card border-primary">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-building me-2"></i>事業者基本情報</h5>
-                    <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#companyInfoModal">
+                    <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#companyInfoModal">
                         <i class="fas fa-edit me-1"></i>編集
                     </button>
                 </div>
@@ -948,7 +967,7 @@ echo $page_data['page_header'];
             <div class="card border-success">
                 <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-file-pdf me-2"></i>第4号様式（輸送実績報告書）</h5>
-                    <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#createReportModal">
+                    <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#createReportModal">
                         <i class="fas fa-plus me-1"></i>新規作成
                     </button>
                 </div>
@@ -1096,12 +1115,12 @@ echo $page_data['page_header'];
 </main>
 
 <!-- 事業者情報編集モーダル -->
-<div class="modal fade" id="companyInfoModal" tabindex="-1">
+<div class="modal fade" id="companyInfoModal" tabindex="-1" aria-labelledby="companyInfoModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-building me-2"></i>事業者情報編集</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="companyInfoModalLabel"><i class="fas fa-building me-2"></i>事業者情報編集</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
             </div>
             <form method="POST">
                 <div class="modal-body">
@@ -1188,12 +1207,12 @@ echo $page_data['page_header'];
 </div>
 
 <!-- レポート作成モーダル -->
-<div class="modal fade" id="createReportModal" tabindex="-1">
+<div class="modal fade" id="createReportModal" tabindex="-1" aria-labelledby="createReportModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-plus me-2"></i>新規レポート作成</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="createReportModalLabel"><i class="fas fa-plus me-2"></i>新規レポート作成</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
             </div>
             <form method="POST">
                 <div class="modal-body">
@@ -1238,12 +1257,12 @@ echo $page_data['page_header'];
 </div>
 
 <!-- 状態更新モーダル -->
-<div class="modal fade" id="updateStatusModal" tabindex="-1">
+<div class="modal fade" id="updateStatusModal" tabindex="-1" aria-labelledby="updateStatusModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>レポート状態更新</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="updateStatusModalLabel"><i class="fas fa-edit me-2"></i>レポート状態更新</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
             </div>
             <form method="POST" id="updateStatusForm">
                 <div class="modal-body">
@@ -1278,12 +1297,13 @@ echo $page_data['page_header'];
 </div>
 
 <script>
-    // 状態更新モーダル
+    // 状態更新モーダル（DOMContentLoaded後に実行）
     function updateStatus(reportId, currentStatus) {
         document.getElementById('update_report_id').value = reportId;
         document.getElementById('status').value = currentStatus;
-        
-        new bootstrap.Modal(document.getElementById('updateStatusModal')).show();
+        var modalEl = document.getElementById('updateStatusModal');
+        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
     }
 </script>
 

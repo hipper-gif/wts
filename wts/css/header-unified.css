@@ -608,9 +608,8 @@ body {
 }
 
 .btn-close {
-    background: none;
+    /* background: none は削除 — BootstrapのSVG閉じアイコンを保持するため */
     border: none;
-    font-size: 1.2rem;
     cursor: pointer;
     opacity: 0.6;
     transition: opacity var(--transition-fast);
@@ -1470,15 +1469,11 @@ body {
     to { background-position: 0 0; }
 }
 
-/* モーダル（Bootstrap 5 デフォルトを利用） */
-.modal-header {
-    background: var(--gray-50);
-}
-
+/* モーダル（Bootstrap 5 デフォルトを利用）*/
+/* ※ background は Bootstrap に委ねてダークモード互換性を確保 */
 .modal-title {
     font-size: 1.25rem;
     font-weight: 600;
-    color: var(--gray-900);
     margin: 0;
 }
 
@@ -1501,10 +1496,6 @@ body {
 .modal-close:hover {
     background: var(--gray-200);
     color: var(--gray-800);
-}
-
-.modal-footer {
-    background: var(--gray-50);
 }
 
 /* ドロップダウンメニュー */
