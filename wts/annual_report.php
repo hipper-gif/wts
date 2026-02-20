@@ -52,11 +52,13 @@ try {
     $existing_columns = array_column($existing_columns_stmt->fetchAll(PDO::FETCH_ASSOC), 'Field');
 
     $columns_to_add = [
-        'company_kana'    => "ALTER TABLE company_info ADD COLUMN company_kana VARCHAR(200) DEFAULT '' AFTER company_name",
+        'company_kana'        => "ALTER TABLE company_info ADD COLUMN company_kana VARCHAR(200) DEFAULT '' AFTER company_name",
         'representative_name' => "ALTER TABLE company_info ADD COLUMN representative_name VARCHAR(100) DEFAULT '' AFTER company_kana",
-        'postal_code'     => "ALTER TABLE company_info ADD COLUMN postal_code VARCHAR(10) DEFAULT '' AFTER representative_name",
-        'license_number'  => "ALTER TABLE company_info ADD COLUMN license_number VARCHAR(50) DEFAULT '' AFTER phone",
-        'business_type'   => "ALTER TABLE company_info ADD COLUMN business_type VARCHAR(100) DEFAULT '一般乗用旅客自動車運送事業（福祉）' AFTER license_number",
+        'postal_code'         => "ALTER TABLE company_info ADD COLUMN postal_code VARCHAR(10) DEFAULT '' AFTER representative_name",
+        'address'             => "ALTER TABLE company_info ADD COLUMN address VARCHAR(300) DEFAULT '大阪市中央区天満橋1-7-10' AFTER postal_code",
+        'phone'               => "ALTER TABLE company_info ADD COLUMN phone VARCHAR(20) DEFAULT '06-6949-6446' AFTER address",
+        'license_number'      => "ALTER TABLE company_info ADD COLUMN license_number VARCHAR(50) DEFAULT '' AFTER phone",
+        'business_type'       => "ALTER TABLE company_info ADD COLUMN business_type VARCHAR(100) DEFAULT '一般乗用旅客自動車運送事業（福祉）' AFTER license_number",
     ];
 
     foreach ($columns_to_add as $col => $sql) {
