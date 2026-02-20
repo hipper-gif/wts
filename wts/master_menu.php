@@ -2,21 +2,9 @@
 session_start();
 require_once 'includes/unified-header.php';
 
-// データベース接続設定
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'twinklemark_wts');
-define('DB_USER', 'twinklemark_taxi');
-define('DB_PASS', 'Smiley2525');
-define('DB_CHARSET', 'utf8mb4');
-
-// データベース接続
+// データベース接続（config/database.php の getDBConnection() を使用）
 try {
-    $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
-    $pdo = new PDO($dsn, DB_USER, DB_PASS, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false
-    ]);
+    $pdo = getDBConnection();
 } catch (PDOException $e) {
     die("データベース接続エラー: " . $e->getMessage());
 }

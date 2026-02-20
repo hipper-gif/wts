@@ -125,8 +125,6 @@ try {
     <!-- ログインページ専用CSS -->
     <link rel="stylesheet" href="css/login.css">
 
-    <!-- PWA専用CSS -->
-    <link rel="stylesheet" href="css/pwa-styles.css">
 </head>
 <body>
     <div class="login-container">
