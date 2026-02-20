@@ -67,15 +67,11 @@ try {
         }
     }
 
-    // デフォルトデータの挿入
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM company_info");
-    $stmt->execute();
-    if ($stmt->fetchColumn() == 0) {
-        $pdo->exec("
-            INSERT INTO company_info (company_name, address, phone)
-            VALUES ('近畿介護タクシー株式会社', '大阪市中央区天満橋1-7-10', '06-6949-6446')
-        ");
-    }
+    // id=1 のレコードを確実に保証（INSERT IGNORE で重複は無視）
+    $pdo->exec("
+        INSERT IGNORE INTO company_info (id, company_name, address, phone)
+        VALUES (1, '近畿介護タクシー株式会社', '大阪市中央区天満橋1-7-10', '06-6949-6446')
+    ");
 
     // 年度マスタの確認・作成
     $pdo->exec("
@@ -173,17 +169,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['action'])) {
             switch ($_POST['action']) {
                 case 'update_company_info':
+                    // 最初のレコードのIDを動的に取得してUPDATE
+                    $id_row = $pdo->query("SELECT id FROM company_info ORDER BY id LIMIT 1")->fetch();
+                    $target_id = $id_row ? $id_row['id'] : 1;
                     $stmt = $pdo->prepare("
-                        UPDATE company_info SET 
-                        company_name = ?, representative_name = ?, 
-                        postal_code = ?, address = ?, phone = ?, 
+                        UPDATE company_info SET
+                        company_name = ?, representative_name = ?,
+                        postal_code = ?, address = ?, phone = ?,
                         license_number = ?, business_type = ?
-                        WHERE id = 1
+                        WHERE id = ?
                     ");
                     $stmt->execute([
                         $_POST['company_name'], $_POST['representative_name'],
                         $_POST['postal_code'], $_POST['address'], $_POST['phone'],
-                        $_POST['license_number'], $_POST['business_type']
+                        $_POST['license_number'], $_POST['business_type'],
+                        $target_id
                     ]);
                     $message = "事業者情報を更新しました。";
                     break;
@@ -256,7 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // データ取得関数群
 function getCompanyInfo($pdo) {
-    $stmt = $pdo->prepare("SELECT * FROM company_info WHERE id = 1 LIMIT 1");
+    $stmt = $pdo->prepare("SELECT * FROM company_info ORDER BY id LIMIT 1");
     $stmt->execute();
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
     
