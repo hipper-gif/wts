@@ -152,6 +152,10 @@ try {
 
     // vehicles テーブルに vehicle_type がなければ追加
     ensureColumnExists($pdo, 'vehicles', 'vehicle_type', "VARCHAR(20) DEFAULT 'welfare'");
+
+    // ride_records / arrival_records に is_sample_data がなければ追加
+    ensureColumnExists($pdo, 'ride_records', 'is_sample_data', "BOOLEAN DEFAULT FALSE");
+    ensureColumnExists($pdo, 'arrival_records', 'is_sample_data', "BOOLEAN DEFAULT FALSE");
 } catch (PDOException $e) {
     error_log("カラム追加エラー: " . $e->getMessage());
 }
@@ -272,98 +276,111 @@ function getCompanyInfo($pdo) {
 }
 
 function getBusinessOverview($pdo, $year) {
-    // 事業概況データ（3月31日現在）
     $end_date = $year . '-03-31';
-    
-    // 車両数（アクティブな車両のみ、「その他」を除外）
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM vehicles WHERE is_active = 1 AND (vehicle_type IS NULL OR vehicle_type != 'other')");
-    $stmt->execute();
-    $vehicle_count = $stmt->fetchColumn();
-    
-    // 従業員数（運転者または管理者）
-    $stmt = $pdo->prepare("
-        SELECT COUNT(*) FROM users 
-        WHERE is_active = 1 
-        AND (is_driver = 1 OR permission_level = 'Admin')
-    ");
-    $stmt->execute();
-    $employee_count = $stmt->fetchColumn();
-    
-    // 運転者数（is_driverフラグ）
-    $stmt = $pdo->prepare("
-        SELECT COUNT(*) FROM users 
-        WHERE is_active = 1 AND is_driver = 1
-    ");
-    $stmt->execute();
-    $driver_count = $stmt->fetchColumn();
-    
-    return [
-        'vehicle_count' => $vehicle_count,
-        'employee_count' => $employee_count,
-        'driver_count' => $driver_count,
-        'as_of_date' => $end_date
-    ];
+    try {
+        // 車両数（アクティブな車両のみ、「その他」を除外）
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM vehicles WHERE is_active = 1 AND (vehicle_type IS NULL OR vehicle_type != 'other')");
+        $stmt->execute();
+        $vehicle_count = $stmt->fetchColumn();
+
+        // 従業員数（運転者または管理者）
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) FROM users
+            WHERE is_active = 1
+            AND (is_driver = 1 OR permission_level = 'Admin')
+        ");
+        $stmt->execute();
+        $employee_count = $stmt->fetchColumn();
+
+        // 運転者数（is_driverフラグ）
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) FROM users
+            WHERE is_active = 1 AND is_driver = 1
+        ");
+        $stmt->execute();
+        $driver_count = $stmt->fetchColumn();
+
+        return [
+            'vehicle_count' => $vehicle_count,
+            'employee_count' => $employee_count,
+            'driver_count' => $driver_count,
+            'as_of_date' => $end_date
+        ];
+    } catch (Exception $e) {
+        error_log("Business overview error: " . $e->getMessage());
+        return ['vehicle_count' => 0, 'employee_count' => 0, 'driver_count' => 0, 'as_of_date' => $end_date];
+    }
 }
 
 function getTransportResults($pdo, $year) {
-    // 輸送実績データ（年度集計：4月1日〜3月31日）
     $start_date = ($year - 1) . '-04-01';
     $end_date = $year . '-03-31';
-    
-    error_log("Transport Results - Date Range: {$start_date} to {$end_date}");
-    
-    // 走行距離（arrival_recordsから、「その他」車両を除外）
-    $stmt = $pdo->prepare("
-        SELECT COALESCE(SUM(ar.total_distance), 0) as total_distance
-        FROM arrival_records ar
-        JOIN vehicles v ON ar.vehicle_id = v.id
-        WHERE ar.arrival_date BETWEEN ? AND ?
-        AND (v.vehicle_type IS NULL OR v.vehicle_type != 'other')
-    ");
-    $stmt->execute([$start_date, $end_date]);
-    $total_distance = $stmt->fetchColumn();
-
-    // 運送実績（ride_recordsから、「その他」車両を除外）
-    $stmt = $pdo->prepare("
-        SELECT
-            COUNT(*) as ride_count,
-            SUM(rr.passenger_count) as total_passengers,
-            SUM(rr.fare + COALESCE(rr.charge, 0)) as total_revenue
-        FROM ride_records rr
-        JOIN vehicles v ON rr.vehicle_id = v.id
-        WHERE rr.ride_date BETWEEN ? AND ?
-        AND rr.is_sample_data = 0
-        AND (v.vehicle_type IS NULL OR v.vehicle_type != 'other')
-    ");
-    $stmt->execute([$start_date, $end_date]);
-    $transport_data = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    // 輸送種別別の詳細データ（「その他」車両を除外）
-    $stmt = $pdo->prepare("
-        SELECT
-            rr.transportation_type,
-            COUNT(*) as count,
-            SUM(rr.passenger_count) as passengers,
-            SUM(rr.fare + COALESCE(rr.charge, 0)) as revenue
-        FROM ride_records rr
-        JOIN vehicles v ON rr.vehicle_id = v.id
-        WHERE rr.ride_date BETWEEN ? AND ?
-        AND rr.is_sample_data = 0
-        AND (v.vehicle_type IS NULL OR v.vehicle_type != 'other')
-        GROUP BY rr.transportation_type
-    ");
-    $stmt->execute([$start_date, $end_date]);
-    $transport_categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    return [
+    $default = [
         'start_date' => $start_date,
         'end_date' => $end_date,
-        'total_distance' => $total_distance,
-        'ride_count' => $transport_data['ride_count'] ?? 0,
-        'total_passengers' => $transport_data['total_passengers'] ?? 0,
-        'total_revenue' => $transport_data['total_revenue'] ?? 0,
-        'transport_categories' => $transport_categories
+        'total_distance' => 0,
+        'ride_count' => 0,
+        'total_passengers' => 0,
+        'total_revenue' => 0,
+        'transport_categories' => []
     ];
+    try {
+        // 走行距離（arrival_recordsから、「その他」車両を除外）
+        $stmt = $pdo->prepare("
+            SELECT COALESCE(SUM(ar.total_distance), 0) as total_distance
+            FROM arrival_records ar
+            JOIN vehicles v ON ar.vehicle_id = v.id
+            WHERE ar.arrival_date BETWEEN ? AND ?
+            AND (v.vehicle_type IS NULL OR v.vehicle_type != 'other')
+        ");
+        $stmt->execute([$start_date, $end_date]);
+        $total_distance = $stmt->fetchColumn();
+
+        // 運送実績（ride_recordsから、「その他」車両を除外）
+        $stmt = $pdo->prepare("
+            SELECT
+                COUNT(*) as ride_count,
+                SUM(rr.passenger_count) as total_passengers,
+                SUM(rr.fare + COALESCE(rr.charge, 0)) as total_revenue
+            FROM ride_records rr
+            JOIN vehicles v ON rr.vehicle_id = v.id
+            WHERE rr.ride_date BETWEEN ? AND ?
+            AND COALESCE(rr.is_sample_data, 0) = 0
+            AND (v.vehicle_type IS NULL OR v.vehicle_type != 'other')
+        ");
+        $stmt->execute([$start_date, $end_date]);
+        $transport_data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // 輸送種別別の詳細データ（「その他」車両を除外）
+        $stmt = $pdo->prepare("
+            SELECT
+                rr.transportation_type,
+                COUNT(*) as count,
+                SUM(rr.passenger_count) as passengers,
+                SUM(rr.fare + COALESCE(rr.charge, 0)) as revenue
+            FROM ride_records rr
+            JOIN vehicles v ON rr.vehicle_id = v.id
+            WHERE rr.ride_date BETWEEN ? AND ?
+            AND COALESCE(rr.is_sample_data, 0) = 0
+            AND (v.vehicle_type IS NULL OR v.vehicle_type != 'other')
+            GROUP BY rr.transportation_type
+        ");
+        $stmt->execute([$start_date, $end_date]);
+        $transport_categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return [
+            'start_date' => $start_date,
+            'end_date' => $end_date,
+            'total_distance' => $total_distance,
+            'ride_count' => $transport_data['ride_count'] ?? 0,
+            'total_passengers' => $transport_data['total_passengers'] ?? 0,
+            'total_revenue' => $transport_data['total_revenue'] ?? 0,
+            'transport_categories' => $transport_categories
+        ];
+    } catch (Exception $e) {
+        error_log("Transport results error: " . $e->getMessage());
+        return $default;
+    }
 }
 
 function getAccidentData($pdo, $year) {
