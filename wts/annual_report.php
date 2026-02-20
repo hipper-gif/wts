@@ -40,17 +40,30 @@ try {
         CREATE TABLE IF NOT EXISTS company_info (
             id INT PRIMARY KEY AUTO_INCREMENT,
             company_name VARCHAR(200) NOT NULL DEFAULT '近畿介護タクシー株式会社',
-            company_kana VARCHAR(200) DEFAULT '',
-            representative_name VARCHAR(100) DEFAULT '',
-            postal_code VARCHAR(10) DEFAULT '',
             address VARCHAR(300) DEFAULT '大阪市中央区天満橋1-7-10',
             phone VARCHAR(20) DEFAULT '06-6949-6446',
-            license_number VARCHAR(50) DEFAULT '',
-            business_type VARCHAR(100) DEFAULT '一般乗用旅客自動車運送事業（福祉）',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
     ");
+
+    // 不足カラムを SHOW COLUMNS で確認して追加
+    $existing_columns_stmt = $pdo->query("SHOW COLUMNS FROM company_info");
+    $existing_columns = array_column($existing_columns_stmt->fetchAll(PDO::FETCH_ASSOC), 'Field');
+
+    $columns_to_add = [
+        'company_kana'    => "ALTER TABLE company_info ADD COLUMN company_kana VARCHAR(200) DEFAULT '' AFTER company_name",
+        'representative_name' => "ALTER TABLE company_info ADD COLUMN representative_name VARCHAR(100) DEFAULT '' AFTER company_kana",
+        'postal_code'     => "ALTER TABLE company_info ADD COLUMN postal_code VARCHAR(10) DEFAULT '' AFTER representative_name",
+        'license_number'  => "ALTER TABLE company_info ADD COLUMN license_number VARCHAR(50) DEFAULT '' AFTER phone",
+        'business_type'   => "ALTER TABLE company_info ADD COLUMN business_type VARCHAR(100) DEFAULT '一般乗用旅客自動車運送事業（福祉）' AFTER license_number",
+    ];
+
+    foreach ($columns_to_add as $col => $sql) {
+        if (!in_array($col, $existing_columns)) {
+            $pdo->exec($sql);
+        }
+    }
 
     // デフォルトデータの挿入
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM company_info");
