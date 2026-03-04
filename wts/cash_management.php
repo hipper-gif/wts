@@ -117,7 +117,7 @@ function getRevenueByDateRange($pdo, $start_date, $end_date, $driver_id = null) 
                     SUM(CASE WHEN payment_method = 'カード'
                         THEN fare + COALESCE(charge, 0) ELSE 0 END)) as card_total
             FROM ride_records
-            WHERE ride_date BETWEEN ? AND ?";
+            WHERE DATE(ride_date) BETWEEN ? AND ?";
     $params = [$start_date, $end_date];
     if ($driver_id && $driver_id !== 'all') {
         $sql .= " AND driver_id = ?";
@@ -143,7 +143,7 @@ function getRevenueByDriver($pdo, $start_date, $end_date) {
                         THEN r.fare + COALESCE(r.charge, 0) ELSE 0 END)) as card_total
             FROM users u
             LEFT JOIN ride_records r ON u.id = r.driver_id
-                AND r.ride_date BETWEEN ? AND ?
+                AND DATE(r.ride_date) BETWEEN ? AND ?
             WHERE u.is_driver = 1 AND u.is_active = 1
             GROUP BY u.id, u.name
             ORDER BY u.name";
@@ -177,7 +177,7 @@ function getCollectionChecks($pdo, $start_date, $end_date, $driver_id = null) {
 
 // 運転者ごとに乗車がある日を取得
 function getWorkingDates($pdo, $start_date, $end_date, $driver_id = null) {
-    $sql = "SELECT DISTINCT ride_date FROM ride_records WHERE ride_date BETWEEN ? AND ?";
+    $sql = "SELECT DISTINCT DATE(ride_date) as ride_date FROM ride_records WHERE DATE(ride_date) BETWEEN ? AND ?";
     $params = [$start_date, $end_date];
     if ($driver_id && $driver_id !== 'all') {
         $sql .= " AND driver_id = ?";
@@ -201,7 +201,7 @@ function getRideBreakdown($pdo, $start_date, $end_date, $driver_id) {
                 COALESCE(r.cash_amount, 0) as cash_amount,
                 COALESCE(r.card_amount, 0) as card_amount
             FROM ride_records r
-            WHERE r.driver_id = ? AND r.ride_date BETWEEN ? AND ?
+            WHERE r.driver_id = ? AND DATE(r.ride_date) BETWEEN ? AND ?
             ORDER BY r.ride_date, r.ride_time";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$driver_id, $start_date, $end_date]);
