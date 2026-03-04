@@ -117,7 +117,7 @@ function getRevenueByDateRange($pdo, $start_date, $end_date, $driver_id = null) 
                     SUM(CASE WHEN payment_method = 'カード'
                         THEN fare + COALESCE(charge, 0) ELSE 0 END)) as card_total
             FROM ride_records
-            WHERE ride_date BETWEEN ? AND ?";
+            WHERE DATE(ride_date) BETWEEN ? AND ?";
     $params = [$start_date, $end_date];
     if ($driver_id && $driver_id !== 'all') {
         $sql .= " AND driver_id = ?";
@@ -143,7 +143,7 @@ function getRevenueByDriver($pdo, $start_date, $end_date) {
                         THEN r.fare + COALESCE(r.charge, 0) ELSE 0 END)) as card_total
             FROM users u
             LEFT JOIN ride_records r ON u.id = r.driver_id
-                AND r.ride_date BETWEEN ? AND ?
+                AND DATE(r.ride_date) BETWEEN ? AND ?
             WHERE u.is_driver = 1 AND u.is_active = 1
             GROUP BY u.id, u.name
             ORDER BY u.name";
@@ -177,7 +177,7 @@ function getCollectionChecks($pdo, $start_date, $end_date, $driver_id = null) {
 
 // 運転者ごとに乗車がある日を取得
 function getWorkingDates($pdo, $start_date, $end_date, $driver_id = null) {
-    $sql = "SELECT DISTINCT ride_date FROM ride_records WHERE ride_date BETWEEN ? AND ?";
+    $sql = "SELECT DISTINCT DATE(ride_date) as ride_date FROM ride_records WHERE DATE(ride_date) BETWEEN ? AND ?";
     $params = [$start_date, $end_date];
     if ($driver_id && $driver_id !== 'all') {
         $sql .= " AND driver_id = ?";
@@ -201,7 +201,7 @@ function getRideBreakdown($pdo, $start_date, $end_date, $driver_id) {
                 COALESCE(r.cash_amount, 0) as cash_amount,
                 COALESCE(r.card_amount, 0) as card_amount
             FROM ride_records r
-            WHERE r.driver_id = ? AND r.ride_date BETWEEN ? AND ?
+            WHERE r.driver_id = ? AND DATE(r.ride_date) BETWEEN ? AND ?
             ORDER BY r.ride_date, r.ride_time";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$driver_id, $start_date, $end_date]);
@@ -609,14 +609,15 @@ echo $page_data['html_head'];
                                     </span>
                                 </label>
                                 <?php else: ?>
-                                    <?php if ($is_checked): ?>
-                                        <span class="date-check-badge checked"><i class="fas fa-check-circle"></i> 集金済み</span>
-                                    <?php else: ?>
-                                        <span class="date-check-badge unchecked">
+                                    <span class="date-check-badge <?php echo $is_checked ? 'checked' : 'unchecked'; ?>"
+                                          id="driver-badge-<?php echo $detail['id']; ?>">
+                                        <?php if ($is_checked): ?>
+                                            <i class="fas fa-check-circle"></i> 集金済み
+                                        <?php else: ?>
                                             <i class="fas fa-exclamation-circle"></i>
                                             未集金 <?php if ($detail['working_count'] > 1) echo '(' . $detail['collection_count'] . '/' . $detail['working_count'] . '日)'; ?>
-                                        </span>
-                                    <?php endif; ?>
+                                        <?php endif; ?>
+                                    </span>
                                 <?php endif; ?>
                             <?php else: ?>
                                 <span style="font-size:0.75rem;color:#999;">乗車なし</span>
@@ -639,6 +640,28 @@ echo $page_data['html_head'];
                             <span class="driver-stat-value">¥<?php echo number_format($detail['card_total'] ?? 0); ?></span>
                         </div>
                         <?php if (($detail['ride_count'] ?? 0) > 0): ?>
+                        <?php if (!$is_single_day && !empty($detail['working_dates'])): ?>
+                        <div style="margin-top:10px;padding-top:8px;border-top:1px solid #f0f0f0;">
+                            <div style="font-size:0.75rem;color:#888;margin-bottom:6px;">日別集金チェック:</div>
+                            <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                <?php foreach ($detail['working_dates'] as $wd):
+                                    $wd_checked = in_array($wd, $detail['checked_dates']);
+                                ?>
+                                <label class="collection-check">
+                                    <input type="checkbox"
+                                           data-driver-id="<?php echo $detail['id']; ?>"
+                                           data-date="<?php echo $wd; ?>"
+                                           <?php echo $wd_checked ? 'checked' : ''; ?>
+                                           onchange="toggleCollection(this)">
+                                    <span class="check-box"></span>
+                                    <span class="check-label <?php echo $wd_checked ? 'collected' : 'uncollected'; ?>">
+                                        <?php echo date('n/j', strtotime($wd)); ?>
+                                    </span>
+                                </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <?php endif; ?>
                         <div style="margin-top:8px;text-align:right;">
                             <a href="?driver_id=<?php echo $detail['id']; ?>&start_date=<?php echo $start_date; ?>&end_date=<?php echo $end_date; ?>"
                                style="font-size:0.8rem;color:#1976d2;text-decoration:none;">
@@ -925,6 +948,7 @@ function toggleCollection(checkbox) {
                 label.className = 'check-label ' + (isCollected ? 'collected' : 'uncollected');
             }
             updateSummary();
+            updateSingleDriverStatus();
         } else {
             checkbox.checked = !checkbox.checked;
             alert('保存エラー: ' + (data.message || '不明なエラー'));
@@ -948,10 +972,31 @@ function updateSummary() {
     var cards = document.querySelectorAll('.driver-card');
     var total = 0, collected = 0;
     for (var i = 0; i < cards.length; i++) {
-        var cb = cards[i].querySelector('input[type="checkbox"]');
-        if (cb) {
-            total++;
-            if (cb.checked) collected++;
+        var checkboxes = cards[i].querySelectorAll('input[type="checkbox"]');
+        if (checkboxes.length === 0) continue;
+        total++;
+        var allChecked = true;
+        var checkedCount = 0;
+        for (var j = 0; j < checkboxes.length; j++) {
+            if (checkboxes[j].checked) {
+                checkedCount++;
+            } else {
+                allChecked = false;
+            }
+        }
+        if (allChecked) collected++;
+
+        // ドライバーカード内のバッジ更新
+        var driverId = checkboxes[0].getAttribute('data-driver-id');
+        var badge = document.getElementById('driver-badge-' + driverId);
+        if (badge) {
+            if (allChecked) {
+                badge.className = 'date-check-badge checked';
+                badge.innerHTML = '<i class="fas fa-check-circle"></i> 集金済み';
+            } else {
+                badge.className = 'date-check-badge unchecked';
+                badge.innerHTML = '<i class="fas fa-exclamation-circle"></i> 未集金 (' + checkedCount + '/' + checkboxes.length + '日)';
+            }
         }
     }
 
@@ -971,6 +1016,41 @@ function updateSummary() {
     if (icon) {
         icon.className = 'collection-summary-icon ' + (pct === 100 ? 'all-done' : (collected > 0 ? 'partial' : 'none'));
         icon.innerHTML = '<i class="fas ' + (pct === 100 ? 'fa-check-circle' : (collected > 0 ? 'fa-exclamation-circle' : 'fa-clock')) + '"></i>';
+    }
+}
+
+// 個別運転者ビューのステータスカード動的更新
+function updateSingleDriverStatus() {
+    var statusCard = document.getElementById('singleStatusCard');
+    if (!statusCard) return;
+
+    var checkboxes = statusCard.querySelectorAll('input[type="checkbox"]');
+    if (checkboxes.length === 0) return;
+
+    var checkedCount = 0;
+    for (var i = 0; i < checkboxes.length; i++) {
+        if (checkboxes[i].checked) checkedCount++;
+    }
+    var totalCount = checkboxes.length;
+    var allChecked = (checkedCount === totalCount);
+
+    var header = document.getElementById('singleStatusHeader');
+    var iconEl = document.getElementById('singleStatusIcon');
+    var textEl = document.getElementById('singleStatusText');
+    var detailEl = document.getElementById('singleStatusDetail');
+
+    if (allChecked) {
+        header.className = 'status-header collected';
+        iconEl.style.color = '#2e7d32';
+        iconEl.innerHTML = '<i class="fas fa-check-circle"></i>';
+        textEl.textContent = '集金処理完了';
+        if (detailEl) detailEl.style.display = 'none';
+    } else {
+        header.className = 'status-header uncollected';
+        iconEl.style.color = '#c62828';
+        iconEl.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
+        textEl.textContent = '未集金あり（' + checkedCount + '/' + totalCount + '日完了）';
+        if (detailEl) detailEl.style.display = '';
     }
 }
 </script>

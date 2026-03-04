@@ -50,6 +50,7 @@ $today_sales = $today_stmt->fetch(PDO::FETCH_OBJ);
 
 // 基準おつり構成（固定）
 $base_change = [
+    'bill_10000' => ['count' => 0, 'value' => 10000, 'name' => '1万円札'],
     'bill_5000' => ['count' => 1, 'value' => 5000, 'name' => '5千円札'],
     'bill_1000' => ['count' => 10, 'value' => 1000, 'name' => '千円札'],
     'coin_500'  => ['count' => 3, 'value' => 500, 'name' => '500円玉'],
