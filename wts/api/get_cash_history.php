@@ -60,7 +60,7 @@ try {
             c.id,
             c.confirmation_date,
             c.cash_bag,
-            c.bill_5000, c.bill_1000, c.coin_500, c.coin_100, c.coin_50, c.coin_10,
+            c.bill_10000, c.bill_5000, c.bill_1000, c.coin_500, c.coin_100, c.coin_50, c.coin_10,
             c.total_amount,
             c.deposit_amount,
             c.system_cash_amount,

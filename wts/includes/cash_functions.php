@@ -73,15 +73,16 @@ function saveCashCount($pdo, $data) {
         $stmt = $pdo->prepare("
             INSERT INTO cash_count_details (
                 confirmation_date, driver_id,
-                bill_5000, bill_1000, 
+                bill_10000, bill_5000, bill_1000,
                 coin_500, coin_100, coin_50, coin_10,
                 total_amount, memo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        
+
         $stmt->execute([
             $data['confirmation_date'],
             $data['driver_id'],
+            $data['bill_10000'] ?? 0,
             $data['bill_5000'] ?? 0,
             $data['bill_1000'] ?? 0,
             $data['coin_500'] ?? 0,
@@ -127,6 +128,7 @@ function calculateCashDifference($counted_total, $system_cash_amount) {
  */
 function getBaseChangeBreakdown() {
     return [
+        'bill_10000' => ['count' => 0, 'amount' => 0],
         'bill_5000' => ['count' => 1, 'amount' => 5000],
         'bill_1000' => ['count' => 10, 'amount' => 10000],
         'coin_500' => ['count' => 3, 'amount' => 1500],

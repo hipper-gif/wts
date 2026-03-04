@@ -67,6 +67,7 @@ try {
     // データを安全に取得（デフォルト値設定）
     $confirmation_date = $data['confirmation_date'];
     $driver_id = $_SESSION['user_id']; // セッションから取得
+    $bill_10000 = (int)($data['bill_10000'] ?? 0);
     $bill_5000 = (int)($data['bill_5000'] ?? 0);
     $bill_1000 = (int)($data['bill_1000'] ?? 0);
     $coin_500 = (int)($data['coin_500'] ?? 0);
@@ -91,24 +92,21 @@ try {
         // 既存データを更新
         $update_stmt = $pdo->prepare("
             UPDATE cash_count_details SET
-                bill_10000 = 0,
+                bill_10000 = ?,
                 bill_5000 = ?,
-                bill_2000 = 0,
                 bill_1000 = ?,
                 coin_500 = ?,
                 coin_100 = ?,
                 coin_50 = ?,
                 coin_10 = ?,
-                coin_5 = 0,
-                coin_1 = 0,
                 total_amount = ?,
                 memo = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE confirmation_date = ? AND driver_id = ?
         ");
-        
+
         $result = $update_stmt->execute([
-            $bill_5000, $bill_1000, $coin_500, $coin_100, 
+            $bill_10000, $bill_5000, $bill_1000, $coin_500, $coin_100,
             $coin_50, $coin_10, $total_amount, $memo,
             $confirmation_date, $driver_id
         ]);
@@ -121,19 +119,19 @@ try {
         $insert_stmt = $pdo->prepare("
             INSERT INTO cash_count_details (
                 confirmation_date, driver_id,
-                bill_10000, bill_5000, bill_2000, bill_1000,
-                coin_500, coin_100, coin_50, coin_10, coin_5, coin_1,
+                bill_10000, bill_5000, bill_1000,
+                coin_500, coin_100, coin_50, coin_10,
                 total_amount, memo,
                 created_at, updated_at
             ) VALUES (
-                ?, ?, 0, ?, 0, ?, ?, ?, ?, ?, 0, 0, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             )
         ");
-        
+
         $result = $insert_stmt->execute([
             $confirmation_date, $driver_id,
-            $bill_5000, $bill_1000, $coin_500, $coin_100,
+            $bill_10000, $bill_5000, $bill_1000, $coin_500, $coin_100,
             $coin_50, $coin_10, $total_amount, $memo
         ]);
         
@@ -163,6 +161,7 @@ try {
         'data' => [
             'confirmation_date' => $confirmation_date,
             'driver_id' => $driver_id,
+            'bill_10000' => $bill_10000,
             'bill_5000' => $bill_5000,
             'bill_1000' => $bill_1000,
             'coin_500' => $coin_500,
