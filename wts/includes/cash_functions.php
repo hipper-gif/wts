@@ -73,10 +73,10 @@ function saveCashCount($pdo, $data) {
         $stmt = $pdo->prepare("
             INSERT INTO cash_count_details (
                 confirmation_date, driver_id,
-                bill_10000, bill_5000, bill_1000,
-                coin_500, coin_100, coin_50, coin_10,
+                bill_10000, bill_5000, bill_2000, bill_1000,
+                coin_500, coin_100, coin_50, coin_10, coin_5, coin_1,
                 total_amount, memo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 0, 0, ?, ?)
         ");
 
         $stmt->execute([

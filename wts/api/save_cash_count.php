@@ -94,11 +94,14 @@ try {
             UPDATE cash_count_details SET
                 bill_10000 = ?,
                 bill_5000 = ?,
+                bill_2000 = 0,
                 bill_1000 = ?,
                 coin_500 = ?,
                 coin_100 = ?,
                 coin_50 = ?,
                 coin_10 = ?,
+                coin_5 = 0,
+                coin_1 = 0,
                 total_amount = ?,
                 memo = ?,
                 updated_at = CURRENT_TIMESTAMP
@@ -110,21 +113,21 @@ try {
             $coin_50, $coin_10, $total_amount, $memo,
             $confirmation_date, $driver_id
         ]);
-        
+
         $message = 'データを正常に更新しました';
         $record_id = $existing['id'];
-        
+
     } else {
         // 新規データを挿入
         $insert_stmt = $pdo->prepare("
             INSERT INTO cash_count_details (
                 confirmation_date, driver_id,
-                bill_10000, bill_5000, bill_1000,
-                coin_500, coin_100, coin_50, coin_10,
+                bill_10000, bill_5000, bill_2000, bill_1000,
+                coin_500, coin_100, coin_50, coin_10, coin_5, coin_1,
                 total_amount, memo,
                 created_at, updated_at
             ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 0, 0, ?, ?,
                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             )
         ");
