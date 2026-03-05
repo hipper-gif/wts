@@ -19,6 +19,7 @@ RewriteCond %{REQUEST_METHOD} POST
 RewriteCond %{HTTP_X_REQUESTED_WITH} !^XMLHttpRequest$ [NC]
 RewriteCond %{CONTENT_TYPE} !^application/x-www-form-urlencoded [NC]
 RewriteCond %{CONTENT_TYPE} !^multipart/form-data [NC]
+RewriteCond %{CONTENT_TYPE} !^application/json [NC]
 RewriteRule ^.*$ - [F,L]
 
 # ログファイルへのアクセス禁止
@@ -44,5 +45,6 @@ ErrorDocument 500 "Internal API Error"
 </IfModule>
 
 # PHP設定（エラー非表示）
-php_flag display_errors Off
-php_flag log_errors On
+# ※ CGI/FastCGI環境ではphp_flagは使用不可のためコメントアウト
+# php_flag display_errors Off
+# php_flag log_errors On
