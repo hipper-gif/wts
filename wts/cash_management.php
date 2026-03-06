@@ -218,6 +218,29 @@ $end_date = $_GET['end_date'] ?? date('Y-m-d');
 $revenue_data = getRevenueByDateRange($pdo, $start_date, $end_date, $selected_driver_id);
 $collection_checks = getCollectionChecks($pdo, $start_date, $end_date, $selected_driver_id);
 
+// 現金カウント履歴取得（管理者用: 選択期間内の全運転者 / 個別運転者）
+$cash_count_history = [];
+try {
+    $hist_sql = "SELECT c.confirmation_date, c.driver_id, u.name as driver_name,
+                        c.bill_10000, c.bill_5000, c.bill_1000,
+                        c.coin_500, c.coin_100, c.coin_50, c.coin_10,
+                        c.total_amount, c.memo, c.created_at
+                 FROM cash_count_details c
+                 LEFT JOIN users u ON c.driver_id = u.id
+                 WHERE c.confirmation_date BETWEEN ? AND ?";
+    $hist_params = [$start_date, $end_date];
+    if ($selected_driver_id && $selected_driver_id !== 'all') {
+        $hist_sql .= " AND c.driver_id = ?";
+        $hist_params[] = $selected_driver_id;
+    }
+    $hist_sql .= " ORDER BY c.confirmation_date DESC, u.name";
+    $hist_stmt = $pdo->prepare($hist_sql);
+    $hist_stmt->execute($hist_params);
+    $cash_count_history = $hist_stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // テーブルが存在しない場合は空配列のまま
+}
+
 $driver_details = [];
 $collection_summary = ['total_drivers' => 0, 'collected_drivers' => 0];
 $single_driver_collection = null;
@@ -905,6 +928,69 @@ echo $page_data['html_head'];
         <?php endif; ?>
 
     <?php endif; ?>
+
+    <!-- 現金カウント履歴 -->
+    <?php if (!empty($cash_count_history)): ?>
+    <div class="card mb-4">
+        <div class="card-body">
+            <h6 class="card-title mb-3">
+                <i class="fas fa-coins" style="color:#ff9800;"></i> 現金カウント記録
+                <span style="font-size:0.8rem;font-weight:400;color:#666;margin-left:8px;">
+                    <?php echo count($cash_count_history); ?>件
+                </span>
+            </h6>
+            <div style="overflow-x:auto;">
+            <table class="table table-sm" style="font-size:0.85rem;margin-bottom:0;">
+                <thead>
+                    <tr style="background:#f8f9fa;">
+                        <th>日付</th>
+                        <?php if ($selected_driver_id === 'all'): ?><th>運転者</th><?php endif; ?>
+                        <th class="text-end">1万</th>
+                        <th class="text-end">5千</th>
+                        <th class="text-end">千</th>
+                        <th class="text-end">500</th>
+                        <th class="text-end">100</th>
+                        <th class="text-end">50</th>
+                        <th class="text-end">10</th>
+                        <th class="text-end">合計</th>
+                        <th class="text-end">入金額</th>
+                        <th>メモ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($cash_count_history as $ch):
+                        $ch_deposit = $ch['total_amount'] - 18000;
+                    ?>
+                    <tr>
+                        <td style="white-space:nowrap;"><?php echo date('m/d', strtotime($ch['confirmation_date'])); ?>
+                            <span style="color:#999;font-size:0.7rem;">(<?php echo ['日','月','火','水','木','金','土'][date('w', strtotime($ch['confirmation_date']))]; ?>)</span>
+                        </td>
+                        <?php if ($selected_driver_id === 'all'): ?>
+                        <td style="white-space:nowrap;"><?php echo htmlspecialchars($ch['driver_name'] ?? '不明'); ?></td>
+                        <?php endif; ?>
+                        <td class="text-end"><?php echo $ch['bill_10000']; ?></td>
+                        <td class="text-end"><?php echo $ch['bill_5000']; ?></td>
+                        <td class="text-end"><?php echo $ch['bill_1000']; ?></td>
+                        <td class="text-end"><?php echo $ch['coin_500']; ?></td>
+                        <td class="text-end"><?php echo $ch['coin_100']; ?></td>
+                        <td class="text-end"><?php echo $ch['coin_50']; ?></td>
+                        <td class="text-end"><?php echo $ch['coin_10']; ?></td>
+                        <td class="text-end"><strong>¥<?php echo number_format($ch['total_amount']); ?></strong></td>
+                        <td class="text-end <?php echo $ch_deposit >= 0 ? 'text-success' : 'text-danger'; ?>">
+                            ¥<?php echo number_format($ch_deposit); ?>
+                        </td>
+                        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            <?php echo htmlspecialchars($ch['memo'] ?: '-'); ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
 </div>
 
 <script>
