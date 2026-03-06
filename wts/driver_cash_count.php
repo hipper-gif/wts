@@ -66,6 +66,21 @@ $ex_stmt = $pdo->prepare("SELECT * FROM cash_count_details WHERE confirmation_da
 $ex_stmt->execute([$current_user->id]);
 $existing_count = $ex_stmt->fetch(PDO::FETCH_OBJ);
 
+// 過去の履歴取得（自分のデータのみ、最新10件）
+$history_stmt = $pdo->prepare("
+    SELECT
+        c.confirmation_date,
+        c.bill_10000, c.bill_5000, c.bill_1000,
+        c.coin_500, c.coin_100, c.coin_50, c.coin_10,
+        c.total_amount, c.memo, c.created_at
+    FROM cash_count_details c
+    WHERE c.driver_id = ?
+    ORDER BY c.confirmation_date DESC
+    LIMIT 10
+");
+$history_stmt->execute([$current_user->id]);
+$my_history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
+
 // --- ページ設定 ---
 $page_config = getPageConfiguration('driver_cash_count');
 $page_options = [
@@ -266,6 +281,41 @@ echo $page_data['html_head'];
     <button class="save-btn" id="saveBtn" onclick="saveCashCount()">
         <i class="fas fa-save"></i> 現金カウント保存
     </button>
+
+    <!-- 過去の履歴 -->
+    <?php if (!empty($my_history)): ?>
+    <div class="count-card" style="margin-top:24px;">
+        <h6 class="mb-3"><i class="fas fa-history" style="color:#7e57c2;"></i> 過去の記録</h6>
+        <div style="overflow-x:auto;">
+        <table class="table table-sm" style="font-size:0.85rem;margin-bottom:0;">
+            <thead>
+                <tr style="background:#f8f9fa;">
+                    <th>日付</th>
+                    <th class="text-end">合計</th>
+                    <th class="text-end">入金額</th>
+                    <th>メモ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($my_history as $h):
+                    $deposit = $h['total_amount'] - $base_total;
+                ?>
+                <tr>
+                    <td><?php echo date('m/d', strtotime($h['confirmation_date'])); ?>
+                        <span style="color:#999;font-size:0.75rem;">(<?php echo ['日','月','火','水','木','金','土'][date('w', strtotime($h['confirmation_date']))]; ?>)</span>
+                    </td>
+                    <td class="text-end">¥<?php echo number_format($h['total_amount']); ?></td>
+                    <td class="text-end">¥<?php echo number_format($deposit); ?></td>
+                    <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                        <?php echo htmlspecialchars($h['memo'] ?: '-'); ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+        </div>
+    </div>
+    <?php endif; ?>
 </div>
 
 <script>
