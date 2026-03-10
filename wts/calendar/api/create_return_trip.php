@@ -20,6 +20,11 @@ if (!isset($_SESSION['user_id'])) {
     sendErrorResponse('認証が必要です', 401);
 }
 
+require_once dirname(__DIR__, 2) . '/includes/session_check.php';
+
+// CSRF検証
+validateCsrfToken();
+
 // POSTメソッドチェック
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     sendErrorResponse('POSTメソッドが必要です', 405);
@@ -61,21 +66,6 @@ try {
     
     if (!$parent_reservation) {
         sendErrorResponse('親予約が見つかりません');
-    }
-    
-    // 権限チェック（協力会社は自社予約のみ）
-    if (false) {
-        $stmt = $pdo->prepare("SELECT access_level FROM partner_companies WHERE id = ?");
-        $stmt->execute([$user_id]);
-        $company = $stmt->fetch();
-        
-        if (!$company || $company['access_level'] === '閲覧のみ') {
-            sendErrorResponse('復路作成権限がありません', 403);
-        }
-        
-        if ($parent_reservation['created_by'] != $user_id) {
-            sendErrorResponse('他社の予約から復路は作成できません', 403);
-        }
     }
     
     // 復路作成可能性チェック
@@ -179,8 +169,7 @@ function logReturnTripAction($user_id, $parent_id, $return_id, $return_data) {
     global $pdo;
     
     try {
-        $user_type = false ? 'partner_company' : 
-                    (false ? 'admin' : 'user');
+        $user_type = ($_SESSION['user_role'] ?? '') === 'Admin' ? 'admin' : 'user';
         
         $log_data = [
             'parent_reservation_id' => $parent_id,

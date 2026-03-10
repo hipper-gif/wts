@@ -53,6 +53,33 @@ try {
         }
     }
 
+    // ステータスバリデーション
+    $allowed_statuses = ['予約', '進行中', '完了', 'キャンセル'];
+    if (!empty($input['status']) && !in_array($input['status'], $allowed_statuses, true)) {
+        sendErrorResponse('無効なステータスです。許可値: ' . implode(', ', $allowed_statuses));
+    }
+
+    // 過去日付チェック（新規予約のみ）
+    if (empty($input['id']) && strtotime($input['reservation_date']) < strtotime(date('Y-m-d'))) {
+        sendErrorResponse('過去の日付には予約できません');
+    }
+
+    // 乗客数バリデーション
+    if (isset($input['passenger_count'])) {
+        $pc = intval($input['passenger_count']);
+        if ($pc < 1 || $pc > 10) {
+            sendErrorResponse('乗客数は1〜10の範囲で指定してください');
+        }
+    }
+
+    // 料金バリデーション
+    if (isset($input['estimated_fare']) && $input['estimated_fare'] !== '' && intval($input['estimated_fare']) < 0) {
+        sendErrorResponse('見積もり料金は0以上で指定してください');
+    }
+    if (isset($input['actual_fare']) && $input['actual_fare'] !== '' && intval($input['actual_fare']) < 0) {
+        sendErrorResponse('実際の料金は0以上で指定してください');
+    }
+
     // ユーザーID取得
     $user_id = $_SESSION['user_id'];
 
@@ -126,8 +153,12 @@ try {
         if (!$old_data) {
             throw new Exception('更新対象の予約が見つかりません');
         }
-        
-        
+
+        // 権限チェック: 管理者以外は自分が作成した予約のみ更新可能
+        if ($_SESSION['user_role'] !== 'admin' && $old_data['created_by'] != $_SESSION['user_id']) {
+            sendErrorResponse('この予約を更新する権限がありません', 403);
+        }
+
         // 更新実行
         $update_fields = [];
         $update_params = [];

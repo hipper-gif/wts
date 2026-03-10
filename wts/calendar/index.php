@@ -668,14 +668,6 @@ window.calendarConfig = {
         'キャンセル': '#757575'
     }
 };
-
-console.log('✅ カレンダー設定初期化完了', window.calendarConfig);
-
-// デバッグ情報
-console.log('🔍 FullCalendar読み込み確認:', typeof FullCalendar);
-console.log('🔍 Bootstrap読み込み確認:', typeof bootstrap);
-console.log('🔍 カレンダー要素確認:', document.getElementById('calendar'));
-console.log('🔍 予約モーダル要素確認:', document.getElementById('reservationModal'));
 </script>
 </body>
 </html>

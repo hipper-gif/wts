@@ -17,6 +17,11 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+if (($_SESSION['user_role'] ?? '') !== 'Admin') {
+    header('Location: index.php');
+    exit;
+}
+
 $pdo = getDBConnection();
 
 $user_id = $_SESSION['user_id'];

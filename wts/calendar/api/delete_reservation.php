@@ -53,6 +53,11 @@ try {
         sendErrorResponse('予約が見つかりません');
     }
 
+    // 権限チェック: 管理者以外は自分が作成した予約のみ削除可能
+    if ($_SESSION['user_role'] !== 'admin' && $old_data['created_by'] != $_SESSION['user_id']) {
+        sendErrorResponse('この予約を削除する権限がありません', 403);
+    }
+
     // トランザクション開始
     $pdo->beginTransaction();
 
@@ -78,10 +83,11 @@ try {
     $pdo->commit();
 
     // レスポンス送信
-    $msg = count($child_reservations) > 0
-        ? '予約と復路（' . count($child_reservations) . '件）を削除しました'
+    $deleted_children_count = count($child_reservations);
+    $msg = $deleted_children_count > 0
+        ? '予約と復路（' . $deleted_children_count . '件）を削除しました'
         : '予約を削除しました';
-    sendSuccessResponse([], $msg);
+    sendSuccessResponse(['deleted_children_count' => $deleted_children_count], $msg);
 
 } catch (Exception $e) {
     // トランザクションロールバック

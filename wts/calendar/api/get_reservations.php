@@ -45,6 +45,7 @@ try {
     
     // ユーザー情報
     $user_id = $_SESSION['user_id'];
+    // NOTE: カレンダーは社内共有リソースのため、全認証ユーザーが全予約を閲覧可能
 
     // 予約データ取得
     $reservations = getReservationsForCalendar($start_date, $end_date, $driver_id);
