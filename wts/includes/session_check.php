@@ -71,23 +71,4 @@ function requireRole($required_role) {
         exit;
     }
 }
-
-// 管理者チェック関数（Adminのみ）
-function requireAdmin() {
-    requireRole('Admin');
-}
-
-// ログ出力関数
-function logUserAction($action, $details = '') {
-    global $user_id, $user_name;
-    
-    $log_entry = date('Y-m-d H:i:s') . " - User: {$user_name} (ID: {$user_id}) - Action: {$action}";
-    if ($details) {
-        $log_entry .= " - Details: {$details}";
-    }
-    $log_entry .= "\n";
-    
-    // ログファイルに記録（本番環境では適切な場所に）
-    file_put_contents('logs/user_actions.log', $log_entry, FILE_APPEND | LOCK_EX);
-}
 ?>

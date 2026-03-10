@@ -20,7 +20,6 @@ const STATIC_CACHE_URLS = [
     '/Smiley/taxi/wts/calendar/css/reservation.css',
 
     // JavaScript
-    '/Smiley/taxi/wts/js/cash-management.js',
     '/Smiley/taxi/wts/js/cash-mobile.js',
     '/Smiley/taxi/wts/js/ui-interactions.js',
     '/Smiley/taxi/wts/js/mobile-ride-access.js',

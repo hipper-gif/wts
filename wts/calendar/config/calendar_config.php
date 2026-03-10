@@ -17,24 +17,10 @@ if (!defined('WTS_SYSTEM')) {
 // カレンダーシステム基本設定
 // =================================================================
 
-// システム情報
-define('CALENDAR_SYSTEM_NAME', '介護タクシー予約管理カレンダーシステム');
-define('CALENDAR_SYSTEM_VERSION', '1.0.0');
-define('CALENDAR_SYSTEM_CODENAME', 'TRCS');
-
-// カレンダー表示設定
-define('CALENDAR_DEFAULT_VIEW', 'dayGridMonth'); // month, week, day
-define('CALENDAR_FIRST_DAY', 0); // 0=日曜日, 1=月曜日
-define('CALENDAR_WEEKEND_ENABLED', true);
-define('CALENDAR_TIME_FORMAT', '24h'); // 12h or 24h
-define('CALENDAR_DATE_FORMAT', 'Y-m-d');
-define('CALENDAR_DATETIME_FORMAT', 'Y-m-d H:i:s');
-
 // 営業時間設定
 define('BUSINESS_START_HOUR', 7);
 define('BUSINESS_END_HOUR', 19);
 define('BUSINESS_DAYS', [1, 2, 3, 4, 5, 6]); // 月-土
-define('SLOT_DURATION_MINUTES', 30);
 
 // 予約制限設定
 define('MAX_ADVANCE_BOOKING_DAYS', 365); // 最大何日先まで予約可能
@@ -240,44 +226,7 @@ $CALENDAR_RESERVATION_STATUSES = [
 ];
 
 // =================================================================
-// アラート・通知設定
-// =================================================================
-
-// アラート設定
-define('ALERT_UNASSIGNED_RESERVATIONS', true); // 未割り当て予約のアラート
-define('ALERT_UPCOMING_RESERVATIONS', true); // 近日予約のアラート
-define('ALERT_CONFLICTING_RESERVATIONS', true); // 重複予約のアラート
-define('ALERT_MAINTENANCE_SCHEDULE', true); // 車両メンテナンスアラート
-
-// 通知タイミング設定
-define('NOTIFICATION_HOURS_BEFORE', [24, 2]); // 何時間前に通知するか
-define('REMINDER_DAYS_ADVANCE', 7); // 何日前からリマインドするか
-
-// =================================================================
-// データ保持・アーカイブ設定
-// =================================================================
-
-define('DATA_RETENTION_MONTHS', 36); // 36ヶ月間データを保持
-define('AUTO_ARCHIVE_ENABLED', true); // 自動アーカイブ有効
-define('AUTO_DELETE_CANCELLED_DAYS', 30); // キャンセル予約を30日後に削除
-
-// =================================================================
-// API・外部連携設定
-// =================================================================
-
-// WTS連携設定
-define('WTS_INTEGRATION_ENABLED', true);
-define('AUTO_CREATE_RIDE_RECORDS', false); // 完了時に自動で乗車記録作成
-define('SYNC_VEHICLE_STATUS', true); // 車両状況の同期
-define('SYNC_DRIVER_STATUS', true); // 運転者状況の同期
-
-// タイムツリー移行設定
-define('TIMETREE_MIGRATION_ENABLED', true);
-define('TIMETREE_BACKUP_ENABLED', true);
-define('MIGRATION_BATCH_SIZE', 100); // 一度に処理する件数
-
-// =================================================================
-// UI・UX設定
+// カラーテーマ設定
 // =================================================================
 
 // カラーテーマ
@@ -300,131 +249,21 @@ $CALENDAR_COLOR_THEMES = [
     ]
 ];
 
-// 表示設定
-define('EVENTS_PER_PAGE', 50);
-define('SEARCH_RESULTS_PER_PAGE', 20);
-define('SHOW_WEEKEND_HIGHLIGHT', true);
-define('SHOW_BUSINESS_HOURS_HIGHLIGHT', true);
-define('ENABLE_DRAG_DROP', true);
-define('ENABLE_RESIZE', false);
-
 // =================================================================
-// セキュリティ設定
+// セキュリティ・ログ設定
 // =================================================================
 
-// アクセス制御
-define('REQUIRE_LOGIN', true);
-define('SESSION_TIMEOUT_MINUTES', 120);
-define('MAX_LOGIN_ATTEMPTS', 5);
-define('LOCKOUT_DURATION_MINUTES', 30);
-
-// データ保護
 define('LOG_ALL_ACTIONS', true);
-define('ENCRYPT_PERSONAL_DATA', false); // 個人情報の暗号化（将来対応）
-define('AUDIT_LOG_RETENTION_DAYS', 365);
 
 // =================================================================
-// パフォーマンス設定
-// =================================================================
-
-define('ENABLE_CACHING', false); // キャッシュ機能（将来対応）
-define('CACHE_DURATION_MINUTES', 30);
-define('OPTIMIZE_LARGE_DATASETS', true);
-define('LAZY_LOAD_EVENTS', true);
-
-// =================================================================
-// デバッグ・ログ設定
+// デバッグ設定
 // =================================================================
 
 define('CALENDAR_DEBUG_MODE', false);
-define('CALENDAR_LOG_LEVEL', 'INFO'); // DEBUG, INFO, WARNING, ERROR
-define('CALENDAR_LOG_FILE', '../logs/calendar.log');
 
 // =================================================================
-// 設定取得関数
+// ログ出力関数
 // =================================================================
-
-/**
- * カレンダー設定取得
- */
-function getCalendarConfig($key = null, $default = null) {
-    global $CALENDAR_VEHICLE_CONSTRAINTS, $CALENDAR_SERVICE_TYPES, 
-           $CALENDAR_RENTAL_SERVICES, $CALENDAR_REFERRER_TYPES,
-           $CALENDAR_PAYMENT_METHODS, $CALENDAR_RESERVATION_STATUSES,
-           $CALENDAR_COLOR_THEMES;
-    
-    $config = [
-        'vehicle_constraints' => $CALENDAR_VEHICLE_CONSTRAINTS,
-        'service_types' => $CALENDAR_SERVICE_TYPES,
-        'rental_services' => $CALENDAR_RENTAL_SERVICES,
-        'referrer_types' => $CALENDAR_REFERRER_TYPES,
-        'payment_methods' => $CALENDAR_PAYMENT_METHODS,
-        'reservation_statuses' => $CALENDAR_RESERVATION_STATUSES,
-        'color_themes' => $CALENDAR_COLOR_THEMES,
-        'business_hours' => [
-            'start' => BUSINESS_START_HOUR,
-            'end' => BUSINESS_END_HOUR,
-            'days' => BUSINESS_DAYS
-        ],
-        'limits' => [
-            'max_advance_days' => MAX_ADVANCE_BOOKING_DAYS,
-            'min_advance_hours' => MIN_ADVANCE_BOOKING_HOURS,
-            'max_daily_reservations' => MAX_RESERVATIONS_PER_DAY,
-            'max_passengers' => MAX_PASSENGER_COUNT
-        ]
-    ];
-    
-    if ($key === null) {
-        return $config;
-    }
-    
-    return isset($config[$key]) ? $config[$key] : $default;
-}
-
-/**
- * 車両制約チェック
- */
-function isVehicleCompatibleWithService($vehicle_model, $rental_service) {
-    $constraints = getCalendarConfig('vehicle_constraints');
-    $compatibility = $constraints['rental_service_compatibility'][$vehicle_model] ?? [];
-    
-    return in_array($rental_service, $compatibility);
-}
-
-/**
- * 営業時間チェック
- */
-function isBusinessHour($hour, $day_of_week = null) {
-    if ($day_of_week !== null && !in_array($day_of_week, BUSINESS_DAYS)) {
-        return false;
-    }
-    
-    return $hour >= BUSINESS_START_HOUR && $hour <= BUSINESS_END_HOUR;
-}
-
-/**
- * 予約可能期間チェック
- */
-function isValidReservationDate($date) {
-    $reservation_date = new DateTime($date);
-    $today = new DateTime();
-    $today->setTime(0, 0, 0);
-    
-    // 過去日チェック
-    if ($reservation_date < $today) {
-        return false;
-    }
-    
-    // 最大事前予約日数チェック
-    $max_date = clone $today;
-    $max_date->add(new DateInterval('P' . MAX_ADVANCE_BOOKING_DAYS . 'D'));
-    
-    if ($reservation_date > $max_date) {
-        return false;
-    }
-    
-    return true;
-}
 
 /**
  * ログ出力
@@ -469,8 +308,6 @@ if (CALENDAR_DEBUG_MODE) {
 // 初期化ログ
 if (CALENDAR_DEBUG_MODE) {
     writeCalendarLog('INFO', 'Calendar system configuration loaded', [
-        'version' => CALENDAR_SYSTEM_VERSION,
-        'default_view' => CALENDAR_DEFAULT_VIEW,
         'business_hours' => BUSINESS_START_HOUR . '-' . BUSINESS_END_HOUR
     ]);
 }

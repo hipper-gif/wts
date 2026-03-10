@@ -9,38 +9,6 @@
 // =================================================================
 
 /**
- * カレンダー設定取得
- */
-function getCalendarConfiguration($view_mode = 'month') {
-    return [
-        'month' => [
-            'title' => '月表示',
-            'height' => 'auto',
-            'dayMaxEvents' => 3,
-            'moreLinkClick' => 'popover'
-        ],
-        'week' => [
-            'title' => '週表示',
-            'height' => 600,
-            'slotMinTime' => '08:00:00',
-            'slotMaxTime' => '18:00:00',
-            'businessHours' => [
-                'daysOfWeek' => [1, 2, 3, 4, 5], // 月-金
-                'startTime' => '08:00',
-                'endTime' => '18:00'
-            ]
-        ],
-        'day' => [
-            'title' => '日表示',
-            'height' => 600,
-            'slotMinTime' => '08:00:00',
-            'slotMaxTime' => '18:00:00',
-            'slotDuration' => '00:30:00'
-        ]
-    ][$view_mode] ?? [];
-}
-
-/**
  * 予約データ取得（FullCalendar形式）
  */
 function getReservationsForCalendar($start_date, $end_date, $driver_id = null) {
@@ -258,99 +226,6 @@ function isLightColor($hex_color) {
     $rgb = sscanf($hex_color, "#%02x%02x%02x");
     $brightness = (($rgb[0] * 299) + ($rgb[1] * 587) + ($rgb[2] * 114)) / 1000;
     return $brightness > 155;
-}
-
-/**
- * 運転者別予約統計取得
- */
-function getDriverReservationStats($date, $driver_id = null) {
-    global $pdo;
-    
-    $sql = "
-        SELECT 
-            u.id,
-            u.name,
-            COUNT(r.id) as total_reservations,
-            SUM(CASE WHEN r.status = '完了' THEN 1 ELSE 0 END) as completed_reservations,
-            SUM(CASE WHEN r.status = '進行中' THEN 1 ELSE 0 END) as in_progress_reservations,
-            SUM(CASE WHEN r.status = 'キャンセル' THEN 1 ELSE 0 END) as cancelled_reservations
-        FROM users u
-        LEFT JOIN reservations r ON u.id = r.driver_id 
-            AND r.reservation_date = ?
-        WHERE u.is_driver = 1 AND u.is_active = 1";
-    
-    $params = [$date];
-    
-    if ($driver_id && $driver_id !== 'all') {
-        $sql .= " AND u.id = ?";
-        $params[] = $driver_id;
-    }
-    
-    $sql .= " GROUP BY u.id, u.name ORDER BY u.name";
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    
-    return $stmt->fetchAll();
-}
-
-/**
- * 車両別稼働状況取得
- */
-function getVehicleUsageStats($date) {
-    global $pdo;
-    
-    $sql = "
-        SELECT 
-            v.id,
-            v.vehicle_number,
-            v.model,
-            COUNT(r.id) as usage_count,
-            SUM(CASE WHEN r.rental_service = 'ストレッチャー' THEN 1 ELSE 0 END) as stretcher_usage,
-            MAX(r.reservation_time) as last_usage_time
-        FROM vehicles v
-        LEFT JOIN reservations r ON v.id = r.vehicle_id 
-            AND r.reservation_date = ? 
-            AND r.status != 'キャンセル'
-        WHERE v.is_active = 1
-        GROUP BY v.id, v.vehicle_number, v.model
-        ORDER BY v.vehicle_number";
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$date]);
-    
-    return $stmt->fetchAll();
-}
-
-/**
- * よく使う場所取得（候補表示用）
- */
-function getFrequentLocations($location_type = null, $limit = 10) {
-    global $pdo;
-    
-    $sql = "
-        SELECT 
-            location_name,
-            location_type,
-            address,
-            usage_count
-        FROM frequent_locations
-        WHERE is_active = 1";
-    
-    $params = [];
-    
-    if ($location_type) {
-        $sql .= " AND location_type = ?";
-        $params[] = $location_type;
-    }
-    
-    $sql .= " ORDER BY usage_count DESC, last_used_date DESC LIMIT ?";
-    $params[] = $limit;
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    
-    return $stmt->fetchAll();
 }
 
 /**
@@ -589,14 +464,6 @@ function convertServiceTypeToTransportationType($service_type) {
 }
 
 /**
- * 営業日判定
- */
-function isBusinessDay($date) {
-    $day_of_week = date('w', strtotime($date)); // 0=日曜, 6=土曜
-    return !($day_of_week == 0 || $day_of_week == 6);
-}
-
-/**
  * JSONレスポンス送信
  */
 function sendJsonResponse($data, $http_code = 200) {
@@ -631,5 +498,40 @@ function sendSuccessResponse($data = [], $message = '') {
     }
     
     sendJsonResponse($response);
+}
+/**
+ * 予約データ詳細取得
+ */
+function getReservationDetails($reservation_id) {
+    global $pdo;
+
+    $sql = "
+        SELECT
+            r.*,
+            u.full_name as driver_name,
+            u.phone as driver_phone,
+            v.vehicle_number,
+            v.model as vehicle_model,
+            v.capacity as vehicle_capacity,
+            pc.company_name as partner_company,
+            pc.display_color as company_color,
+            pr.client_name as parent_client_name,
+            pr.reservation_date as parent_date,
+            pr.reservation_time as parent_time,
+            rr.id as ride_record_id,
+            rr.total_amount as ride_total_amount
+        FROM reservations r
+        LEFT JOIN users u ON r.driver_id = u.id
+        LEFT JOIN vehicles v ON r.vehicle_id = v.id
+        LEFT JOIN partner_companies pc ON r.created_by = pc.id
+        LEFT JOIN reservations pr ON r.parent_reservation_id = pr.id
+        LEFT JOIN ride_records rr ON r.ride_record_id = rr.id
+        WHERE r.id = ?
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$reservation_id]);
+
+    return $stmt->fetch();
 }
 ?>
