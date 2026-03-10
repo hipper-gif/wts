@@ -18,11 +18,11 @@ if (!isset($_SESSION['user_id'])) {
 
 // 管理者権限チェック（厳格）
 $is_admin = false;
-if (isset($_SESSION['permission_level']) && $_SESSION['permission_level'] === 'Admin') {
-    $is_admin = true;
-} elseif (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin') {
+if (isset($_SESSION['user_permission_level']) && $_SESSION['user_permission_level'] === 'Admin') {
     $is_admin = true;
 } elseif (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1) {
+    $is_admin = true;
+} elseif (isset($_SESSION['is_admin_user']) && $_SESSION['is_admin_user']) {
     $is_admin = true;
 }
 if (!$is_admin) {

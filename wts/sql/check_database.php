@@ -10,8 +10,9 @@ if (!isset($_SESSION['user_id'])) {
     die('認証が必要です。ログインしてください。');
 }
 $is_admin = false;
-if (isset($_SESSION['permission_level']) && $_SESSION['permission_level'] === 'Admin') $is_admin = true;
+if (isset($_SESSION['user_permission_level']) && $_SESSION['user_permission_level'] === 'Admin') $is_admin = true;
 if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1) $is_admin = true;
+if (isset($_SESSION['is_admin_user']) && $_SESSION['is_admin_user']) $is_admin = true;
 if (!$is_admin) {
     die('管理者権限が必要です。');
 }
