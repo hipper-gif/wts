@@ -3,6 +3,7 @@ session_start();
 
 // 統一ヘッダーシステム読み込み
 require_once 'config/database.php';
+require_once 'functions.php';
 require_once 'includes/unified-header.php';
 
 // ログインチェック
@@ -210,9 +211,7 @@ try {
     $today_arrivals = $stmt->fetchColumn();
     
     // 運転者一覧（クイック入力用）
-    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");
-    $stmt->execute();
-    $drivers = $stmt->fetchAll();
+    $drivers = getActiveDrivers($pdo);
 
 } catch (Exception $e) {
     error_log("Dashboard error: " . $e->getMessage());
@@ -589,7 +588,7 @@ echo $page_data['html_head'];
         // アラート更新
         async updateAlerts() {
             try {
-                const response = await fetch('api/get_alerts.php');
+                const response = await fetch('api/dashboard_alerts.php');
                 const alerts = await response.json();
                 // アラート表示更新処理
             } catch (error) {

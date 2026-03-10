@@ -306,6 +306,9 @@ function renderCompleteHTMLHead($page_title, $options = []) {
     <meta name="description" content="' . htmlspecialchars($description) . '">
     <meta name="keywords" content="福祉輸送,タクシー,業務管理,PWA,オフライン,法令遵守,7段階フロー">
 
+    <!-- CSRF Token -->
+    <meta name="csrf-token" content="<?php echo $_SESSION['csrf_token'] ?? ''; ?>">
+
     <!-- Android最適化 -->
     <meta name="format-detection" content="telephone=yes">
     <meta name="mobile-web-app-capable" content="yes">

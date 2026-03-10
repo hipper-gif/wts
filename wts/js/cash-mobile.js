@@ -21,7 +21,6 @@ class CashMobileManager {
         this.setupNotifications();
         this.setupOfflineSupport();
         
-        console.log('集金管理モバイル機能初期化完了');
     }
     
     // タッチ操作最適化
@@ -263,7 +262,7 @@ class CashMobileManager {
                 this.showNotification('通知が有効になりました', '集金完了時にお知らせします');
             }
         } catch (error) {
-            console.log('通知許可要求エラー:', error);
+            // エラーを無視
         }
     }
     
@@ -307,27 +306,12 @@ class CashMobileManager {
         }, 3000);
     }
     
-    // オフラインデータ同期
+    // オフラインデータ同期（APIエンドポイント未実装のため無効化）
     syncOfflineData() {
         // LocalStorageからオフラインデータを取得して同期
         const offlineData = localStorage.getItem('cash_offline_data');
         if (offlineData) {
-            try {
-                const data = JSON.parse(offlineData);
-                // サーバーに送信
-                fetch('api/sync_offline_cash.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                }).then(response => {
-                    if (response.ok) {
-                        localStorage.removeItem('cash_offline_data');
-                        this.showNotification('オフラインデータを同期しました');
-                    }
-                });
-            } catch (error) {
-                console.error('オフライン同期エラー:', error);
-            }
+            // APIエンドポイント未実装のためスキップ
         }
     }
     
@@ -393,10 +377,9 @@ if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
             .then(registration => {
-                console.log('SW registered: ', registration);
             })
             .catch(registrationError => {
-                console.log('SW registration failed: ', registrationError);
+                // エラーを無視
             });
     });
 }

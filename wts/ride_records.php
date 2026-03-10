@@ -3,6 +3,7 @@ session_start();
 
 // データベース接続
 require_once 'config/database.php';
+require_once 'functions.php';
 require_once 'includes/unified-header.php';
 
 try {
@@ -170,10 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // 運転者一覧取得（職務フラグのみ使用）
-$drivers_sql = "SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name";
-$drivers_stmt = $pdo->prepare($drivers_sql);
-$drivers_stmt->execute();
-$drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
+$drivers = getActiveDrivers($pdo);
 
 // 車両一覧取得（status='active'のみ）
 $vehicles_sql = "SELECT id, vehicle_number, vehicle_name FROM vehicles WHERE status = 'active' ORDER BY vehicle_number";
@@ -1020,6 +1018,11 @@ echo $page_data['page_header'];
 </style>
 
 <script>
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
 // PHPから取得したデータ
 const commonLocations = <?php echo $locations_json; ?>;
 const currentUserId = <?php echo $user_id; ?>;
@@ -1196,7 +1199,7 @@ function showLocationSuggestions(input, type) {
             topLocations.forEach(location => {
                 const div = document.createElement('div');
                 div.className = 'unified-suggestion';
-                div.innerHTML = `<i class="fas fa-map-marker-alt me-2 text-muted"></i>${location}`;
+                div.innerHTML = `<i class="fas fa-map-marker-alt me-2 text-muted"></i>${escapeHtml(location)}`;
                 div.onclick = () => selectLocation(input, location, suggestionsDiv);
                 suggestionsDiv.appendChild(div);
             });
@@ -1221,8 +1224,9 @@ function showLocationSuggestions(input, type) {
         div.className = 'unified-suggestion';
         
         // 検索語をハイライト
-        const highlightedText = location.replace(
-            new RegExp(query, 'gi'), 
+        const escapedLocation = escapeHtml(location);
+        const highlightedText = escapedLocation.replace(
+            new RegExp(escapeHtml(query), 'gi'),
             `<mark>$&</mark>`
         );
         div.innerHTML = `<i class="fas fa-search me-2 text-muted"></i>${highlightedText}`;

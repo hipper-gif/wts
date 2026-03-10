@@ -20,6 +20,10 @@ if (!isset($_SESSION['user_id'])) {
 
 // データベース設定ファイル読み込み
 require_once dirname(__DIR__) . '/config/database.php';
+require_once dirname(__DIR__) . '/includes/session_check.php';
+
+// CSRF検証
+validateCsrfToken();
 
 // POSTメソッドのみ許可
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

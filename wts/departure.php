@@ -3,6 +3,7 @@ session_start();
 
 // データベース接続
 require_once 'config/database.php';
+require_once 'functions.php';
 require_once 'includes/unified-header.php';
 
 try {
@@ -114,15 +115,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // 運転者取得
-$stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");
-$stmt->execute();
-$drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$drivers = getActiveDrivers($pdo);
 
 // 車両一覧取得
-$vehicles_sql = "SELECT id, vehicle_number, vehicle_name, current_mileage FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
-$vehicles_stmt = $pdo->prepare($vehicles_sql);
-$vehicles_stmt->execute();
-$vehicles = $vehicles_stmt->fetchAll(PDO::FETCH_ASSOC);
+$vehicles = getActiveVehicles($pdo, 'with_name');
 
 // 本日の出庫記録一覧取得（入庫状態も含む）
 $today_departures_sql = "

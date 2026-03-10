@@ -5,6 +5,7 @@
 
 session_start();
 require_once 'config/database.php';
+require_once 'functions.php';
 require_once 'includes/unified-header.php';
 
 // セッション確認
@@ -30,12 +31,7 @@ try {
 }
 
 // 共通関数
-function getDrivers($pdo) {
-    $stmt = $pdo->query("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");
-    return $stmt->fetchAll(PDO::FETCH_OBJ);
-}
-
-function getVehicles($pdo) {
+function getVehiclesAll($pdo) {
     $stmt = $pdo->query("SELECT id, vehicle_number FROM vehicles ORDER BY vehicle_number");
     return $stmt->fetchAll(PDO::FETCH_OBJ);
 }
@@ -65,8 +61,8 @@ function validateDepartureCompleted($pdo, $driver_id, $date) {
 }
 
 // データ取得
-$drivers = getDrivers($pdo);
-$vehicles = getVehicles($pdo);
+$drivers = getActiveDrivers($pdo);
+$vehicles = getVehiclesAll($pdo);
 $unreturned_departures = getUnreturnedDepartures($pdo);
 
 // メッセージ変数初期化
@@ -298,7 +294,7 @@ echo $page_data['page_header'];
                             <select class="form-select" id="driver_id" name="driver_id" required>
                                 <option value="">運転者を選択</option>
                                 <?php foreach ($drivers as $driver): ?>
-                                    <option value="<?= $driver->id ?>"><?= htmlspecialchars($driver->name) ?></option>
+                                    <option value="<?= $driver['id'] ?>"><?= htmlspecialchars($driver['name']) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>

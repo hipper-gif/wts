@@ -7,6 +7,11 @@
 // 作成日: 2025年9月27日
 // =================================================================
 
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // =================================================================
     // グローバル変数・設定
@@ -24,7 +29,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const calendarEl = document.getElementById('calendar');
         
         if (!calendarEl) {
-            console.error('カレンダー要素が見つかりません');
             return;
         }
         
@@ -146,7 +150,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(error => {
-                console.error('予約データ取得エラー:', error);
                 failureCallback(error);
                 showNotification('予約データの取得に失敗しました', 'error');
             })
@@ -252,7 +255,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const endTime = event.end.toTimeString().split(' ')[0].substring(0, 5);
         
         // 終了時刻の更新（実装は簡易版）
-        console.log('予約時間変更:', event.title, '終了時刻:', endTime);
     }
     
     function handleDatesChange(info) {
@@ -380,7 +382,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(error => {
-            console.error('予約更新エラー:', error);
             dropInfo.revert(); // 元の位置に戻す
             showNotification('予約時刻の更新に失敗しました', 'error');
         });
@@ -438,7 +439,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             html += `
                 <div class="vehicle-item">
-                    <span>🚐 ${vehicle.vehicle_number} (${vehicle.model})</span>
+                    <span>🚐 ${escapeHtml(vehicle.vehicle_number)} (${escapeHtml(vehicle.model)})</span>
                     <span class="badge ${statusClass}">${statusText}</span>
                 </div>
             `;
@@ -465,7 +466,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             html += `
                 <div class="driver-item">
-                    <span>👤 ${driver.full_name}</span>
+                    <span>👤 ${escapeHtml(driver.full_name)}</span>
                     <span class="badge ${statusClass}">${statusText}</span>
                 </div>
             `;
@@ -653,7 +654,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(error => {
-            console.error('削除エラー:', error);
             showNotification(error.message, 'error');
         });
     }

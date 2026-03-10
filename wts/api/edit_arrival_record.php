@@ -11,6 +11,11 @@ if (!isset($_SESSION['user_id'])) {
     exit(json_encode(['success' => false, 'error' => 'ログインが必要です']));
 }
 
+require_once dirname(__DIR__) . '/includes/session_check.php';
+
+// CSRF検証
+validateCsrfToken();
+
 // POSTメソッドのみ許可
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'config/database.php';
+require_once 'functions.php';
 require_once 'includes/unified-header.php';
 
 // ログインチェック
@@ -29,15 +30,8 @@ $is_edit_mode = false;
 
 // 車両とドライバーの取得
 try {
-    $stmt = $pdo->prepare("SELECT id, vehicle_number, model, current_mileage FROM vehicles WHERE is_active = TRUE ORDER BY vehicle_number");
-    $stmt->execute();
-    $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // 点検者取得の統一（運転者のみ）
-    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = TRUE ORDER BY name");
-    $stmt->execute();
-    $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+    $vehicles = getActiveVehicles($pdo, 'with_mileage');
+    $drivers = getActiveDrivers($pdo);
 } catch (Exception $e) {
     error_log("Data fetch error: " . $e->getMessage());
     $vehicles = [];

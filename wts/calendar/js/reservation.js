@@ -7,6 +7,11 @@
 // 作成日: 2025年9月27日
 // =================================================================
 
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // =================================================================
     // グローバル変数
@@ -401,11 +406,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         locations.forEach(location => {
             html += `
-                <div class="location-suggestion-item" onclick="selectLocation('${field.id}', '${location.name}')">
-                    <div class="suggestion-name">${location.name}</div>
+                <div class="location-suggestion-item" onclick="selectLocation('${escapeHtml(field.id)}', '${escapeHtml(location.name)}')">
+                    <div class="suggestion-name">${escapeHtml(location.name)}</div>
                     <div>
-                        <span class="suggestion-type">${location.type}</span>
-                        <span class="suggestion-address">${location.address}</span>
+                        <span class="suggestion-type">${escapeHtml(location.type)}</span>
+                        <span class="suggestion-address">${escapeHtml(location.address)}</span>
                     </div>
                 </div>
             `;
@@ -525,7 +530,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(error => {
-                console.error('空き状況確認エラー:', error);
+                // エラーを無視
             });
     }
     
@@ -604,9 +609,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function showRecommendations(recommendations) {
         // 推奨表示は簡易版のみ実装
-        if (recommendations.time_suggestion) {
-            console.log('時間推奨:', recommendations.time_suggestion.reason);
-        }
     }
     
     // =================================================================
@@ -707,8 +709,6 @@ document.addEventListener('DOMContentLoaded', function() {
         isSubmitting = true;
         setFormLoading(true);
 
-        console.log('予約保存データ:', data);
-
         fetch(window.calendarConfig.apiUrls.saveReservation, {
             method: 'POST',
             headers: {
@@ -717,32 +717,22 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify(data)
         })
         .then(response => {
-            console.log('APIレスポンスステータス:', response.status);
-
             // 常にテキストとして読み取り、JSONか確認
             return response.text().then(text => {
-                console.log('API生レスポンス (最初の500文字):', text.substring(0, 500));
-
                 // HTMLエラーやPHP警告が含まれているかチェック
                 if (text.trim().startsWith('<') || text.includes('<br />') || text.includes('Warning:') || text.includes('Notice:') || text.includes('Fatal error:')) {
-                    console.error('=== APIエラーレスポンス（HTML/PHP Error）===');
-                    console.error(text);
-                    console.error('=== エラー終了 ===');
-                    throw new Error('サーバーエラーが発生しました。詳細はコンソールを確認してください。');
+                    throw new Error('サーバーエラーが発生しました。');
                 }
 
                 // JSONとしてパース
                 try {
                     return JSON.parse(text);
                 } catch (e) {
-                    console.error('JSON解析エラー:', e);
-                    console.error('レスポンステキスト:', text);
                     throw new Error('無効なレスポンス形式です');
                 }
             });
         })
         .then(result => {
-            console.log('API結果:', result);
 
             if (result.success) {
                 showNotification(result.message || '予約を保存しました', 'success');
@@ -765,7 +755,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(error => {
-            console.error('保存エラー:', error);
             showNotification(error.message, 'error');
         })
         .finally(() => {
@@ -808,7 +797,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(error => {
-            console.error('復路作成エラー:', error);
             showNotification(error.message, 'error');
         });
     }

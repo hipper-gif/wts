@@ -13,6 +13,7 @@ session_start();
 
 // 基盤システム読み込み
 require_once '../config/database.php';
+require_once '../functions.php';
 require_once '../includes/unified-header.php';
 
 // ログインチェック
@@ -36,12 +37,10 @@ $driver_filter = $_GET['driver'] ?? 'all';
 $access_level = 'full';
 
 // 運転者一覧取得
-$stmt = $pdo->query("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");
-$drivers = $stmt->fetchAll();
+$drivers = getActiveDrivers($pdo);
 
 // 車両一覧取得
-$stmt = $pdo->query("SELECT id, vehicle_number, model FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number");
-$vehicles = $stmt->fetchAll();
+$vehicles = getActiveVehicles($pdo, 'with_model');
 
 // カスタマイズ選択肢取得（テーブル未作成の場合は自動作成）
 $field_options = [];

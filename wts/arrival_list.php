@@ -3,6 +3,7 @@ session_start();
 
 // データベース接続
 require_once 'config/database.php';
+require_once 'functions.php';
 require_once 'includes/unified-header.php';
 
 try {
@@ -43,10 +44,7 @@ $search_driver = $_GET['search_driver'] ?? '';
 $search_vehicle = $_GET['search_vehicle'] ?? '';
 
 // 運転者一覧取得
-$drivers_sql = "SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name";
-$drivers_stmt = $pdo->prepare($drivers_sql);
-$drivers_stmt->execute();
-$drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
+$drivers = getActiveDrivers($pdo);
 
 // 車両一覧取得
 $vehicles_sql = "SELECT id, vehicle_number, vehicle_name FROM vehicles WHERE status = 'active' ORDER BY vehicle_number";

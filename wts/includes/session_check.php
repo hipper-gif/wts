@@ -51,6 +51,18 @@ $user_id = $current_user->id;
 $user_name = $current_user->name;
 $user_role = $current_user->permission_level; // permission_levelをuser_roleとして使用
 
+/**
+ * CSRFトークンを検証
+ */
+function validateCsrfToken() {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['csrf_token'] ?? '';
+    if (empty($token) || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => '不正なリクエストです']);
+        exit;
+    }
+}
+
 // 権限チェック関数（permission_levelベース）
 function requireRole($required_role) {
     global $user_role;

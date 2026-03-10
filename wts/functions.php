@@ -101,6 +101,39 @@ function columnExists($pdo, $table_name, $column_name) {
 }
 
 /**
+ * アクティブなドライバー一覧を取得
+ */
+function getActiveDrivers($pdo) {
+    $stmt = $pdo->query("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * アクティブな車両一覧を取得
+ */
+function getActiveVehicles($pdo, $columns = 'basic') {
+    switch ($columns) {
+        case 'with_model':
+            $sql = "SELECT id, vehicle_number, model FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
+            break;
+        case 'with_mileage':
+            $sql = "SELECT id, vehicle_number, model, current_mileage FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
+            break;
+        case 'with_name':
+            $sql = "SELECT id, vehicle_number, vehicle_name, current_mileage FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
+            break;
+        case 'full':
+            $sql = "SELECT id, vehicle_number, vehicle_name, model, current_mileage FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
+            break;
+        default:
+            $sql = "SELECT id, vehicle_number FROM vehicles WHERE is_active = 1 ORDER BY vehicle_number";
+            break;
+    }
+    $stmt = $pdo->query($sql);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
  * 安全なHTMLエスケープ
  * @param string $str エスケープする文字列
  * @return string エスケープされた文字列

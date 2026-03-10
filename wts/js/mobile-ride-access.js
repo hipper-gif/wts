@@ -514,26 +514,10 @@
             }
         });
 
-        // 記録カウンターのリアルタイム更新
+        // 記録カウンターのリアルタイム更新（APIエンドポイント未実装のため無効化）
         function updateRideCounter() {
-            fetch('api/get_today_ride_count.php')
-                .then(response => response.json())
-                .then(data => {
-                    document.querySelector('.counter-number').textContent = data.count;
-                    
-                    // ステータス更新
-                    const statusText = document.querySelector('.status-text');
-                    if (data.count > 0) {
-                        statusText.textContent = `運行中 - ${data.count}件記録済み`;
-                    } else {
-                        statusText.textContent = '運行中 - 記録待ち';
-                    }
-                })
-                .catch(error => console.log('カウンター更新エラー:', error));
+            // api/get_today_ride_count.php は存在しないため無効化
         }
-
-        // 定期的な更新
-        setInterval(updateRideCounter, 30000); // 30秒ごと
 
         // 長押しでメニュー表示
         let pressTimer;
@@ -562,8 +546,8 @@
         // PWA的な動作（オフライン対応の準備）
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
-                .then(registration => console.log('SW registered'))
-                .catch(error => console.log('SW registration failed'));
+                .then(registration => {})
+                .catch(error => {});
         }
 
         // バッテリー節約モード（非アクティブ時の更新停止）
@@ -572,7 +556,7 @@
         document.addEventListener('visibilitychange', function() {
             isActive = !document.hidden;
             if (isActive) {
-                updateRideCounter(); // ページがアクティブになったら即座更新
+                // updateRideCounter disabled - API endpoint does not exist
             }
         });
     </script>

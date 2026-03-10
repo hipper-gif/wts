@@ -51,39 +51,31 @@ const OFFLINE_PAGE = '/Smiley/taxi/wts/index.php';
 
 // インストールイベント - 静的リソースをキャッシュ
 self.addEventListener('install', (event) => {
-    console.log('[Service Worker] インストール中...', CACHE_VERSION);
-
     event.waitUntil(
         caches.open(CACHE_STATIC)
             .then((cache) => {
-                console.log('[Service Worker] 静的リソースをキャッシュ中...');
                 // 重要なリソースのみ必須キャッシュ、その他は無視
                 return cache.addAll(STATIC_CACHE_URLS.slice(0, 5))
                     .then(() => {
                         // 残りのリソースは個別に追加（エラーを無視）
                         return Promise.allSettled(
                             STATIC_CACHE_URLS.slice(5).map(url =>
-                                cache.add(url).catch(err =>
-                                    console.warn('[Service Worker] キャッシュ失敗:', url, err)
-                                )
+                                cache.add(url).catch(err => {})
                             )
                         );
                     });
             })
             .then(() => {
-                console.log('[Service Worker] インストール完了');
                 return self.skipWaiting();
             })
             .catch((error) => {
-                console.error('[Service Worker] インストール失敗:', error);
+                // エラーを無視
             })
     );
 });
 
 // アクティベートイベント - 古いキャッシュを削除
 self.addEventListener('activate', (event) => {
-    console.log('[Service Worker] アクティベート中...', CACHE_VERSION);
-
     event.waitUntil(
         caches.keys()
             .then((cacheNames) => {
@@ -91,14 +83,12 @@ self.addEventListener('activate', (event) => {
                     cacheNames.map((cacheName) => {
                         // 現在のバージョンでないキャッシュを削除
                         if (!cacheName.startsWith(CACHE_VERSION)) {
-                            console.log('[Service Worker] 古いキャッシュを削除:', cacheName);
                             return caches.delete(cacheName);
                         }
                     })
                 );
             })
             .then(() => {
-                console.log('[Service Worker] アクティベート完了');
                 return self.clients.claim();
             })
     );
@@ -157,8 +147,6 @@ async function cacheFirstStrategy(request, cacheName) {
 
         return networkResponse;
     } catch (error) {
-        console.error('[Service Worker] Cache First エラー:', error);
-
         // キャッシュにもない場合、オフラインページを返す
         if (request.destination === 'document') {
             const cache = await caches.open(CACHE_STATIC);
@@ -185,12 +173,9 @@ async function networkFirstStrategy(request, cacheName) {
 
         return networkResponse;
     } catch (error) {
-        console.warn('[Service Worker] ネットワークエラー、キャッシュを確認:', error);
-
         // ネットワークが失敗した場合、キャッシュから取得
         const cachedResponse = await caches.match(request);
         if (cachedResponse) {
-            console.log('[Service Worker] キャッシュから返却:', request.url);
             return cachedResponse;
         }
 
@@ -226,9 +211,8 @@ self.addEventListener('message', (event) => {
                 return Promise.all(
                     cacheNames.map((cacheName) => caches.delete(cacheName))
                 );
-            }).then(() => {
-                console.log('[Service Worker] 全キャッシュをクリアしました');
             })
+        )
         );
     }
 });
@@ -261,4 +245,3 @@ self.addEventListener('notificationclick', (event) => {
     );
 });
 
-console.log('[Service Worker] スクリプト読み込み完了', CACHE_VERSION);

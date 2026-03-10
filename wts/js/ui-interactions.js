@@ -690,14 +690,16 @@
      * Ajaxリクエストヘルパー
      */
     window.ajaxRequest = function(url, options = {}) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
         const defaultOptions = {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken
             }
         };
-        
+
         const config = Object.assign(defaultOptions, options);
         
         return fetch(url, config)
@@ -708,7 +710,6 @@
                 return response.json();
             })
             .catch(error => {
-                console.error('Ajax request failed:', error);
                 showToast('通信エラーが発生しました。', 'danger');
                 throw error;
             });
@@ -723,11 +724,13 @@
         
         showLoading();
         
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
         fetch(url, {
             method: 'POST',
             body: formData,
             headers: {
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken
             }
         })
         .then(response => response.json())
@@ -750,8 +753,7 @@
         })
         .catch(error => {
             hideLoading();
-            console.error('Form submission failed:', error);
-            
+
             if (typeof errorCallback === 'function') {
                 errorCallback({ message: '通信エラーが発生しました。' });
             } else {
@@ -883,13 +885,11 @@
     
     // グローバルエラーハンドラー
     window.addEventListener('error', function(e) {
-        console.error('JavaScript Error:', e.error);
         // 本番環境では適切なエラー報告システムに送信
     });
     
     // 未処理のPromise拒否をキャッチ
     window.addEventListener('unhandledrejection', function(e) {
-        console.error('Unhandled Promise Rejection:', e.reason);
         e.preventDefault();
     });
 

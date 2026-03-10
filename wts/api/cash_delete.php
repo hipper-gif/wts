@@ -12,6 +12,11 @@ try {
         exit;
     }
 
+    require_once dirname(__DIR__) . '/includes/session_check.php';
+
+    // CSRF検証
+    validateCsrfToken();
+
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         http_response_code(405);
         echo json_encode(['success' => false, 'message' => 'POSTメソッドが必要です']);
