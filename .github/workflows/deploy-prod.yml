@@ -46,6 +46,8 @@ jobs:
           **/README.md
           **/.github/**
           **/node_modules/**
+          **/.env
+          **/.env.example
         dry-run: false
         log-level: verbose
     

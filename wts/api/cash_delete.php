@@ -28,11 +28,9 @@ try {
         exit;
     }
 
-    // データベース接続（最もシンプル）
-    $dsn = "mysql:host=localhost;dbname=twinklemark_wts;charset=utf8mb4";
-    $pdo = new PDO($dsn, 'twinklemark_taxi', 'Smiley2525', [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-    ]);
+    // データベース接続
+    require_once dirname(__DIR__) . '/config/database.php';
+    $pdo = getDBConnection();
 
     // 権限チェック（簡略化）
     $stmt = $pdo->prepare("SELECT permission_level FROM users WHERE id = ?");
@@ -73,6 +71,7 @@ try {
     
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'エラー: ' . $e->getMessage()]);
+    error_log("cash_delete error: " . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'サーバーエラーが発生しました']);
 }
 ?>

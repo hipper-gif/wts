@@ -381,19 +381,6 @@ function h($str) {
     return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
 }
 
-/**
- * デバッグ用関数
- * @param mixed $data デバッグするデータ
- * @param string $label ラベル
- */
-function debug($data, $label = 'DEBUG') {
-    if (defined('DEBUG') && DEBUG) {
-        echo "<pre><strong>{$label}:</strong>\n";
-        print_r($data);
-        echo "</pre>";
-    }
-    error_log("{$label}: " . print_r($data, true));
-}
 
 /**
  * CSVエクスポート用のヘッダー設定

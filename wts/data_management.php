@@ -10,9 +10,23 @@ try {
     die("データベース接続エラー: " . $e->getMessage());
 }
 
-// ログインチェック（管理者のみ）
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
+// ログインチェック
+if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
+    exit();
+}
+
+// 管理者権限チェック（厳格）
+$is_admin = false;
+if (isset($_SESSION['permission_level']) && $_SESSION['permission_level'] === 'Admin') {
+    $is_admin = true;
+} elseif (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin') {
+    $is_admin = true;
+} elseif (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1) {
+    $is_admin = true;
+}
+if (!$is_admin) {
+    header('Location: dashboard.php?error=permission_denied');
     exit();
 }
 

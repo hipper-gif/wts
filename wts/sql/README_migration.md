@@ -44,7 +44,7 @@ php run_migration.php
 ### 方法2: MySQLコマンドで実行
 
 ```bash
-mysql -h localhost -u twinklemark_taxi -pSmiley2525 twinklemark_wts < remove_uk_vehicle_date_constraint.sql
+mysql -h localhost -u YOUR_DB_USER -pYOUR_PASSWORD YOUR_DB_NAME < remove_uk_vehicle_date_constraint.sql
 ```
 
 ### 方法3: phpMyAdminまたは他のDB管理ツールで実行

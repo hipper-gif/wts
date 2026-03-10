@@ -34,18 +34,6 @@ $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'ユーザー';
 $user_role = $_SESSION['permission_level'] ?? $_SESSION['user_role'] ?? 'User';
 
-// デバッグ用: セッション情報を表示（開発時のみ）
-$debug_mode = false; // 必要に応じてtrueに変更
-if ($debug_mode) {
-    echo '<div class="alert alert-info"><strong>デバッグ情報:</strong><br>';
-    echo 'user_id: ' . ($_SESSION['user_id'] ?? 'なし') . '<br>';
-    echo 'permission_level: ' . ($_SESSION['permission_level'] ?? 'なし') . '<br>';
-    echo 'user_role: ' . ($_SESSION['user_role'] ?? 'なし') . '<br>';
-    echo 'is_admin: ' . ($_SESSION['is_admin'] ?? 'なし') . '<br>';
-    echo 'is_manager: ' . ($_SESSION['is_manager'] ?? 'なし') . '<br>';
-    echo '</div>';
-}
-
 // 統一ヘッダーシステム
 require_once 'includes/unified-header.php';
 $page_config = getPageConfiguration('vehicle_management');

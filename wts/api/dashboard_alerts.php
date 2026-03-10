@@ -2,19 +2,18 @@
 session_start();
 header('Content-Type: application/json');
 
-// データベース接続設定
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'twinklemark_wts');
-define('DB_USER', 'twinklemark_taxi');
-define('DB_PASS', 'Smiley2525');
-define('DB_CHARSET', 'utf8mb4');
+// データベース接続
+require_once dirname(__DIR__) . '/config/database.php';
 
 // ログインチェック
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
-    echo json_encode(['success' => false, 'message' => 'データベース接続エラー']);
+    echo json_encode(['success' => false, 'message' => '認証が必要です']);
     exit;
 }
+
+// データベース接続
+$pdo = getDBConnection();
 
 $today = date('Y-m-d');
 $current_hour = date('H');
