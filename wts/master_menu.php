@@ -348,19 +348,37 @@ $page_data = renderCompletePage(
             </div>
             
             <div class="col-lg-4 col-md-6 mb-4">
-                <div class="master-card coming-soon">
-                    <div class="position-relative">
-                        <span class="status-badge bg-secondary text-white">Phase2</span>
-                        <i class="fas fa-database master-icon icon-backup"></i>
-                        <h5 class="card-title">バックアップ・復元</h5>
-                        <p class="card-description">
-                            データベースバックアップ<br>
-                            自動バックアップ・復元機能
-                        </p>
-                        <div class="stats-number text-muted">Phase2</div>
-                        <div class="stats-label">将来実装</div>
+                <?php if ($is_admin): ?>
+                    <div class="master-card" style="cursor: pointer;" onclick="performBackup()">
+                        <div class="position-relative">
+                            <span class="status-badge bg-success text-white">利用可能</span>
+                            <i class="fas fa-database master-icon icon-backup"></i>
+                            <h5 class="card-title">データベースバックアップ</h5>
+                            <p class="card-description">
+                                データベースをJSON形式でエクスポート<br>
+                                管理者専用のバックアップ機能
+                            </p>
+                            <div class="stats-number text-purple" style="color: #6f42c1;">
+                                <i class="fas fa-download"></i>
+                            </div>
+                            <div class="stats-label">クリックしてバックアップ</div>
+                        </div>
                     </div>
-                </div>
+                <?php else: ?>
+                    <div class="master-card user-only" onclick="showPermissionAlert()">
+                        <div class="position-relative">
+                            <span class="status-badge bg-warning text-dark">要Admin権限</span>
+                            <i class="fas fa-database master-icon icon-backup"></i>
+                            <h5 class="card-title">データベースバックアップ</h5>
+                            <p class="card-description">
+                                データベースをJSON形式でエクスポート<br>
+                                管理者専用のバックアップ機能
+                            </p>
+                            <div class="stats-number text-muted">要Admin権限</div>
+                            <div class="stats-label">管理者のみ利用可能</div>
+                        </div>
+                    </div>
+                <?php endif; ?>
             </div>
             
             <div class="col-lg-4 col-md-6 mb-4">
@@ -437,6 +455,28 @@ $page_data = renderCompletePage(
                 alert('この機能は今後実装予定です。\n\n現在利用可能な機能：\n・ユーザー管理（Admin権限）\n・車両管理（全ユーザー）\n・システム設定（車両管理内）');
             });
         });
+
+        // データベースバックアップ
+        function performBackup() {
+            if (!confirm('データベースのバックアップを作成しますか？\n\nJSON形式のファイルがダウンロードされます。')) {
+                return;
+            }
+
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'api/backup.php';
+            form.style.display = 'none';
+
+            var csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>';
+            form.appendChild(csrfInput);
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
     </script>
 </body>
 </html>

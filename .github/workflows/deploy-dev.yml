@@ -4,14 +4,55 @@ on:
     branches: [ main ]
 
 jobs:
-  deploy-development:
-    name: 開発環境デプロイ
+  lint-and-deploy:
+    name: 構文チェック＆開発環境デプロイ
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: 📂 ファイル取得
       uses: actions/checkout@v4
-    
+
+    - name: 🐘 PHP環境セットアップ
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.1'
+
+    - name: 🔍 PHP構文チェック
+      run: |
+        echo "PHPファイルの構文チェックを実行..."
+        error_count=0
+        while IFS= read -r file; do
+          if ! php -l "$file" > /dev/null 2>&1; then
+            echo "❌ 構文エラー: $file"
+            php -l "$file"
+            error_count=$((error_count + 1))
+          fi
+        done < <(find ./wts -name "*.php" -type f)
+
+        if [ $error_count -gt 0 ]; then
+          echo "❌ ${error_count}件の構文エラーが見つかりました"
+          exit 1
+        fi
+        echo "✅ 全PHPファイルの構文チェック完了（エラーなし）"
+
+    - name: 🔒 セキュリティチェック
+      run: |
+        echo "基本セキュリティチェックを実行..."
+        error_found=0
+
+        # ハードコードされた認証情報チェック
+        if grep -rn "password\s*=\s*['\"][^'\"]*['\"]" ./wts/config/ --include="*.php" | grep -v "getenv\|ENV\|env\|\.env\|example\|placeholder\|DB_PASS\|password_verify\|password_hash" ; then
+          echo "⚠️ ハードコードされたパスワードの可能性があります"
+          error_found=1
+        fi
+
+        # display_errorsチェック
+        if grep -rn "display_errors.*1\|display_errors.*On\|display_errors.*true" ./wts/ --include="*.php" | grep -v "ini_set.*display_errors.*0\|display_errors.*Off\|CALENDAR_DEBUG_MODE" ; then
+          echo "⚠️ display_errorsが有効なファイルがあります"
+        fi
+
+        echo "✅ セキュリティチェック完了"
+
     - name: 🚀 開発環境にデプロイ
       uses: SamKirkland/FTP-Deploy-Action@4.3.3
       with:
@@ -19,7 +60,6 @@ jobs:
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
         local-dir: ./wts/
-        # 🎯 開発環境パス
         server-dir: /twinklemark.xsrv.jp/public_html/Smiley/taxi/wts/
         exclude: |
           **/.git*
@@ -29,9 +69,10 @@ jobs:
           **/node_modules/**
           **/.env
           **/.env.example
+          **/sql/**
         dry-run: false
         log-level: verbose
-    
+
     - name: ✅ デプロイ完了通知
       run: |
         echo "🎉 開発環境デプロイ完了！"
