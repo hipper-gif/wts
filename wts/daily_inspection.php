@@ -186,7 +186,7 @@ $page_config = getPageConfiguration('daily_inspection');
     <?= renderSystemHeader($user_name, $user_role, 'daily_inspection') ?>
     <?= renderPageHeader($page_config['icon'], $page_config['title'], $page_config['subtitle'], $page_config['category']) ?>
     
-    <div class="container mt-4">
+    <div class="container mt-4" id="main-content" tabindex="-1">
         <!-- モード切替ボタン -->
         <div class="mode-switch mb-4">
             <div class="btn-group" role="group">

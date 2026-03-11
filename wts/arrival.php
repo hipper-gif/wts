@@ -202,7 +202,7 @@ echo $page_data['page_header'];
 ?>
 
 <!-- メインコンテンツ -->
-<main class="main-content">
+<main class="main-content" id="main-content" tabindex="-1">
     <div class="container-fluid py-4">
         <!-- 次のステップへの案内バナー -->
         <?php if ($success_message && isset($saved_driver_id)): ?>

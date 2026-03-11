@@ -340,7 +340,7 @@ echo $page_data['html_head'];
     </div>
 </div>
 
-<div class="container">
+<div class="container" id="main-content" tabindex="-1">
     <!-- Layer 2: アラート表示エリア -->
     <?php if (!empty($alerts)): ?>
     <div class="alert-area">

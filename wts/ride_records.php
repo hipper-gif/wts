@@ -323,9 +323,9 @@ echo $page_data['page_header'];
 ?>
 
 <!-- メインコンテンツ開始 -->
-<main class="main-content">
+<main class="main-content" id="main-content" tabindex="-1">
     <div class="container-fluid">
-        
+
 
 
         <!-- アラート表示 -->

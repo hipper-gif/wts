@@ -174,9 +174,9 @@ echo $page_data['page_header'];
 ?>
 
 <!-- メインコンテンツ開始 -->
-<main class="main-content">
+<main class="main-content" id="main-content" tabindex="-1">
     <div class="container-fluid py-4">
-        
+
         <!-- 修正モードのアラート -->
         <?php if ($edit_mode && $edit_record): ?>
         <div class="alert alert-warning border-0 shadow-sm mb-4">

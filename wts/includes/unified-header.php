@@ -349,8 +349,15 @@ function renderCompleteHTMLHead($page_title, $options = []) {
     <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="192x192" href="/Smiley/taxi/wts/icons/icon-192x192.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/Smiley/taxi/wts/icons/icon-32x32.png">
+
+    <!-- Skip Link CSS -->
+    <style>
+    .skip-link { position: absolute; top: -40px; left: 0; background: #2196F3; color: white; padding: 8px 16px; z-index: 10000; transition: top 0.3s; }
+    .skip-link:focus { top: 0; }
+    </style>
 </head>
-<body>';
+<body>
+<a href="#main-content" class="visually-hidden-focusable skip-link">メインコンテンツへスキップ</a>';
     
     return $html;
 }
@@ -376,7 +383,7 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
     
     $dashboard_link = '';
     if ($show_dashboard_link) {
-        $dashboard_link = '<a href="dashboard.php" class="dashboard-link">
+        $dashboard_link = '<a href="dashboard.php" class="dashboard-link" aria-label="ダッシュボードへ戻る">
             <i class="fas fa-tachometer-alt"></i>
             <span class="d-none d-md-inline">ダッシュボード</span>
         </a>';
@@ -384,7 +391,7 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
     
     return '
     <div class="system-header-container">
-        <header class="system-header">
+        <header class="system-header" role="banner">
             <div class="container-fluid">
                 <div class="d-flex align-items-center justify-content-between h-100">
                     <!-- システムタイトル（レスポンシブ対応） -->
@@ -408,7 +415,7 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
                             </div>
                         </div>
                         
-                        <a href="logout.php" class="logout-btn" title="ログアウト">
+                        <a href="logout.php" class="logout-btn" title="ログアウト" aria-label="ログアウト">
                             <i class="fas fa-sign-out-alt"></i>
                             <span class="d-none d-sm-inline">ログアウト</span>
                         </a>

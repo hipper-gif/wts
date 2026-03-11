@@ -1939,6 +1939,87 @@ a:focus, button:focus, input:focus, select:focus, textarea:focus, [tabindex]:not
     }
 }
 
+/* ========== モバイル最適化 ========== */
+
+/* タッチターゲット最小サイズ保証 */
+@media (max-width: 768px) {
+    .btn, button, a.btn, .form-select, .form-control {
+        min-height: 44px;
+    }
+
+    .btn-sm {
+        min-height: 36px;
+        padding: 6px 12px;
+    }
+
+    /* テーブルの横スクロール対応 */
+    .table-responsive {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* モーダルのモバイル最適化 */
+    .modal-xl, .modal-lg {
+        max-width: calc(100vw - 16px);
+        margin: 8px auto;
+    }
+
+    .modal-dialog-scrollable .modal-body {
+        max-height: calc(100vh - 200px);
+    }
+
+    /* カード内のボタングループ */
+    .card .btn-group {
+        flex-wrap: wrap;
+    }
+
+    .card .btn-group .btn {
+        flex: 1 1 auto;
+        white-space: nowrap;
+    }
+}
+
+/* 小画面向け追加調整 */
+@media (max-width: 576px) {
+    .container, .container-fluid {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    .card-body {
+        padding: 12px;
+    }
+
+    h1, .h1 { font-size: 1.5rem; }
+    h2, .h2 { font-size: 1.3rem; }
+    h3, .h3 { font-size: 1.15rem; }
+
+    /* フォームラベル */
+    .form-label {
+        font-size: 0.875rem;
+    }
+}
+
+/* フォーカス表示の強化（アクセシビリティ） */
+:focus-visible {
+    outline: 3px solid #2196F3;
+    outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid #2196F3;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(33, 150, 243, 0.25);
+}
+
+/* main-contentターゲット */
+#main-content:focus {
+    outline: none;
+}
+
 /* ========== 終了メッセージ ========== */
 /*
  * 福祉輸送管理システム v3.1 統一CSS完成（Android最適化版）

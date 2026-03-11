@@ -9,6 +9,11 @@
 
 (function() {
     'use strict';
+
+    // ローディングテキストスタイル注入
+    const loadingStyle = document.createElement('style');
+    loadingStyle.textContent = '.loading-content{display:flex;flex-direction:column;align-items:center;gap:12px}.loading-text{color:#fff;font-size:14px;margin:0}';
+    document.head.appendChild(loadingStyle);
     
     // DOM読み込み完了後に実行
     document.addEventListener('DOMContentLoaded', function() {
@@ -221,7 +226,9 @@
     function createToast(message, type) {
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
-        
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'polite');
+
         const icons = {
             success: 'check-circle',
             warning: 'exclamation-triangle',
@@ -652,13 +659,19 @@
     /**
      * ローディングスピナーを表示
      */
-    window.showLoading = function() {
+    window.showLoading = function(message) {
         let overlay = document.querySelector('.loading-overlay');
         if (!overlay) {
             overlay = document.createElement('div');
             overlay.className = 'loading-overlay';
-            overlay.innerHTML = '<div class="spinner spinner-lg"></div>';
+            overlay.setAttribute('role', 'alert');
+            overlay.setAttribute('aria-live', 'assertive');
+            overlay.setAttribute('aria-label', '読み込み中');
+            overlay.innerHTML = '<div class="loading-content"><div class="spinner spinner-lg"></div><p class="loading-text">' + (message || '処理中...') + '</p></div>';
             document.body.appendChild(overlay);
+        } else {
+            const text = overlay.querySelector('.loading-text');
+            if (text) text.textContent = message || '処理中...';
         }
         overlay.style.display = 'flex';
     };
@@ -690,6 +703,9 @@
      * Ajaxリクエストヘルパー
      */
     window.ajaxRequest = function(url, options = {}) {
+        const showLoader = options.showLoading !== false;
+        if (showLoader) showLoading();
+
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
         const defaultOptions = {
             method: 'GET',
@@ -701,15 +717,17 @@
         };
 
         const config = Object.assign(defaultOptions, options);
-        
+
         return fetch(url, config)
             .then(response => {
+                if (showLoader) hideLoading();
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 return response.json();
             })
             .catch(error => {
+                if (showLoader) hideLoading();
                 showToast('通信エラーが発生しました。', 'danger');
                 throw error;
             });
