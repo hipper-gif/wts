@@ -279,7 +279,7 @@
                             <?php
                             try {
                                 $stmt = $pdo->query("
-                                    SELECT 
+                                    SELECT
                                         cc.created_at,
                                         u.name,
                                         '現金確認' as action,
@@ -290,15 +290,15 @@
                                     LIMIT 10
                                 ");
                                 $recent_actions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                                
-                                foreach ($recent_actions as $action): ?>
-                                    <tr>
-                                        <td><?= date('m/d H:i', strtotime($action['created_at'])) ?></td>
-                                        <td><?= htmlspecialchars($action['name']) ?></td>
-                                        <td><span class="badge bg-info"><?= $action['action'] ?></span></td>
-                                        <td><?= htmlspecialchars($action['details']) ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
+
+                                foreach ($recent_actions as $action) {
+                                    echo '<tr>';
+                                    echo '<td>' . date('m/d H:i', strtotime($action['created_at'])) . '</td>';
+                                    echo '<td>' . htmlspecialchars($action['name']) . '</td>';
+                                    echo '<td><span class="badge bg-info">' . htmlspecialchars($action['action']) . '</span></td>';
+                                    echo '<td>' . htmlspecialchars($action['details']) . '</td>';
+                                    echo '</tr>';
+                                }
                             } catch (Exception $e) {
                                 echo '<tr><td colspan="4" class="text-center text-muted">ログデータの取得に失敗しました</td></tr>';
                             }
