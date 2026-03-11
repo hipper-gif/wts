@@ -31,6 +31,7 @@ $_SESSION['last_activity'] = time();
 // データベース接続（まだ存在しない場合）
 if (!isset($pdo)) {
     require_once __DIR__ . '/../config/database.php';
+    $pdo = getDBConnection();
 }
 
 // ユーザー情報を取得してグローバル変数に設定（permission_level使用）
