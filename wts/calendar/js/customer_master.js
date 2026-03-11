@@ -1336,6 +1336,14 @@
                 window.customerAutocomplete.setCustomer(customer);
             }
         });
+
+        // 顧客管理ボタンのクリックイベント
+        var cmBtn = document.getElementById('customerManagementBtn');
+        if (cmBtn) {
+            cmBtn.addEventListener('click', function() {
+                window.location.href = 'customer_management.php';
+            });
+        }
     });
 
 })();
