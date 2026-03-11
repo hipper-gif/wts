@@ -1006,9 +1006,13 @@ function toggleCollection(checkbox) {
     var payload = JSON.stringify({ driver_id: parseInt(driverId), collection_date: date });
     console.log('集金チェック送信:', payload);
 
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
     fetch('cash_management.php', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfMeta ? csrfMeta.content : ''
+        },
         body: payload
     })
     .then(function(r) {
