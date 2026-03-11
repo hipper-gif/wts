@@ -766,6 +766,8 @@ document.getElementById('editForm').addEventListener('submit', async function(e)
     const formData = new FormData(this);
 
     try {
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (csrfMeta) formData.append('csrf_token', csrfMeta.content);
         const response = await fetch('api/edit_arrival_record.php', {
             method: 'POST',
             body: formData

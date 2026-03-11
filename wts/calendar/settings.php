@@ -245,9 +245,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ========== API通信 ==========
     function apiCall(data) {
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
         return fetch(API_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfMeta ? csrfMeta.content : ''
+            },
             body: JSON.stringify(data)
         }).then(r => r.json());
     }

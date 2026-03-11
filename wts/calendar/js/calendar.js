@@ -365,10 +365,12 @@ document.addEventListener('DOMContentLoaded', function() {
             reservation_time: newTime
         };
         
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
         fetch(currentConfig.apiUrls.saveReservation, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfMeta ? csrfMeta.content : ''
             },
             body: JSON.stringify(updateData)
         })
@@ -628,10 +630,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 予約削除処理
     function deleteReservation(reservationId) {
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
         fetch('api/delete_reservation.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfMeta ? csrfMeta.content : ''
             },
             body: JSON.stringify({ id: reservationId })
         })

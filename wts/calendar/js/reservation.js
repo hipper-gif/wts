@@ -723,10 +723,12 @@ document.addEventListener('DOMContentLoaded', function() {
         isSubmitting = true;
         setFormLoading(true);
 
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
         fetch(window.calendarConfig.apiUrls.saveReservation, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfMeta ? csrfMeta.content : ''
             },
             body: JSON.stringify(data)
         })
@@ -784,10 +786,12 @@ document.addEventListener('DOMContentLoaded', function() {
     function createReturnTrip(parentReservationId) {
         const hoursLater = 3; // デフォルト3時間後
         
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
         fetch(window.calendarConfig.apiUrls.createReturnTrip, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfMeta ? csrfMeta.content : ''
             },
             body: JSON.stringify({
                 parent_reservation_id: parentReservationId,
