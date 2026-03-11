@@ -3,6 +3,7 @@ session_start();
 require_once 'config/database.php';
 require_once 'functions.php';
 require_once 'includes/unified-header.php';
+require_once 'includes/session_check.php';
 
 // ログインチェック
 if (!isset($_SESSION['user_id'])) {
@@ -50,6 +51,7 @@ if (($_GET['inspector_id'] ?? null) && ($_GET['vehicle_id'] ?? null)) {
 
 // 削除処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
+    validateCsrfToken();
     try {
         $stmt = $pdo->prepare("DELETE FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
         $stmt->execute([$_POST['inspector_id'], $_POST['vehicle_id'], $_POST['inspection_date']]);
@@ -64,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // フォーム送信処理（登録・更新）
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
+    validateCsrfToken();
     $inspector_id = $_POST['inspector_id'];
     $vehicle_id = $_POST['vehicle_id'];
     $inspection_date = $_POST['inspection_date'] ?? $today;
@@ -224,6 +227,7 @@ $page_config = getPageConfiguration('daily_inspection');
         <?php endif; ?>
         
         <form method="POST" id="inspectionForm">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
             <?php if ($is_edit_mode): ?>
                 <input type="hidden" name="inspector_id" value="<?= $existing_inspection['driver_id'] ?>">
                 <input type="hidden" name="vehicle_id" value="<?= $existing_inspection['vehicle_id'] ?>">
@@ -544,6 +548,7 @@ $page_config = getPageConfiguration('daily_inspection');
         <!-- 削除フォーム -->
         <?php if ($is_edit_mode): ?>
         <form method="POST" id="deleteForm" style="display: none;">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="inspector_id" value="<?= $existing_inspection['driver_id'] ?>">
             <input type="hidden" name="vehicle_id" value="<?= $existing_inspection['vehicle_id'] ?>">

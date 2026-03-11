@@ -2,6 +2,7 @@
 session_start();
 require_once 'config/database.php';
 require_once 'functions.php';
+require_once 'includes/session_check.php';
 
 // ログインチェック
 if (!isset($_SESSION['user_id'])) {
@@ -43,8 +44,9 @@ $error_message = '';
 
 // フォーム送信処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    validateCsrfToken();
     $action = $_POST['action'] ?? '';
-    
+
     try {
         if ($action === 'add') {
             // 新規車両追加
@@ -474,6 +476,7 @@ echo $page_data['page_header'];
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="vehicleForm" method="POST">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                 <input type="hidden" name="action" id="modalAction" value="add">
                 <input type="hidden" name="vehicle_id" id="modalVehicleId">
                 
@@ -574,6 +577,7 @@ echo $page_data['page_header'];
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                 <input type="hidden" name="action" value="update_inspection">
                 <input type="hidden" name="vehicle_id" id="inspectionVehicleId">
                 
@@ -650,6 +654,7 @@ function deleteVehicle(vehicleId, vehicleNumber) {
         const form = document.createElement('form');
         form.method = 'POST';
         form.innerHTML = `
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="vehicle_id" value="${vehicleId}">
         `;

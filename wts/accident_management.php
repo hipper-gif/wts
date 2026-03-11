@@ -9,6 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 
 // データベース接続
 require_once 'config/database.php';
+require_once 'includes/session_check.php';
 
 try {
     $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET, DB_USER, DB_PASS);
@@ -82,6 +83,7 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    validateCsrfToken();
     try {
         if (isset($_POST['action'])) {
             switch ($_POST['action']) {
@@ -568,6 +570,7 @@ $accident_stats = getAccidentStats($pdo, $search_year);
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="POST" id="addAccidentForm">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <div class="modal-body">
                         <input type="hidden" name="action" value="add_accident">
                         
@@ -777,6 +780,7 @@ $accident_stats = getAccidentStats($pdo, $search_year);
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="POST" id="editAccidentForm">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <div class="modal-body" id="editAccidentContent">
                         <!-- 編集フォームはJavaScriptで動的に挿入 -->
                     </div>

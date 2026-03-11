@@ -3,6 +3,7 @@ session_start();
 
 // データベース接続
 require_once 'config/database.php';
+require_once 'includes/session_check.php';
 
 try {
     $pdo = getDBConnection();
@@ -35,6 +36,7 @@ $error = '';
 
 // POST処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    validateCsrfToken();
     $action = $_POST['action'] ?? '';
     
     try {
@@ -92,16 +94,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // データ統計取得
 $stats = getDataStatistics($pdo);
 
+// テーブル名ホワイトリスト
+$GLOBALS['allowed_data_tables'] = ['ride_records', 'daily_inspections', 'pre_duty_calls', 'post_duty_calls',
+                                    'departure_records', 'arrival_records', 'periodic_inspections',
+                                    'users', 'vehicles'];
+
+function validateDataTable($table) {
+    if (!in_array($table, $GLOBALS['allowed_data_tables'])) {
+        throw new Exception("Invalid table name: " . $table);
+    }
+    return $table;
+}
+
 // 関数定義
 function addSampleFlags($pdo) {
     $tables = ['ride_records', 'daily_inspections', 'pre_duty_calls', 'post_duty_calls', 
                'departure_records', 'arrival_records', 'periodic_inspections'];
     
     foreach ($tables as $table) {
+        validateDataTable($table);
         // カラムが存在するかチェック
-        $stmt = $pdo->query("SHOW COLUMNS FROM {$table} LIKE 'is_sample_data'");
+        $stmt = $pdo->query("SHOW COLUMNS FROM `{$table}` LIKE 'is_sample_data'");
         if ($stmt->rowCount() == 0) {
-            $pdo->exec("ALTER TABLE {$table} ADD COLUMN is_sample_data BOOLEAN DEFAULT FALSE");
+            $pdo->exec("ALTER TABLE `{$table}` ADD COLUMN is_sample_data BOOLEAN DEFAULT FALSE");
         }
     }
 }
@@ -118,8 +133,9 @@ function markSampleByDate($pdo, $start_date, $end_date) {
     ];
     
     foreach ($tables_with_date as $table => $date_column) {
-        $sql = "UPDATE {$table} SET is_sample_data = TRUE 
-                WHERE {$date_column} BETWEEN ? AND ?";
+        validateDataTable($table);
+        $sql = "UPDATE `{$table}` SET is_sample_data = TRUE
+                WHERE `{$date_column}` BETWEEN ? AND ?";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$start_date, $end_date]);
     }
@@ -127,9 +143,10 @@ function markSampleByDate($pdo, $start_date, $end_date) {
 
 function markSampleManual($pdo, $table, $ids) {
     if (empty($ids) || empty($table)) return;
-    
+
+    validateDataTable($table);
     $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-    $sql = "UPDATE {$table} SET is_sample_data = TRUE WHERE id IN ({$placeholders})";
+    $sql = "UPDATE `{$table}` SET is_sample_data = TRUE WHERE id IN ({$placeholders})";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($ids);
 }
@@ -139,7 +156,8 @@ function deleteSampleData($pdo) {
                'departure_records', 'arrival_records', 'periodic_inspections'];
     
     foreach ($tables as $table) {
-        $sql = "DELETE FROM {$table} WHERE is_sample_data = TRUE";
+        validateDataTable($table);
+        $sql = "DELETE FROM `{$table}` WHERE is_sample_data = TRUE";
         $pdo->exec($sql);
     }
 }
@@ -153,12 +171,13 @@ function exportRealData($pdo) {
                'post_duty_calls', 'departure_records', 'arrival_records', 'periodic_inspections'];
     
     foreach ($tables as $table) {
+        validateDataTable($table);
         if (in_array($table, ['users', 'vehicles'])) {
             // マスタテーブルは全件
-            $stmt = $pdo->query("SELECT * FROM {$table}");
+            $stmt = $pdo->query("SELECT * FROM `{$table}`");
         } else {
             // データテーブルは実務データのみ
-            $stmt = $pdo->query("SELECT * FROM {$table} WHERE is_sample_data = FALSE OR is_sample_data IS NULL");
+            $stmt = $pdo->query("SELECT * FROM `{$table}` WHERE is_sample_data = FALSE OR is_sample_data IS NULL");
         }
         $export_data[$table] = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -219,26 +238,27 @@ function getDataStatistics($pdo) {
                'departure_records', 'arrival_records', 'periodic_inspections'];
     
     foreach ($tables as $table) {
+        validateDataTable($table);
         // テーブル存在確認
         $stmt = $pdo->query("SHOW TABLES LIKE '{$table}'");
         if ($stmt->rowCount() == 0) continue;
-        
+
         // is_sample_dataカラム存在確認
-        $stmt = $pdo->query("SHOW COLUMNS FROM {$table} LIKE 'is_sample_data'");
+        $stmt = $pdo->query("SHOW COLUMNS FROM `{$table}` LIKE 'is_sample_data'");
         $has_sample_flag = $stmt->rowCount() > 0;
-        
+
         if ($has_sample_flag) {
             $stmt = $pdo->query("
-                SELECT 
+                SELECT
                     COUNT(*) as total,
                     COUNT(CASE WHEN is_sample_data = TRUE THEN 1 END) as sample,
                     COUNT(CASE WHEN is_sample_data = FALSE OR is_sample_data IS NULL THEN 1 END) as real
-                FROM {$table}
+                FROM `{$table}`
             ");
             $stats[$table] = $stmt->fetch();
             $stats[$table]['has_sample_flag'] = true;
         } else {
-            $stmt = $pdo->query("SELECT COUNT(*) as total FROM {$table}");
+            $stmt = $pdo->query("SELECT COUNT(*) as total FROM `{$table}`");
             $total = $stmt->fetchColumn();
             $stats[$table] = [
                 'total' => $total,
@@ -368,6 +388,7 @@ function getDataStatistics($pdo) {
                     <p>データ整理のためのフラグを追加します</p>
                     
                     <form method="POST" class="mb-3">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                         <input type="hidden" name="action" value="add_sample_flag">
                         <button type="submit" class="btn btn-primary" 
                                 onclick="return confirm('全テーブルにサンプルフラグを追加しますか？')">
@@ -388,6 +409,7 @@ function getDataStatistics($pdo) {
                     <p>特定期間のデータをサンプルとしてマークします</p>
                     
                     <form method="POST">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                         <input type="hidden" name="action" value="mark_sample_by_date">
                         <div class="row">
                             <div class="col-6">
@@ -414,6 +436,7 @@ function getDataStatistics($pdo) {
                     <p>本番運用開始日を設定して、それ以前をサンプル扱いにします</p>
                     
                     <form method="POST">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                         <input type="hidden" name="action" value="reset_to_production">
                         <div class="mb-2">
                             <label class="form-label">本番運用開始日</label>
@@ -435,6 +458,7 @@ function getDataStatistics($pdo) {
                     <p>実務データのみをバックアップします</p>
                     
                     <form method="POST" class="mb-2">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                         <input type="hidden" name="action" value="export_real_data">
                         <button type="submit" class="btn btn-info">
                             <i class="fas fa-file-export me-1"></i>実務データエクスポート
@@ -442,6 +466,7 @@ function getDataStatistics($pdo) {
                     </form>
                     
                     <form method="POST">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                         <input type="hidden" name="action" value="create_sample_dataset">
                         <button type="submit" class="btn btn-secondary btn-sm">
                             <i class="fas fa-plus me-1"></i>サンプルデータ作成
@@ -459,6 +484,7 @@ function getDataStatistics($pdo) {
                     <p class="text-danger">以下の操作は元に戻せません。必ずバックアップを取ってから実行してください。</p>
                     
                     <form method="POST" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                         <input type="hidden" name="action" value="delete_sample_data">
                         <button type="submit" class="btn btn-danger" 
                                 onclick="return confirm('⚠️ 警告: サンプルデータを完全に削除します。この操作は元に戻せません。本当に実行しますか？')">

@@ -18,8 +18,9 @@ function getDriverList($pdo, $active_only = true) {
             $where_conditions[] = "is_active = 1";
         }
         
+        // NOTE: $where_clause contains only hardcoded conditions (no user input) - safe from SQL injection
         $where_clause = implode(" AND ", $where_conditions);
-        
+
         $stmt = $pdo->prepare("
             SELECT id, name, login_id, is_active
             FROM users 

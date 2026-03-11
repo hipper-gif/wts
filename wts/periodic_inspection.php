@@ -2,6 +2,7 @@
 session_start();
 require_once 'config/database.php';
 require_once 'includes/unified-header.php';
+require_once 'includes/session_check.php';
 
 // ログインチェック
 if (!isset($_SESSION['user_id'])) {
@@ -35,6 +36,7 @@ try {
 
 // フォーム送信処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    validateCsrfToken();
     try {
         $pdo->beginTransaction();
         
@@ -179,6 +181,7 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
     <?php } ?>
 
     <form method="POST" id="inspectionForm">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
         <!-- 基本情報セクション -->
         <?php
         $basic_info_actions = [

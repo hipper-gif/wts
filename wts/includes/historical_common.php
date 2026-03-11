@@ -3,6 +3,20 @@
 // 過去データ入力用共通関数
 
 /**
+ * テーブル名のホワイトリスト検証
+ * @param string $table テーブル名
+ * @return string 検証済みテーブル名
+ * @throws InvalidArgumentException 許可されていないテーブル名の場合
+ */
+function validateTableName($table) {
+    $allowed = ['daily_inspections', 'pre_duty_calls', 'post_duty_calls', 'departure_records', 'arrival_records', 'ride_records'];
+    if (!in_array($table, $allowed)) {
+        throw new InvalidArgumentException("Invalid table name: " . $table);
+    }
+    return $table;
+}
+
+/**
  * 営業日のみの日付配列を生成
  * @param string $start_date 開始日 (Y-m-d)
  * @param string $end_date 終了日 (Y-m-d)
@@ -38,6 +52,8 @@ function generateBusinessDates($start_date, $end_date, $exclude_weekdays = [0, 6
  * @return array 既存データがある日付の配列
  */
 function checkExistingData($pdo, $table, $date_field, $dates, $additional_conditions = []) {
+    validateTableName($table);
+
     if (empty($dates)) {
         return [];
     }
@@ -88,6 +104,11 @@ function getUsersByRole($pdo, $role_filter = null) {
     $params = [];
     
     if ($role_filter) {
+        // ホワイトリスト検証: 許可された役割のみ受け付ける
+        $allowed_roles = ['driver', 'caller', 'manager', 'admin', 'mechanic', 'inspector'];
+        if (!in_array($role_filter, $allowed_roles)) {
+            throw new InvalidArgumentException("Invalid role filter");
+        }
         // 新しい権限システム（is_driver, is_caller等）に対応
         $role_column = "is_{$role_filter}";
         $sql .= " AND {$role_column} = 1";
@@ -255,6 +276,8 @@ function validateHistoricalData($data, $data_type) {
  * @return string SQL文
  */
 function generateBulkInsertSQL($table, $columns, $record_count) {
+    validateTableName($table);
+
     $column_list = implode(', ', $columns);
     $placeholders = '(' . str_repeat('?,', count($columns) - 1) . '?)';
     $all_placeholders = str_repeat($placeholders . ',', $record_count - 1) . $placeholders;

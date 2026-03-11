@@ -5,6 +5,7 @@ session_start();
 require_once 'config/database.php';
 require_once 'functions.php';
 require_once 'includes/unified-header.php';
+require_once 'includes/session_check.php';
 
 try {
     $pdo = getDBConnection();
@@ -45,6 +46,7 @@ if (isset($_GET['edit']) && $_GET['edit'] == 'true' && isset($_GET['id'])) {
 
 // POSTデータ処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    validateCsrfToken();
     try {
         $driver_id = $_POST['driver_id'];
         $vehicle_id = $_POST['vehicle_id'];
@@ -206,6 +208,7 @@ echo $page_data['page_header'];
             <!-- メイン入力フォーム -->
             <div class="col-lg-8">
                 <form method="POST" id="departureForm">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <?php if ($edit_mode): ?>
                         <input type="hidden" name="edit_id" value="<?= $edit_record['id'] ?>">
                     <?php endif; ?>

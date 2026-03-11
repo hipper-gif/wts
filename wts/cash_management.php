@@ -2,6 +2,7 @@
 session_start();
 require_once 'config/database.php';
 require_once 'includes/unified-header.php';
+require_once 'includes/session_check.php';
 
 // ログインチェック
 if (!isset($_SESSION['user_id'])) {
@@ -35,6 +36,7 @@ try {
 
 // --- AJAX POST ハンドラ（集金チェックのトグル） ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    validateCsrfToken();
     header('Content-Type: application/json; charset=utf-8');
     try {
         $input = file_get_contents('php://input');

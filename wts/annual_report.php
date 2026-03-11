@@ -10,6 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 // データベース接続
 require_once 'config/database.php';
 require_once 'includes/unified-header.php';
+require_once 'includes/session_check.php';
 
 try {
     $pdo = getDBConnection();
@@ -165,6 +166,7 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    validateCsrfToken();
     try {
         if (isset($_POST['action'])) {
             switch ($_POST['action']) {
@@ -1017,6 +1019,7 @@ echo $page_data['page_header'];
                         </div>
                         <div class="col-md-4 text-end">
                             <form method="POST" class="d-inline" target="_blank">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                                 <input type="hidden" name="action" value="export_form4">
                                 <input type="hidden" name="fiscal_year" value="<?= $selected_year ?>">
                                 <button type="submit" class="btn btn-success btn-lg">
@@ -1024,6 +1027,7 @@ echo $page_data['page_header'];
                                 </button>
                             </form>
                             <form method="POST" class="d-inline ms-2">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                                 <input type="hidden" name="action" value="export_form4_excel">
                                 <input type="hidden" name="fiscal_year" value="<?= $selected_year ?>">
                                 <button type="submit" class="btn btn-primary btn-lg">
@@ -1079,6 +1083,7 @@ echo $page_data['page_header'];
                                                     <?php endif; ?>
                                                     
                                                     <form method="POST" class="d-inline" target="_blank">
+                                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                                                         <input type="hidden" name="action" value="export_form4">
                                                         <input type="hidden" name="fiscal_year" value="<?= $report['fiscal_year'] ?>">
                                                         <button type="submit" class="btn btn-outline-success btn-sm" title="PDF出力">
@@ -1086,6 +1091,7 @@ echo $page_data['page_header'];
                                                         </button>
                                                     </form>
                                                     <form method="POST" class="d-inline">
+                                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                                                         <input type="hidden" name="action" value="export_form4_excel">
                                                         <input type="hidden" name="fiscal_year" value="<?= $report['fiscal_year'] ?>">
                                                         <button type="submit" class="btn btn-outline-primary btn-sm" title="Excel出力">
@@ -1158,6 +1164,7 @@ echo $page_data['page_header'];
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
             </div>
             <form method="POST">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="update_company_info">
                     
@@ -1250,6 +1257,7 @@ echo $page_data['page_header'];
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
             </div>
             <form method="POST">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="create_report">
                     
@@ -1300,6 +1308,7 @@ echo $page_data['page_header'];
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
             </div>
             <form method="POST" id="updateStatusForm">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="update_status">
                     <input type="hidden" name="report_id" id="update_report_id">

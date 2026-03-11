@@ -3,6 +3,7 @@ session_start();
 require_once 'config/database.php';
 require_once 'functions.php';
 require_once 'includes/unified-header.php';
+require_once 'includes/session_check.php';
 
 // ログインチェック
 if (!isset($_SESSION['user_id'])) {
@@ -64,6 +65,7 @@ if ($selected_driver_id) {
 
 // 修正・削除処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    validateCsrfToken();
     if ($_POST['action'] === 'delete') {
         try {
             $stmt = $pdo->prepare("DELETE FROM pre_duty_calls WHERE driver_id = ? AND call_date = ?");
@@ -80,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 // フォーム送信処理（登録・更新）
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
+    validateCsrfToken();
     $driver_id = $_POST['driver_id'];
     $call_time = $_POST['call_time'];
 
@@ -266,6 +269,7 @@ echo $page_data['page_header'];
         <div class="row">
             <div class="col-lg-8">
                 <form method="POST" id="pre-duty-form">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <?php if ($is_edit_mode): ?>
                         <input type="hidden" name="driver_id" value="<?= $existing_call['driver_id'] ?>">
                     <?php endif; ?>
@@ -443,6 +447,7 @@ echo $page_data['page_header'];
 
                 <!-- 削除フォーム -->
                 <form method="POST" id="delete-form" style="display: none;">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="driver_id" value="<?= $existing_call['driver_id'] ?? '' ?>">
                 </form>

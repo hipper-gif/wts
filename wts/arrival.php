@@ -7,6 +7,7 @@ session_start();
 require_once 'config/database.php';
 require_once 'functions.php';
 require_once 'includes/unified-header.php';
+require_once 'includes/session_check.php';
 
 // セッション確認
 if (!isset($_SESSION['user_id'])) {
@@ -72,6 +73,7 @@ $warning_message = null;
 
 // フォーム処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    validateCsrfToken();
     try {
         $departure_record_id = $_POST['departure_record_id'] ?? null;
         $driver_id = filter_var($_POST['driver_id'], FILTER_VALIDATE_INT);
@@ -283,6 +285,7 @@ echo $page_data['page_header'];
             </div>
             <div class="card-body">
                 <form method="POST" id="arrivalForm">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <input type="hidden" id="departure_record_id" name="departure_record_id" value="">
                     
                     <!-- 基本情報 -->

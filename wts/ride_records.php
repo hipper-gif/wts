@@ -5,6 +5,7 @@ session_start();
 require_once 'config/database.php';
 require_once 'functions.php';
 require_once 'includes/unified-header.php';
+require_once 'includes/session_check.php';
 
 try {
     $pdo = getDBConnection();
@@ -67,6 +68,7 @@ if ($user_is_driver) {
 
 // POSTデータ処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    validateCsrfToken();
     try {
         $action = $_POST['action'] ?? 'add';
         
@@ -564,6 +566,7 @@ echo $page_data['page_header'];
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="rideForm" method="POST">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                 <input type="hidden" name="action" id="modalAction" value="add">
                 <input type="hidden" name="record_id" id="modalRecordId">
                 <input type="hidden" name="is_return_trip" id="modalIsReturnTrip" value="0">
@@ -1158,6 +1161,7 @@ function deleteRecord(recordId) {
         const form = document.createElement('form');
         form.method = 'POST';
         form.innerHTML = `
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="record_id" value="${recordId}">
         `;
