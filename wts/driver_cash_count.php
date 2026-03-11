@@ -386,9 +386,13 @@ echo $page_data['html_head'];
         }
         data.total_amount = totalAmount;
 
+        var csrfToken = document.querySelector('meta[name="csrf-token"]');
         fetch('api/save_cash_count.php', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken ? csrfToken.content : ''
+            },
             body: JSON.stringify(data)
         })
         .then(function(r) { return r.text(); })
