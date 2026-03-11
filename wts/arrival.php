@@ -3,7 +3,6 @@
  * 入庫処理システム v3.1 - 改良版（統一ヘッダー適用・機能強化版）
  */
 
-session_start();
 require_once 'config/database.php';
 require_once 'functions.php';
 require_once 'includes/unified-header.php';

@@ -6,7 +6,10 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
 header('Content-Type: application/json; charset=utf-8');
-session_start();
+
+// データベース設定ファイル読み込み
+require_once dirname(__DIR__) . '/config/database.php';
+require_once dirname(__DIR__) . '/includes/session_check.php';
 
 // ログインチェック
 if (!isset($_SESSION['user_id'])) {
@@ -17,10 +20,6 @@ if (!isset($_SESSION['user_id'])) {
     ]);
     exit;
 }
-
-// データベース設定ファイル読み込み
-require_once dirname(__DIR__) . '/config/database.php';
-require_once dirname(__DIR__) . '/includes/session_check.php';
 
 // CSRF検証
 validateCsrfToken();

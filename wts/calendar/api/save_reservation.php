@@ -9,18 +9,16 @@
 // =================================================================
 
 header('Content-Type: application/json; charset=utf-8');
-session_start();
 
 // 基盤システム読み込み
 require_once '../../config/database.php';
 require_once '../includes/calendar_functions.php';
+require_once dirname(__DIR__, 2) . '/includes/session_check.php';
 
 // 認証チェック
 if (!isset($_SESSION['user_id'])) {
     sendErrorResponse('認証が必要です', 401);
 }
-
-require_once dirname(__DIR__, 2) . '/includes/session_check.php';
 
 // CSRF検証
 validateCsrfToken();

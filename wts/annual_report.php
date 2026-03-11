@@ -1,16 +1,15 @@
 <?php
-session_start();
+
+// データベース接続
+require_once 'config/database.php';
+require_once 'includes/unified-header.php';
+require_once 'includes/session_check.php';
 
 // ログイン確認
 if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
     exit();
 }
-
-// データベース接続
-require_once 'config/database.php';
-require_once 'includes/unified-header.php';
-require_once 'includes/session_check.php';
 
 try {
     $pdo = getDBConnection();

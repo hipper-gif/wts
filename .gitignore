@@ -1,2 +1,39 @@
+# 環境設定ファイル
 wts/.env
+
+# ログファイル
 *.log
+
+# OS生成ファイル
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+._*
+
+# IDE・エディタ
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# 依存関係
+vendor/
+node_modules/
+composer.lock
+
+# バックアップ・一時ファイル
+*.bak
+*.backup
+*.old
+*.tmp
+*.temp
+
+# ビルド成果物
+*.map
+
+# Claude Code
+.claude/

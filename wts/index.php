@@ -17,6 +17,10 @@ if (isset($_SESSION['user_id'])) {
 
 $error_message = '';
 
+if (isset($_GET['timeout']) && $_GET['timeout'] == '1') {
+    $error_message = 'セッションがタイムアウトしました。再度ログインしてください。';
+}
+
 // ログイン処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $login_id = trim($_POST['login_id'] ?? '');

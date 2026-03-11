@@ -9,11 +9,11 @@
 // =================================================================
 
 header('Content-Type: application/json; charset=utf-8');
-session_start();
 
 // 基盤システム読み込み
 require_once '../../config/database.php';
 require_once '../includes/calendar_functions.php';
+require_once dirname(__DIR__, 2) . '/includes/session_check.php';
 
 // 認証チェック
 if (!isset($_SESSION['user_id'])) {
@@ -24,6 +24,9 @@ if (!isset($_SESSION['user_id'])) {
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     sendErrorResponse('POSTメソッドが必要です', 405);
 }
+
+// CSRF検証
+validateCsrfToken();
 
 // データベース接続
 $pdo = getDBConnection();

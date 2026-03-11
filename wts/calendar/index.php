@@ -9,6 +9,12 @@
 // 最終更新: 2025年10月6日（パス修正版）
 // =================================================================
 
+ini_set('session.cookie_httponly', 1);
+ini_set('session.cookie_samesite', 'Lax');
+ini_set('session.use_strict_mode', 1);
+if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
+    ini_set('session.cookie_secure', 1);
+}
 session_start();
 
 // 基盤システム読み込み
@@ -651,7 +657,7 @@ window.calendarConfig = {
     // ユーザー情報
     currentUser: {
         id: <?= $user_id ?>,
-        name: '<?= addslashes($user_name) ?>'
+        name: <?= json_encode($user_name, JSON_UNESCAPED_UNICODE) ?>
     },
 
     // カレンダー表示設定

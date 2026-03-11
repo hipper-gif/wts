@@ -1,17 +1,16 @@
 <?php
-session_start();
 require_once '../config/database.php';
 
 // Content-Type設定
 header('Content-Type: application/json');
+
+require_once dirname(__DIR__) . '/includes/session_check.php';
 
 // セッション確認
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
     exit(json_encode(['success' => false, 'error' => 'ログインが必要です']));
 }
-
-require_once dirname(__DIR__) . '/includes/session_check.php';
 
 // CSRF検証
 validateCsrfToken();

@@ -1,8 +1,9 @@
 <?php
 // 最小限版: api/cash_delete.php（緊急回避策）
 
-session_start();
 header('Content-Type: application/json');
+
+require_once dirname(__DIR__) . '/includes/session_check.php';
 
 try {
     // 基本チェック
@@ -11,8 +12,6 @@ try {
         echo json_encode(['success' => false, 'message' => '認証が必要です']);
         exit;
     }
-
-    require_once dirname(__DIR__) . '/includes/session_check.php';
 
     // CSRF検証
     validateCsrfToken();
