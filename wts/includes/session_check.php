@@ -28,6 +28,11 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 
 }
 $_SESSION['last_activity'] = time();
 
+// CSRFトークン生成（未設定の場合）
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 // データベース接続（まだ存在しない場合）
 if (!isset($pdo)) {
     require_once __DIR__ . '/../config/database.php';
