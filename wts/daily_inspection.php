@@ -569,7 +569,7 @@ $page_config = getPageConfiguration('daily_inspection');
                     </div>
                     <div class="col-md-4 mb-2">
                         <h6 class="text-muted mb-2">記録管理</h6>
-                        <a href="daily_inspection_history.php" class="btn btn-outline-secondary btn-sm">
+                        <a href="daily_inspection.php?mode=historical" class="btn btn-outline-secondary btn-sm">
                             <i class="fas fa-history me-1"></i>履歴・編集
                         </a>
                     </div>
