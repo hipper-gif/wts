@@ -493,9 +493,7 @@ function sendSuccessResponse($data = [], $message = '') {
         $response['message'] = $message;
     }
     
-    if (!empty($data)) {
-        $response['data'] = $data;
-    }
+    $response['data'] = $data;
     
     sendJsonResponse($response);
 }

@@ -383,7 +383,13 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
     
     $dashboard_link = '';
     if ($show_dashboard_link) {
-        $dashboard_link = '<a href="dashboard.php" class="dashboard-link" aria-label="ダッシュボードへ戻る">
+        // calendarサブディレクトリ等からのアクセスに対応
+        $base_path = '';
+        $script_dir = dirname($_SERVER['SCRIPT_NAME']);
+        if (strpos($script_dir, '/calendar') !== false || strpos($script_dir, '/api') !== false) {
+            $base_path = '../';
+        }
+        $dashboard_link = '<a href="' . $base_path . 'dashboard.php" class="dashboard-link" aria-label="ダッシュボードへ戻る">
             <i class="fas fa-tachometer-alt"></i>
             <span class="d-none d-md-inline">ダッシュボード</span>
         </a>';
