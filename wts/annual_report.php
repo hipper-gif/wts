@@ -15,7 +15,8 @@ require_once 'includes/session_check.php';
 try {
     $pdo = getDBConnection();
 } catch (PDOException $e) {
-    die('データベース接続エラー: ' . $e->getMessage());
+    error_log("Database connection error: " . $e->getMessage());
+    die('データベース接続エラーが発生しました。管理者にお問い合わせください。');
 }
 
 // ユーザー情報取得
@@ -127,7 +128,8 @@ try {
     ");
 
 } catch (PDOException $e) {
-    $error = "テーブル作成エラー: " . $e->getMessage();
+    error_log("Table creation error: " . $e->getMessage());
+    $error = "テーブル作成エラーが発生しました。管理者にお問い合わせください。";
 }
 
 // 不足カラムの追加（テーブル作成とは別にエラーハンドリング）
@@ -251,8 +253,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } catch (Exception $e) {
-        $error = "エラーが発生しました: " . $e->getMessage();
         error_log("Annual report error: " . $e->getMessage());
+        $error = "エラーが発生しました。管理者にお問い合わせください。";
     }
 }
 

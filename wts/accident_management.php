@@ -15,7 +15,8 @@ try {
     $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET, DB_USER, DB_PASS);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
-    die('データベース接続エラー: ' . $e->getMessage());
+    error_log("Database connection error: " . $e->getMessage());
+    die('データベース接続エラーが発生しました。管理者にお問い合わせください。');
 }
 
 // ユーザー情報取得
@@ -70,7 +71,8 @@ try {
         )
     ");
 } catch (PDOException $e) {
-    $error = "事故管理テーブルの作成に失敗しました: " . $e->getMessage();
+    error_log("Accident table creation error: " . $e->getMessage());
+    $error = "事故管理テーブルの作成に失敗しました。管理者にお問い合わせください。";
 }
 
 // 検索・フィルター条件
@@ -171,7 +173,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } catch (Exception $e) {
-        $error = "エラーが発生しました: " . $e->getMessage();
+        error_log("Accident management error: " . $e->getMessage());
+        $error = "エラーが発生しました。管理者にお問い合わせください。";
     }
 }
 

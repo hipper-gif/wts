@@ -59,8 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $existing_inspection = null;
         $is_edit_mode = false;
     } catch (Exception $e) {
-        $error_message = '削除中にエラーが発生しました: ' . $e->getMessage();
         error_log("Daily inspection delete error: " . $e->getMessage());
+        $error_message = 'エラーが発生しました。管理者にお問い合わせください。';
     }
 }
 
@@ -168,8 +168,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             }
             
         } catch (Exception $e) {
-            $error_message = '記録の保存中にエラーが発生しました: ' . $e->getMessage();
             error_log("Daily inspection error: " . $e->getMessage());
+            $error_message = 'エラーが発生しました。管理者にお問い合わせください。';
         }
     }
 }

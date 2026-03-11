@@ -157,8 +157,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
         
     } catch (Exception $e) {
-        $error_message = "エラーが発生しました: " . $e->getMessage();
         error_log("Arrival record error: " . $e->getMessage());
+        $error_message = "エラーが発生しました。管理者にお問い合わせください。";
     }
 }
 

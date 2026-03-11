@@ -10,7 +10,8 @@ require_once 'includes/session_check.php';
 try {
     $pdo = getDBConnection();
 } catch (Exception $e) {
-    die("データベース接続エラー: " . $e->getMessage());
+    error_log("Database connection error: " . $e->getMessage());
+    die("データベース接続エラーが発生しました。管理者にお問い合わせください。");
 }
 
 // ログインチェック
@@ -112,7 +113,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
     } catch (Exception $e) {
-        $error_message = $e->getMessage();
+        error_log("Departure record error: " . $e->getMessage());
+        $error_message = 'エラーが発生しました。管理者にお問い合わせください。';
     }
 }
 

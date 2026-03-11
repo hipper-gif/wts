@@ -1,4 +1,11 @@
 <?php
+// セッションセキュリティ設定
+ini_set('session.cookie_httponly', 1);
+ini_set('session.cookie_samesite', 'Lax');
+ini_set('session.use_strict_mode', 1);
+if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
+    ini_set('session.cookie_secure', 1);
+}
 session_start();
 require_once 'config/database.php';
 
@@ -39,6 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // 権限レベル設定
                 $_SESSION['user_permission_level'] = $user['permission_level'] ?? 'User';
+                $_SESSION['user_role'] = $user['permission_level'] ?? 'User';
                 $_SESSION['is_admin_user'] = ($user['permission_level'] === 'Admin');
                 
                 // 職務フラグをセッションに保存（最適化後の構造に対応）
@@ -52,7 +60,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // セキュリティ対策
                 $_SESSION['login_time'] = time();
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-                
+
+                session_regenerate_id(true);
+
                 // 最終ログイン時刻を更新（最適化後のカラム名：last_login_at）
                 try {
                     $stmt = $pdo->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?");

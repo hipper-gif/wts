@@ -1,7 +1,14 @@
 <?php
 // includes/session_check.php - 全画面で使用する共通セッション管理
 
+// セッションセキュリティ設定（session_start前に設定）
 if (session_status() == PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.cookie_samesite', 'Lax');
+    ini_set('session.use_strict_mode', 1);
+    if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
+        ini_set('session.cookie_secure', 1);
+    }
     session_start();
 }
 
@@ -10,6 +17,16 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
     exit;
 }
+
+// セッションタイムアウトチェック（30分）
+$session_timeout = 1800; // 30分
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
+    session_unset();
+    session_destroy();
+    header('Location: index.php?timeout=1');
+    exit;
+}
+$_SESSION['last_activity'] = time();
 
 // データベース接続（まだ存在しない場合）
 if (!isset($pdo)) {
