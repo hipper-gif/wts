@@ -131,7 +131,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // 隠しフィールドクリア
         document.getElementById('reservationId').value = '';
         document.getElementById('parentReservationId').value = '';
-        
+        document.getElementById('customer_id').value = '';
+
+        // 顧客情報バッジクリア
+        var customerBadge = document.getElementById('customerInfoBadge');
+        if (customerBadge) {
+            customerBadge.innerHTML = '';
+        }
+
         // エラー表示クリア
         clearFormErrors();
         clearConstraintWarnings();
@@ -151,6 +158,12 @@ document.addEventListener('DOMContentLoaded', function() {
         setFormValue('clientName', data.client_name || data.clientName);
         setFormValue('pickupLocation', data.pickup_location || data.pickupLocation);
         setFormValue('dropoffLocation', data.dropoff_location || data.dropoffLocation);
+
+        // 顧客マスター連携
+        setFormValue('customer_id', data.customer_id);
+        if (data.customer_id && window.customerAutocomplete) {
+            window.customerAutocomplete.loadCustomer(data.customer_id);
+        }
         
         // 詳細情報
         setFormValue('passengerCount', data.passenger_count || data.passengerCount || 1);
@@ -680,7 +693,8 @@ document.addEventListener('DOMContentLoaded', function() {
             'actualFare': 'actual_fare',
             'paymentMethod': 'payment_method',
             'specialNotes': 'special_notes',
-            'parentReservationId': 'parent_reservation_id'
+            'parentReservationId': 'parent_reservation_id',
+            'customer_id': 'customer_id'
         };
 
         // 基本データ収集（フィールド名を変換）
@@ -911,6 +925,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // =================================================================
     // 初期化
     // =================================================================
-    
+
     initializeReservationModal();
+
+    // 顧客マスターオートコンプリート初期化は customer_master.js で行われる
 });

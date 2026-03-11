@@ -203,6 +203,10 @@ echo $page_data['page_header'];
                                         </button>
                                     </div>
 
+                                    <button type="button" class="btn btn-outline-info" id="customerManagementBtn" title="顧客管理">
+                                        <i class="fas fa-address-book me-1"></i><span class="d-none d-md-inline">顧客管理</span>
+                                    </button>
+
                                     <a href="settings.php" class="btn btn-outline-secondary" title="項目カスタマイズ">
                                         <i class="fas fa-sliders-h"></i>
                                     </a>
@@ -295,6 +299,7 @@ echo $page_data['page_header'];
                     <!-- 隠しフィールド -->
                     <input type="hidden" id="reservationId" name="reservationId">
                     <input type="hidden" id="parentReservationId" name="parentReservationId">
+                    <input type="hidden" id="customer_id" name="customer_id" value="">
 
                     <!-- 基本情報 -->
                     <div class="card mb-3">
@@ -314,6 +319,7 @@ echo $page_data['page_header'];
                                 <div class="col-md-4 mb-3">
                                     <label for="clientName" class="form-label">利用者名 <span class="text-danger">*</span></label>
                                     <input type="text" class="form-control" id="clientName" name="clientName" placeholder="例: 山田太郎" required>
+                                    <div id="customerInfoBadge" class="mt-1"></div>
                                 </div>
                             </div>
                             <div class="row">
@@ -675,5 +681,13 @@ window.calendarConfig = {
     }
 };
 </script>
+
+<!-- 顧客マスター連携JS -->
+<script src="<?= $cache_bust('js/customer_master.js') ?>"></script>
+<!-- クイック予約JS -->
+<script src="<?= $cache_bust('js/quick_booking.js') ?>"></script>
+
+<!-- クイック予約FAB -->
+<div id="quickBookingFAB"></div>
 </body>
 </html>

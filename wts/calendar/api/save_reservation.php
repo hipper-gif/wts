@@ -104,8 +104,18 @@ try {
         }
     }
     
+    // 顧客IDバリデーション
+    $customer_id = null;
+    if (!empty($input['customer_id'])) {
+        $customer_id = intval($input['customer_id']);
+        if ($customer_id <= 0) {
+            $customer_id = null;
+        }
+    }
+
     // データ準備
     $reservation_data = [
+        'customer_id' => $customer_id,
         'reservation_date' => $input['reservation_date'],
         'reservation_time' => $input['reservation_time'],
         'client_name' => trim($input['client_name']),
