@@ -1,29 +1,49 @@
 <?php
 
-// データベース接続
-require_once 'config/database.php';
 require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-try {
-    $pdo = getDBConnection();
-} catch (Exception $e) {
-    error_log("Database connection error: " . $e->getMessage());
-    die("データベース接続エラーが発生しました。管理者にお問い合わせください。");
+/**
+ * 出庫記録の監査ログ
+ */
+function logDepartureAudit($pdo, $record_id, $action, $user_id, $changes = [], $reason = null) {
+    try {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        if (empty($changes)) {
+            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs
+                (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
+                VALUES (?, ?, ?, 'departure', NULL, NULL, ?, ?, ?)");
+            $stmt->execute([$record_id, $action, $user_id, $reason, $ip, $ua]);
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs
+                (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            foreach ($changes as $c) {
+                $stmt->execute([$record_id, $action, $user_id, $c['field'], $c['old'], $c['new'], $reason, $ip, $ua]);
+            }
+        }
+    } catch (Exception $e) {
+        error_log("出庫監査ログエラー: " . $e->getMessage());
+    }
 }
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit();
+/**
+ * 出庫記録の編集可否判定
+ */
+function canEditDeparture($record, $user_role) {
+    $today = date('Y-m-d');
+    if ($record['departure_date'] === $today) {
+        return ['can_edit' => true, 'needs_reason' => false, 'lock_reason' => ''];
+    }
+    if ($record['departure_date'] < $today && $user_role === 'Admin') {
+        return ['can_edit' => true, 'needs_reason' => true, 'lock_reason' => '過去日の記録です。管理者権限で修正できます。'];
+    }
+    return ['can_edit' => false, 'needs_reason' => false, 'lock_reason' => '過去日の記録はロックされています。管理者にお問い合わせください。'];
 }
 
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'];
-$user_role = $_SESSION['user_role'] ?? 'User';
-
-// 今日の日付
+// $pdo, $user_id, $user_name, $user_role は session_check.php で設定済み
 $today = date('Y-m-d');
 $current_time = date('H:i');
 
@@ -38,14 +58,61 @@ if (isset($_GET['edit']) && $_GET['edit'] == 'true' && isset($_GET['id'])) {
     $edit_stmt = $pdo->prepare("SELECT * FROM departure_records WHERE id = ? AND departure_date = ?");
     $edit_stmt->execute([$edit_id, $today]);
     $edit_record = $edit_stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     if ($edit_record) {
         $edit_mode = true;
     }
 }
 
+$is_locked = false;
+$can_edit = true;
+$needs_reason = false;
+$lock_reason = '';
+
+if ($edit_record) {
+    $edit_perm = canEditDeparture($edit_record, $user_role);
+    $can_edit = $edit_perm['can_edit'];
+    $needs_reason = $edit_perm['needs_reason'];
+    $lock_reason = $edit_perm['lock_reason'];
+    $is_locked = ($edit_record['departure_date'] < $today);
+}
+
+// 削除処理
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
+    validateCsrfToken();
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM departure_records WHERE id = ?");
+        $stmt->execute([$_POST['record_id']]);
+        $del_target = $stmt->fetch();
+
+        if (!$del_target) {
+            $error_message = '削除対象の記録が見つかりません。';
+        } elseif ($user_role !== 'Admin') {
+            $error_message = '削除は管理者のみ実行できます。';
+        } else {
+            $edit_check = canEditDeparture($del_target, $user_role);
+            if (!$edit_check['can_edit']) {
+                $error_message = $edit_check['lock_reason'];
+            } else {
+                $pdo->beginTransaction();
+                $stmt = $pdo->prepare("DELETE FROM departure_records WHERE id = ?");
+                $stmt->execute([$_POST['record_id']]);
+                logDepartureAudit($pdo, $del_target['id'], 'delete', $user_id, [], $_POST['delete_reason'] ?? '削除');
+                $pdo->commit();
+                $success_message = '出庫記録を削除しました。';
+                $edit_record = null;
+                $edit_mode = false;
+            }
+        }
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        $error_message = '削除中にエラーが発生しました。';
+        error_log("Departure delete error: " . $e->getMessage());
+    }
+}
+
 // POSTデータ処理
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     validateCsrfToken();
     try {
         $driver_id = $_POST['driver_id'];
@@ -55,30 +122,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $weather = $_POST['weather'];
         $departure_mileage = intval($_POST['departure_mileage']);
         $edit_id = isset($_POST['edit_id']) ? intval($_POST['edit_id']) : null;
-        
+
         if ($edit_id) {
             // 修正処理
-            $update_sql = "UPDATE departure_records SET 
-                departure_time = ?, weather = ?, departure_mileage = ?, updated_at = NOW() 
+            $pdo->beginTransaction();
+            $update_sql = "UPDATE departure_records SET
+                departure_time = ?, weather = ?, departure_mileage = ?, updated_at = NOW()
                 WHERE id = ? AND departure_date = ?";
             $update_stmt = $pdo->prepare($update_sql);
             $update_stmt->execute([$departure_time, $weather, $departure_mileage, $edit_id, $departure_date]);
-            
+
             // 車両の走行距離も更新
             $update_vehicle_sql = "UPDATE vehicles SET current_mileage = ?, updated_at = NOW() WHERE id = ?";
             $update_vehicle_stmt = $pdo->prepare($update_vehicle_sql);
             $update_vehicle_stmt->execute([$departure_mileage, $vehicle_id]);
-            
+
+            logDepartureAudit($pdo, $_POST['edit_id'], 'edit', $user_id, [], $_POST['edit_reason'] ?? null);
+            $pdo->commit();
+
             $success_message = '出庫記録を修正しました。';
             $edit_mode = false;
             $edit_record = null;
-            
+
         } else {
             // 新規登録処理
-            
+
             // 複数出庫対応：入庫済みの場合は再出庫を許可
             $duplicate_check_sql = "
-                SELECT dr.id, ar.id as arrival_id 
+                SELECT dr.id, ar.id as arrival_id
                 FROM departure_records dr
                 LEFT JOIN arrival_records ar ON dr.id = ar.departure_record_id
                 WHERE dr.vehicle_id = ? AND dr.departure_date = ?
@@ -86,32 +157,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $duplicate_stmt = $pdo->prepare($duplicate_check_sql);
             $duplicate_stmt->execute([$vehicle_id, $departure_date]);
             $existing_records = $duplicate_stmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
             // 入庫していない出庫記録があるかチェック
             $unfinished_departures = array_filter($existing_records, function($record) {
                 return !$record['arrival_id']; // arrival_idがnullの場合は未入庫
             });
-            
+
             if (!empty($unfinished_departures)) {
                 throw new Exception('この車両は本日まだ入庫されていません。先に入庫処理を完了してください。');
             }
-            
+
             // データ保存
-            $insert_sql = "INSERT INTO departure_records 
-                (driver_id, vehicle_id, departure_date, departure_time, weather, departure_mileage, created_at) 
+            $pdo->beginTransaction();
+            $insert_sql = "INSERT INTO departure_records
+                (driver_id, vehicle_id, departure_date, departure_time, weather, departure_mileage, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, NOW())";
             $insert_stmt = $pdo->prepare($insert_sql);
             $insert_stmt->execute([$driver_id, $vehicle_id, $departure_date, $departure_time, $weather, $departure_mileage]);
-            
+
             // 車両の走行距離を更新
             $update_sql = "UPDATE vehicles SET current_mileage = ?, updated_at = NOW() WHERE id = ?";
             $update_stmt = $pdo->prepare($update_sql);
             $update_stmt->execute([$departure_mileage, $vehicle_id]);
-            
+
+            $new_id = $pdo->lastInsertId();
+            logDepartureAudit($pdo, $new_id, 'create', $user_id);
+            $pdo->commit();
+
             $success_message = '出庫処理が完了しました。';
         }
-        
+
     } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
         error_log("Departure record error: " . $e->getMessage());
         $error_message = 'エラーが発生しました。管理者にお問い合わせください。';
     }
@@ -127,11 +204,11 @@ $vehicles = getActiveVehicles($pdo, 'with_name');
 $today_departures_sql = "
     SELECT dr.*, u.name as driver_name, v.vehicle_number, v.vehicle_name,
            ar.id as arrival_id, ar.arrival_time
-    FROM departure_records dr 
-    JOIN users u ON dr.driver_id = u.id 
-    JOIN vehicles v ON dr.vehicle_id = v.id 
+    FROM departure_records dr
+    JOIN users u ON dr.driver_id = u.id
+    JOIN vehicles v ON dr.vehicle_id = v.id
     LEFT JOIN arrival_records ar ON dr.id = ar.departure_record_id
-    WHERE dr.departure_date = ? 
+    WHERE dr.departure_date = ?
     ORDER BY dr.departure_time DESC";
 $today_departures_stmt = $pdo->prepare($today_departures_sql);
 $today_departures_stmt->execute([$today]);
@@ -185,7 +262,7 @@ echo $page_data['page_header'];
                 <div class="flex-grow-1">
                     <h5 class="alert-heading mb-1">出庫記録修正モード</h5>
                     <p class="mb-0">
-                        <?= date('n月j日', strtotime($edit_record['departure_date'])) ?> 
+                        <?= date('n月j日', strtotime($edit_record['departure_date'])) ?>
                         <?= substr($edit_record['departure_time'], 0, 5) ?> の記録を修正中
                     </p>
                 </div>
@@ -195,7 +272,7 @@ echo $page_data['page_header'];
             </div>
         </div>
         <?php endif; ?>
-        
+
         <!-- アラート表示 -->
         <?php if ($success_message): ?>
             <?= renderAlert('success', '保存完了', $success_message) ?>
@@ -203,6 +280,18 @@ echo $page_data['page_header'];
 
         <?php if ($error_message): ?>
             <?= renderAlert('danger', 'エラー', $error_message) ?>
+        <?php endif; ?>
+
+        <?php if ($edit_mode && $edit_record): ?>
+        <div class="mb-3">
+            <?php if (!$is_locked): ?>
+                <span class="badge bg-success fs-6"><i class="fas fa-unlock me-1"></i>編集可能（本日中）</span>
+            <?php elseif ($is_locked && $can_edit): ?>
+                <span class="badge bg-warning text-dark fs-6"><i class="fas fa-lock me-1"></i>ロック中（管理者解除可）</span>
+            <?php else: ?>
+                <span class="badge bg-danger fs-6"><i class="fas fa-lock me-1"></i>ロック済み（変更不可）</span>
+            <?php endif; ?>
+        </div>
         <?php endif; ?>
 
         <div class="row">
@@ -223,11 +312,11 @@ echo $page_data['page_header'];
                                         <label for="driver_id" class="form-label">
                                             <i class="fas fa-user me-1"></i>運転者 <span class="text-danger">*</span>
                                         </label>
-                                        <select class="form-select" id="driver_id" name="driver_id" required 
+                                        <select class="form-select" id="driver_id" name="driver_id" required
                                                 <?= $edit_mode ? 'disabled' : '' ?>>
                                             <option value="">運転者を選択</option>
                                             <?php foreach ($drivers as $driver): ?>
-                                                <option value="<?= $driver['id'] ?>" 
+                                                <option value="<?= $driver['id'] ?>"
                                                     <?php if ($edit_mode): ?>
                                                         <?= ($driver['id'] == $edit_record['driver_id']) ? 'selected' : '' ?>
                                                     <?php else: ?>
@@ -246,11 +335,11 @@ echo $page_data['page_header'];
                                         <label for="vehicle_id" class="form-label">
                                             <i class="fas fa-car me-1"></i>車両 <span class="text-danger">*</span>
                                         </label>
-                                        <select class="form-select" id="vehicle_id" name="vehicle_id" required 
+                                        <select class="form-select" id="vehicle_id" name="vehicle_id" required
                                                 <?= $edit_mode ? 'disabled' : '' ?> onchange="getVehicleInfo()">
                                             <option value="">車両を選択</option>
                                             <?php foreach ($vehicles as $vehicle): ?>
-                                                <option value="<?= $vehicle['id'] ?>" 
+                                                <option value="<?= $vehicle['id'] ?>"
                                                         data-mileage="<?= $vehicle['current_mileage'] ?>"
                                                     <?php if ($edit_mode): ?>
                                                         <?= ($vehicle['id'] == $edit_record['vehicle_id']) ? 'selected' : '' ?>
@@ -271,7 +360,6 @@ echo $page_data['page_header'];
                                 </div>
                         </div>
                     </div>
-                </div>
 
                 <!-- 出庫情報セクション -->
                 <?= renderSectionHeader('clock', '出庫情報', '日時・天候・メーター') ?>
@@ -282,8 +370,8 @@ echo $page_data['page_header'];
                                         <label for="departure_date" class="form-label">
                                             <i class="fas fa-calendar me-1"></i>出庫日 <span class="text-danger">*</span>
                                         </label>
-                                        <input type="date" class="form-control" id="departure_date" name="departure_date" 
-                                               value="<?= $edit_mode ? $edit_record['departure_date'] : $today ?>" 
+                                        <input type="date" class="form-control" id="departure_date" name="departure_date"
+                                               value="<?= $edit_mode ? $edit_record['departure_date'] : $today ?>"
                                                <?= $edit_mode ? 'readonly' : '' ?> required>
                                     </div>
 
@@ -291,7 +379,7 @@ echo $page_data['page_header'];
                                         <label for="departure_time" class="form-label">
                                             <i class="fas fa-clock me-1"></i>出庫時刻 <span class="text-danger">*</span>
                                         </label>
-                                        <input type="time" class="form-control" id="departure_time" name="departure_time" 
+                                        <input type="time" class="form-control" id="departure_time" name="departure_time"
                                                value="<?= $edit_mode ? substr($edit_record['departure_time'], 0, 5) : $current_time ?>" required>
                                     </div>
                                 </div>
@@ -304,7 +392,7 @@ echo $page_data['page_header'];
                                     <div class="d-flex gap-2 flex-wrap">
                                         <?php foreach ($weather_options as $weather): ?>
                                             <div class="weather-option">
-                                                <input type="radio" class="btn-check" name="weather" 
+                                                <input type="radio" class="btn-check" name="weather"
                                                        id="weather_<?= $weather ?>" value="<?= $weather ?>" required
                                                        <?= ($edit_mode && $edit_record['weather'] == $weather) ? 'checked' : '' ?>>
                                                 <label class="btn btn-outline-primary" for="weather_<?= $weather ?>">
@@ -320,7 +408,7 @@ echo $page_data['page_header'];
                                         <i class="fas fa-tachometer-alt me-1"></i>出庫メーター <span class="text-danger">*</span>
                                     </label>
                                     <div class="input-group">
-                                        <input type="number" class="form-control" id="departure_mileage" 
+                                        <input type="number" class="form-control" id="departure_mileage"
                                                name="departure_mileage" required min="0" step="1"
                                                value="<?= $edit_mode ? $edit_record['departure_mileage'] : '' ?>">
                                         <span class="input-group-text">km</span>
@@ -334,22 +422,53 @@ echo $page_data['page_header'];
                     </div>
                 </div>
 
-                <!-- 送信ボタン -->
-                <div class="text-center mb-4">
-                    <?php if ($edit_mode): ?>
-                        <button type="submit" class="btn btn-warning btn-lg me-2">
-                            <i class="fas fa-save me-2"></i>修正を保存
-                        </button>
-                        <a href="departure.php" class="btn btn-secondary btn-lg">
-                            <i class="fas fa-times me-2"></i>修正を中止
+                    <!-- 修正理由 -->
+                    <div class="card mb-3 border-warning" id="editReasonSection" style="display:none;">
+                        <div class="card-header bg-warning text-dark">
+                            <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>修正理由（必須）</h6>
+                        </div>
+                        <div class="card-body">
+                            <textarea name="edit_reason" id="editReason" class="form-control" rows="2"
+                                      placeholder="修正理由を入力してください"></textarea>
+                            <small class="text-muted">監査ログに記録されます。</small>
+                        </div>
+                    </div>
+
+                    <!-- 操作ボタン -->
+                    <div class="text-center mb-4" id="actionButtons" style="position: sticky; bottom: 0; z-index: 50; background: white; padding: 12px 16px; border-top: 1px solid #dee2e6; box-shadow: 0 -2px 4px rgba(0,0,0,0.1);">
+                        <?php if ($edit_mode && $is_locked && !$can_edit): ?>
+                            <div class="text-muted">
+                                <i class="fas fa-lock me-2"></i>この記録は編集できません
+                            </div>
+                        <?php elseif ($edit_mode): ?>
+                            <button type="button" class="btn btn-warning btn-lg me-2" onclick="enableEditMode()">
+                                <i class="fas fa-edit me-2"></i>修正
+                            </button>
+                            <?php if ($user_role === 'Admin'): ?>
+                            <button type="button" class="btn btn-danger btn-lg" onclick="confirmDelete()">
+                                <i class="fas fa-trash me-2"></i>削除
+                            </button>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save me-2"></i>出庫記録を保存
+                            </button>
+                        <?php endif; ?>
+                        <a href="dashboard.php" class="btn btn-secondary btn-lg ms-2">
+                            <i class="fas fa-arrow-left me-2"></i>戻る
                         </a>
-                    <?php else: ?>
-                        <button type="submit" class="btn btn-success btn-lg">
-                            <i class="fas fa-sign-out-alt me-2"></i>出庫登録
-                        </button>
-                    <?php endif; ?>
-                </div>
+                    </div>
             </form>
+
+                <!-- 削除フォーム -->
+                <?php if ($edit_mode && $edit_record): ?>
+                <form method="POST" id="delete-form" style="display:none;">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="record_id" value="<?= $edit_record['id'] ?>">
+                    <input type="hidden" name="delete_reason" id="deleteReason" value="">
+                </form>
+                <?php endif; ?>
 
             <!-- 次のステップへの案内 -->
             <?php if ($success_message && !$edit_mode): ?>
@@ -414,7 +533,7 @@ echo $page_data['page_header'];
                                             <i class="fas fa-tachometer-alt ms-2 me-1"></i><?= number_format($departure['departure_mileage']) ?>km
                                         </small>
                                         <div>
-                                            <a href="departure.php?edit=true&id=<?= $departure['id'] ?>" 
+                                            <a href="departure.php?edit=true&id=<?= $departure['id'] ?>"
                                                class="btn btn-sm btn-outline-warning" title="修正">
                                                 <i class="fas fa-edit"></i>
                                             </a>
@@ -448,7 +567,7 @@ echo $page_data['page_header'];
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- 複数出庫説明 -->
                 <div class="card bg-light mb-4">
                     <div class="card-body">
@@ -561,126 +680,100 @@ echo $page_data['page_header'];
 </style>
 
 <script>
-// 車両情報取得関数（改善版）
+window.departureLockStatus = {
+    isLocked: <?= json_encode($is_locked ?? false) ?>,
+    canEdit: <?= json_encode($can_edit ?? true) ?>,
+    needsReason: <?= json_encode($needs_reason ?? false) ?>,
+    lockReason: <?= json_encode($lock_reason ?? '') ?>
+};
+
 function getVehicleInfo() {
-    const vehicleId = document.getElementById('vehicle_id').value;
-    const vehicleSelect = document.getElementById('vehicle_id');
-    
-    if (!vehicleId) {
-        document.getElementById('vehicleInfo').style.display = 'none';
-        document.getElementById('mileageInfo').textContent = '';
-        if (!<?= $edit_mode ? 'true' : 'false' ?>) {
-            document.getElementById('departure_mileage').value = '';
+    var select = document.querySelector('select[name="vehicle_id"]');
+    if (!select || !select.value) return;
+    var opt = select.options[select.selectedIndex];
+    var m = opt.getAttribute('data-mileage');
+    var mileageInput = document.getElementById('departure_mileage');
+    var mileageInfo = document.getElementById('mileageInfo');
+    if (m && m !== '0') {
+        if (mileageInput) mileageInput.value = m;
+        if (mileageInfo) {
+            mileageInfo.textContent = '前回記録: ' + Number(m).toLocaleString() + ' km';
+            mileageInfo.style.display = 'block';
         }
+    }
+}
+
+function setCurrentMileage() {
+    var select = document.querySelector('select[name="vehicle_id"]');
+    if (!select || !select.value) { alert('車両を選択してください。'); return; }
+    var opt = select.options[select.selectedIndex];
+    var m = opt.getAttribute('data-mileage');
+    var mileageInput = document.getElementById('departure_mileage');
+    if (m && mileageInput) mileageInput.value = m;
+}
+
+function updateMileage() {
+    var select = document.querySelector('select[name="vehicle_id"]');
+    var mileageInput = document.getElementById('departure_mileage');
+    var mileageInfo = document.getElementById('mileageInfo');
+    if (select && select.value) {
+        var opt = select.options[select.selectedIndex];
+        var m = opt.getAttribute('data-mileage');
+        if (m && m !== '0') {
+            if (mileageInput && !mileageInput.value) mileageInput.value = m;
+            if (mileageInfo) {
+                mileageInfo.textContent = '前回記録: ' + Number(m).toLocaleString() + ' km';
+                mileageInfo.style.display = 'block';
+            }
+        }
+    }
+}
+
+function enableEditMode() {
+    var lock = window.departureLockStatus || {};
+    if (lock.isLocked && !lock.canEdit) {
+        alert(lock.lockReason || 'この記録は編集できません。');
         return;
     }
-    
-    // 選択された車両の情報を取得
-    const selectedOption = vehicleSelect.options[vehicleSelect.selectedIndex];
-    const currentMileage = selectedOption.getAttribute('data-mileage');
-    
-    // 車両情報表示
-    document.getElementById('vehicleInfo').style.display = 'block';
-    document.getElementById('vehicleDetails').innerHTML = `
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h6 class="mb-1 text-primary">${selectedOption.textContent}</h6>
-                <small class="text-muted">
-                    <i class="fas fa-tachometer-alt me-1"></i>現在走行距離: ${parseInt(currentMileage).toLocaleString()}km
-                </small>
-            </div>
-            <div>
-                <span class="badge bg-primary">${parseInt(currentMileage).toLocaleString()}km</span>
-            </div>
-        </div>
-    `;
-    
-    // 出庫メーターに自動設定（修正モード以外）
-    if (!<?= $edit_mode ? 'true' : 'false' ?> && currentMileage && currentMileage > 0) {
-        document.getElementById('departure_mileage').value = currentMileage;
-        document.getElementById('mileageInfo').innerHTML = 
-            `<i class="fas fa-check-circle text-success me-1"></i>車両マスタから自動設定: ${parseInt(currentMileage).toLocaleString()}km`;
-    } else if (currentMileage && currentMileage > 0) {
-        document.getElementById('mileageInfo').innerHTML = 
-            `<i class="fas fa-info-circle text-info me-1"></i>車両の現在走行距離: ${parseInt(currentMileage).toLocaleString()}km`;
-    } else {
-        document.getElementById('mileageInfo').innerHTML = 
-            '<i class="fas fa-exclamation-circle text-warning me-1"></i>走行距離情報がありません。手動で入力してください。';
+    document.querySelectorAll('input[readonly], textarea[readonly]').forEach(function(el) { el.removeAttribute('readonly'); });
+    document.querySelectorAll('input[disabled], select[disabled], textarea[disabled]').forEach(function(el) { el.removeAttribute('disabled'); });
+
+    if (lock.needsReason) {
+        var sec = document.getElementById('editReasonSection');
+        if (sec) { sec.style.display = 'block'; document.getElementById('editReason').required = true; }
+    }
+
+    var ab = document.getElementById('actionButtons');
+    if (ab) {
+        ab.innerHTML = '<button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save me-2"></i>変更を保存</button>' +
+            '<button type="button" class="btn btn-secondary btn-lg ms-2" onclick="location.reload()"><i class="fas fa-times me-2"></i>キャンセル</button>';
     }
 }
 
-// 現在走行距離の設定
-function setCurrentMileage() {
-    const vehicleSelect = document.getElementById('vehicle_id');
-    const selectedOption = vehicleSelect.options[vehicleSelect.selectedIndex];
-    const currentMileage = selectedOption.getAttribute('data-mileage');
-    
-    if (currentMileage && currentMileage > 0) {
-        document.getElementById('departure_mileage').value = currentMileage;
-        document.getElementById('mileageInfo').innerHTML = 
-            `<i class="fas fa-check-circle text-success me-1"></i>設定完了: ${parseInt(currentMileage).toLocaleString()}km`;
-    } else {
-        alert('車両の走行距離情報が取得できません。');
+function confirmDelete() {
+    var reason = prompt('削除理由を入力してください（監査ログに記録されます）:');
+    if (reason === null) return;
+    if (!reason.trim()) { alert('削除理由を入力してください。'); return; }
+    if (confirm('本当に削除しますか？')) {
+        var el = document.getElementById('deleteReason');
+        if (el) el.value = reason;
+        document.getElementById('delete-form').submit();
     }
 }
 
-// イベントリスナー
+var formDirty = false;
 document.addEventListener('DOMContentLoaded', function() {
-    // 初期選択時の処理
-    if (document.getElementById('vehicle_id').value) {
-        getVehicleInfo();
+    updateMileage();
+    var form = document.getElementById('departure-form');
+    if (form) {
+        form.addEventListener('input', function() { formDirty = true; });
+        form.addEventListener('change', function() { formDirty = true; });
+        form.addEventListener('submit', function() { formDirty = false; });
     }
-    
-    // 天候選択の記憶機能
-    const savedWeather = localStorage.getItem('today_weather_' + '<?= $today ?>');
-    if (savedWeather && !<?= $edit_mode ? 'true' : 'false' ?>) {
-        const weatherInput = document.getElementById('weather_' + savedWeather);
-        if (weatherInput && !weatherInput.checked) {
-            weatherInput.checked = true;
-        }
-    }
-    
-    // 天候選択時の保存
-    document.querySelectorAll('input[name="weather"]').forEach(function(input) {
-        input.addEventListener('change', function() {
-            if (this.checked) {
-                localStorage.setItem('today_weather_' + '<?= $today ?>', this.value);
-            }
-        });
-    });
 });
-
-// フォーム送信前の確認
-document.getElementById('departureForm').addEventListener('submit', function(e) {
-    const editMode = <?= $edit_mode ? 'true' : 'false' ?>;
-    const confirmMsg = editMode ? '出庫記録を修正しますか？' : '出庫処理を登録しますか？';
-    
-    if (!confirm(confirmMsg)) {
-        e.preventDefault();
-        return false;
-    }
-    
-    // 必須項目チェック
-    const requiredFields = ['driver_id', 'vehicle_id', 'departure_date', 'departure_time', 'departure_mileage'];
-    const weather = document.querySelector('input[name="weather"]:checked');
-    
-    for (let field of requiredFields) {
-        const element = document.getElementById(field);
-        if (!element.value.trim()) {
-            e.preventDefault();
-            alert('すべての必須項目を入力してください。');
-            element.focus();
-            return false;
-        }
-    }
-    
-    if (!weather) {
-        e.preventDefault();
-        alert('天候を選択してください。');
-        return false;
-    }
+window.addEventListener('beforeunload', function(e) {
+    if (formDirty) { e.preventDefault(); }
 });
 </script>
 
-</body>
-</html>
+<?= $page_data['html_footer'] ?>
