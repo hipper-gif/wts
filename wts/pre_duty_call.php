@@ -368,7 +368,7 @@ echo $page_data['page_header'];
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">運転者 <span class="text-danger">*</span></label>
-                                    <select class="form-select" name="driver_id" <?= $is_edit_mode ? 'disabled' : '' ?> required>
+                                    <select class="form-select" name="driver_id" <?= $is_edit_mode ? 'disabled' : 'onchange="if(this.value) location.href=\'pre_duty_call.php?driver_id=\'+this.value"' ?> required>
                                         <option value="">選択してください</option>
                                         <?php foreach ($drivers as $driver): ?>
                                         <option value="<?= $driver['id'] ?>" 
@@ -522,17 +522,17 @@ echo $page_data['page_header'];
                     </div>
 
                     <!-- 操作ボタン -->
-                    <div class="d-flex gap-2 mb-4" id="actionButtons" style="position: sticky; bottom: 0; z-index: 50; background: white; padding: 12px 0; border-top: 1px solid #dee2e6;">
+                    <div class="text-center mb-4" id="actionButtons" style="position: sticky; bottom: 0; z-index: 50; background: white; padding: 12px 16px; border-top: 1px solid #dee2e6; box-shadow: 0 -2px 4px rgba(0,0,0,0.1);">
                         <?php if ($is_edit_mode && $is_locked && !$can_edit): ?>
                             <div class="text-muted">
                                 <i class="fas fa-lock me-2"></i>この記録は編集できません
                             </div>
                         <?php elseif ($is_edit_mode): ?>
-                            <button type="button" class="btn btn-warning" onclick="enableEditMode()">
+                            <button type="button" class="btn btn-warning btn-lg me-2" onclick="enableEditMode()">
                                 <i class="fas fa-edit me-2"></i>修正
                             </button>
                             <?php if ($user_role === 'Admin'): ?>
-                            <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                            <button type="button" class="btn btn-danger btn-lg" onclick="confirmDelete()">
                                 <i class="fas fa-trash me-2"></i>削除
                             </button>
                             <?php endif; ?>
@@ -541,8 +541,8 @@ echo $page_data['page_header'];
                                 <i class="fas fa-save me-2"></i>点呼記録を保存
                             </button>
                         <?php endif; ?>
-                        <a href="dashboard.php" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left me-2"></i>ダッシュボードに戻る
+                        <a href="dashboard.php" class="btn btn-secondary btn-lg ms-2">
+                            <i class="fas fa-arrow-left me-2"></i>戻る
                         </a>
                     </div>
                 </form>
@@ -610,6 +610,7 @@ echo $page_data['page_header'];
                 </div>
             </div>
         </div>
+    </div>
 </main>
 
 <style>
@@ -758,3 +759,5 @@ window.addEventListener('beforeunload', function(e) {
     if (formDirty) { e.preventDefault(); }
 });
 </script>
+
+<?= $page_data['html_footer'] ?>
