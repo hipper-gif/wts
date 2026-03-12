@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     
     if ($action === 'generate_data') {
+        validateCsrfToken();
         // データ生成処理
         $start_date = $_POST['start_date'] ?? '';
         $end_date = $_POST['end_date'] ?? '';
@@ -48,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
         }
     } elseif ($action === 'save_data') {
+        validateCsrfToken();
         // データ保存処理
         $historical_data = $_SESSION['historical_data'] ?? null;
         $inspection_data = $_POST['inspection_data'] ?? [];
@@ -169,7 +171,7 @@ $historical_data = $_SESSION['historical_data'] ?? null;
         <?php endif; ?>
 
         <?php if (isset($error_message)): ?>
-            <div class="alert alert-danger"><?= $error_message ?></div>
+            <div class="alert alert-danger"><?= htmlspecialchars($error_message) ?></div>
         <?php endif; ?>
 
         <?php if (!empty($validation_errors)): ?>
@@ -190,6 +192,7 @@ $historical_data = $_SESSION['historical_data'] ?? null;
                 </div>
                 <div class="card-body">
                     <form method="POST">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                         <input type="hidden" name="action" value="generate_data">
                         
                         <div class="row">
@@ -290,6 +293,7 @@ $historical_data = $_SESSION['historical_data'] ?? null;
                         </div>
 
                         <form method="POST" id="inspection-form">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                             <input type="hidden" name="action" value="save_data">
 
                             <!-- 一括操作ボタン -->
