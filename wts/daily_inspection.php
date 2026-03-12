@@ -88,14 +88,16 @@ if (!isset($_SESSION['user_id'])) {
 $mode = $_GET['mode'] ?? 'normal';
 
 if ($mode === 'historical') {
+    // 過去データ入力は管理者のみ（$user_role は session_check.php で設定）
+    if ($user_role !== 'Admin') {
+        header('Location: daily_inspection.php');
+        exit;
+    }
     include 'includes/historical_daily_inspection.php';
     exit;
 }
 
-$pdo = getDBConnection();
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'] ?? '未設定';
-$user_role = $_SESSION['user_role'] ?? 'User';
+// $pdo, $user_id, $user_name, $user_role は session_check.php で設定済み
 $today = date('Y-m-d');
 
 $success_message = '';
@@ -406,6 +408,42 @@ if ($existing_inspection) {
     }
 }
 
+// 今日の点検状況を取得
+$today_inspections = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT di.*, v.vehicle_number, v.model as vehicle_model
+        FROM daily_inspections di
+        LEFT JOIN vehicles v ON di.vehicle_id = v.id
+        WHERE di.driver_id = ? AND di.inspection_date = CURDATE()
+        ORDER BY di.inspection_time DESC
+    ");
+    $stmt->execute([$user_id]);
+    $today_inspections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // ignore
+}
+
+// 最近の点検履歴（7件）を取得
+$recent_inspections = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT di.id, di.vehicle_id, di.driver_id, di.inspection_date, di.inspection_time, di.mileage,
+               u.name as driver_name, v.vehicle_number,
+               di.defect_details, di.edit_count
+        FROM daily_inspections di
+        LEFT JOIN users u ON di.driver_id = u.id
+        LEFT JOIN vehicles v ON di.vehicle_id = v.id
+        WHERE di.driver_id = ?
+        ORDER BY di.inspection_date DESC, di.inspection_time DESC
+        LIMIT 7
+    ");
+    $stmt->execute([$user_id]);
+    $recent_inspections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // ignore
+}
+
 // ページ設定を取得
 $page_config = getPageConfiguration('daily_inspection');
 ?>
@@ -416,19 +454,178 @@ $page_config = getPageConfiguration('daily_inspection');
     'additional_js' => []
 ]) ?>
 <body>
+    <style>
+    .hover-bg-light:hover { background: #f8f9fa; }
+
+    @media (max-width: 767px) {
+        .inspection-item .btn-group {
+            width: 100%;
+            justify-content: center;
+        }
+        .inspection-item .btn-group .btn {
+            flex: 1;
+            min-height: 44px;
+        }
+        .inspection-item label.form-label {
+            text-align: left !important;
+            margin-bottom: 4px;
+        }
+    }
+
+    /* 印刷用スタイル */
+    @media print {
+        /* 非印刷要素を非表示 */
+        .system-header-container, .system-header, .page-header, #draftBanner,
+        #progressCard, #actionButtons, #auditHistorySection, .bottom-nav-card,
+        .mode-switch, #editReasonSection, #safetyCriticalReasonSection,
+        .inspection-lock-badge, .form-select, .form-text,
+        input[type="date"], input[type="time"], input[type="number"],
+        input[type="text"].form-control, textarea.form-control,
+        .alert, #deleteForm, .input-group-text,
+        #printBtnWrap, .badge { display: none !important; }
+
+        /* ラジオボタンのbtn-groupを非表示（ラベル含む） */
+        .inspection-item .btn-group { display: none !important; }
+        .inspection-item input[type="radio"] { display: none !important; }
+
+        /* 印刷ヘッダー表示 */
+        #printHeader { display: block !important; }
+
+        /* 印刷フッター表示 */
+        #printFooter { display: block !important; }
+
+        /* 印刷用結果テキスト表示 */
+        .print-result-text { display: inline !important; font-weight: bold; font-size: 12pt; }
+        .print-result-ok { color: #000; }
+        .print-result-ng { color: #000; text-decoration: underline; }
+        .print-result-skip { color: #666; }
+        .print-result-none { color: #999; font-style: italic; }
+
+        /* 印刷用テキスト値表示 */
+        .print-value-text { display: inline !important; font-size: 11pt; }
+
+        /* クリーンレイアウト */
+        body { font-size: 11pt; color: #000; background: #fff; padding: 0; margin: 0; }
+        .container { max-width: 100%; padding: 0 10mm; margin: 0; }
+        .main-content { margin: 0; padding: 0; }
+        .card { border: 1px solid #000 !important; box-shadow: none !important; break-inside: avoid; margin-bottom: 8px !important; }
+        .card-body { padding: 8px 12px !important; }
+        .card-header, .section-header { background: #f0f0f0 !important; color: #000 !important; padding: 4px 12px !important; border-bottom: 1px solid #000 !important; }
+        .section-header .section-title { color: #000 !important; }
+        .inspection-item { border: none !important; border-bottom: 1px solid #ccc !important; padding: 4px 0 !important; margin-bottom: 0 !important; border-radius: 0 !important; }
+        .inspection-item:last-child { border-bottom: none !important; }
+        .inspection-item .row { display: flex; align-items: center; }
+        .inspection-item .col-md-6:first-child { flex: 0 0 65%; max-width: 65%; }
+        .inspection-item .col-md-6:last-child,
+        .inspection-item .col-md-6.text-end { flex: 0 0 35%; max-width: 35%; text-align: right !important; }
+
+        /* 不良個所・備考セクション */
+        .print-defect-section { display: block !important; }
+
+        /* A4縦レイアウト */
+        @page { size: A4 portrait; margin: 10mm 15mm; }
+    }
+
+    /* 画面表示では非表示 */
+    #printHeader, #printFooter, .print-result-text, .print-value-text, .print-defect-section { display: none; }
+    </style>
     <?= renderSystemHeader($user_name, $user_role, 'daily_inspection') ?>
     <?= renderPageHeader($page_config['icon'], $page_config['title'], $page_config['subtitle'], $page_config['category']) ?>
     
     <div class="container mt-4" id="main-content" tabindex="-1">
+        <div id="printHeader">
+            <h2 style="text-align:center; margin-bottom:2px; font-size:18pt;">日常点検記録表</h2>
+            <p style="text-align:center; margin:0; font-size:10pt; color:#666;">道路運送車両法第47条の2に基づく日常点検</p>
+            <table style="width:100%; border-collapse:collapse; margin-top:8px; font-size:10pt;">
+                <tr>
+                    <td style="border:1px solid #000; padding:4px; width:15%; background:#f0f0f0;"><strong>点検日</strong></td>
+                    <td style="border:1px solid #000; padding:4px; width:35%;" id="printDate"></td>
+                    <td style="border:1px solid #000; padding:4px; width:15%; background:#f0f0f0;"><strong>点検時間</strong></td>
+                    <td style="border:1px solid #000; padding:4px; width:35%;" id="printTime"></td>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #000; padding:4px; background:#f0f0f0;"><strong>点検者</strong></td>
+                    <td style="border:1px solid #000; padding:4px;" id="printInspector"></td>
+                    <td style="border:1px solid #000; padding:4px; background:#f0f0f0;"><strong>車両</strong></td>
+                    <td style="border:1px solid #000; padding:4px;" id="printVehicle"></td>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #000; padding:4px; background:#f0f0f0;"><strong>走行距離</strong></td>
+                    <td style="border:1px solid #000; padding:4px;" id="printMileage" colspan="3"></td>
+                </tr>
+            </table>
+            <hr style="margin:8px 0; border:1px solid #000;">
+        </div>
         <!-- モード切替ボタン -->
         <div class="mode-switch mb-4">
             <div class="btn-group" role="group">
                 <a href="daily_inspection.php" class="btn btn-primary">
                     <i class="fas fa-edit"></i> 通常入力
                 </a>
+                <?php if ($user_role === 'Admin'): ?>
                 <a href="daily_inspection.php?mode=historical" class="btn btn-outline-success">
                     <i class="fas fa-history"></i> 過去データ入力
                 </a>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- 本日の点検状況サマリー -->
+        <div class="card mb-4 border-0 shadow-sm">
+            <div class="card-header <?= !empty($today_inspections) ? 'bg-success text-white' : 'bg-warning text-dark' ?> py-2"
+                 data-bs-toggle="collapse" data-bs-target="#todaySummaryBody" style="cursor:pointer;">
+                <div class="d-flex align-items-center justify-content-between">
+                    <h6 class="mb-0">
+                        <?php if (!empty($today_inspections)): ?>
+                            <i class="fas fa-check-circle me-2"></i>本日の点検完了済み
+                        <?php else: ?>
+                            <i class="fas fa-exclamation-circle me-2"></i>本日の点検がまだ完了していません
+                        <?php endif; ?>
+                    </h6>
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+            <div class="collapse <?= !empty($today_inspections) ? 'show' : '' ?>" id="todaySummaryBody">
+                <div class="card-body py-2">
+                    <?php if (!empty($today_inspections)): ?>
+                        <?php foreach ($today_inspections as $ti): ?>
+                        <a href="daily_inspection.php?inspector_id=<?= urlencode($ti['driver_id']) ?>&vehicle_id=<?= urlencode($ti['vehicle_id']) ?>&date=<?= urlencode($ti['inspection_date']) ?>"
+                           class="d-flex align-items-center justify-content-between py-2 px-2 border-bottom text-decoration-none text-dark rounded hover-bg-light"
+                           style="transition: background 0.15s;">
+                            <div>
+                                <i class="fas fa-car me-1 text-muted"></i>
+                                <strong><?= htmlspecialchars($ti['vehicle_number'] ?? '') ?></strong>
+                                <?php if (!empty($ti['vehicle_model'])): ?>
+                                    <small class="text-muted">(<?= htmlspecialchars($ti['vehicle_model']) ?>)</small>
+                                <?php endif; ?>
+                            </div>
+                            <div>
+                                <span class="badge bg-success"><i class="fas fa-clock me-1"></i><?= htmlspecialchars($ti['inspection_time'] ?? '') ?></span>
+                                <i class="fas fa-chevron-right ms-2 text-muted"></i>
+                            </div>
+                        </a>
+                        <?php endforeach; ?>
+                        <div class="text-muted small mt-2">
+                            <i class="fas fa-info-circle me-1"></i>クリックで点検記録を表示・編集できます。新規入力は下のフォームから行えます。
+                        </div>
+                    <?php else: ?>
+                        <p class="mb-0 text-muted"><i class="fas fa-info-circle me-1"></i>下のフォームから日常点検を実施してください。</p>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- 下書き復元バナー -->
+        <div id="draftBanner" class="alert alert-info alert-dismissible d-none" role="alert">
+            <i class="fas fa-save me-2"></i>
+            <strong>下書きデータがあります。</strong> 前回入力途中のデータを復元できます。
+            <div class="mt-2">
+                <button type="button" class="btn btn-sm btn-primary me-2" onclick="restoreDraft()">
+                    <i class="fas fa-undo me-1"></i>復元する
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="discardDraft()">
+                    <i class="fas fa-trash me-1"></i>破棄する
+                </button>
             </div>
         </div>
 
@@ -503,9 +700,15 @@ $page_config = getPageConfiguration('daily_inspection');
                 $actions = [
                     [
                         'icon' => 'check-circle',
-                        'text' => '全て可',
+                        'text' => '必須項目 全て可',
                         'url' => 'javascript:setAllOk()',
                         'class' => 'btn-success btn-sm'
+                    ],
+                    [
+                        'icon' => 'check-double',
+                        'text' => '全項目 可',
+                        'url' => 'javascript:setAllOkIncludingOptional()',
+                        'class' => 'btn-outline-success btn-sm'
                     ],
                     [
                         'icon' => 'times-circle',
@@ -658,6 +861,7 @@ $page_config = getPageConfiguration('daily_inspection');
                                     <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略</label>
                                     <?php endif; ?>
                                 </div>
+                                <span class="print-result-text" data-print-for="<?= $key ?>"></span>
                             </div>
                         </div>
                     </div>
@@ -711,6 +915,7 @@ $page_config = getPageConfiguration('daily_inspection');
                                     <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略</label>
                                     <?php endif; ?>
                                 </div>
+                                <span class="print-result-text" data-print-for="<?= $key ?>"></span>
                             </div>
                         </div>
                     </div>
@@ -763,6 +968,7 @@ $page_config = getPageConfiguration('daily_inspection');
                                     <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略</label>
                                     <?php endif; ?>
                                 </div>
+                                <span class="print-result-text" data-print-for="<?= $key ?>"></span>
                             </div>
                         </div>
                     </div>
@@ -789,6 +995,19 @@ $page_config = getPageConfiguration('daily_inspection');
                 </div>
             </div>
             
+            <div class="print-defect-section">
+                <table style="width:100%; border-collapse:collapse; font-size:10pt; margin-top:8px;">
+                    <tr>
+                        <td style="border:1px solid #000; padding:6px; width:20%; background:#f0f0f0; vertical-align:top;"><strong>不良個所及び処置</strong></td>
+                        <td style="border:1px solid #000; padding:6px;" id="printDefects"></td>
+                    </tr>
+                    <tr>
+                        <td style="border:1px solid #000; padding:6px; background:#f0f0f0; vertical-align:top;"><strong>備考</strong></td>
+                        <td style="border:1px solid #000; padding:6px;" id="printRemarks"></td>
+                    </tr>
+                </table>
+            </div>
+
             <!-- 修正理由（ロック済みレコードの編集時に表示） -->
             <div class="card mb-3 border-warning" id="editReasonSection" style="display:none;">
                 <div class="card-header bg-warning text-dark">
@@ -815,6 +1034,11 @@ $page_config = getPageConfiguration('daily_inspection');
 
             <!-- 操作ボタン -->
             <div class="text-center mb-4" id="actionButtons" style="position: sticky; bottom: 0; z-index: 50; background: white; padding: 12px 0; border-top: 1px solid #dee2e6;">
+                <div id="printBtnWrap" style="position:absolute; right:16px; top:50%; transform:translateY(-50%);">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="printInspection()">
+                        <i class="fas fa-print me-1"></i>印刷
+                    </button>
+                </div>
                 <?php if ($is_edit_mode && $is_locked && !$can_edit): ?>
                     <!-- ロック中：編集不可 -->
                     <div class="text-muted">
@@ -920,6 +1144,75 @@ $page_config = getPageConfiguration('daily_inspection');
         </div>
         <?php endif; ?>
 
+        <!-- 最近の点検履歴 -->
+        <?php if (!empty($recent_inspections)): ?>
+        <div class="card mb-3 border-0 shadow-sm">
+            <div class="card-header bg-light py-2" data-bs-toggle="collapse" data-bs-target="#recentInspectionsBody" style="cursor:pointer;">
+                <div class="d-flex align-items-center justify-content-between">
+                    <h6 class="mb-0">
+                        <i class="fas fa-history me-2"></i>最近の点検履歴
+                        <span class="badge bg-secondary ms-1"><?= count($recent_inspections) ?>件</span>
+                    </h6>
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+            <div class="collapse" id="recentInspectionsBody">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">日付</th>
+                                    <th>車両</th>
+                                    <th>点検者</th>
+                                    <th class="text-center">状態</th>
+                                    <th class="text-end pe-3">走行距離</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($recent_inspections as $ri): ?>
+                                <tr style="cursor:pointer;" onclick="location.href='daily_inspection.php?inspector_id=<?= urlencode($ri['driver_id'] ?? '') ?>&vehicle_id=<?= urlencode($ri['vehicle_id'] ?? '') ?>&date=<?= urlencode($ri['inspection_date']) ?>'">
+                                    <td class="ps-3">
+                                        <small><?= htmlspecialchars($ri['inspection_date']) ?></small>
+                                        <?php if (!empty($ri['inspection_time'])): ?>
+                                        <br><small class="text-muted"><?= htmlspecialchars(substr($ri['inspection_time'], 0, 5)) ?></small>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><small><?= htmlspecialchars($ri['vehicle_number'] ?? '-') ?></small></td>
+                                    <td><small><?= htmlspecialchars($ri['driver_name'] ?? '-') ?></small></td>
+                                    <td class="text-center">
+                                        <?php if (empty($ri['defect_details'])): ?>
+                                            <span class="badge bg-success"><i class="fas fa-check"></i> OK</span>
+                                        <?php else: ?>
+                                            <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> 要確認</span>
+                                        <?php endif; ?>
+                                        <?php if (($ri['edit_count'] ?? 0) > 0): ?>
+                                            <span class="badge bg-info ms-1"><i class="fas fa-pen"></i> <?= $ri['edit_count'] ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-end pe-3">
+                                        <small><?= $ri['mileage'] ? number_format($ri['mileage']) . ' km' : '-' ?></small>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <div id="printFooter">
+            <hr style="border:1px solid #000; margin:12px 0;">
+            <table style="width:100%; font-size:9pt;">
+                <tr>
+                    <td style="width:50%;">確認者署名: ___________________</td>
+                    <td style="text-align:right;">印刷日: <span id="printDateStamp"></span></td>
+                </tr>
+            </table>
+        </div>
+
         <!-- ナビゲーションリンク -->
         <div class="card bg-light">
             <div class="card-body">
@@ -936,17 +1229,19 @@ $page_config = getPageConfiguration('daily_inspection');
                             <i class="fas fa-wrench me-1"></i>定期点検
                         </a>
                     </div>
+                    <?php if ($user_role === 'Admin'): ?>
                     <div class="col-md-4 mb-2">
                         <h6 class="text-muted mb-2">記録管理</h6>
                         <a href="daily_inspection.php?mode=historical" class="btn btn-outline-secondary btn-sm">
                             <i class="fas fa-history me-1"></i>履歴・編集
                         </a>
                     </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
     </div>
-    
+
     <?= renderCompleteHTMLFooter() ?>
     
     <script>
@@ -1072,14 +1367,36 @@ $page_config = getPageConfiguration('daily_inspection');
             });
         }
         
-        // 全て可
+        // 必須項目のみ全て可
         function setAllOk() {
             setAllResults('可');
+            updateProgressBar();
         }
         
-        // 全て否  
+        // 全て否
         function setAllNg() {
             setAllResults('否');
+        }
+
+        // 全項目（必須＋省略可）を可に設定
+        function setAllOkIncludingOptional() {
+            const allItems = [
+                'foot_brake_result', 'parking_brake_result', 'engine_start_result',
+                'engine_performance_result', 'wiper_result', 'washer_spray_result',
+                'brake_fluid_result', 'coolant_result', 'engine_oil_result',
+                'battery_fluid_result', 'washer_fluid_result', 'fan_belt_result',
+                'lights_result', 'lens_result', 'tire_pressure_result',
+                'tire_damage_result', 'tire_tread_result'
+            ];
+
+            allItems.forEach(function(itemName) {
+                const radio = document.querySelector('input[name="' + itemName + '"][value="可"]');
+                if (radio) {
+                    radio.checked = true;
+                    updateInspectionItemStyle(itemName, '可');
+                }
+            });
+            updateProgressBar();
         }
         
         // 初期化処理
@@ -1108,6 +1425,24 @@ $page_config = getPageConfiguration('daily_inspection');
 
             // 初期プログレスバー更新
             updateProgressBar();
+
+            // 下書き機能（編集モードでない場合のみ）
+            const isEditMode = !!document.querySelector('input[name="inspector_id"][type="hidden"]');
+            if (!isEditMode) {
+                // 下書きが存在する場合、バナーを表示
+                const draft = localStorage.getItem('inspection_draft');
+                if (draft) {
+                    const draftBanner = document.getElementById('draftBanner');
+                    if (draftBanner) {
+                        draftBanner.classList.remove('d-none');
+                    }
+                }
+
+                // 30秒ごとに自動保存
+                setInterval(function() {
+                    saveDraft();
+                }, 30000);
+            }
         });
         
         // フォーム送信前の確認
@@ -1178,6 +1513,9 @@ $page_config = getPageConfiguration('daily_inspection');
                     }
                 }
             }
+
+            // 送信成功時に下書きをクリア
+            localStorage.removeItem('inspection_draft');
         });
 
         // 編集モード有効化
@@ -1239,6 +1577,20 @@ $page_config = getPageConfiguration('daily_inspection');
             `;
         }
 
+        // フォーム未保存データの離脱警告
+        var formDirty = false;
+        document.addEventListener('DOMContentLoaded', function() {
+            var form = document.getElementById('inspectionForm');
+            if (form) {
+                form.addEventListener('input', function() { formDirty = true; });
+                form.addEventListener('change', function() { formDirty = true; });
+                form.addEventListener('submit', function() { formDirty = false; });
+            }
+        });
+        window.addEventListener('beforeunload', function(e) {
+            if (formDirty) { e.preventDefault(); }
+        });
+
         // 削除確認（管理者のみ、理由入力付き・監査ログ記録）
         function confirmDelete() {
             const reason = prompt('削除理由を入力してください（監査ログに記録されます）:');
@@ -1254,5 +1606,190 @@ $page_config = getPageConfiguration('daily_inspection');
                 }
                 document.getElementById('deleteForm').submit();
             }
+        }
+        // 印刷機能
+        function printInspection() {
+            // 印刷ヘッダーに値をセット
+            var dateEl = document.querySelector('input[name="inspection_date"]') || document.querySelector('input[name="inspection_date_display"]');
+            var timeEl = document.querySelector('input[name="inspection_time"]');
+            var inspectorEl = document.querySelector('select[name="inspector_id"]') || document.querySelector('input[name="inspector_id"]');
+            var vehicleEl = document.querySelector('select[name="vehicle_id"]') || document.querySelector('input[name="vehicle_id"]');
+            var mileageEl = document.getElementById('mileage');
+
+            document.getElementById('printDate').textContent = dateEl ? dateEl.value : '';
+            document.getElementById('printTime').textContent = timeEl ? timeEl.value : '';
+
+            // 点検者名
+            if (inspectorEl && inspectorEl.tagName === 'SELECT') {
+                document.getElementById('printInspector').textContent = inspectorEl.options[inspectorEl.selectedIndex]?.text || '';
+            } else {
+                var inspectorText = inspectorEl ? inspectorEl.closest('.col-md-6').querySelector('input[type="text"][readonly]') : null;
+                document.getElementById('printInspector').textContent = inspectorText ? inspectorText.value : (inspectorEl ? inspectorEl.value : '');
+            }
+
+            // 車両名
+            if (vehicleEl && vehicleEl.tagName === 'SELECT') {
+                document.getElementById('printVehicle').textContent = vehicleEl.options[vehicleEl.selectedIndex]?.text || '';
+            } else {
+                var vehicleText = vehicleEl ? vehicleEl.closest('.col-md-6').querySelector('input[type="text"][readonly]') : null;
+                document.getElementById('printVehicle').textContent = vehicleText ? vehicleText.value : (vehicleEl ? vehicleEl.value : '');
+            }
+
+            document.getElementById('printMileage').textContent = mileageEl && mileageEl.value ? mileageEl.value + ' km' : '未記入';
+
+            // 各点検項目の結果テキストをセット
+            document.querySelectorAll('.print-result-text').forEach(function(span) {
+                var itemName = span.getAttribute('data-print-for');
+                var checked = document.querySelector('input[name="' + itemName + '"]:checked');
+                span.textContent = '';
+                span.className = 'print-result-text';
+                if (checked) {
+                    span.textContent = checked.value;
+                    if (checked.value === '可') span.classList.add('print-result-ok');
+                    else if (checked.value === '否') span.classList.add('print-result-ng');
+                    else span.classList.add('print-result-skip');
+                } else {
+                    span.textContent = '未選択';
+                    span.classList.add('print-result-none');
+                }
+            });
+
+            // 不良個所・備考
+            var defectsEl = document.querySelector('textarea[name="defect_details"]');
+            var remarksEl = document.querySelector('textarea[name="remarks"]');
+            document.getElementById('printDefects').textContent = defectsEl ? (defectsEl.value || 'なし') : 'なし';
+            document.getElementById('printRemarks').textContent = remarksEl ? (remarksEl.value || 'なし') : 'なし';
+
+            // 印刷日
+            document.getElementById('printDateStamp').textContent = new Date().toLocaleDateString('ja-JP');
+
+            // 印刷実行
+            window.print();
+        }
+
+        // === 下書き保存・復元機能 ===
+        const draftRadioNames = [
+            'foot_brake_result', 'parking_brake_result', 'engine_start_result',
+            'engine_performance_result', 'wiper_result', 'washer_spray_result',
+            'brake_fluid_result', 'coolant_result', 'engine_oil_result',
+            'battery_fluid_result', 'washer_fluid_result', 'fan_belt_result',
+            'lights_result', 'lens_result', 'tire_pressure_result',
+            'tire_damage_result', 'tire_tread_result'
+        ];
+
+        function saveDraft() {
+            const form = document.getElementById('inspectionForm');
+            if (!form) return;
+
+            const draft = {
+                timestamp: new Date().toISOString()
+            };
+
+            // セレクト要素
+            const inspectorSelect = form.querySelector('select[name="inspector_id"]');
+            if (inspectorSelect) draft.inspector_id = inspectorSelect.value;
+
+            const vehicleSelect = form.querySelector('select[name="vehicle_id"]');
+            if (vehicleSelect) draft.vehicle_id = vehicleSelect.value;
+
+            // 入力要素
+            const inspectionDate = form.querySelector('input[name="inspection_date"]');
+            if (inspectionDate) draft.inspection_date = inspectionDate.value;
+
+            const inspectionTime = form.querySelector('input[name="inspection_time"]');
+            if (inspectionTime) draft.inspection_time = inspectionTime.value;
+
+            const mileage = form.querySelector('input[name="mileage"]');
+            if (mileage) draft.mileage = mileage.value;
+
+            // ラジオボタン（17項目）
+            draft.radios = {};
+            draftRadioNames.forEach(function(name) {
+                const checked = form.querySelector('input[name="' + name + '"]:checked');
+                if (checked) {
+                    draft.radios[name] = checked.value;
+                }
+            });
+
+            // テキストエリア
+            const defectDetails = form.querySelector('textarea[name="defect_details"]');
+            if (defectDetails) draft.defect_details = defectDetails.value;
+
+            const remarks = form.querySelector('textarea[name="remarks"]');
+            if (remarks) draft.remarks = remarks.value;
+
+            localStorage.setItem('inspection_draft', JSON.stringify(draft));
+        }
+
+        function restoreDraft() {
+            const draftJson = localStorage.getItem('inspection_draft');
+            if (!draftJson) return;
+
+            const draft = JSON.parse(draftJson);
+            const form = document.getElementById('inspectionForm');
+            if (!form) return;
+
+            // セレクト要素
+            if (draft.inspector_id) {
+                const inspectorSelect = form.querySelector('select[name="inspector_id"]');
+                if (inspectorSelect) inspectorSelect.value = draft.inspector_id;
+            }
+
+            if (draft.vehicle_id) {
+                const vehicleSelect = form.querySelector('select[name="vehicle_id"]');
+                if (vehicleSelect) {
+                    vehicleSelect.value = draft.vehicle_id;
+                    if (typeof updateMileage === 'function') updateMileage();
+                }
+            }
+
+            // 入力要素
+            if (draft.inspection_date) {
+                const inspectionDate = form.querySelector('input[name="inspection_date"]');
+                if (inspectionDate) inspectionDate.value = draft.inspection_date;
+            }
+
+            if (draft.inspection_time) {
+                const inspectionTime = form.querySelector('input[name="inspection_time"]');
+                if (inspectionTime) inspectionTime.value = draft.inspection_time;
+            }
+
+            if (draft.mileage) {
+                const mileage = form.querySelector('input[name="mileage"]');
+                if (mileage) mileage.value = draft.mileage;
+            }
+
+            // ラジオボタン復元
+            if (draft.radios) {
+                Object.keys(draft.radios).forEach(function(name) {
+                    const radio = form.querySelector('input[name="' + name + '"][value="' + draft.radios[name] + '"]');
+                    if (radio) {
+                        radio.checked = true;
+                        updateInspectionItemStyle(name, draft.radios[name]);
+                    }
+                });
+                updateProgressBar();
+            }
+
+            // テキストエリア
+            if (draft.defect_details) {
+                const defectDetails = form.querySelector('textarea[name="defect_details"]');
+                if (defectDetails) defectDetails.value = draft.defect_details;
+            }
+
+            if (draft.remarks) {
+                const remarks = form.querySelector('textarea[name="remarks"]');
+                if (remarks) remarks.value = draft.remarks;
+            }
+
+            // バナーを非表示
+            const draftBanner = document.getElementById('draftBanner');
+            if (draftBanner) draftBanner.classList.add('d-none');
+        }
+
+        function discardDraft() {
+            localStorage.removeItem('inspection_draft');
+            const draftBanner = document.getElementById('draftBanner');
+            if (draftBanner) draftBanner.classList.add('d-none');
         }
     </script>
