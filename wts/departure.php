@@ -296,7 +296,7 @@ echo $page_data['page_header'];
 
         <div class="row">
             <!-- メイン入力フォーム -->
-            <div class="col-md-8">
+            <div class="col-lg-8">
                 <form method="POST" id="departureForm">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <?php if ($edit_mode): ?>
@@ -420,7 +420,6 @@ echo $page_data['page_header'];
                                 </div>
                         </div>
                     </div>
-                </div>
 
                     <!-- 修正理由 -->
                     <div class="card mb-3 border-warning" id="editReasonSection" style="display:none;">
@@ -488,7 +487,7 @@ echo $page_data['page_header'];
             </div>
 
             <!-- サイドバー（本日の出庫記録） -->
-            <div class="col-md-4">
+            <div class="col-lg-4">
                 <div class="card mb-4">
                     <div class="card-header">
                         <i class="fas fa-list me-2"></i>本日の出庫記録
