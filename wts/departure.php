@@ -146,8 +146,8 @@ $page_config = getPageConfiguration('departure');
 // 統一ヘッダーでページ生成
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => ['css/ui-unified-v3.css'],
-    'additional_js' => ['js/departure-interactions.js'],
+    'additional_css' => [],
+    'additional_js' => [],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
         ['text' => '日次業務', 'url' => '#'],

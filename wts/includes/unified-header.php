@@ -12,6 +12,27 @@
  */
 
 /**
+ * サブディレクトリ対応ベースパス取得
+ * calendar/ 等のサブディレクトリからincludeされた場合に '../' を返す
+ */
+function getBasePath() {
+    $script_dir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
+    // /wts/calendar/ や /wts/calendar/api/ からのアクセスを検出
+    if (preg_match('#/wts/(calendar|api)(/|$)#', $script_dir)) {
+        // calendar/api/ からは ../../
+        if (preg_match('#/wts/calendar/api(/|$)#', $script_dir)) {
+            return '../../';
+        }
+        return '../';
+    }
+    // /wts/api/ からのアクセス
+    if (preg_match('#/wts/api(/|$)#', $script_dir)) {
+        return '../';
+    }
+    return '';
+}
+
+/**
  * 📱 システム名動的取得（設定可能システム名対応）
  */
 function getSystemName() {
@@ -297,6 +318,9 @@ function renderCompleteHTMLHead($page_title, $options = []) {
     $additional_css = $options['additional_css'] ?? [];
     $additional_js = $options['additional_js'] ?? [];
     $system_names = getResponsiveSystemNames();
+
+    // サブディレクトリからの呼び出し時にベースパスを自動検出
+    $base_path = getBasePath();
     
     $html = '<!DOCTYPE html>
 <html lang="ja">
@@ -320,8 +344,8 @@ function renderCompleteHTMLHead($page_title, $options = []) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <!-- ========== 統一CSS v3.1.1 ========== -->
-    <link rel="stylesheet" href="css/ui-unified-v3.css">
-    <link rel="stylesheet" href="css/header-unified.css">';
+    <link rel="stylesheet" href="' . $base_path . 'css/ui-unified-v3.css">
+    <link rel="stylesheet" href="' . $base_path . 'css/header-unified.css">';
     
     // 追加CSS
     foreach ($additional_css as $css) {
@@ -382,14 +406,9 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
     $show_dashboard_link = $show_dashboard_link && !$is_dashboard;
     
     $dashboard_link = '';
+    $header_base_path = getBasePath();
     if ($show_dashboard_link) {
-        // calendarサブディレクトリ等からのアクセスに対応
-        $base_path = '';
-        $script_dir = dirname($_SERVER['SCRIPT_NAME']);
-        if (strpos($script_dir, '/calendar') !== false || strpos($script_dir, '/api') !== false) {
-            $base_path = '../';
-        }
-        $dashboard_link = '<a href="' . $base_path . 'dashboard.php" class="dashboard-link" aria-label="ダッシュボードへ戻る">
+        $dashboard_link = '<a href="' . $header_base_path . 'dashboard.php" class="dashboard-link" aria-label="ダッシュボードへ戻る">
             <i class="fas fa-tachometer-alt"></i>
             <span class="d-none d-md-inline">ダッシュボード</span>
         </a>';
@@ -421,7 +440,7 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
                             </div>
                         </div>
                         
-                        <a href="logout.php" class="logout-btn" title="ログアウト" aria-label="ログアウト">
+                        <a href="' . $header_base_path . 'logout.php" class="logout-btn" title="ログアウト" aria-label="ログアウト">
                             <i class="fas fa-sign-out-alt"></i>
                             <span class="d-none d-sm-inline">ログアウト</span>
                         </a>

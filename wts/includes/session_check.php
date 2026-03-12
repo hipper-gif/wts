@@ -12,9 +12,18 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
+// サブディレクトリ対応ベースパス検出
+$_sc_base = '';
+$_sc_script = dirname($_SERVER['SCRIPT_NAME'] ?? '');
+if (preg_match('#/wts/calendar/api(/|$)#', $_sc_script)) {
+    $_sc_base = '../../';
+} elseif (preg_match('#/wts/(calendar|api)(/|$)#', $_sc_script)) {
+    $_sc_base = '../';
+}
+
 // ログインチェック
 if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
+    header('Location: ' . $_sc_base . 'index.php');
     exit;
 }
 
@@ -23,7 +32,7 @@ $session_timeout = 1800; // 30分
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
     session_unset();
     session_destroy();
-    header('Location: index.php?timeout=1');
+    header('Location: ' . $_sc_base . 'index.php?timeout=1');
     exit;
 }
 $_SESSION['last_activity'] = time();
@@ -51,7 +60,8 @@ function getCurrentUser() {
         if (!$user) {
             // ユーザーが見つからない場合はログアウト
             session_destroy();
-            header('Location: index.php');
+            global $_sc_base;
+            header('Location: ' . ($_sc_base ?? '') . 'index.php');
             exit;
         }
         
@@ -102,7 +112,8 @@ function requireRole($required_role) {
     if ($user_level < $required_level) {
         header('HTTP/1.1 403 Forbidden');
         echo '<h1>アクセス権限がありません</h1>';
-        echo '<p><a href="dashboard.php">ダッシュボードに戻る</a></p>';
+        global $_sc_base;
+        echo '<p><a href="' . ($_sc_base ?? '') . 'dashboard.php">ダッシュボードに戻る</a></p>';
         exit;
     }
 }
