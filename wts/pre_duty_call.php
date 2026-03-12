@@ -4,16 +4,47 @@ require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
+/**
+ * 点呼記録の監査ログ
+ */
+function logCallAudit($pdo, $call_id, $action, $user_id, $changes = [], $reason = null) {
+    try {
+        $ip_address = $_SERVER['REMOTE_ADDR'] ?? '';
+        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        if (empty($changes)) {
+            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs
+                (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
+                VALUES (?, ?, ?, 'pre_duty_call', NULL, NULL, ?, ?, ?)");
+            $stmt->execute([$call_id, $action, $user_id, $reason, $ip_address, $user_agent]);
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs
+                (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            foreach ($changes as $change) {
+                $stmt->execute([$call_id, $action, $user_id, $change['field'], $change['old'], $change['new'], $reason, $ip_address, $user_agent]);
+            }
+        }
+    } catch (Exception $e) {
+        error_log("点呼監査ログエラー: " . $e->getMessage());
+    }
 }
 
-$pdo = getDBConnection();
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'];
-$user_role = $_SESSION['user_role'] ?? 'User';
+/**
+ * 点呼記録の編集可否判定（当日は自由、過去は管理者のみ理由必須）
+ */
+function canEditCall($call, $user_role) {
+    $today = date('Y-m-d');
+    $call_date = $call['call_date'];
+    if ($call_date === $today) {
+        return ['can_edit' => true, 'needs_reason' => false, 'lock_reason' => ''];
+    }
+    if ($call_date < $today && $user_role === 'Admin') {
+        return ['can_edit' => true, 'needs_reason' => true, 'lock_reason' => '過去日の記録です。管理者権限で修正できます。'];
+    }
+    return ['can_edit' => false, 'needs_reason' => false, 'lock_reason' => '過去日の記録はロックされています。管理者にお問い合わせください。'];
+}
+
+// $pdo, $user_id, $user_name, $user_role は session_check.php で設定済み
 $today = date('Y-m-d');
 $current_time = date('H:i');
 
@@ -62,18 +93,52 @@ if ($selected_driver_id) {
     $is_edit_mode = (bool)$existing_call;
 }
 
+// ロック状態の判定
+$is_locked = false;
+$can_edit = true;
+$needs_reason = false;
+$lock_reason = '';
+
+if ($existing_call) {
+    $edit_permission = canEditCall($existing_call, $user_role);
+    $can_edit = $edit_permission['can_edit'];
+    $needs_reason = $edit_permission['needs_reason'];
+    $lock_reason = $edit_permission['lock_reason'];
+    $is_locked = ($existing_call['call_date'] < $today);
+}
+
 // 修正・削除処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     validateCsrfToken();
     if ($_POST['action'] === 'delete') {
         try {
-            $stmt = $pdo->prepare("DELETE FROM pre_duty_calls WHERE driver_id = ? AND call_date = ?");
-            $stmt->execute([$_POST['driver_id'], $today]);
-            $success_message = '乗務前点呼記録を削除しました。';
-            $existing_call = null;
-            $is_edit_mode = false;
+            $stmt = $pdo->prepare("SELECT * FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
+            $stmt->execute([$_POST['driver_id'], $_POST['call_date'] ?? $today]);
+            $delete_target = $stmt->fetch();
+
+            if (!$delete_target) {
+                $error_message = '削除対象の記録が見つかりません。';
+            } elseif ($user_role !== 'Admin' && $delete_target['driver_id'] != $user_id) {
+                $error_message = '削除は管理者または記録した運転者のみ実行できます。';
+            } else {
+                $edit_check = canEditCall($delete_target, $user_role);
+                if (!$edit_check['can_edit']) {
+                    $error_message = $edit_check['lock_reason'];
+                } else {
+                    $pdo->beginTransaction();
+                    $delete_reason = $_POST['delete_reason'] ?? '削除';
+                    $stmt = $pdo->prepare("DELETE FROM pre_duty_calls WHERE driver_id = ? AND call_date = ?");
+                    $stmt->execute([$_POST['driver_id'], $_POST['call_date'] ?? $today]);
+                    logCallAudit($pdo, $delete_target['id'], 'delete', $user_id, [], $delete_reason);
+                    $pdo->commit();
+                    $success_message = '乗務前点呼記録を削除しました。';
+                    $existing_call = null;
+                    $is_edit_mode = false;
+                }
+            }
         } catch (Exception $e) {
-            $error_message = '削除中にエラーが発生しました: ' . $e->getMessage();
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $error_message = '削除中にエラーが発生しました。';
             error_log("Pre duty call delete error: " . $e->getMessage());
         }
     }
@@ -137,14 +202,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
             if ($existing) {
                 // 更新
-                $sql = "UPDATE pre_duty_calls SET 
+                $pdo->beginTransaction();
+                $sql = "UPDATE pre_duty_calls SET
                         call_time = ?, caller_name = ?, alcohol_check_value = ?, alcohol_check_time = ?,";
 
                 foreach ($check_items as $item) {
                     $sql .= " $item = ?,";
                 }
 
-                $sql .= " remarks = ?, is_completed = TRUE, updated_at = NOW() 
+                $sql .= " remarks = ?, is_completed = TRUE, updated_at = NOW()
                         WHERE driver_id = ? AND call_date = ?";
 
                 $stmt = $pdo->prepare($sql);
@@ -159,11 +225,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 $params[] = $today;
 
                 $stmt->execute($params);
+                logCallAudit($pdo, $existing['id'], 'edit', $user_id, [], $_POST['edit_reason'] ?? null);
+                $pdo->commit();
                 $success_message = '乗務前点呼記録を更新しました。';
             } else {
                 // 新規挿入
+                $pdo->beginTransaction();
                 $sql = "INSERT INTO pre_duty_calls (
-                        driver_id, vehicle_id, call_date, call_time, caller_name, 
+                        driver_id, vehicle_id, call_date, call_time, caller_name,
                         alcohol_check_value, alcohol_check_time,";
 
                 foreach ($check_items as $item) {
@@ -185,6 +254,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 $params[] = $_POST['remarks'] ?? '';
 
                 $stmt->execute($params);
+                $new_call_id = $pdo->lastInsertId();
+                logCallAudit($pdo, $new_call_id, 'create', $user_id);
+                $pdo->commit();
                 $success_message = '乗務前点呼記録を登録しました。';
             }
 
@@ -195,7 +267,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $is_edit_mode = true;
 
         } catch (Exception $e) {
-            $error_message = '記録の保存中にエラーが発生しました: ' . $e->getMessage();
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $error_message = '記録の保存中にエラーが発生しました。';
             error_log("Pre duty call error: " . $e->getMessage());
         }
     }
@@ -262,6 +335,18 @@ echo $page_data['page_header'];
 
         <?php if ($error_message): ?>
             <?= renderAlert('danger', 'エラー', $error_message) ?>
+        <?php endif; ?>
+
+        <?php if ($is_edit_mode && $existing_call): ?>
+        <div class="mb-3">
+            <?php if (!$is_locked): ?>
+                <span class="badge bg-success fs-6"><i class="fas fa-unlock me-1"></i>編集可能（本日中）</span>
+            <?php elseif ($is_locked && $can_edit): ?>
+                <span class="badge bg-warning text-dark fs-6"><i class="fas fa-lock me-1"></i>ロック中（管理者解除可）</span>
+            <?php else: ?>
+                <span class="badge bg-danger fs-6"><i class="fas fa-lock me-1"></i>ロック済み（変更不可）</span>
+            <?php endif; ?>
+        </div>
         <?php endif; ?>
 
         <!-- メインフォーム -->
@@ -424,15 +509,33 @@ echo $page_data['page_header'];
                         </div>
                     </div>
 
+                    <!-- 修正理由（ロック済みレコード編集時） -->
+                    <div class="card mb-3 border-warning" id="editReasonSection" style="display:none;">
+                        <div class="card-header bg-warning text-dark">
+                            <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>修正理由（必須）</h6>
+                        </div>
+                        <div class="card-body">
+                            <textarea name="edit_reason" id="editReason" class="form-control" rows="2"
+                                      placeholder="修正理由を入力してください"></textarea>
+                            <small class="text-muted">ロック済みレコードの修正には理由が必要です。監査ログに記録されます。</small>
+                        </div>
+                    </div>
+
                     <!-- 操作ボタン -->
-                    <div class="d-flex gap-2 mb-4">
-                        <?php if ($is_edit_mode): ?>
+                    <div class="d-flex gap-2 mb-4" id="actionButtons" style="position: sticky; bottom: 0; z-index: 50; background: white; padding: 12px 0; border-top: 1px solid #dee2e6;">
+                        <?php if ($is_edit_mode && $is_locked && !$can_edit): ?>
+                            <div class="text-muted">
+                                <i class="fas fa-lock me-2"></i>この記録は編集できません
+                            </div>
+                        <?php elseif ($is_edit_mode): ?>
                             <button type="button" class="btn btn-warning" onclick="enableEditMode()">
                                 <i class="fas fa-edit me-2"></i>修正
                             </button>
+                            <?php if ($user_role === 'Admin'): ?>
                             <button type="button" class="btn btn-danger" onclick="confirmDelete()">
                                 <i class="fas fa-trash me-2"></i>削除
                             </button>
+                            <?php endif; ?>
                         <?php else: ?>
                             <button type="submit" class="btn btn-primary btn-lg">
                                 <i class="fas fa-save me-2"></i>点呼記録を保存
@@ -449,6 +552,8 @@ echo $page_data['page_header'];
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="driver_id" value="<?= $existing_call['driver_id'] ?? '' ?>">
+                    <input type="hidden" name="call_date" value="<?= $existing_call['call_date'] ?? '' ?>">
+                    <input type="hidden" name="delete_reason" id="deleteReason" value="">
                 </form>
             </div>
 
@@ -525,6 +630,14 @@ echo $page_data['page_header'];
 </style>
 
 <script>
+// ロック状態
+window.callLockStatus = {
+    isLocked: <?= json_encode($is_locked ?? false) ?>,
+    canEdit: <?= json_encode($can_edit ?? true) ?>,
+    needsReason: <?= json_encode($needs_reason ?? false) ?>,
+    lockReason: <?= json_encode($lock_reason ?? '') ?>
+};
+
 // 点呼者選択の「その他」処理
 document.getElementById('caller_name').addEventListener('change', function() {
     const otherInput = document.getElementById('other_caller');
@@ -542,9 +655,7 @@ document.getElementById('caller_name').addEventListener('change', function() {
 function toggleCheck(itemId) {
     const checkbox = document.getElementById(itemId);
     const container = checkbox.closest('.form-check');
-    
     checkbox.checked = !checkbox.checked;
-    
     if (checkbox.checked) {
         container.classList.add('bg-success', 'bg-opacity-10', 'border-success');
     } else {
@@ -554,21 +665,19 @@ function toggleCheck(itemId) {
 
 // 全てチェック
 function checkAll() {
-    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = true;
-        const container = checkbox.closest('.form-check');
-        container.classList.add('bg-success', 'bg-opacity-10', 'border-success');
+    document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+        cb.checked = true;
+        var container = cb.closest('.form-check');
+        if (container) container.classList.add('bg-success', 'bg-opacity-10', 'border-success');
     });
 }
 
 // 全て解除
 function uncheckAll() {
-    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = false;
-        const container = checkbox.closest('.form-check');
-        container.classList.remove('bg-success', 'bg-opacity-10', 'border-success');
+    document.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+        cb.checked = false;
+        var container = cb.closest('.form-check');
+        if (container) container.classList.remove('bg-success', 'bg-opacity-10', 'border-success');
     });
 }
 
@@ -579,33 +688,73 @@ function setAlcoholZero() {
 
 // 編集モード有効化
 function enableEditMode() {
+    var lockStatus = window.callLockStatus || {};
+    if (lockStatus.isLocked && !lockStatus.canEdit) {
+        alert(lockStatus.lockReason || 'この記録は編集できません。');
+        return;
+    }
+
     // フォーム要素を編集可能に
-    document.querySelectorAll('input, select, textarea').forEach(element => {
-        element.removeAttribute('readonly');
-        element.removeAttribute('disabled');
+    document.querySelectorAll('input[readonly], textarea[readonly]').forEach(function(el) {
+        el.removeAttribute('readonly');
     });
-    
+    document.querySelectorAll('input[disabled], select[disabled]').forEach(function(el) {
+        el.removeAttribute('disabled');
+    });
+
+    // チェック項目をクリック可能に
+    document.querySelectorAll('.form-check.border').forEach(function(item) {
+        var cb = item.querySelector('input[type="checkbox"]');
+        if (cb) {
+            item.classList.add('check-item-clickable');
+            item.setAttribute('onclick', "toggleCheck('" + cb.id + "')");
+        }
+    });
+
+    // ロック済みレコードの場合：修正理由表示
+    if (lockStatus.needsReason) {
+        var reasonSection = document.getElementById('editReasonSection');
+        if (reasonSection) {
+            reasonSection.style.display = 'block';
+            var textarea = document.getElementById('editReason');
+            if (textarea) textarea.required = true;
+        }
+    }
+
     // ボタンを変更
-    const buttonContainer = document.querySelector('.d-flex.gap-2');
-    buttonContainer.innerHTML = `
-        <button type="submit" class="btn btn-primary btn-lg">
-            <i class="fas fa-save me-2"></i>変更を保存
-        </button>
-        <button type="button" class="btn btn-secondary" onclick="location.reload()">
-            <i class="fas fa-times me-2"></i>キャンセル
-        </button>
-    `;
-    
-    // チェック項目を編集可能に
-    document.querySelectorAll('.check-item-clickable').forEach(item => {
-        item.setAttribute('onclick', item.getAttribute('onclick').replace('disabled', ''));
-    });
+    var actionButtons = document.getElementById('actionButtons');
+    if (actionButtons) {
+        actionButtons.innerHTML = '<button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save me-2"></i>変更を保存</button>' +
+            '<button type="button" class="btn btn-secondary" onclick="location.reload()"><i class="fas fa-times me-2"></i>キャンセル</button>';
+    }
 }
 
-// 削除確認
+// 削除確認（理由入力付き）
 function confirmDelete() {
-    if (confirm('本当に削除しますか？この操作は取り消せません。')) {
+    var reason = prompt('削除理由を入力してください（監査ログに記録されます）:');
+    if (reason === null) return;
+    if (reason.trim() === '') {
+        alert('削除理由を入力してください。');
+        return;
+    }
+    if (confirm('本当に削除しますか？この操作は監査ログに記録されます。')) {
+        var deleteReasonInput = document.getElementById('deleteReason');
+        if (deleteReasonInput) deleteReasonInput.value = reason;
         document.getElementById('delete-form').submit();
     }
 }
+
+// フォーム未保存データの離脱警告
+var formDirty = false;
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('pre-duty-form');
+    if (form) {
+        form.addEventListener('input', function() { formDirty = true; });
+        form.addEventListener('change', function() { formDirty = true; });
+        form.addEventListener('submit', function() { formDirty = false; });
+    }
+});
+window.addEventListener('beforeunload', function(e) {
+    if (formDirty) { e.preventDefault(); }
+});
 </script>
