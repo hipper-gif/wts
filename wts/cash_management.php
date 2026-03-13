@@ -3,16 +3,18 @@ require_once 'config/database.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
+// --- 監査ログ関数 ---
+function logCashAudit($pdo, $user_id, $user_name, $action, $details = '') {
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO inspection_audit_logs (user_id, user_name, action, details, ip_address, created_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([$user_id, $user_name, '[売上金] ' . $action, $details, $_SERVER['REMOTE_ADDR'] ?? '']);
+    } catch (PDOException $e) {
+        // ログ記録失敗は握り潰す
+    }
 }
-
-$pdo = getDBConnection();
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'];
-$user_role = $_SESSION['user_role'] ?? 'User';
 
 // --- テーブル自動作成（cash_collections が存在しなければ作成） ---
 try {
@@ -61,21 +63,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $check_stmt->execute([$driver_id, $collection_date]);
         $existing = $check_stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($existing) {
-            $new_status = $existing['is_collected'] ? 0 : 1;
-            $update_stmt = $pdo->prepare("
-                UPDATE cash_collections
-                SET is_collected = ?, collected_by = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            ");
-            $update_stmt->execute([$new_status, $user_id, $existing['id']]);
-        } else {
-            $new_status = 1;
-            $insert_stmt = $pdo->prepare("
-                INSERT INTO cash_collections (driver_id, collection_date, is_collected, collected_by)
-                VALUES (?, ?, 1, ?)
-            ");
-            $insert_stmt->execute([$driver_id, $collection_date, $user_id]);
+        $pdo->beginTransaction();
+        try {
+            if ($existing) {
+                $new_status = $existing['is_collected'] ? 0 : 1;
+                $update_stmt = $pdo->prepare("
+                    UPDATE cash_collections
+                    SET is_collected = ?, collected_by = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ");
+                $update_stmt->execute([$new_status, $user_id, $existing['id']]);
+                $action = $new_status ? '集金済みに変更' : '未集金に変更';
+            } else {
+                $new_status = 1;
+                $insert_stmt = $pdo->prepare("
+                    INSERT INTO cash_collections (driver_id, collection_date, is_collected, collected_by)
+                    VALUES (?, ?, 1, ?)
+                ");
+                $insert_stmt->execute([$driver_id, $collection_date, $user_id]);
+                $action = '集金済みに登録';
+            }
+            logCashAudit($pdo, $user_id, $user_name, $action, "driver_id={$driver_id}, date={$collection_date}");
+            $pdo->commit();
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            throw $e;
         }
 
         echo json_encode([
@@ -1146,6 +1158,6 @@ function updateSingleDriverStatus() {
 }
 </script>
 
-<?php echo $page_data['footer'] ?? ''; ?>
+<?php echo $page_data['html_footer'] ?? ''; ?>
 </body>
 </html>
