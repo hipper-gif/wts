@@ -7,8 +7,9 @@ if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
 }
 session_start();
 require_once 'includes/unified-header.php';
+require_once 'config/database.php';
 
-// データベース接続（config/database.php の getDBConnection() を使用）
+// データベース接続
 try {
     $pdo = getDBConnection();
 } catch (PDOException $e) {
