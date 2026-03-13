@@ -5,33 +5,22 @@ require_once 'config/database.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-// ログイン確認
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit();
-}
-
-try {
-    $pdo = getDBConnection();
-} catch (PDOException $e) {
-    error_log("Database connection error: " . $e->getMessage());
-    die('データベース接続エラーが発生しました。管理者にお問い合わせください。');
-}
-
-// ユーザー情報取得
-$stmt = $pdo->prepare("SELECT name, permission_level FROM users WHERE id = ?");
-$stmt->execute([$_SESSION['user_id']]);
-$user = $stmt->fetch();
-
-if (!$user) {
-    session_destroy();
-    header('Location: index.php');
-    exit();
-}
-
-// 権限チェック
-if ($user['permission_level'] !== 'Admin') {
+// 権限チェック（Admin限定ページ）
+if ($user_role !== 'Admin') {
     die('アクセス権限がありません。管理者のみ利用可能です。');
+}
+
+// --- 監査ログ関数 ---
+function logAnnualReportAudit($pdo, $user_id, $user_name, $action, $details = '') {
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO inspection_audit_logs (user_id, user_name, action, details, ip_address, created_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([$user_id, $user_name, '[年次報告] ' . $action, $details, $_SERVER['REMOTE_ADDR'] ?? '']);
+    } catch (PDOException $e) {
+        // ログ記録失敗は握り潰す
+    }
 }
 
 // 必要テーブルの確認・作成
@@ -172,51 +161,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['action'])) {
             switch ($_POST['action']) {
                 case 'update_company_info':
-                    // 最初のレコードのIDを動的に取得してUPDATE
-                    $id_row = $pdo->query("SELECT id FROM company_info ORDER BY id LIMIT 1")->fetch();
-                    $target_id = $id_row ? $id_row['id'] : 1;
-                    $stmt = $pdo->prepare("
-                        UPDATE company_info SET
-                        company_name = ?, representative_name = ?,
-                        postal_code = ?, address = ?, phone = ?,
-                        license_number = ?, business_type = ?
-                        WHERE id = ?
-                    ");
-                    $stmt->execute([
-                        $_POST['company_name'], $_POST['representative_name'],
-                        $_POST['postal_code'], $_POST['address'], $_POST['phone'],
-                        $_POST['license_number'], $_POST['business_type'],
-                        $target_id
-                    ]);
+                    $pdo->beginTransaction();
+                    try {
+                        // 最初のレコードのIDを動的に取得してUPDATE
+                        $id_row = $pdo->query("SELECT id FROM company_info ORDER BY id LIMIT 1")->fetch();
+                        $target_id = $id_row ? $id_row['id'] : 1;
+                        $stmt = $pdo->prepare("
+                            UPDATE company_info SET
+                            company_name = ?, representative_name = ?,
+                            postal_code = ?, address = ?, phone = ?,
+                            license_number = ?, business_type = ?
+                            WHERE id = ?
+                        ");
+                        $stmt->execute([
+                            $_POST['company_name'], $_POST['representative_name'],
+                            $_POST['postal_code'], $_POST['address'], $_POST['phone'],
+                            $_POST['license_number'], $_POST['business_type'],
+                            $target_id
+                        ]);
+                        logAnnualReportAudit($pdo, $user_id, $user_name, '事業者情報更新', "company_name={$_POST['company_name']}");
+                        $pdo->commit();
+                    } catch (Exception $e) {
+                        $pdo->rollBack();
+                        throw $e;
+                    }
                     $message = "事業者情報を更新しました。";
                     break;
-                    
+
                 case 'create_report':
                     $fiscal_year = $_POST['fiscal_year'];
                     $report_type = $_POST['report_type'];
-                    
-                    $stmt = $pdo->prepare("
-                        INSERT INTO annual_reports (fiscal_year, report_type, status, submitted_by) 
-                        VALUES (?, ?, '作成中', ?)
-                        ON DUPLICATE KEY UPDATE status = '作成中', updated_at = NOW()
-                    ");
-                    $stmt->execute([$fiscal_year, $report_type, $_SESSION['user_id']]);
-                    
+
+                    $pdo->beginTransaction();
+                    try {
+                        $stmt = $pdo->prepare("
+                            INSERT INTO annual_reports (fiscal_year, report_type, status, submitted_by)
+                            VALUES (?, ?, '作成中', ?)
+                            ON DUPLICATE KEY UPDATE status = '作成中', updated_at = NOW()
+                        ");
+                        $stmt->execute([$fiscal_year, $report_type, $user_id]);
+                        logAnnualReportAudit($pdo, $user_id, $user_name, 'レポート作成開始', "year={$fiscal_year}, type={$report_type}");
+                        $pdo->commit();
+                    } catch (Exception $e) {
+                        $pdo->rollBack();
+                        throw $e;
+                    }
+
                     $message = "{$fiscal_year}年度の{$report_type}を作成開始しました。";
                     break;
-                    
+
                 case 'update_status':
                     $report_id = $_POST['report_id'];
                     $status = $_POST['status'];
                     $memo = $_POST['memo'] ?? '';
-                    
-                    $stmt = $pdo->prepare("
-                        UPDATE annual_reports 
-                        SET status = ?, memo = ?, updated_at = NOW()
-                        WHERE id = ?
-                    ");
-                    $stmt->execute([$status, $memo, $report_id]);
-                    
+
+                    $pdo->beginTransaction();
+                    try {
+                        $stmt = $pdo->prepare("
+                            UPDATE annual_reports
+                            SET status = ?, memo = ?, updated_at = NOW()
+                            WHERE id = ?
+                        ");
+                        $stmt->execute([$status, $memo, $report_id]);
+                        logAnnualReportAudit($pdo, $user_id, $user_name, 'ステータス更新', "report_id={$report_id}, status={$status}");
+                        $pdo->commit();
+                    } catch (Exception $e) {
+                        $pdo->rollBack();
+                        throw $e;
+                    }
+
                     $message = "レポートの状態を更新しました。";
                     break;
                     
@@ -697,8 +710,8 @@ $page_options = [
 
 $page_data = renderCompletePage(
     $page_config['title'],
-    $user['name'],
-    $user['permission_level'],
+    $user_name,
+    $user_role,
     'annual_report',
     $page_config['icon'],
     $page_config['title'],
@@ -763,7 +776,7 @@ echo $page_data['page_header'];
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-lg-6">
                             <table class="table table-borderless table-sm">
                                 <tr>
                                     <td class="fw-bold" style="width: 120px;">事業者名:</td>
@@ -779,7 +792,7 @@ echo $page_data['page_header'];
                                 </tr>
                             </table>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-lg-6">
                             <table class="table table-borderless table-sm">
                                 <tr>
                                     <td class="fw-bold" style="width: 120px;">電話番号:</td>
@@ -831,7 +844,7 @@ echo $page_data['page_header'];
 
     <!-- 年度データサマリー（陸運局様式準拠） -->
     <div class="row mb-4">
-        <div class="col-md-3">
+        <div class="col-lg-3">
             <div class="card bg-primary text-white">
                 <div class="card-body text-center">
                     <div class="display-4 mb-0"><?= $business_overview['vehicle_count'] ?></div>
@@ -840,7 +853,7 @@ echo $page_data['page_header'];
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-lg-3">
             <div class="card bg-info text-white">
                 <div class="card-body text-center">
                     <div class="display-4 mb-0"><?= $business_overview['employee_count'] ?></div>
@@ -849,7 +862,7 @@ echo $page_data['page_header'];
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-lg-3">
             <div class="card bg-success text-white">
                 <div class="card-body text-center">
                     <div class="display-4 mb-0"><?= number_format($transport_results['ride_count']) ?></div>
@@ -858,7 +871,7 @@ echo $page_data['page_header'];
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-lg-3">
             <div class="card bg-warning text-dark">
                 <div class="card-body text-center">
                     <div class="display-4 mb-0"><?= $accident_data['traffic_accidents'] + $accident_data['serious_accidents'] ?></div>
@@ -871,7 +884,7 @@ echo $page_data['page_header'];
 
     <!-- 第4号様式詳細データ -->
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-lg-4">
             <div class="card">
                 <div class="card-header">
                     <h6 class="mb-0"><i class="fas fa-building me-2"></i>事業概況（<?= $selected_year ?>年3月31日現在）</h6>
@@ -895,7 +908,7 @@ echo $page_data['page_header'];
             </div>
         </div>
         
-        <div class="col-md-4">
+        <div class="col-lg-4">
             <div class="card">
                 <div class="card-header">
                     <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>輸送実績（<?= $selected_year ?>年度）</h6>
@@ -927,7 +940,7 @@ echo $page_data['page_header'];
             </div>
         </div>
         
-        <div class="col-md-4">
+        <div class="col-lg-4">
             <div class="card">
                 <div class="card-header">
                     <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>事故件数（<?= $selected_year ?>年度）</h6>
@@ -1011,14 +1024,14 @@ echo $page_data['page_header'];
                 </div>
                 <div class="card-body">
                     <div class="row mb-3">
-                        <div class="col-md-8">
+                        <div class="col-lg-8">
                             <h6>陸運局提出用書類の作成・管理</h6>
                             <p class="text-muted mb-0">
                                 道路運送法に基づく年次報告書（第4号様式）を作成・管理します。<br>
                                 事業者情報・事業概況・輸送実績・事故件数を記載した正式な報告書をPDF形式で出力できます。
                             </p>
                         </div>
-                        <div class="col-md-4 text-end">
+                        <div class="col-lg-4 text-end">
                             <form method="POST" class="d-inline" target="_blank">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                                 <input type="hidden" name="action" value="export_form4">
@@ -1128,22 +1141,22 @@ echo $page_data['page_header'];
                 <div class="card-body">
                     <h6 class="mb-3"><i class="fas fa-link me-2"></i>関連機能</h6>
                     <div class="row">
-                        <div class="col-md-3">
+                        <div class="col-lg-3">
                             <a href="accident_management.php" class="btn btn-warning w-100">
                                 <i class="fas fa-exclamation-triangle me-1"></i>事故管理
                             </a>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-lg-3">
                             <a href="vehicle_management.php" class="btn btn-info w-100">
                                 <i class="fas fa-car me-1"></i>車両管理
                             </a>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-lg-3">
                             <a href="ride_records.php" class="btn btn-primary w-100">
                                 <i class="fas fa-route me-1"></i>乗車記録
                             </a>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-lg-3">
                             <a href="dashboard.php" class="btn btn-secondary w-100">
                                 <i class="fas fa-home me-1"></i>ダッシュボード
                             </a>
@@ -1170,7 +1183,7 @@ echo $page_data['page_header'];
                     <input type="hidden" name="action" value="update_company_info">
                     
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-lg-6">
                             <div class="mb-3">
                                 <label for="company_name" class="form-label">事業者名 <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" name="company_name" 
@@ -1192,7 +1205,7 @@ echo $page_data['page_header'];
                             </div>
                         </div>
                         
-                        <div class="col-md-6">
+                        <div class="col-lg-6">
                             <div class="mb-3">
                                 <label for="address" class="form-label">住所 <span class="text-danger">*</span></label>
                                 <textarea class="form-control" name="address" rows="3" required><?= htmlspecialchars($company_info['address']) ?></textarea>
@@ -1208,7 +1221,7 @@ echo $page_data['page_header'];
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-lg-6">
                             <div class="mb-3">
                                 <label for="license_number" class="form-label">許可番号</label>
                                 <input type="text" class="form-control" name="license_number" 
@@ -1217,7 +1230,7 @@ echo $page_data['page_header'];
                             </div>
                         </div>
                         
-                        <div class="col-md-6">
+                        <div class="col-lg-6">
                             <div class="mb-3">
                                 <label for="business_type" class="form-label">事業種別</label>
                                 <select class="form-select" name="business_type">
@@ -1240,7 +1253,7 @@ echo $page_data['page_header'];
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-success">
                         <i class="fas fa-save me-1"></i>更新
                     </button>
                 </div>
@@ -1291,7 +1304,7 @@ echo $page_data['page_header'];
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-success">
                         <i class="fas fa-plus me-1"></i>作成開始
                     </button>
                 </div>
@@ -1332,7 +1345,7 @@ echo $page_data['page_header'];
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-success">
                         <i class="fas fa-save me-1"></i>更新
                     </button>
                 </div>
