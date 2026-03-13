@@ -28,7 +28,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // セッションタイムアウトチェック（30分）
-$session_timeout = 1800; // 30分
+$session_timeout = 28800; // 8時間（業務中）
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
     session_unset();
     session_destroy();
