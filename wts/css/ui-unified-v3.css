@@ -1298,8 +1298,8 @@ body {
 /* Android WebView対応 */
 @media screen and (max-width: 767px) {
     /* スクロールパフォーマンス向上 */
-    .content-container,
-    .main-content {
+    /* 注意: transform: translateZ(0) は position:fixed の containing block を変更するため削除 */
+    .content-container {
         -webkit-transform: translateZ(0);
         transform: translateZ(0);
     }
