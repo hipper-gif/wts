@@ -1,36 +1,53 @@
 <?php
 
-// データベース接続
 require_once 'config/database.php';
 require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-try {
-    $pdo = getDBConnection();
-} catch (Exception $e) {
-    die("データベース接続エラー: " . $e->getMessage());
+// 監査ログ記録（departure.phpのlogDepartureAudit()と同パターン）
+function logRideAudit($pdo, $record_id, $action, $user_id, $changes = [], $reason = null) {
+    try {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        if (empty($changes)) {
+            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent) VALUES (?, ?, ?, 'ride_record', NULL, NULL, ?, ?, ?)");
+            $stmt->execute([$record_id, $action, $user_id, $reason, $ip, $ua]);
+        } else {
+            foreach ($changes as $change) {
+                $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$record_id, $action, $user_id, $change['field'] ?? 'ride_record', $change['old'] ?? null, $change['new'] ?? null, $reason, $ip, $ua]);
+            }
+        }
+    } catch (PDOException $e) {
+        error_log("Ride audit log error: " . $e->getMessage());
+    }
 }
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit();
+// 編集可否判定（pre_duty_call.php, departure.phpと同パターン）
+function canEditRide($record, $user_role) {
+    $record_date = $record['ride_date'] ?? '';
+    $today = date('Y-m-d');
+    $is_locked = ($record_date < $today);
+
+    if (!$is_locked) {
+        return ['can_edit' => true, 'needs_reason' => false, 'lock_reason' => ''];
+    }
+    if ($user_role === 'Admin') {
+        return ['can_edit' => true, 'needs_reason' => true, 'lock_reason' => '過去日の記録です。管理者権限で修正できます。'];
+    }
+    return ['can_edit' => false, 'needs_reason' => false, 'lock_reason' => '過去日の記録はロックされています。管理者にお問い合わせください。'];
 }
 
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'];
+// session_check.phpで$pdo, $user_id, $user_name, $user_role('Admin'/'User')が設定済み
+// 表示用の権限名
+$user_role_display = ($user_role === 'Admin') ? '管理者' : '一般ユーザー';
 
-// ユーザー情報を取得（新権限システム準拠）
-$user_info_sql = "SELECT permission_level, is_driver FROM users WHERE id = ?";
-$user_info_stmt = $pdo->prepare($user_info_sql);
+// is_driver情報を取得
+$user_info_stmt = $pdo->prepare("SELECT is_driver FROM users WHERE id = ?");
 $user_info_stmt->execute([$user_id]);
 $user_info = $user_info_stmt->fetch(PDO::FETCH_ASSOC);
-$user_permission = $user_info['permission_level'] ?: 'User';
 $user_is_driver = ($user_info['is_driver'] == 1);
-
-// ユーザー権限表示用
-$user_role = ($user_permission === 'Admin') ? '管理者' : '一般ユーザー';
 
 // 今日の日付
 $today = date('Y-m-d');
@@ -70,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validateCsrfToken();
     try {
         $action = $_POST['action'] ?? 'add';
-        
+
         if ($action === 'add') {
             // 新規追加
             $driver_id = $_POST['driver_id'];
@@ -87,38 +104,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $notes = $_POST['notes'] ?? '';
             $is_return_trip = (isset($_POST['is_return_trip']) && $_POST['is_return_trip'] == '1') ? 1 : 0;
             $original_ride_id = !empty($_POST['original_ride_id']) ? $_POST['original_ride_id'] : null;
-            
+
             // 料金システム統一仕様に準拠
             $total_fare = $fare + $charge;
             $cash_amount = ($payment_method === '現金') ? $total_fare : 0;
             $card_amount = ($payment_method === 'カード') ? $total_fare : 0;
-            
+
             // 出庫記録との紐付け
             $departure_record_sql = "SELECT id FROM departure_records WHERE driver_id = ? AND departure_date = ? ORDER BY created_at DESC LIMIT 1";
             $departure_record_stmt = $pdo->prepare($departure_record_sql);
             $departure_record_stmt->execute([$driver_id, $ride_date]);
             $departure_record_id = $departure_record_stmt->fetchColumn() ?: null;
-            
-            $insert_sql = "INSERT INTO ride_records 
-                (driver_id, vehicle_id, ride_date, ride_time, passenger_count, 
-                 pickup_location, dropoff_location, fare, charge, total_fare, 
-                 cash_amount, card_amount, transportation_type, payment_method, 
-                 notes, is_return_trip, original_ride_id, departure_record_id, created_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-            $insert_stmt = $pdo->prepare($insert_sql);
-            $insert_stmt->execute([
-                $driver_id, $vehicle_id, $ride_date, $ride_time, $passenger_count,
-                $pickup_location, $dropoff_location, $fare, $charge, $total_fare,
-                $cash_amount, $card_amount, $transportation_type, $payment_method, 
-                $notes, $is_return_trip, $original_ride_id, $departure_record_id
-            ]);
-            
+
+            $pdo->beginTransaction();
+            try {
+                $insert_sql = "INSERT INTO ride_records
+                    (driver_id, vehicle_id, ride_date, ride_time, passenger_count,
+                     pickup_location, dropoff_location, fare, charge, total_fare,
+                     cash_amount, card_amount, transportation_type, payment_method,
+                     notes, is_return_trip, original_ride_id, departure_record_id, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                $insert_stmt = $pdo->prepare($insert_sql);
+                $insert_stmt->execute([
+                    $driver_id, $vehicle_id, $ride_date, $ride_time, $passenger_count,
+                    $pickup_location, $dropoff_location, $fare, $charge, $total_fare,
+                    $cash_amount, $card_amount, $transportation_type, $payment_method,
+                    $notes, $is_return_trip, $original_ride_id, $departure_record_id
+                ]);
+
+                $new_record_id = $pdo->lastInsertId();
+                logRideAudit($pdo, $new_record_id, 'create', $user_id);
+
+                $pdo->commit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
             if ($is_return_trip == 1) {
                 $success_message = '復路の乗車記録を登録しました。';
             } else {
                 $success_message = '乗車記録を登録しました。';
             }
-            
+
         } elseif ($action === 'edit') {
             // 編集
             $record_id = $_POST['record_id'];
@@ -133,39 +161,111 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $transportation_type = $_POST['transportation_type'];
             $payment_method = $_POST['payment_method'];
             $notes = $_POST['notes'] ?? '';
+            $edit_reason = $_POST['edit_reason'] ?? '';
+
+            // 既存レコード取得（ロック判定・変更差分用）
+            $existing_stmt = $pdo->prepare("SELECT * FROM ride_records WHERE id = ?");
+            $existing_stmt->execute([$record_id]);
+            $existing_record = $existing_stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$existing_record) {
+                throw new Exception('編集対象の記録が見つかりません。');
+            }
+
+            // ロック判定
+            $edit_check = canEditRide($existing_record, $user_role);
+            if (!$edit_check['can_edit']) {
+                throw new Exception($edit_check['lock_reason']);
+            }
+            if ($edit_check['needs_reason'] && empty($edit_reason)) {
+                throw new Exception('過去日の記録を修正するには修正理由の入力が必要です。');
+            }
 
             // 料金システム統一仕様に準拠
             $total_fare = $fare + $charge;
             $cash_amount = ($payment_method === '現金') ? $total_fare : 0;
             $card_amount = ($payment_method === 'カード') ? $total_fare : 0;
 
-            $update_sql = "UPDATE ride_records SET
-                driver_id = ?, vehicle_id = ?,
-                ride_time = ?, passenger_count = ?, pickup_location = ?, dropoff_location = ?,
-                fare = ?, charge = ?, total_fare = ?, cash_amount = ?, card_amount = ?,
-                transportation_type = ?, payment_method = ?, notes = ?, updated_at = NOW()
-                WHERE id = ?";
-            $update_stmt = $pdo->prepare($update_sql);
-            $update_stmt->execute([
-                $driver_id, $vehicle_id,
-                $ride_time, $passenger_count, $pickup_location, $dropoff_location,
-                $fare, $charge, $total_fare, $cash_amount, $card_amount,
-                $transportation_type, $payment_method, $notes, $record_id
-            ]);
+            // 変更差分を記録
+            $changes = [];
+            $field_map = [
+                'driver_id' => $driver_id, 'vehicle_id' => $vehicle_id,
+                'ride_time' => $ride_time, 'passenger_count' => $passenger_count,
+                'pickup_location' => $pickup_location, 'dropoff_location' => $dropoff_location,
+                'fare' => $fare, 'charge' => $charge,
+                'transportation_type' => $transportation_type, 'payment_method' => $payment_method,
+                'notes' => $notes
+            ];
+            foreach ($field_map as $field => $new_val) {
+                $old_val = $existing_record[$field] ?? '';
+                if ((string)$old_val !== (string)$new_val) {
+                    $changes[] = ['field' => $field, 'old' => (string)$old_val, 'new' => (string)$new_val];
+                }
+            }
+
+            $pdo->beginTransaction();
+            try {
+                $update_sql = "UPDATE ride_records SET
+                    driver_id = ?, vehicle_id = ?,
+                    ride_time = ?, passenger_count = ?, pickup_location = ?, dropoff_location = ?,
+                    fare = ?, charge = ?, total_fare = ?, cash_amount = ?, card_amount = ?,
+                    transportation_type = ?, payment_method = ?, notes = ?, updated_at = NOW()
+                    WHERE id = ?";
+                $update_stmt = $pdo->prepare($update_sql);
+                $update_stmt->execute([
+                    $driver_id, $vehicle_id,
+                    $ride_time, $passenger_count, $pickup_location, $dropoff_location,
+                    $fare, $charge, $total_fare, $cash_amount, $card_amount,
+                    $transportation_type, $payment_method, $notes, $record_id
+                ]);
+
+                logRideAudit($pdo, $record_id, 'update', $user_id, $changes, $edit_reason ?: null);
+
+                $pdo->commit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
 
             $success_message = '乗車記録を更新しました。';
-            
+
         } elseif ($action === 'delete') {
             // 削除
             $record_id = $_POST['record_id'];
-            
-            $delete_sql = "DELETE FROM ride_records WHERE id = ?";
-            $delete_stmt = $pdo->prepare($delete_sql);
-            $delete_stmt->execute([$record_id]);
-            
+            $delete_reason = $_POST['delete_reason'] ?? '';
+
+            // 既存レコード取得（ロック判定用）
+            $existing_stmt = $pdo->prepare("SELECT * FROM ride_records WHERE id = ?");
+            $existing_stmt->execute([$record_id]);
+            $existing_record = $existing_stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$existing_record) {
+                throw new Exception('削除対象の記録が見つかりません。');
+            }
+
+            // 権限チェック: 一般ユーザーは当日データのみ削除可
+            $record_date = $existing_record['ride_date'] ?? '';
+            if ($user_role !== 'Admin' && $record_date < date('Y-m-d')) {
+                throw new Exception('過去日の記録は管理者のみ削除できます。管理者にお問い合わせください。');
+            }
+
+            $pdo->beginTransaction();
+            try {
+                $delete_sql = "DELETE FROM ride_records WHERE id = ?";
+                $delete_stmt = $pdo->prepare($delete_sql);
+                $delete_stmt->execute([$record_id]);
+
+                logRideAudit($pdo, $record_id, 'delete', $user_id, [], $delete_reason ?: null);
+
+                $pdo->commit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
             $success_message = '乗車記録を削除しました。';
         }
-        
+
     } catch (Exception $e) {
         $error_message = $e->getMessage();
     }
@@ -415,7 +515,9 @@ echo $page_data['page_header'];
                                 該当する乗車記録がありません。
                             </div>
                         <?php else: ?>
-                            <?php foreach ($rides as $ride): ?>
+                            <?php foreach ($rides as $ride):
+                                $ride_edit_check = canEditRide($ride, $user_role);
+                            ?>
                                 <div class="unified-record-item <?php echo $ride['is_return_trip'] ? 'return-trip' : ''; ?> mb-3">
                                     <div class="row align-items-center">
                                         <div class="col-md-8">
@@ -424,6 +526,15 @@ echo $page_data['page_header'];
                                                 <span class="badge unified-badge <?php echo $ride['is_return_trip'] ? 'badge-success' : 'badge-primary'; ?>">
                                                     <?php echo $ride['trip_type']; ?>
                                                 </span>
+                                                <?php if (!$ride_edit_check['can_edit']): ?>
+                                                    <span class="badge bg-secondary ms-2" title="<?php echo htmlspecialchars($ride_edit_check['lock_reason']); ?>">
+                                                        <i class="fas fa-lock me-1"></i>ロック
+                                                    </span>
+                                                <?php elseif ($ride_edit_check['needs_reason']): ?>
+                                                    <span class="badge bg-warning text-dark ms-2" title="<?php echo htmlspecialchars($ride_edit_check['lock_reason']); ?>">
+                                                        <i class="fas fa-exclamation-triangle me-1"></i>過去日
+                                                    </span>
+                                                <?php endif; ?>
                                                 <small class="text-muted ms-3">
                                                     <?php echo htmlspecialchars($ride['driver_name']); ?> / <?php echo htmlspecialchars($ride['vehicle_number']); ?>
                                                 </small>
@@ -450,22 +561,26 @@ echo $page_data['page_header'];
                                             </div>
                                             <div class="btn-group" role="group">
                                                 <?php if (!$ride['is_return_trip']): ?>
-                                                    <button type="button" class="btn btn-success btn-sm" 
+                                                    <button type="button" class="btn btn-success btn-sm"
                                                             onclick="createReturnTrip(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
                                                             title="復路作成">
                                                         <i class="fas fa-route me-1"></i>復路作成
                                                     </button>
                                                 <?php endif; ?>
-                                                <button type="button" class="btn btn-warning btn-sm" 
-                                                        onclick="editRecord(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
-                                                        title="編集">
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-danger btn-sm" 
-                                                        onclick="deleteRecord(<?php echo $ride['id']; ?>)"
-                                                        title="削除">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
+                                                <?php if ($ride_edit_check['can_edit']): ?>
+                                                    <button type="button" class="btn btn-warning btn-sm"
+                                                            onclick="editRecord(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
+                                                            title="編集">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                <?php endif; ?>
+                                                <?php if ($ride_edit_check['can_edit'] || (!$ride_edit_check['can_edit'] && $user_role === 'Admin')): ?>
+                                                    <button type="button" class="btn btn-danger btn-sm"
+                                                            onclick="deleteRecord(<?php echo $ride['id']; ?>, <?php echo htmlspecialchars(json_encode($ride['ride_date'])); ?>)"
+                                                            title="削除">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </div>
@@ -725,8 +840,15 @@ echo $page_data['page_header'];
                         <label for="modalNotes" class="form-label unified-label">
                             <i class="fas fa-sticky-note me-1"></i>備考
                         </label>
-                        <textarea class="form-control unified-textarea" id="modalNotes" name="notes" rows="2" 
+                        <textarea class="form-control unified-textarea" id="modalNotes" name="notes" rows="2"
                                   placeholder="特記事項があれば入力してください"></textarea>
+                    </div>
+
+                    <!-- 修正理由セクション（過去日データ編集時のみ表示） -->
+                    <div class="mb-3" id="editReasonSection" style="display:none;">
+                        <label class="form-label"><i class="fas fa-exclamation-triangle text-warning me-1"></i>修正理由（必須）</label>
+                        <textarea name="edit_reason" id="editReason" class="form-control" rows="2" placeholder="修正理由を入力してください"></textarea>
+                        <small class="text-muted">監査ログに記録されます。</small>
                     </div>
                 </div>
                 
@@ -1031,6 +1153,8 @@ const currentUserId = <?php echo $user_id; ?>;
 const userIsDriver = <?php echo $user_is_driver ? 'true' : 'false'; ?>;
 const defaultDriverId = '<?php echo $default_driver_id; ?>';
 const defaultVehicleId = '<?php echo $default_vehicle_id; ?>';
+const userRole = '<?php echo $user_role; ?>';
+const todayDate = '<?php echo $today; ?>';
 
 // 新規登録モーダル表示
 function showAddModal() {
@@ -1041,6 +1165,11 @@ function showAddModal() {
     document.getElementById('modalOriginalRideId').value = '';
     document.getElementById('returnTripInfo').style.display = 'none';
     
+    // 修正理由セクションを非表示
+    document.getElementById('editReasonSection').style.display = 'none';
+    document.getElementById('editReason').required = false;
+    document.getElementById('editReason').value = '';
+
     // フォームをリセット
     document.getElementById('rideForm').reset();
     
@@ -1079,7 +1208,7 @@ function editRecord(record) {
     document.getElementById('modalAction').value = 'edit';
     document.getElementById('modalRecordId').value = record.id;
     document.getElementById('returnTripInfo').style.display = 'none';
-    
+
     // フォームに値を設定
     document.getElementById('modalDriverId').value = record.driver_id;
     document.getElementById('modalVehicleId').value = record.vehicle_id;
@@ -1093,10 +1222,23 @@ function editRecord(record) {
     document.getElementById('modalTransportationType').value = record.transportation_type;
     document.getElementById('modalPaymentMethod').value = record.payment_method;
     document.getElementById('modalNotes').value = record.notes || '';
-    
+
+    // 修正理由セクションの表示制御（過去日 + Admin の場合のみ表示）
+    var editReasonSection = document.getElementById('editReasonSection');
+    var editReasonInput = document.getElementById('editReason');
+    if (record.ride_date < todayDate && userRole === 'Admin') {
+        editReasonSection.style.display = 'block';
+        editReasonInput.required = true;
+        editReasonInput.value = '';
+    } else {
+        editReasonSection.style.display = 'none';
+        editReasonInput.required = false;
+        editReasonInput.value = '';
+    }
+
     // 人数ボタン設定
     updatePassengerButtons(record.passenger_count);
-    
+
     // Bootstrap Modal を確実に表示
     const modalElement = document.getElementById('rideModal');
     const modal = new bootstrap.Modal(modalElement, {
@@ -1155,18 +1297,38 @@ function createReturnTrip(record) {
 }
 
 // 削除確認
-function deleteRecord(recordId) {
-    if (confirm('この乗車記録を削除しますか？')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.innerHTML = `
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-            <input type="hidden" name="action" value="delete">
-            <input type="hidden" name="record_id" value="${recordId}">
-        `;
-        document.body.appendChild(form);
-        form.submit();
+function deleteRecord(recordId, rideDate) {
+    var isPastDate = (rideDate < todayDate);
+    var deleteReason = '';
+
+    // 一般ユーザーは当日データのみ削除可
+    if (userRole !== 'Admin' && isPastDate) {
+        alert('過去日の記録は管理者のみ削除できます。管理者にお問い合わせください。');
+        return;
     }
+
+    // Admin + 過去日: 理由入力を求める
+    if (userRole === 'Admin' && isPastDate) {
+        deleteReason = prompt('削除理由を入力してください（監査ログに記録されます）：');
+        if (deleteReason === null) return; // キャンセル
+        if (deleteReason.trim() === '') {
+            alert('削除理由を入力してください。');
+            return;
+        }
+    } else {
+        if (!confirm('この乗車記録を削除しますか？')) return;
+    }
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.innerHTML = `
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+        <input type="hidden" name="action" value="delete">
+        <input type="hidden" name="record_id" value="${recordId}">
+        <input type="hidden" name="delete_reason" value="${escapeHtml(deleteReason)}">
+    `;
+    document.body.appendChild(form);
+    form.submit();
 }
 
 // 現在時刻を取得
@@ -1294,7 +1456,7 @@ document.addEventListener('DOMContentLoaded', function() {
 document.getElementById('rideForm').addEventListener('submit', function(e) {
     const action = document.getElementById('modalAction').value;
     const isReturnTrip = document.getElementById('modalIsReturnTrip').value === '1';
-    
+
     let message = '';
     if (action === 'add' && isReturnTrip) {
         message = '復路の乗車記録を登録しますか？';
@@ -1303,10 +1465,24 @@ document.getElementById('rideForm').addEventListener('submit', function(e) {
     } else {
         message = '乗車記録を更新しますか？';
     }
-    
+
     if (!confirm(message)) {
         e.preventDefault();
     }
+});
+
+// beforeunload警告（未保存変更の検知）
+var formDirty = false;
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('rideForm');
+    if (form) {
+        form.addEventListener('input', function() { formDirty = true; });
+        form.addEventListener('change', function() { formDirty = true; });
+        form.addEventListener('submit', function() { formDirty = false; });
+    }
+});
+window.addEventListener('beforeunload', function(e) {
+    if (formDirty) { e.preventDefault(); }
 });
 </script>
 
