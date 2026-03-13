@@ -8,26 +8,23 @@ require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-// セッション確認
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
-}
-
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'] ?? 'ユーザー';
-$user_role = $_SESSION['permission_level'] ?? 'User';
-
-// データベース接続
-try {
-    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET, DB_USER, DB_PASS);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    
-    // グローバル変数として設定（統一ヘッダーで使用）
-    $GLOBALS['pdo'] = $pdo;
-} catch (PDOException $e) {
-    error_log("Database connection failed: " . $e->getMessage());
-    die("データベース接続エラー");
+// 監査ログ記録関数
+function logArrivalAudit($pdo, $record_id, $action, $user_id, $changes = [], $reason = null) {
+    try {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        if (empty($changes)) {
+            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent) VALUES (?, ?, ?, 'arrival', NULL, NULL, ?, ?, ?)");
+            $stmt->execute([$record_id, $action, $user_id, $reason, $ip, $ua]);
+        } else {
+            foreach ($changes as $change) {
+                $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$record_id, $action, $user_id, $change['field'] ?? 'arrival', $change['old'] ?? null, $change['new'] ?? null, $reason, $ip, $ua]);
+            }
+        }
+    } catch (PDOException $e) {
+        error_log("Arrival audit log error: " . $e->getMessage());
+    }
 }
 
 // 共通関数
@@ -118,39 +115,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception('入庫メーターが出庫メーターより小さくなっています。確認してください。');
         }
 
-        // 入庫記録保存（既存コードのカラム名を使用）
-        $stmt = $pdo->prepare("
-            INSERT INTO arrival_records 
-            (departure_record_id, driver_id, vehicle_id, arrival_date, arrival_time, arrival_mileage, 
-             total_distance, fuel_cost, highway_cost, other_cost, break_location, break_start_time, 
-             break_end_time, remarks, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-        ");
-        
-        $stmt->execute([
-            $departure_record_id,
-            $driver_id,
-            $vehicle_id,
-            $arrival_date,
-            $arrival_time,
-            $arrival_mileage,
-            $total_distance,
-            $fuel_cost,
-            $highway_cost,
-            $other_cost,
-            $break_location ?: null,
-            $break_start_time ?: null,
-            $break_end_time ?: null,
-            $remarks ?: null
-        ]);
+        // トランザクション開始
+        $pdo->beginTransaction();
 
-        // 車両の走行距離を更新
-        $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ?");
-        $stmt->execute([$arrival_mileage, $vehicle_id]);
+        try {
+            // 入庫記録保存（既存コードのカラム名を使用）
+            $stmt = $pdo->prepare("
+                INSERT INTO arrival_records
+                (departure_record_id, driver_id, vehicle_id, arrival_date, arrival_time, arrival_mileage,
+                 total_distance, fuel_cost, highway_cost, other_cost, break_location, break_start_time,
+                 break_end_time, remarks, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ");
+
+            $stmt->execute([
+                $departure_record_id,
+                $driver_id,
+                $vehicle_id,
+                $arrival_date,
+                $arrival_time,
+                $arrival_mileage,
+                $total_distance,
+                $fuel_cost,
+                $highway_cost,
+                $other_cost,
+                $break_location ?: null,
+                $break_start_time ?: null,
+                $break_end_time ?: null,
+                $remarks ?: null
+            ]);
+
+            $new_id = $pdo->lastInsertId();
+
+            // 車両の走行距離を更新
+            $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ?");
+            $stmt->execute([$arrival_mileage, $vehicle_id]);
+
+            // 監査ログ記録
+            logArrivalAudit($pdo, $new_id, 'create', $user_id);
+
+            $pdo->commit();
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
 
         $success_message = "入庫記録を保存しました。";
         $saved_driver_id = $driver_id;
-        
+
         // リダイレクトしてフォーム再送信を防ぐ
         header("Location: arrival.php?success=1&driver_id=" . $driver_id);
         exit;
@@ -419,10 +431,13 @@ echo $page_data['page_header'];
                     </div>
 
                     <!-- 保存ボタン -->
-                    <div class="text-center">
-                        <button type="submit" class="btn btn-primary btn-lg px-5">
+                    <div class="text-center mb-4" style="position: sticky; bottom: 0; z-index: 50; background: white; padding: 12px 16px; border-top: 1px solid #dee2e6; box-shadow: 0 -2px 4px rgba(0,0,0,0.1);">
+                        <button type="submit" class="btn btn-primary btn-lg">
                             <i class="fas fa-save me-2"></i>入庫記録を保存
                         </button>
+                        <a href="dashboard.php" class="btn btn-secondary btn-lg ms-2">
+                            <i class="fas fa-arrow-left me-2"></i>戻る
+                        </a>
                     </div>
                 </form>
             </div>
@@ -651,6 +666,14 @@ echo $page_data['page_header'];
                 this.classList.remove('border-danger');
             });
         });
+    });
+
+    var formDirty = false;
+    document.getElementById('arrivalForm').addEventListener('input', function() { formDirty = true; });
+    document.getElementById('arrivalForm').addEventListener('change', function() { formDirty = true; });
+    document.getElementById('arrivalForm').addEventListener('submit', function() { formDirty = false; });
+    window.addEventListener('beforeunload', function(e) {
+        if (formDirty) { e.preventDefault(); }
     });
 </script>
 
