@@ -439,33 +439,6 @@ echo $page_data['page_header'];
                 </form>
             </div>
         </div>
-
-        <!-- 操作ヘルプ -->
-        <div class="card">
-            <div class="card-header bg-light">
-                <i class="fas fa-question-circle me-2"></i>操作ガイド
-            </div>
-            <div class="card-body">
-                <div class="row g-4">
-                    <div class="col-md-6">
-                        <h6><i class="fas fa-mouse-pointer me-2 text-primary"></i>未入庫車両から選択</h6>
-                        <p class="small text-muted mb-0">上の「未入庫車両一覧」から該当車両をクリックすると、運転者・車両・出庫メーターが自動入力されます。</p>
-                    </div>
-                    <div class="col-md-6">
-                        <h6><i class="fas fa-calculator me-2 text-success"></i>走行距離自動計算</h6>
-                        <p class="small text-muted mb-0">入庫メーターを入力すると、出庫メーターとの差から走行距離が自動計算されます。</p>
-                    </div>
-                    <div class="col-md-6">
-                        <h6><i class="fas fa-shield-alt me-2 text-warning"></i>前提条件チェック</h6>
-                        <p class="small text-muted mb-0">出庫記録が存在しない場合は警告が表示されます。必ず出庫処理を先に完了してください。</p>
-                    </div>
-                    <div class="col-md-6">
-                        <h6><i class="fas fa-arrow-right me-2 text-info"></i>次のステップ</h6>
-                        <p class="small text-muted mb-0">保存完了後、「乗務後点呼」へ進むボタンが表示されます。</p>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </main>
 
