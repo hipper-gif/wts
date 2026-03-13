@@ -56,6 +56,49 @@ try {
     exit;
 }
 
+// セッションタイムアウト設定の保存処理（Admin限定）
+$settings_message = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_admin) {
+    $token = $_POST['csrf_token'] ?? '';
+    if (!empty($token) && isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token)) {
+        if (isset($_POST['session_timeout'])) {
+            $timeout = (int)$_POST['session_timeout'];
+            $valid_values = [1800, 3600, 7200, 14400, 28800];
+            if (in_array($timeout, $valid_values)) {
+                try {
+                    // system_settingsテーブルがなければ作成
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS system_settings (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        setting_key VARCHAR(100) UNIQUE NOT NULL,
+                        setting_value TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                    )");
+                    $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('session_timeout', ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+                    $stmt->execute([$timeout, $timeout]);
+                    // セッションキャッシュも即時更新
+                    $_SESSION['session_timeout_seconds'] = $timeout;
+                    $_SESSION['session_timeout_cached_at'] = time();
+                    $settings_message = 'success';
+                } catch (PDOException $e) {
+                    error_log("Session timeout save error: " . $e->getMessage());
+                    $settings_message = 'error';
+                }
+            }
+        }
+    }
+}
+
+// 現在のセッションタイムアウト設定を取得
+$current_timeout = 28800; // デフォルト8時間
+try {
+    $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout'");
+    $stmt->execute();
+    $val = $stmt->fetchColumn();
+    if ($val !== false) $current_timeout = (int)$val;
+} catch (PDOException $e) {
+    // テーブルがない場合はデフォルト
+}
+
 // 統計情報取得
 try {
     // ユーザー数
@@ -252,20 +295,58 @@ $page_data = renderCompletePage(
                 </a>
             </div>
             
-            <!-- システム設定（車両管理の一部として統合） -->
+            <!-- システム設定 -->
             <div class="col-lg-4 col-md-6 mb-4">
-                <a href="vehicle_management.php#system-settings" class="master-card">
+                <?php if ($is_admin): ?>
+                <div class="master-card">
                     <div class="position-relative">
                         <i class="fas fa-cog master-icon icon-settings"></i>
                         <h5 class="card-title">システム設定</h5>
+                        <?php if ($settings_message === 'success'): ?>
+                        <div class="alert alert-success py-1 px-2 mb-2" style="font-size:0.85rem;">
+                            <i class="fas fa-check me-1"></i>設定を保存しました
+                        </div>
+                        <?php elseif ($settings_message === 'error'): ?>
+                        <div class="alert alert-danger py-1 px-2 mb-2" style="font-size:0.85rem;">
+                            <i class="fas fa-times me-1"></i>保存に失敗しました
+                        </div>
+                        <?php endif; ?>
+                        <form method="POST" class="mt-2">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                            <label class="form-label mb-1" style="font-size:0.9rem;">
+                                <i class="fas fa-clock me-1"></i>セッションタイムアウト
+                            </label>
+                            <select name="session_timeout" class="form-select form-select-sm mb-2">
+                                <option value="1800" <?= $current_timeout == 1800 ? 'selected' : '' ?>>30分</option>
+                                <option value="3600" <?= $current_timeout == 3600 ? 'selected' : '' ?>>1時間</option>
+                                <option value="7200" <?= $current_timeout == 7200 ? 'selected' : '' ?>>2時間</option>
+                                <option value="14400" <?= $current_timeout == 14400 ? 'selected' : '' ?>>4時間</option>
+                                <option value="28800" <?= $current_timeout == 28800 ? 'selected' : '' ?>>8時間（業務中）</option>
+                            </select>
+                            <button type="submit" class="btn btn-primary btn-sm w-100">
+                                <i class="fas fa-save me-1"></i>保存
+                            </button>
+                        </form>
+                        <div class="mt-2">
+                            <a href="vehicle_management.php#system-settings" class="text-muted" style="font-size:0.85rem;">
+                                <i class="fas fa-external-link-alt me-1"></i>システム名設定
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <?php else: ?>
+                <div class="master-card user-only" onclick="showPermissionAlert()">
+                    <div class="position-relative">
+                        <span class="badge bg-secondary status-badge">Admin限定</span>
+                        <i class="fas fa-cog master-icon icon-settings"></i>
+                        <h5 class="card-title">システム設定</h5>
                         <p class="card-description">
-                            システム名の設定<br>
+                            セッションタイムアウト<br>
                             基本設定の管理
                         </p>
-                        <div class="stats-number text-secondary">設定中</div>
-                        <div class="stats-label">設定状況</div>
                     </div>
-                </a>
+                </div>
+                <?php endif; ?>
             </div>
                 </div>
 

@@ -27,8 +27,8 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// セッションタイムアウトチェック（30分）
-$session_timeout = 28800; // 8時間（業務中）
+// セッションタイムアウトチェック（DB設定値をセッションにキャッシュ）
+$session_timeout = $_SESSION['session_timeout_seconds'] ?? 28800; // デフォルト8時間
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
     session_unset();
     session_destroy();
@@ -46,6 +46,21 @@ if (empty($_SESSION['csrf_token'])) {
 if (!isset($pdo)) {
     require_once __DIR__ . '/../config/database.php';
     $pdo = getDBConnection();
+}
+
+// セッションタイムアウト設定をDBからキャッシュ（5分ごとに更新）
+if (!isset($_SESSION['session_timeout_cached_at']) || (time() - $_SESSION['session_timeout_cached_at'] > 300)) {
+    try {
+        $stmt_timeout = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout'");
+        $stmt_timeout->execute();
+        $timeout_val = $stmt_timeout->fetchColumn();
+        if ($timeout_val !== false) {
+            $_SESSION['session_timeout_seconds'] = (int)$timeout_val;
+        }
+    } catch (PDOException $e) {
+        // テーブルがない場合等は無視（デフォルト値を使用）
+    }
+    $_SESSION['session_timeout_cached_at'] = time();
 }
 
 // ユーザー情報を取得してグローバル変数に設定（permission_level使用）
