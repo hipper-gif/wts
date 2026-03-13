@@ -434,7 +434,7 @@ echo $page_data['page_header'];
                     </div>
 
                     <!-- 操作ボタン -->
-                    <div class="text-center mb-4" id="actionButtons" style="position: sticky; bottom: 0; z-index: 50; background: white; padding: 12px 16px; border-top: 1px solid #dee2e6; box-shadow: 0 -2px 4px rgba(0,0,0,0.1);">
+                    <div class="text-center mb-4" id="actionButtons" style="position: sticky; bottom: 0; z-index: 50; background: white; padding: 12px 0; border-top: 1px solid #dee2e6;">
                         <?php if ($edit_mode && $is_locked && !$can_edit): ?>
                             <div class="text-muted">
                                 <i class="fas fa-lock me-2"></i>この記録は編集できません
@@ -449,13 +449,10 @@ echo $page_data['page_header'];
                             </button>
                             <?php endif; ?>
                         <?php else: ?>
-                            <button type="submit" class="btn btn-primary btn-lg">
-                                <i class="fas fa-save me-2"></i>出庫記録を保存
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-save me-2"></i>登録する
                             </button>
                         <?php endif; ?>
-                        <a href="dashboard.php" class="btn btn-secondary btn-lg ms-2">
-                            <i class="fas fa-arrow-left me-2"></i>戻る
-                        </a>
                     </div>
             </form>
 
