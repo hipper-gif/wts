@@ -19,29 +19,27 @@ require_once 'config/database.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
-}
-
-// システム管理者権限チェック - permission_level基準
-$pdo = getDBConnection();
-$stmt = $pdo->prepare("SELECT permission_level, name FROM users WHERE id = ?");
-$stmt->execute([$_SESSION['user_id']]);
-$user_data = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$user_data || $user_data['permission_level'] !== 'Admin') {
+// 権限チェック（Admin限定ページ）
+if ($user_role !== 'Admin') {
     header('Location: dashboard.php');
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
-$user_name = $user_data['name'];
-$user_role = 'システム管理者';
-
 $success_message = '';
 $error_message = '';
+
+// --- 監査ログ関数 ---
+function logUserManagementAudit($pdo, $user_id, $user_name, $action, $details = '') {
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO inspection_audit_logs (user_id, user_name, action, details, ip_address, created_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([$user_id, $user_name, '[ユーザー管理] ' . $action, $details, $_SERVER['REMOTE_ADDR'] ?? '']);
+    } catch (PDOException $e) {
+        // ログ記録失敗は握り潰す
+    }
+}
 
 // フォーム送信処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -84,21 +82,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // パスワードハッシュ化
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            
+
             // ユーザー追加（最適化済みテーブル構造対応）
-            $stmt = $pdo->prepare("
-                INSERT INTO users (
-                    name, login_id, password, permission_level, 
-                    is_driver, is_caller, is_inspector, is_admin, is_manager, is_mechanic,
-                    phone, email, is_active, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
-            ");
-            $stmt->execute([
-                $name, $login_id, $hashed_password, $permission_level, 
-                $is_driver, $is_caller, $is_inspector, $is_admin, $is_manager, $is_mechanic,
-                $phone, $email
-            ]);
-            
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare("
+                    INSERT INTO users (
+                        name, login_id, password, permission_level,
+                        is_driver, is_caller, is_inspector, is_admin, is_manager, is_mechanic,
+                        phone, email, is_active, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
+                ");
+                $stmt->execute([
+                    $name, $login_id, $hashed_password, $permission_level,
+                    $is_driver, $is_caller, $is_inspector, $is_admin, $is_manager, $is_mechanic,
+                    $phone, $email
+                ]);
+                logUserManagementAudit($pdo, $user_id, $user_name, 'ユーザー追加', "name={$name}, login_id={$login_id}");
+                $pdo->commit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
             $success_message = 'ユーザーを追加しました。';
             
         } elseif ($action === 'edit') {
@@ -136,20 +142,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             // ユーザー更新（最適化済みテーブル構造対応）
-            $stmt = $pdo->prepare("
-                UPDATE users 
-                SET name = ?, login_id = ?, permission_level = ?, 
-                    is_driver = ?, is_caller = ?, is_inspector = ?, 
-                    is_admin = ?, is_manager = ?, is_mechanic = ?,
-                    phone = ?, email = ?, is_active = ?, updated_at = NOW() 
-                WHERE id = ?
-            ");
-            $stmt->execute([
-                $name, $login_id, $permission_level,
-                $is_driver, $is_caller, $is_inspector, $is_admin, $is_manager, $is_mechanic,
-                $phone, $email, $is_active, $edit_user_id
-            ]);
-            
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare("
+                    UPDATE users
+                    SET name = ?, login_id = ?, permission_level = ?,
+                        is_driver = ?, is_caller = ?, is_inspector = ?,
+                        is_admin = ?, is_manager = ?, is_mechanic = ?,
+                        phone = ?, email = ?, is_active = ?, updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([
+                    $name, $login_id, $permission_level,
+                    $is_driver, $is_caller, $is_inspector, $is_admin, $is_manager, $is_mechanic,
+                    $phone, $email, $is_active, $edit_user_id
+                ]);
+                logUserManagementAudit($pdo, $user_id, $user_name, 'ユーザー編集', "target_id={$edit_user_id}, name={$name}");
+                $pdo->commit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
             $success_message = 'ユーザー情報を更新しました。';
             
         } elseif ($action === 'change_password') {
@@ -162,9 +176,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->execute([$hashed_password, $edit_user_id]);
-            
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare("UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$hashed_password, $edit_user_id]);
+                logUserManagementAudit($pdo, $user_id, $user_name, 'パスワード変更', "target_id={$edit_user_id}");
+                $pdo->commit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
             $success_message = 'パスワードを変更しました。';
             
         } elseif ($action === 'delete') {
@@ -176,9 +198,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('自分自身は削除できません。');
             }
             
-            $stmt = $pdo->prepare("UPDATE users SET is_active = 0, updated_at = NOW() WHERE id = ?");
-            $stmt->execute([$delete_user_id]);
-            
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare("UPDATE users SET is_active = 0, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$delete_user_id]);
+                logUserManagementAudit($pdo, $user_id, $user_name, 'ユーザー削除', "target_id={$delete_user_id}");
+                $pdo->commit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
             $success_message = 'ユーザーを削除しました。';
         }
         
@@ -233,18 +263,6 @@ function getPermissionLevelName($level) {
 $page_config = getPageConfiguration('user_management');
 
 // ページオプション
-$page_options = [
-    'description' => $page_config['description'],
-    'additional_css' => [],
-    'additional_js' => [],
-    'breadcrumb' => [
-        ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
-        ['text' => '管理機能', 'url' => 'master_menu.php'],
-        ['text' => 'ユーザー管理', 'url' => 'user_management.php']
-    ]
-];
-
-// ページオプション最終版（確実な読み込み順序）
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [
@@ -549,7 +567,7 @@ echo $page_data['page_header'];
         
         <!-- メインアクションエリア -->
         <div class="row mb-4">
-            <div class="col-md-8">
+            <div class="col-lg-8">
                 <div class="action-card">
                     <div class="action-icon">
                         <i class="fas fa-user-plus"></i>
@@ -563,7 +581,7 @@ echo $page_data['page_header'];
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-lg-4">
                 <div class="stats-card">
                     <div class="stats-header">
                         <h4>ユーザー統計</h4>
@@ -706,13 +724,13 @@ echo $page_data['page_header'];
                 
                 <div class="modal-body">
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-lg-6">
                             <div class="mb-3">
                                 <label for="modalName" class="form-label">氏名 <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" id="modalName" name="name" required>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-lg-6">
                             <div class="mb-3">
                                 <label for="modalLoginId" class="form-label">ログインID <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" id="modalLoginId" name="login_id" required>
@@ -721,13 +739,13 @@ echo $page_data['page_header'];
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-lg-6">
                             <div class="mb-3">
                                 <label for="modalPhone" class="form-label">電話番号</label>
                                 <input type="tel" class="form-control" id="modalPhone" name="phone">
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-lg-6">
                             <div class="mb-3">
                                 <label for="modalEmail" class="form-label">メールアドレス</label>
                                 <input type="email" class="form-control" id="modalEmail" name="email">
@@ -741,7 +759,7 @@ echo $page_data['page_header'];
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-lg-6">
                             <div class="mb-3">
                                 <label for="modalPermissionLevel" class="form-label">権限レベル <span class="text-danger">*</span></label>
                                 <select class="form-select" id="modalPermissionLevel" name="permission_level" required>
@@ -750,7 +768,7 @@ echo $page_data['page_header'];
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-6" id="isActiveField" style="display: none;">
+                        <div class="col-lg-6" id="isActiveField" style="display: none;">
                             <div class="mb-3">
                                 <label class="form-label">ステータス</label>
                                 <div class="form-check">
@@ -815,7 +833,7 @@ echo $page_data['page_header'];
                 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-success">
                         <i class="fas fa-save me-2"></i>保存
                     </button>
                 </div>
