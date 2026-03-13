@@ -430,8 +430,8 @@ echo $page_data['page_header'];
                                   placeholder="特記事項があれば入力してください"></textarea>
                     </div>
 
-                    <!-- 操作ボタン -->
-                    <div class="text-center mb-4" id="actionButtons" style="position: sticky; bottom: 0; z-index: 50; background: white; padding: 12px 0; border-top: 1px solid #dee2e6;">
+                    <!-- 操作ボタン（画面下部固定） -->
+                    <div class="text-center" id="actionButtons" style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 1020; background: white; padding: 12px 0; border-top: 1px solid #dee2e6; box-shadow: 0 -2px 8px rgba(0,0,0,0.1);">
                         <button type="submit" class="btn btn-success btn-lg">
                             <i class="fas fa-save me-2"></i>登録する
                         </button>
@@ -439,6 +439,8 @@ echo $page_data['page_header'];
                 </form>
             </div>
         </div>
+        <!-- 固定ボタン分の余白 -->
+        <div style="height: 70px;"></div>
     </div>
 </main>
 
