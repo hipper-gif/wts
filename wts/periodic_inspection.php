@@ -3,19 +3,22 @@ require_once 'config/database.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
-}
-
-$pdo = getDBConnection();
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'];
 $today = date('Y-m-d');
-
 $success_message = '';
 $error_message = '';
+
+// --- 監査ログ関数 ---
+function logPeriodicAudit($pdo, $user_id, $user_name, $action, $details = '') {
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO inspection_audit_logs (user_id, user_name, action, details, ip_address, created_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([$user_id, $user_name, '[定期点検] ' . $action, $details, $_SERVER['REMOTE_ADDR'] ?? '']);
+    } catch (PDOException $e) {
+        // ログ記録失敗は握り潰す
+    }
+}
 
 // 車両とユーザーの取得
 try {
@@ -136,7 +139,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$next_inspection_date, $mileage, $vehicle_id]);
         
         $pdo->commit();
-        $success_message = '定期点検記録を登録しました。' . 
+        logPeriodicAudit($pdo, $user_id, $user_name, '点検記録登録',
+            "vehicle_id={$vehicle_id}, inspection_date={$inspection_date}, result={$final_result}");
+        $success_message = '定期点検記録を登録しました。' .
                           '総合結果: ' . $final_result . ' / ' .
                           '次回点検日: ' . $next_inspection_date;
         
@@ -147,15 +152,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 統一ヘッダーの表示
-echo renderCompleteHTMLHead('periodic_inspection');
-echo renderSystemHeader();
-
-// ページヘッダーをシンプルに表示
-echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点検', [
+// ページ設定
+$page_options = [
     [
         'icon' => 'arrow-left',
-        'text' => 'ダッシュボード', 
+        'text' => 'ダッシュボード',
         'url' => 'dashboard.php',
         'class' => 'btn-secondary btn-sm'
     ],
@@ -165,18 +166,33 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
         'url' => 'javascript:setAllGood()',
         'class' => 'btn-success btn-sm'
     ]
-]);
+];
 
+$page_data = renderCompletePage(
+    '定期点検',
+    $user_name,
+    $user_role,
+    'periodic_inspection',
+    'wrench',
+    '定期点検',
+    '3ヶ月毎の法定車両点検',
+    'inspection',
+    $page_options
+);
+
+echo $page_data['html_head'];
+echo $page_data['system_header'];
+echo $page_data['page_header'];
 ?>
 
 <div class="container-fluid px-4">
     <!-- アラート表示 -->
     <?php if ($success_message) { ?>
-        <?php echo renderAlert('success', $success_message, true); ?>
+        <?php echo renderAlert('success', '成功', $success_message, true); ?>
     <?php } ?>
-    
+
     <?php if ($error_message) { ?>
-        <?php echo renderAlert('danger', $error_message, true); ?>
+        <?php echo renderAlert('danger', 'エラー', $error_message, true); ?>
     <?php } ?>
 
     <form method="POST" id="inspectionForm">
@@ -197,7 +213,7 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-6">
+                    <div class="col-lg-6">
                         <label class="form-label required">車両</label>
                         <select class="form-select" name="vehicle_id" required onchange="updateMileage()">
                             <option value="">選択してください</option>
@@ -215,12 +231,12 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
                         <div id="nextInspectionInfo" class="form-text"></div>
                     </div>
                     
-                    <div class="col-md-6">
+                    <div class="col-lg-6">
                         <label class="form-label required">点検日</label>
                         <input type="date" class="form-control" name="inspection_date" value="<?php echo $today; ?>" required>
                     </div>
                     
-                    <div class="col-md-6">
+                    <div class="col-lg-6">
                         <label class="form-label required">点検者</label>
                         <select class="form-select" name="inspector_id" required>
                             <option value="">選択してください</option>
@@ -232,7 +248,7 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
                         </select>
                     </div>
                     
-                    <div class="col-md-6">
+                    <div class="col-lg-6">
                         <label class="form-label required">走行距離</label>
                         <div class="input-group">
                             <input type="number" class="form-control" name="mileage" id="mileage" required>
@@ -240,7 +256,7 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
                         </div>
                     </div>
                     
-                    <div class="col-md-6">
+                    <div class="col-lg-6">
                         <label class="form-label required">点検の種類</label>
                         <select class="form-select" name="inspection_type" required>
                             <option value="3months" selected>3か月点検</option>
@@ -265,10 +281,10 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
                 foreach ($steering_items as $key => $label) { ?>
                 <div class="inspection-item mb-3">
                     <div class="row align-items-center">
-                        <div class="col-md-4">
+                        <div class="col-lg-4">
                             <strong><?php echo $label; ?></strong>
                         </div>
-                        <div class="col-md-8">
+                        <div class="col-lg-8">
                             <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
                                 <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
                                 <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
@@ -299,10 +315,10 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
                 foreach ($braking_items as $key => $label) { ?>
                 <div class="inspection-item mb-3">
                     <div class="row align-items-center">
-                        <div class="col-md-4">
+                        <div class="col-lg-4">
                             <strong><?php echo $label; ?></strong>
                         </div>
-                        <div class="col-md-8">
+                        <div class="col-lg-8">
                             <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
                                 <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
                                 <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
@@ -329,10 +345,10 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
                 foreach ($running_items as $key => $label) { ?>
                 <div class="inspection-item mb-3">
                     <div class="row align-items-center">
-                        <div class="col-md-4">
+                        <div class="col-lg-4">
                             <strong><?php echo $label; ?></strong>
                         </div>
-                        <div class="col-md-8">
+                        <div class="col-lg-8">
                             <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
                                 <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
                                 <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
@@ -359,10 +375,10 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
                 foreach ($suspension_items as $key => $label) { ?>
                 <div class="inspection-item mb-3">
                     <div class="row align-items-center">
-                        <div class="col-md-4">
+                        <div class="col-lg-4">
                             <strong><?php echo $label; ?></strong>
                         </div>
-                        <div class="col-md-8">
+                        <div class="col-lg-8">
                             <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
                                 <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
                                 <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
@@ -392,10 +408,10 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
                 foreach ($power_transmission_items as $key => $label) { ?>
                 <div class="inspection-item mb-3">
                     <div class="row align-items-center">
-                        <div class="col-md-4">
+                        <div class="col-lg-4">
                             <strong><?php echo $label; ?></strong>
                         </div>
-                        <div class="col-md-8">
+                        <div class="col-lg-8">
                             <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
                                 <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
                                 <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
@@ -424,10 +440,10 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
                 foreach ($electrical_items as $key => $label) { ?>
                 <div class="inspection-item mb-3">
                     <div class="row align-items-center">
-                        <div class="col-md-4">
+                        <div class="col-lg-4">
                             <strong><?php echo $label; ?></strong>
                         </div>
-                        <div class="col-md-8">
+                        <div class="col-lg-8">
                             <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
                                 <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
                                 <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
@@ -456,10 +472,10 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
                 foreach ($engine_items as $key => $label) { ?>
                 <div class="inspection-item mb-3">
                     <div class="row align-items-center">
-                        <div class="col-md-4">
+                        <div class="col-lg-4">
                             <strong><?php echo $label; ?></strong>
                         </div>
-                        <div class="col-md-8">
+                        <div class="col-lg-8">
                             <div class="result-buttons mb-2" data-item="<?php echo $key; ?>">
                                 <button type="button" class="btn btn-sm result-btn result-btn-good me-2" onclick="setResult('<?php echo $key; ?>', '良好')">良好</button>
                                 <button type="button" class="btn btn-sm result-btn result-btn-caution me-2" onclick="setResult('<?php echo $key; ?>', '要注意')">要注意</button>
@@ -479,7 +495,7 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-6">
+                    <div class="col-lg-6">
                         <label class="form-label">CO濃度</label>
                         <div class="input-group">
                             <input type="number" class="form-control" name="co_concentration" step="0.01" min="0" placeholder="0.00">
@@ -487,7 +503,7 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
                         </div>
                         <div class="form-text">基準値：1.0%以下</div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-lg-6">
                         <label class="form-label">HC濃度</label>
                         <div class="input-group">
                             <input type="number" class="form-control" name="hc_concentration" step="1" min="0" placeholder="0">
@@ -504,12 +520,12 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-6">
+                    <div class="col-lg-6">
                         <label class="form-label">事業者名</label>
                         <input type="text" class="form-control" name="service_provider_name" 
                                placeholder="整備を実施した事業者名" value="スマイリーケアタクシー">
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-lg-6">
                         <label class="form-label">事業者住所</label>
                         <input type="text" class="form-control" name="service_provider_address" 
                                placeholder="事業者の住所">
@@ -527,13 +543,16 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
             </div>
         </div>
 
-        <!-- 保存ボタン -->
-        <div class="text-center mb-5">
-            <button type="submit" class="btn btn-primary btn-lg px-5">
-                <i class="fas fa-save me-2"></i>定期点検記録を保存
-            </button>
-        </div>
+        <!-- 固定ボタン用スペーサー -->
+        <div style="height: 80px;"></div>
     </form>
+</div>
+
+<!-- 保存ボタン（画面下部固定） -->
+<div style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 1050; background: #fff; padding: 12px 20px; border-top: 2px solid #198754;">
+    <button type="submit" form="inspectionForm" class="btn btn-success btn-lg w-100" style="font-size: 1.1rem; font-weight: 600; padding: 14px;">
+        <i class="fas fa-save me-2"></i>登録する
+    </button>
 </div>
 
 <style>
@@ -637,8 +656,8 @@ echo renderSectionHeader('wrench', '定期点検', '3ヶ月毎の法定車両点
         padding: 0.25rem 0.5rem;
     }
     
-    .inspection-item .col-md-4,
-    .inspection-item .col-md-8 {
+    .inspection-item .col-lg-4,
+    .inspection-item .col-lg-8 {
         margin-bottom: 0.5rem;
     }
 }
@@ -747,4 +766,19 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<?php echo '</body></html>'; ?>
+<script>
+// --- beforeunload 離脱警告 ---
+let formChanged = false;
+document.getElementById('inspectionForm').addEventListener('input', function() { formChanged = true; });
+document.getElementById('inspectionForm').addEventListener('change', function() { formChanged = true; });
+document.getElementById('inspectionForm').addEventListener('submit', function() { formChanged = false; });
+window.addEventListener('beforeunload', function(e) {
+    if (formChanged) { e.preventDefault(); e.returnValue = ''; }
+});
+// ボタン操作でも変更フラグを立てる
+document.querySelectorAll('.result-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { formChanged = true; });
+});
+</script>
+
+<?php echo $page_data['html_footer'] ?? ''; ?>
