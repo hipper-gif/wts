@@ -1,15 +1,7 @@
 <?php
-ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_samesite', 'Lax');
-ini_set('session.use_strict_mode', 1);
-if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
-    ini_set('session.cookie_secure', 1);
-}
-session_start();
-
-// 統一ヘッダーシステム読み込み
 require_once 'config/database.php';
 require_once 'functions.php';
+require_once 'includes/session_check.php';
 require_once 'includes/unified-header.php';
 
 // ログインチェック
@@ -18,26 +10,27 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// データベース接続
 $pdo = getDBConnection();
+$user_id = $_SESSION['user_id'];
+$user_name = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'ユーザー';
+$user_role = $_SESSION['permission_level'] ?? $_SESSION['user_role'] ?? 'User';
 
-// ユーザー情報取得
+// ユーザー詳細情報取得
 try {
     $stmt = $pdo->prepare("SELECT name, permission_level, is_driver, is_caller, is_manager FROM users WHERE id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
+    $stmt->execute([$user_id]);
     $user_data = $stmt->fetch();
-    
+
     if (!$user_data) {
         session_destroy();
         header('Location: index.php');
         exit;
     }
-    
+
     $user_name = $user_data['name'];
     $user_permission_level = $user_data['permission_level'];
     $is_admin = ($user_permission_level === 'Admin');
-    
-    // 表示用の役職名を生成
+
     $user_role_display = '';
     if ($is_admin) {
         $user_role_display = 'システム管理者';
@@ -48,9 +41,8 @@ try {
         if ($user_data['is_manager']) $roles[] = '管理者';
         $user_role_display = !empty($roles) ? implode('・', $roles) : '一般ユーザー';
     }
-    
 } catch (PDOException $e) {
-    error_log("User data fetch error: " . $e->getMessage());
+    error_log("ダッシュボード ユーザー取得エラー: " . $e->getMessage());
     session_destroy();
     header('Location: index.php');
     exit;
@@ -58,49 +50,57 @@ try {
 
 $today = date('Y-m-d');
 $current_time = date('H:i');
-$current_hour = date('H');
+$current_hour = (int)date('H');
 $current_month_start = date('Y-m-01');
 
-// システム名を取得
+// システム名取得
 $system_name = '福祉輸送管理システム';
 try {
     $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'system_name'");
     $stmt->execute();
     $result = $stmt->fetch();
-    if ($result) {
-        $system_name = $result['setting_value'];
-    }
+    if ($result) $system_name = $result['setting_value'];
 } catch (Exception $e) {
     // デフォルト値を使用
 }
 
-// 最適化後対応の売上計算
+// 売上計算関数
 function calculateRevenue($pdo, $date_condition, $params = []) {
     $sql = "
-        SELECT 
+        SELECT
             COUNT(*) as ride_count,
             SUM(COALESCE(passenger_count, 0)) as total_passengers,
             SUM(
-                CASE 
+                CASE
                     WHEN total_fare IS NOT NULL AND total_fare > 0 THEN total_fare
                     WHEN (fare IS NOT NULL OR charge IS NOT NULL) THEN (COALESCE(fare, 0) + COALESCE(charge, 0))
                     ELSE 0
                 END
             ) as total_revenue,
             ROUND(AVG(
-                CASE 
+                CASE
                     WHEN total_fare IS NOT NULL AND total_fare > 0 THEN total_fare
                     WHEN (fare IS NOT NULL OR charge IS NOT NULL) THEN (COALESCE(fare, 0) + COALESCE(charge, 0))
                     ELSE 0
                 END
             ), 0) as avg_fare
-        FROM ride_records 
+        FROM ride_records
         WHERE {$date_condition} AND COALESCE(is_sample_data, 0) = 0
     ";
-    
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     return $stmt->fetch();
+}
+
+// 安全なカウント
+function safeDashboardCount($pdo, $sql, $params = []) {
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return (int)($stmt->fetchColumn() ?: 0);
+    } catch (Exception $e) {
+        return 0;
+    }
 }
 
 // 今日の統計
@@ -114,46 +114,37 @@ $today_passengers = $today_stats['total_passengers'] ?? 0;
 $month_stats = calculateRevenue($pdo, "ride_date >= ?", [$current_month_start]);
 $month_ride_records = $month_stats['ride_count'] ?? 0;
 $month_total_revenue = $month_stats['total_revenue'] ?? 0;
-$month_avg_fare = $month_stats['avg_fare'] ?? 0;
 
-// 同期間比較（仕様書対応）
+// 同期間比較
+$revenue_difference = 0;
+$revenue_percentage = 0;
+$revenue_trend = 'neutral';
 try {
     $current_day = date('j');
-    $this_month_start = date('Y-m-01');
     $this_month_end = date('Y-m-' . sprintf('%02d', $current_day));
     $prev_month_start = date('Y-m-01', strtotime('-1 month'));
-    $prev_month_end = date('Y-m-' . sprintf('%02d', $current_day), strtotime('-1 month'));
-    
+    $prev_month_end = date('Y-m-' . sprintf('%02d', min($current_day, date('t', strtotime('-1 month')))), strtotime('-1 month'));
+
     $last_month_stats = calculateRevenue($pdo, "ride_date BETWEEN ? AND ?", [$prev_month_start, $prev_month_end]);
-    $this_month_stats = calculateRevenue($pdo, "ride_date BETWEEN ? AND ?", [$this_month_start, $this_month_end]);
-    
+    $this_month_stats = calculateRevenue($pdo, "ride_date BETWEEN ? AND ?", [$current_month_start, $this_month_end]);
+
     $last_month_revenue = $last_month_stats['total_revenue'] ?? 0;
     $this_month_revenue = $this_month_stats['total_revenue'] ?? 0;
-    
+
     $revenue_difference = $this_month_revenue - $last_month_revenue;
     $revenue_percentage = $last_month_revenue > 0 ? round(($revenue_difference / $last_month_revenue) * 100, 1) : 0;
     $revenue_trend = $revenue_difference >= 0 ? 'up' : 'down';
 } catch (Exception $e) {
-    $revenue_difference = 0;
-    $revenue_percentage = 0;
-    $revenue_trend = 'neutral';
+    // デフォルト値のまま
 }
 
-// 日平均売上計算
-try {
-    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT ride_date) as working_days FROM ride_records WHERE ride_date >= ? AND COALESCE(is_sample_data, 0) = 0");
-    $stmt->execute([$current_month_start]);
-    $working_days_result = $stmt->fetch();
-    $working_days = $working_days_result['working_days'] ?? 1;
-    $month_avg_daily_revenue = $working_days > 0 ? round($month_total_revenue / $working_days) : 0;
-} catch (Exception $e) {
-    $working_days = 1;
-    $month_avg_daily_revenue = 0;
-}
+// 日平均売上
+$working_days = safeDashboardCount($pdo, "SELECT COUNT(DISTINCT ride_date) FROM ride_records WHERE ride_date >= ? AND COALESCE(is_sample_data, 0) = 0", [$current_month_start]);
+$working_days = max($working_days, 1);
+$month_avg_daily_revenue = round($month_total_revenue / $working_days);
 
-// アラート生成（仕様書対応）
+// アラート生成
 $alerts = [];
-
 try {
     // Critical: 乗務前点呼未実施で乗車記録あり
     $stmt = $pdo->prepare("
@@ -165,23 +156,19 @@ try {
         GROUP BY r.driver_id, u.name
     ");
     $stmt->execute([$today]);
-    $no_pre_duty_with_rides = $stmt->fetchAll();
-    
-    foreach ($no_pre_duty_with_rides as $driver) {
+    foreach ($stmt->fetchAll() as $driver) {
         $alerts[] = [
-            'type' => 'danger',
-            'priority' => 'critical',
-            'icon' => 'fas fa-exclamation-triangle',
-            'title' => '乗務前点呼未実施',
+            'type' => 'danger', 'priority' => 'critical',
+            'icon' => 'fas fa-exclamation-triangle', 'title' => '乗務前点呼未実施',
             'message' => "運転者「{$driver['driver_name']}」が乗務前点呼を行わずに乗車記録（{$driver['ride_count']}件）を登録しています。",
             'action' => 'pre_duty_call.php'
         ];
     }
 
-    // High: 18時以降の未入庫・未点呼
+    // High: 18時以降の未入庫
     if ($current_hour >= 18) {
         $stmt = $pdo->prepare("
-            SELECT dr.vehicle_id, v.vehicle_number, u.name as driver_name, dr.departure_time
+            SELECT v.vehicle_number, u.name as driver_name
             FROM departure_records dr
             JOIN vehicles v ON dr.vehicle_id = v.id
             JOIN users u ON dr.driver_id = u.id
@@ -189,91 +176,77 @@ try {
             WHERE dr.departure_date = ? AND ar.id IS NULL
         ");
         $stmt->execute([$today]);
-        $not_arrived_vehicles = $stmt->fetchAll();
-        
-        foreach ($not_arrived_vehicles as $vehicle) {
+        foreach ($stmt->fetchAll() as $vehicle) {
             $alerts[] = [
-                'type' => 'warning',
-                'priority' => 'high',
-                'icon' => 'fas fa-clock',
-                'title' => '入庫処理未完了',
-                'message' => "車両「{$vehicle['vehicle_number']}」が18時以降も入庫処理を完了していません。",
+                'type' => 'warning', 'priority' => 'high',
+                'icon' => 'fas fa-clock', 'title' => '入庫処理未完了',
+                'message' => "車両「{$vehicle['vehicle_number']}」（{$vehicle['driver_name']}）が入庫処理を完了していません。",
                 'action' => 'arrival.php'
             ];
         }
     }
-
-    // 業務統計データ
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM pre_duty_calls WHERE call_date = ? AND is_completed = TRUE");
-    $stmt->execute([$today]);
-    $today_pre_duty_calls = $stmt->fetchColumn();
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE departure_date = ?");
-    $stmt->execute([$today]);
-    $today_departures = $stmt->fetchColumn();
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE arrival_date = ?");
-    $stmt->execute([$today]);
-    $today_arrivals = $stmt->fetchColumn();
-    
-    // 運転者一覧（クイック入力用）
-    $drivers = getActiveDrivers($pdo);
-
 } catch (Exception $e) {
-    error_log("Dashboard error: " . $e->getMessage());
+    error_log("ダッシュボード アラート生成エラー: " . $e->getMessage());
 }
 
-// カレンダー予約統計（テーブル未作成時のエラーハンドリング付き）
-$today_reservations = 0;
-$upcoming_reservations = 0;
-try {
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM reservations WHERE reservation_date = ? AND status != 'cancelled'");
-    $stmt->execute([$today]);
-    $today_reservations = $stmt->fetchColumn();
+// 業務統計
+$today_pre_duty_calls = safeDashboardCount($pdo, "SELECT COUNT(*) FROM pre_duty_calls WHERE call_date = ? AND is_completed = TRUE", [$today]);
+$today_departures = safeDashboardCount($pdo, "SELECT COUNT(*) FROM departure_records WHERE departure_date = ?", [$today]);
+$today_arrivals = safeDashboardCount($pdo, "SELECT COUNT(*) FROM arrival_records WHERE arrival_date = ?", [$today]);
 
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM reservations WHERE reservation_date > ? AND reservation_date <= DATE_ADD(?, INTERVAL 7 DAY) AND status != 'cancelled'");
-    $stmt->execute([$today, $today]);
-    $upcoming_reservations = $stmt->fetchColumn();
-} catch (Exception $e) {
-    // reservationsテーブルが未作成の場合は0のまま
-}
+// 予約統計
+$today_reservations = safeDashboardCount($pdo, "SELECT COUNT(*) FROM reservations WHERE reservation_date = ? AND status != 'cancelled'", [$today]);
+$upcoming_reservations = safeDashboardCount($pdo, "SELECT COUNT(*) FROM reservations WHERE reservation_date > ? AND reservation_date <= DATE_ADD(?, INTERVAL 7 DAY) AND status != 'cancelled'", [$today, $today]);
 
 // アラート優先度ソート
 usort($alerts, function($a, $b) {
-    $priority_order = ['critical' => 0, 'high' => 1, 'normal' => 2];
-    return $priority_order[$a['priority']] - $priority_order[$b['priority']];
+    $order = ['critical' => 0, 'high' => 1, 'normal' => 2];
+    return ($order[$a['priority']] ?? 2) - ($order[$b['priority']] ?? 2);
 });
 
-// 統一ヘッダーシステムでページ生成（ヘッダー非表示モード）
-$page_options = [
-    'description' => '業務状況の総合管理 - 7段階業務フローの進捗管理',
-    'additional_css' => ['css/dashboard.css?v=' . filemtime('css/dashboard.css')],
-    'breadcrumb' => [
-        ['text' => 'ダッシュボード', 'url' => 'dashboard.php']
-    ],
-    'hide_headers' => true  // ダッシュボード専用：ヘッダーを非表示
-];
-
+// ページ生成（ダッシュボード専用：ヘッダー非表示モード）
+$page_config = getPageConfiguration('dashboard');
 $page_data = renderCompletePage(
-    'ダッシュボード',
+    $page_config['title'],
     $user_name,
     $user_role_display,
     'dashboard',
-    'tachometer-alt',
-    'ダッシュボード',
-    '業務状況の総合管理',
-    '基盤',
-    $page_options
+    $page_config['icon'],
+    $page_config['title'],
+    $page_config['subtitle'],
+    $page_config['category'],
+    [
+        'description' => $page_config['description'],
+        'additional_css' => ['css/dashboard.css?v=' . filemtime('css/dashboard.css')],
+        'breadcrumb' => [['text' => 'ダッシュボード', 'url' => 'dashboard.php']],
+        'hide_headers' => true
+    ]
 );
 
-// HTMLヘッダー出力（ヘッダーは非表示）
 echo $page_data['html_head'];
 ?>
+<style>
+    .ride-highlight {
+        border: 3px solid #28a745 !important;
+        background: rgba(40, 167, 69, 0.08) !important;
+        box-shadow: 0 2px 8px rgba(40, 167, 69, 0.25);
+    }
+    .ride-highlight .workflow-icon {
+        background: #28a745 !important;
+        color: white !important;
+        width: 60px !important;
+        height: 60px !important;
+        font-size: 1.8rem;
+    }
+    .ride-highlight strong {
+        font-size: 1.05rem;
+        color: #28a745;
+    }
+</style>
+</head>
+<body class="dashboard-page">
 
-<!-- ダッシュボード専用クラスをbodyに追加 -->
-<script>document.body.classList.add('dashboard-page');</script>
-
-<!-- ダッシュボード専用：簡易ヘッダー -->
+<!-- ダッシュボード専用ヘッダー -->
 <div class="dashboard-mini-header">
     <div class="d-flex align-items-center">
         <i class="fas fa-taxi text-primary me-2"></i>
@@ -291,18 +264,14 @@ echo $page_data['html_head'];
     </div>
 </div>
 
-<!-- メインコンテンツ開始 -->
 <!-- Layer 1: 売上情報ヘッダー（sticky） -->
 <div class="revenue-header">
     <div class="container">
-        <!-- 日付表示 -->
         <div class="text-center mb-3">
             <h5 class="mb-0">
-                <i class="fas fa-calendar-alt me-2"></i><?= date('Y年n月j日') ?> (<?= ['日', '月', '火', '水', '木', '金', '土'][date('w')] ?>) <?= $current_time ?>
+                <i class="fas fa-calendar-alt me-2"></i><?= date('Y年n月j日') ?> (<?= ['日','月','火','水','木','金','土'][date('w')] ?>) <?= $current_time ?>
             </h5>
         </div>
-
-        <!-- メイン売上表示 -->
         <div class="row text-center mb-2">
             <div class="col-4">
                 <div class="revenue-item">
@@ -326,8 +295,6 @@ echo $page_data['html_head'];
                 </div>
             </div>
         </div>
-
-        <!-- 同期間比較 -->
         <?php if ($revenue_percentage != 0): ?>
         <div class="comparison text-center">
             <span class="badge <?= $revenue_trend === 'up' ? 'bg-success' : 'bg-danger' ?> px-3 py-2">
@@ -341,7 +308,7 @@ echo $page_data['html_head'];
 </div>
 
 <div class="container" id="main-content" tabindex="-1">
-    <!-- Layer 2: アラート表示エリア -->
+    <!-- Layer 2: アラート表示 -->
     <?php if (!empty($alerts)): ?>
     <div class="alert-area">
         <h5><i class="fas fa-exclamation-triangle me-2 text-danger"></i>重要なお知らせ</h5>
@@ -356,7 +323,7 @@ echo $page_data['html_head'];
                     <?= htmlspecialchars($alert['message']) ?>
                 </div>
                 <div class="col-auto">
-                    <a href="<?= $alert['action'] ?>" class="btn btn-sm btn-outline-primary">対応</a>
+                    <a href="<?= htmlspecialchars($alert['action']) ?>" class="btn btn-sm btn-outline-primary">対応</a>
                 </div>
             </div>
         </div>
@@ -366,33 +333,27 @@ echo $page_data['html_head'];
 
     <!-- Layer 3: 業務フロー（4グループ） -->
     <div class="business-flow">
-        <!-- 1. 開始業務グループ -->
+        <!-- 開始業務 -->
         <div class="workflow-group start-group">
             <div class="workflow-header">
                 <h6><i class="fas fa-play me-2"></i>開始業務</h6>
             </div>
             <a href="daily_inspection.php" class="workflow-item">
-                <div class="workflow-icon">
-                    <i class="fas fa-tools"></i>
-                </div>
+                <div class="workflow-icon"><i class="fas fa-tools"></i></div>
                 <div>
                     <strong>日常点検</strong><br>
                     <small>17項目の車両点検</small>
                 </div>
             </a>
             <a href="pre_duty_call.php" class="workflow-item">
-                <div class="workflow-icon">
-                    <i class="fas fa-clipboard-check"></i>
-                </div>
+                <div class="workflow-icon"><i class="fas fa-clipboard-check"></i></div>
                 <div>
                     <strong>乗務前点呼</strong><br>
                     <small>16項目のドライバーチェック</small>
                 </div>
             </a>
             <a href="departure.php" class="workflow-item">
-                <div class="workflow-icon">
-                    <i class="fas fa-sign-out-alt"></i>
-                </div>
+                <div class="workflow-icon"><i class="fas fa-sign-out-alt"></i></div>
                 <div>
                     <strong>出庫処理</strong><br>
                     <small>出庫時刻・天候・メーター記録</small>
@@ -400,58 +361,51 @@ echo $page_data['html_head'];
             </a>
         </div>
 
-        <!-- 2. 営業業務グループ -->
+        <!-- 営業業務 -->
         <div class="workflow-group operation-group">
             <div class="workflow-header">
                 <h6><i class="fas fa-users me-2"></i>営業業務</h6>
             </div>
-            <a href="ride_records.php" class="workflow-item" style="border: 3px solid #28a745; background: rgba(40, 167, 69, 0.1); box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);">
-                <div class="workflow-icon" style="background: #28a745; color: white; width: 70px; height: 70px; font-size: 2.2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
-                    <i class="fas fa-users"></i>
-                </div>
+            <a href="ride_records.php" class="workflow-item ride-highlight">
+                <div class="workflow-icon"><i class="fas fa-users"></i></div>
                 <div>
-                    <strong style="font-size: 1.1rem; color: #28a745;">乗車記録</strong><br>
-                    <small>復路作成機能付き乗車管理（メイン表示）</small>
+                    <strong>乗車記録</strong><br>
+                    <small>復路作成機能付き乗車管理</small>
                 </div>
             </a>
             <a href="calendar/index.php" class="workflow-item calendar-link">
-                <div class="workflow-icon calendar-icon">
-                    <i class="fas fa-calendar-alt"></i>
-                </div>
+                <div class="workflow-icon calendar-icon"><i class="fas fa-calendar-alt"></i></div>
                 <div>
                     <strong>予約・スケジュール</strong><br>
-                    <small>予約管理カレンダー<?php if ($today_reservations > 0): ?> <span class="badge bg-primary"><?= $today_reservations ?>件</span><?php endif; ?><?php if ($upcoming_reservations > 0): ?> <span class="badge bg-secondary ms-1">7日間 <?= $upcoming_reservations ?>件</span><?php endif; ?></small>
+                    <small>予約管理カレンダー
+                        <?php if ($today_reservations > 0): ?><span class="badge bg-primary"><?= $today_reservations ?>件</span><?php endif; ?>
+                        <?php if ($upcoming_reservations > 0): ?><span class="badge bg-secondary ms-1">7日間 <?= $upcoming_reservations ?>件</span><?php endif; ?>
+                    </small>
                 </div>
             </a>
         </div>
 
-        <!-- 3. 終了業務グループ -->
+        <!-- 終了業務 -->
         <div class="workflow-group end-group">
             <div class="workflow-header">
                 <h6><i class="fas fa-moon me-2"></i>終了業務</h6>
             </div>
             <a href="arrival.php" class="workflow-item">
-                <div class="workflow-icon">
-                    <i class="fas fa-sign-in-alt"></i>
-                </div>
+                <div class="workflow-icon"><i class="fas fa-sign-in-alt"></i></div>
                 <div>
                     <strong>入庫処理</strong><br>
                     <small>入庫時刻・走行距離・費用記録</small>
                 </div>
             </a>
             <a href="post_duty_call.php" class="workflow-item">
-                <div class="workflow-icon">
-                    <i class="fas fa-clipboard-check"></i>
-                </div>
+                <div class="workflow-icon"><i class="fas fa-clipboard-check"></i></div>
                 <div>
                     <strong>乗務後点呼</strong><br>
                     <small>12項目の業務終了チェック</small>
                 </div>
             </a>
             <a href="cash_management.php" class="workflow-item">
-                <div class="workflow-icon">
-                    <i class="fas fa-calculator"></i>
-                </div>
+                <div class="workflow-icon"><i class="fas fa-calculator"></i></div>
                 <div>
                     <strong>売上金確認</strong><br>
                     <small>現金内訳・差額確認</small>
@@ -459,24 +413,20 @@ echo $page_data['html_head'];
             </a>
         </div>
 
-        <!-- 4. 定期業務グループ -->
+        <!-- 定期業務 -->
         <div class="workflow-group periodic-group">
             <div class="workflow-header">
                 <h6><i class="fas fa-calendar-alt me-2"></i>定期業務</h6>
             </div>
             <a href="periodic_inspection.php" class="workflow-item">
-                <div class="workflow-icon">
-                    <i class="fas fa-wrench"></i>
-                </div>
+                <div class="workflow-icon"><i class="fas fa-wrench"></i></div>
                 <div>
                     <strong>定期点検</strong><br>
                     <small>3ヶ月毎の法定車両点検</small>
                 </div>
             </a>
             <a href="annual_report.php" class="workflow-item">
-                <div class="workflow-icon">
-                    <i class="fas fa-file-alt"></i>
-                </div>
+                <div class="workflow-icon"><i class="fas fa-file-alt"></i></div>
                 <div>
                     <strong>陸運局報告</strong><br>
                     <small>年1回の法定報告書提出</small>
@@ -485,7 +435,7 @@ echo $page_data['html_head'];
         </div>
     </div>
 
-    <!-- Layer 5: 管理機能（管理者のみ） -->
+    <!-- 管理者専用機能 -->
     <?php if ($is_admin): ?>
     <div class="admin-section">
         <h6><i class="fas fa-crown me-2"></i>管理者専用機能</h6>
@@ -509,29 +459,28 @@ echo $page_data['html_head'];
     </div>
     <?php endif; ?>
 
-    <!-- 業務統計表示 -->
-    <div class="row mt-4">
+    <!-- 業務統計 -->
+    <div class="row mt-4 mb-4">
         <div class="col-12">
-            <div class="card">
+            <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <h6 class="card-title"><i class="fas fa-chart-bar me-2"></i>今日の業務統計</h6>
+                    <h6 class="card-title mb-3"><i class="fas fa-chart-bar me-2"></i>今日の業務統計</h6>
                     <div class="row text-center">
                         <div class="col-3">
-                            <div class="h4 text-primary"><?= $today_departures ?></div>
+                            <div class="h4 text-primary mb-0"><?= $today_departures ?></div>
                             <small class="text-muted">出庫</small>
                         </div>
                         <div class="col-3">
-                            <div class="h4 text-success"><?= $today_ride_records ?></div>
+                            <div class="h4 text-success mb-0"><?= $today_ride_records ?></div>
                             <small class="text-muted">乗車</small>
                         </div>
                         <div class="col-3">
-                            <div class="h4 text-<?= ($today_departures - $today_arrivals > 0) ? 'danger' : 'success' ?>">
-                                <?= $today_departures - $today_arrivals ?>
-                            </div>
+                            <?php $not_arrived = $today_departures - $today_arrivals; ?>
+                            <div class="h4 text-<?= $not_arrived > 0 ? 'danger' : 'success' ?> mb-0"><?= $not_arrived ?></div>
                             <small class="text-muted">未入庫</small>
                         </div>
                         <div class="col-3">
-                            <div class="h4 text-info"><?= $today_passengers ?></div>
+                            <div class="h4 text-info mb-0"><?= $today_passengers ?></div>
                             <small class="text-muted">乗客数</small>
                         </div>
                     </div>
@@ -542,107 +491,50 @@ echo $page_data['html_head'];
 </div>
 
 <script>
-    // DashboardManager クラス（仕様書対応）
-    class DashboardManager {
-        constructor() {
-            this.init();
-        }
-        
-        init() {
-            this.setupRealtimeUpdates();
-            this.setupNotifications();
-            this.setupMobileOptimizations();
-        }
-
-        // リアルタイム更新（5分ごと）
-        setupRealtimeUpdates() {
-            setInterval(() => {
-                // アラート情報のみ更新（売上は手動更新）
-                this.updateAlerts();
-            }, 300000); // 5分
-        }
-        
-        // 通知機能
-        setupNotifications() {
-            <?php if (!empty($alerts) && in_array('critical', array_column($alerts, 'priority'))): ?>
-            if (Notification.permission === "granted") {
-                new Notification("重要な業務漏れがあります", {
-                    body: "<?= isset($alerts[0]) ? htmlspecialchars($alerts[0]['message']) : '' ?>",
-                    icon: "/favicon.ico"
-                });
-            } else if (Notification.permission !== "denied") {
-                Notification.requestPermission().then(function (permission) {
-                    if (permission === "granted") {
-                        new Notification("重要な業務漏れがあります", {
-                            body: "<?= isset($alerts[0]) ? htmlspecialchars($alerts[0]['message']) : '' ?>",
-                            icon: "/favicon.ico"
-                        });
-                    }
-                });
-            }
-            <?php endif; ?>
-        }
-        
-        // モバイル最適化
-        setupMobileOptimizations() {
-            // タッチイベント最適化
-            if ('ontouchstart' in window) {
-                document.body.classList.add('touch-device');
-            }
-        }
-        
-        // アラート更新
-        async updateAlerts() {
-            try {
-                const response = await fetch('api/dashboard_alerts.php');
-                const alerts = await response.json();
-                // アラート表示更新処理
-            } catch (error) {
-                console.error('Alert update failed:', error);
-            }
-        }
+class DashboardManager {
+    constructor() {
+        this.setupRealtimeUpdates();
+        this.setupNotifications();
+        if ('ontouchstart' in window) document.body.classList.add('touch-device');
     }
 
-    // PWA対応の初期化
-    function initPWA() {
-        // PWA表示モード検出
-        if (window.matchMedia('(display-mode: standalone)').matches) {
-            document.body.classList.add('pwa-mode');
-        }
-        
-        // Service Worker登録（PWA実装時）
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js');
-        }
+    setupRealtimeUpdates() {
+        setInterval(() => this.updateAlerts(), 300000);
     }
 
-    // 初期化
-    document.addEventListener('DOMContentLoaded', () => {
-        window.dashboardManager = new DashboardManager();
-        initPWA();
-    });
+    setupNotifications() {
+        <?php if (!empty($alerts) && in_array('critical', array_column($alerts, 'priority'))): ?>
+        if (Notification.permission === "granted") {
+            new Notification("重要な業務漏れがあります", {
+                body: "<?= isset($alerts[0]) ? htmlspecialchars($alerts[0]['message']) : '' ?>",
+                icon: "/favicon.ico"
+            });
+        } else if (Notification.permission !== "denied") {
+            Notification.requestPermission();
+        }
+        <?php endif; ?>
+    }
 
-    // 開発者用：デバッグ情報（管理者のみ）
-    <?php if ($is_admin): ?>
-    console.log('=== 福祉輸送管理システム v3.1 ダッシュボード ===');
-    console.log('Layer構成: 4層');
-    console.log('今日の統計:', {
-        乗車記録数: <?= $today_ride_records ?>,
-        売上総額: <?= $today_total_revenue ?>,
-        平均単価: <?= $today_avg_fare ?>,
-        乗客総数: <?= $today_passengers ?>
-    });
-    console.log('実装状況:', {
-        Layer1: '売上情報ヘッダー（sticky）: 実装済み',
-        Layer2: 'アラート表示エリア: 実装済み',
-        Layer3: '業務フロー（4グループ）: 実装済み',
-        Layer4: '管理機能（管理者のみ）: 実装済み',
-        PWA対応: '基盤実装済み'
-    });
-    <?php endif; ?>
+    async updateAlerts() {
+        try {
+            const response = await fetch('api/dashboard_alerts.php');
+            if (response.ok) {
+                const data = await response.json();
+                // アラート表示更新
+            }
+        } catch (e) { /* 通信エラー時は無視 */ }
+    }
+}
+
+// PWA初期化
+if (window.matchMedia('(display-mode: standalone)').matches) {
+    document.body.classList.add('pwa-mode');
+}
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
+document.addEventListener('DOMContentLoaded', () => new DashboardManager());
 </script>
 
-<!-- ダッシュボードではフッターを非表示 -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+<?php echo $page_data['html_footer']; ?>
