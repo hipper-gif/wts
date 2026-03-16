@@ -3,20 +3,9 @@
  * 運転者向け現金カウント機能
  * 集金管理システムの分割実装 - 運転者専用画面
  */
-ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_samesite', 'Lax');
-ini_set('session.use_strict_mode', 1);
-if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
-    ini_set('session.cookie_secure', 1);
-}
-session_start();
 require_once 'config/database.php';
 require_once 'includes/unified-header.php';
-
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
-}
+require_once 'includes/session_check.php';
 
 $pdo = getDBConnection();
 $user_id = $_SESSION['user_id'];
@@ -428,6 +417,6 @@ echo $page_data['html_head'];
     });
 </script>
 
-<?php echo $page_data['footer'] ?? ''; ?>
+<?php echo $page_data['html_footer'] ?? ''; ?>
 </body>
 </html>

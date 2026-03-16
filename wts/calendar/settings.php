@@ -7,21 +7,9 @@
 // 作成日: 2026年2月13日
 // =================================================================
 
-ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_samesite', 'Lax');
-ini_set('session.use_strict_mode', 1);
-if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
-    ini_set('session.cookie_secure', 1);
-}
-session_start();
+require_once '../includes/session_check.php';
 
-require_once '../config/database.php';
 require_once '../includes/unified-header.php';
-
-if (!isset($_SESSION['user_id'])) {
-    header('Location: ../index.php');
-    exit;
-}
 
 if (($_SESSION['user_role'] ?? '') !== 'Admin') {
     header('Location: index.php');
