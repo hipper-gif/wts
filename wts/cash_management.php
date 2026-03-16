@@ -307,6 +307,11 @@ $page_options = [
     'additional_css' => [
         'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
         'css/ui-unified-v3.css'
+    ],
+    'breadcrumb' => [
+        ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
+        ['text' => '日次業務', 'url' => '#'],
+        ['text' => '売上金管理', 'url' => 'cash_management.php']
     ]
 ];
 $page_data = renderCompletePage(

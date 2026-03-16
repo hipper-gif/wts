@@ -530,7 +530,11 @@ $page_config = getPageConfiguration('daily_inspection');
     #printHeader, #printFooter, .print-result-text, .print-value-text, .print-defect-section { display: none; }
     </style>
     <?= renderSystemHeader($user_name, $user_role, 'daily_inspection') ?>
-    <?= renderPageHeader($page_config['icon'], $page_config['title'], $page_config['subtitle'], $page_config['category']) ?>
+    <?= renderPageHeader($page_config['icon'], $page_config['title'], $page_config['subtitle'], $page_config['category'], [
+        ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
+        ['text' => '日次業務', 'url' => '#'],
+        ['text' => '日常点検', 'url' => 'daily_inspection.php']
+    ]) ?>
     
     <div class="container mt-4" id="main-content" tabindex="-1">
         <div id="printHeader">

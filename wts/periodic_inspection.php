@@ -153,30 +153,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // ページ設定
+$page_config = getPageConfiguration('periodic_inspection');
 $page_options = [
-    [
-        'icon' => 'arrow-left',
-        'text' => 'ダッシュボード',
-        'url' => 'dashboard.php',
-        'class' => 'btn-secondary btn-sm'
-    ],
-    [
-        'icon' => 'check-double',
-        'text' => '全て良好',
-        'url' => 'javascript:setAllGood()',
-        'class' => 'btn-success btn-sm'
+    'breadcrumb' => [
+        ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
+        ['text' => '定期業務', 'url' => '#'],
+        ['text' => '定期点検', 'url' => 'periodic_inspection.php']
     ]
 ];
 
 $page_data = renderCompletePage(
-    '定期点検',
+    $page_config['title'],
     $user_name,
     $user_role,
     'periodic_inspection',
-    'wrench',
-    '定期点検',
-    '3ヶ月毎の法定車両点検',
-    'inspection',
+    $page_config['icon'],
+    $page_config['title'],
+    $page_config['subtitle'],
+    $page_config['category'],
     $page_options
 );
 
