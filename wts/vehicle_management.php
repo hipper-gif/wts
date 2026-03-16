@@ -11,8 +11,6 @@ if (!isset($_SESSION['user_id'])) {
 
 // 管理者権限チェック - 柔軟な権限確認
 $has_admin_permission = false;
-
-// 複数の権限パターンをチェック
 if (isset($_SESSION['permission_level']) && $_SESSION['permission_level'] === 'Admin') {
     $has_admin_permission = true;
 } elseif (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin') {
@@ -23,7 +21,6 @@ if (isset($_SESSION['permission_level']) && $_SESSION['permission_level'] === 'A
     $has_admin_permission = true;
 }
 
-// 権限がない場合はダッシュボードにリダイレクト
 if (!$has_admin_permission) {
     header('Location: dashboard.php?error=permission_denied');
     exit;
@@ -38,8 +35,40 @@ $user_role = $_SESSION['permission_level'] ?? $_SESSION['user_role'] ?? 'User';
 require_once 'includes/unified-header.php';
 $page_config = getPageConfiguration('vehicle_management');
 
+// 監査ログ関数
+function logVehicleAudit($pdo, $vehicle_id, $action, $user_id, $changes = [], $reason = null) {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+
+    if (empty($changes)) {
+        $stmt = $pdo->prepare("
+            INSERT INTO inspection_audit_logs
+            (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
+            VALUES (?, ?, ?, 'vehicle', NULL, NULL, ?, ?, ?)");
+        $stmt->execute([$vehicle_id, $action, $user_id, $reason, $ip, $ua]);
+    } else {
+        foreach ($changes as $change) {
+            $stmt = $pdo->prepare("
+                INSERT INTO inspection_audit_logs
+                (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([
+                $vehicle_id, $action, $user_id,
+                $change['field'] ?? 'vehicle',
+                $change['old'] ?? null,
+                $change['new'] ?? null,
+                $reason, $ip, $ua
+            ]);
+        }
+    }
+}
+
 $success_message = '';
 $error_message = '';
+
+// ホワイトリスト定義
+$valid_vehicle_types = ['welfare', 'taxi', 'other'];
+$valid_statuses = ['active', 'maintenance', 'reserved', 'inactive'];
 
 // フォーム送信処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -48,144 +77,205 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         if ($action === 'add') {
-            // 新規車両追加
             $vehicle_number = trim($_POST['vehicle_number']);
             $vehicle_name = trim($_POST['vehicle_name']);
             $model = trim($_POST['model']) ?: null;
             $registration_date = $_POST['registration_date'] ?: null;
-            $vehicle_type = $_POST['vehicle_type'] ?? 'welfare';
+            $vehicle_type = in_array($_POST['vehicle_type'] ?? '', $valid_vehicle_types) ? $_POST['vehicle_type'] : 'welfare';
             $capacity = intval($_POST['capacity']) ?: 4;
             $current_mileage = intval($_POST['current_mileage']) ?: 0;
             $next_inspection_date = $_POST['next_inspection_date'] ?: null;
-            $status = $_POST['status'] ?? 'active';
-            
-            // バリデーション
+            $status = in_array($_POST['status'] ?? '', $valid_statuses) ? $_POST['status'] : 'active';
+
             if (empty($vehicle_number) || empty($vehicle_name)) {
                 throw new Exception('車両番号と車両名は必須です。');
             }
-            
-            // 車両番号重複チェック
+
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM vehicles WHERE vehicle_number = ? AND is_active = 1");
             $stmt->execute([$vehicle_number]);
             if ($stmt->fetchColumn() > 0) {
                 throw new Exception('この車両番号は既に使用されています。');
             }
-            
-            // 車両追加（仕様書準拠のカラム構成）
-            $stmt = $pdo->prepare("
-                INSERT INTO vehicles (
-                    vehicle_number, vehicle_name, model, registration_date, 
-                    vehicle_type, capacity, current_mileage, next_inspection_date, 
-                    status, is_active, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
-            ");
-            $stmt->execute([
-                $vehicle_number, $vehicle_name, $model, $registration_date,
-                $vehicle_type, $capacity, $current_mileage, $next_inspection_date,
-                $status
-            ]);
-            
-            $success_message = '車両を追加しました。';
-            
+
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare("
+                    INSERT INTO vehicles (
+                        vehicle_number, vehicle_name, model, registration_date,
+                        vehicle_type, capacity, current_mileage, next_inspection_date,
+                        status, is_active, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
+                ");
+                $stmt->execute([
+                    $vehicle_number, $vehicle_name, $model, $registration_date,
+                    $vehicle_type, $capacity, $current_mileage, $next_inspection_date,
+                    $status
+                ]);
+                $new_id = $pdo->lastInsertId();
+
+                logVehicleAudit($pdo, $new_id, 'create', $user_id);
+
+                $pdo->commit();
+                $success_message = "車両「{$vehicle_number}」を追加しました。";
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
         } elseif ($action === 'edit') {
-            // 車両編集
-            $vehicle_id = $_POST['vehicle_id'];
+            $vehicle_id = intval($_POST['vehicle_id']);
             $vehicle_number = trim($_POST['vehicle_number']);
             $vehicle_name = trim($_POST['vehicle_name']);
             $model = trim($_POST['model']) ?: null;
             $registration_date = $_POST['registration_date'] ?: null;
-            $vehicle_type = $_POST['vehicle_type'] ?? 'welfare';
+            $vehicle_type = in_array($_POST['vehicle_type'] ?? '', $valid_vehicle_types) ? $_POST['vehicle_type'] : 'welfare';
             $capacity = intval($_POST['capacity']) ?: 4;
             $current_mileage = intval($_POST['current_mileage']) ?: 0;
             $next_inspection_date = $_POST['next_inspection_date'] ?: null;
-            $status = $_POST['status'] ?? 'active';
+            $status = in_array($_POST['status'] ?? '', $valid_statuses) ? $_POST['status'] : 'active';
             $is_active = isset($_POST['is_active']) ? 1 : 0;
-            
-            // バリデーション
+
             if (empty($vehicle_number) || empty($vehicle_name)) {
                 throw new Exception('車両番号と車両名は必須です。');
             }
-            
-            // 車両番号重複チェック（自分以外）
+
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM vehicles WHERE vehicle_number = ? AND id != ? AND is_active = 1");
             $stmt->execute([$vehicle_number, $vehicle_id]);
             if ($stmt->fetchColumn() > 0) {
                 throw new Exception('この車両番号は既に使用されています。');
             }
-            
-            // 車両更新
-            $stmt = $pdo->prepare("
-                UPDATE vehicles SET 
-                    vehicle_number = ?, vehicle_name = ?, model = ?, registration_date = ?,
-                    vehicle_type = ?, capacity = ?, current_mileage = ?, next_inspection_date = ?,
-                    status = ?, is_active = ?, updated_at = NOW()
-                WHERE id = ?
-            ");
-            $stmt->execute([
-                $vehicle_number, $vehicle_name, $model, $registration_date,
-                $vehicle_type, $capacity, $current_mileage, $next_inspection_date,
-                $status, $is_active, $vehicle_id
-            ]);
-            
-            $success_message = '車両情報を更新しました。';
-            
+
+            // 既存データ取得（変更差分記録用）
+            $stmt = $pdo->prepare("SELECT * FROM vehicles WHERE id = ?");
+            $stmt->execute([$vehicle_id]);
+            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$existing) {
+                throw new Exception('車両が見つかりません。');
+            }
+
+            // 変更差分を検出
+            $changes = [];
+            $field_map = [
+                'vehicle_number' => $vehicle_number, 'vehicle_name' => $vehicle_name,
+                'model' => $model, 'registration_date' => $registration_date,
+                'vehicle_type' => $vehicle_type, 'capacity' => $capacity,
+                'current_mileage' => $current_mileage, 'next_inspection_date' => $next_inspection_date,
+                'status' => $status, 'is_active' => $is_active
+            ];
+            foreach ($field_map as $field => $new_val) {
+                $old_val = $existing[$field] ?? '';
+                if (strval($old_val) !== strval($new_val)) {
+                    $changes[] = ['field' => $field, 'old' => $old_val, 'new' => $new_val];
+                }
+            }
+
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare("
+                    UPDATE vehicles SET
+                        vehicle_number = ?, vehicle_name = ?, model = ?, registration_date = ?,
+                        vehicle_type = ?, capacity = ?, current_mileage = ?, next_inspection_date = ?,
+                        status = ?, is_active = ?, updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([
+                    $vehicle_number, $vehicle_name, $model, $registration_date,
+                    $vehicle_type, $capacity, $current_mileage, $next_inspection_date,
+                    $status, $is_active, $vehicle_id
+                ]);
+
+                logVehicleAudit($pdo, $vehicle_id, 'edit', $user_id, $changes);
+
+                $pdo->commit();
+                $success_message = "車両「{$vehicle_number}」を更新しました。";
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
         } elseif ($action === 'delete') {
-            // 論理削除
-            $vehicle_id = $_POST['vehicle_id'];
-            
-            // 使用中チェック（今日の出庫記録があるか）
+            $vehicle_id = intval($_POST['vehicle_id']);
+
+            // 使用中チェック
             $stmt = $pdo->prepare("
-                SELECT COUNT(*) FROM departure_records 
+                SELECT COUNT(*) FROM departure_records
                 WHERE vehicle_id = ? AND departure_date = CURDATE()
             ");
             $stmt->execute([$vehicle_id]);
             if ($stmt->fetchColumn() > 0) {
                 throw new Exception('この車両は本日使用中のため削除できません。');
             }
-            
-            // 論理削除実行
-            $stmt = $pdo->prepare("UPDATE vehicles SET is_active = 0, updated_at = NOW() WHERE id = ?");
+
+            // 車両名取得（ログ・メッセージ用）
+            $stmt = $pdo->prepare("SELECT vehicle_number FROM vehicles WHERE id = ?");
             $stmt->execute([$vehicle_id]);
-            
-            $success_message = '車両を削除しました。';
-            
+            $del_vehicle_number = $stmt->fetchColumn() ?: '不明';
+
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare("UPDATE vehicles SET is_active = 0, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$vehicle_id]);
+
+                logVehicleAudit($pdo, $vehicle_id, 'delete', $user_id, [], '論理削除');
+
+                $pdo->commit();
+                $success_message = "車両「{$del_vehicle_number}」を削除しました。";
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
         } elseif ($action === 'update_inspection') {
-            // 点検日更新
-            $vehicle_id = $_POST['vehicle_id'];
+            $vehicle_id = intval($_POST['vehicle_id']);
             $next_inspection_date = $_POST['next_inspection_date'];
-            
+
             if (!$next_inspection_date) {
                 throw new Exception('点検日を入力してください。');
             }
-            
-            $stmt = $pdo->prepare("
-                UPDATE vehicles SET 
-                    next_inspection_date = ?, 
-                    updated_at = NOW() 
-                WHERE id = ?
-            ");
-            $stmt->execute([$next_inspection_date, $vehicle_id]);
-            
-            $success_message = '点検期限を更新しました。';
+
+            // 既存値取得
+            $stmt = $pdo->prepare("SELECT next_inspection_date, vehicle_number FROM vehicles WHERE id = ?");
+            $stmt->execute([$vehicle_id]);
+            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare("
+                    UPDATE vehicles SET
+                        next_inspection_date = ?,
+                        updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([$next_inspection_date, $vehicle_id]);
+
+                $changes = [['field' => 'next_inspection_date', 'old' => $existing['next_inspection_date'] ?? '', 'new' => $next_inspection_date]];
+                logVehicleAudit($pdo, $vehicle_id, 'edit', $user_id, $changes, '点検期限更新');
+
+                $pdo->commit();
+                $success_message = "「{$existing['vehicle_number']}」の点検期限を更新しました。";
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
         }
-        
+
     } catch (Exception $e) {
         $error_message = $e->getMessage();
     }
 }
 
-// 車両一覧取得（仕様書準拠のカラム使用）
+// 車両一覧取得
 $stmt = $pdo->prepare("
-    SELECT v.*, 
+    SELECT v.*,
            DATEDIFF(v.next_inspection_date, CURDATE()) as days_to_inspection,
-           CASE 
+           CASE
                WHEN v.next_inspection_date IS NULL THEN 'unknown'
                WHEN DATEDIFF(v.next_inspection_date, CURDATE()) < 0 THEN 'overdue'
                WHEN DATEDIFF(v.next_inspection_date, CURDATE()) <= 7 THEN 'urgent'
                WHEN DATEDIFF(v.next_inspection_date, CURDATE()) <= 30 THEN 'warning'
                ELSE 'ok'
            END as inspection_status
-    FROM vehicles v 
+    FROM vehicles v
     WHERE v.is_active = 1
     ORDER BY v.vehicle_number
 ");
@@ -194,12 +284,12 @@ $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 統計情報取得
 $stmt = $pdo->prepare("
-    SELECT 
+    SELECT
         COUNT(*) as total_vehicles,
         SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_vehicles,
         SUM(CASE WHEN status = 'maintenance' THEN 1 ELSE 0 END) as maintenance_vehicles,
         SUM(CASE WHEN next_inspection_date IS NOT NULL AND DATEDIFF(next_inspection_date, CURDATE()) <= 30 THEN 1 ELSE 0 END) as inspection_due_soon
-    FROM vehicles 
+    FROM vehicles
     WHERE is_active = 1
 ");
 $stmt->execute();
@@ -249,88 +339,71 @@ $page_data = renderCompletePage(
     $page_options
 );
 
-// HTMLヘッダー出力
 echo $page_data['html_head'];
 echo $page_data['system_header'];
 echo $page_data['page_header'];
 ?>
 
 <main class="container mt-4">
-    <!-- アラート -->
+    <!-- アラート（統一パターン） -->
     <?php if ($success_message): ?>
-    <div class="alert alert-success alert-dismissible fade show">
-        <i class="fas fa-check-circle me-2"></i>
-        <?= htmlspecialchars($success_message) ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
+        <?= renderAlert('success', '操作完了', $success_message) ?>
     <?php endif; ?>
-    
+
     <?php if ($error_message): ?>
-    <div class="alert alert-danger alert-dismissible fade show">
-        <i class="fas fa-exclamation-triangle me-2"></i>
-        <?= htmlspecialchars($error_message) ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
+        <?= renderAlert('danger', 'エラー', $error_message) ?>
     <?php endif; ?>
 
     <!-- 統計情報ダッシュボード -->
-    <div class="row mb-4">
-        <div class="col-md-3">
+    <div class="row mb-4 g-2">
+        <div class="col-6 col-md-3">
             <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title">総車両数</h6>
-                            <h2 class="mb-0"><?= $stats['total_vehicles'] ?></h2>
+                            <div class="small opacity-75">総車両数</div>
+                            <h3 class="mb-0"><?= $stats['total_vehicles'] ?></h3>
                         </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-car fa-2x"></i>
-                        </div>
+                        <i class="fas fa-car fa-2x opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-md-3">
             <div class="card bg-success text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title">運用中</h6>
-                            <h2 class="mb-0"><?= $stats['active_vehicles'] ?></h2>
+                            <div class="small opacity-75">運用中</div>
+                            <h3 class="mb-0"><?= $stats['active_vehicles'] ?></h3>
                         </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-check-circle fa-2x"></i>
-                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-md-3">
             <div class="card bg-warning text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title">整備中</h6>
-                            <h2 class="mb-0"><?= $stats['maintenance_vehicles'] ?></h2>
+                            <div class="small opacity-75">整備中</div>
+                            <h3 class="mb-0"><?= $stats['maintenance_vehicles'] ?></h3>
                         </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-tools fa-2x"></i>
-                        </div>
+                        <i class="fas fa-tools fa-2x opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-md-3">
             <div class="card bg-info text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title">点検期限間近</h6>
-                            <h2 class="mb-0"><?= $stats['inspection_due_soon'] ?></h2>
+                            <div class="small opacity-75">点検期限間近</div>
+                            <h3 class="mb-0"><?= $stats['inspection_due_soon'] ?></h3>
                         </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-exclamation-triangle fa-2x"></i>
-                        </div>
+                        <i class="fas fa-exclamation-triangle fa-2x opacity-50"></i>
                     </div>
                 </div>
             </div>
@@ -338,119 +411,129 @@ echo $page_data['page_header'];
     </div>
 
     <!-- 点検期限アラート -->
-    <?php 
-    $urgent_vehicles = array_filter($vehicles, function($v) { 
-        return in_array($v['inspection_status'], ['overdue', 'urgent']); 
+    <?php
+    $urgent_vehicles = array_filter($vehicles, function($v) {
+        return in_array($v['inspection_status'], ['overdue', 'urgent']);
     });
-    if (!empty($urgent_vehicles)): 
+    if (!empty($urgent_vehicles)):
     ?>
     <div class="alert alert-warning">
-        <h6><i class="fas fa-exclamation-triangle me-2"></i>点検期限アラート</h6>
+        <h6 class="alert-heading mb-2"><i class="fas fa-exclamation-triangle me-2"></i>点検期限アラート</h6>
         <?php foreach ($urgent_vehicles as $vehicle): ?>
             <div class="mb-1">
                 <strong><?= htmlspecialchars($vehicle['vehicle_number']) ?></strong>
-                (<?= htmlspecialchars($vehicle['vehicle_name']) ?>): 
+                (<?= htmlspecialchars($vehicle['vehicle_name']) ?>):
                 <?php if ($vehicle['inspection_status'] === 'overdue'): ?>
-                    <span class="text-danger">期限切れ（<?= abs($vehicle['days_to_inspection']) ?>日経過）</span>
+                    <span class="text-danger fw-bold">期限切れ（<?= abs($vehicle['days_to_inspection']) ?>日経過）</span>
                 <?php else: ?>
-                    <span class="text-warning">あと<?= $vehicle['days_to_inspection'] ?>日</span>
+                    <span class="text-warning fw-bold">あと<?= $vehicle['days_to_inspection'] ?>日</span>
                 <?php endif; ?>
+                <button type="button" class="btn btn-sm btn-outline-warning ms-2"
+                        onclick="quickUpdateInspection(<?= $vehicle['id'] ?>, '<?= $vehicle['next_inspection_date'] ?>')">
+                    <i class="fas fa-calendar-check"></i> 更新
+                </button>
             </div>
         <?php endforeach; ?>
     </div>
     <?php endif; ?>
 
-    <!-- 新規追加ボタン -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4>車両一覧</h4>
-        <button type="button" class="btn btn-primary" onclick="showAddModal()">
-            <i class="fas fa-plus me-2"></i>新規車両追加
-        </button>
-    </div>
-
-    <!-- 車両一覧テーブル -->
+    <!-- 車両一覧 -->
     <div class="card">
-        <div class="card-body">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-list me-2"></i>車両一覧</h5>
+            <button type="button" class="btn btn-primary btn-sm" onclick="showAddModal()">
+                <i class="fas fa-plus me-1"></i>新規車両追加
+            </button>
+        </div>
+        <div class="card-body p-0">
             <?php if (empty($vehicles)): ?>
                 <div class="text-center py-5">
                     <i class="fas fa-car fa-3x text-muted mb-3"></i>
                     <h5 class="text-muted">車両が登録されていません</h5>
-                    <p class="text-muted">「新規車両追加」ボタンから車両を登録してください。</p>
+                    <p class="text-muted mb-0">「新規車両追加」ボタンから車両を登録してください。</p>
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
                                 <th>車両番号</th>
                                 <th>車両名</th>
-                                <th>車種</th>
+                                <th class="d-none d-md-table-cell">車種</th>
                                 <th>タイプ</th>
                                 <th>ステータス</th>
-                                <th>走行距離</th>
+                                <th class="text-end">走行距離</th>
                                 <th>次回点検</th>
-                                <th>操作</th>
+                                <th class="text-center">操作</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($vehicles as $vehicle): ?>
                             <tr>
                                 <td>
-                                    <strong><?= htmlspecialchars($vehicle['vehicle_number']) ?></strong>
+                                    <strong class="text-primary" style="cursor:pointer;"
+                                            onclick="editVehicle(<?= htmlspecialchars(json_encode($vehicle), ENT_QUOTES) ?>)">
+                                        <?= htmlspecialchars($vehicle['vehicle_number']) ?>
+                                    </strong>
                                 </td>
                                 <td><?= htmlspecialchars($vehicle['vehicle_name']) ?></td>
-                                <td><?= htmlspecialchars($vehicle['model'] ?? '-') ?></td>
+                                <td class="d-none d-md-table-cell text-muted"><?= htmlspecialchars($vehicle['model'] ?? '-') ?></td>
                                 <td>
                                     <span class="badge bg-<?= $vehicle['vehicle_type'] === 'welfare' ? 'info' : ($vehicle['vehicle_type'] === 'taxi' ? 'warning' : 'secondary') ?>">
                                         <?= $vehicle_types[$vehicle['vehicle_type']] ?? 'その他' ?>
                                     </span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-<?= 
-                                        $vehicle['status'] === 'active' ? 'success' : 
-                                        ($vehicle['status'] === 'maintenance' ? 'warning' : 
-                                        ($vehicle['status'] === 'reserved' ? 'info' : 'secondary')) 
+                                    <span class="badge bg-<?=
+                                        $vehicle['status'] === 'active' ? 'success' :
+                                        ($vehicle['status'] === 'maintenance' ? 'warning' :
+                                        ($vehicle['status'] === 'reserved' ? 'info' : 'secondary'))
                                     ?>">
-                                        <?= $statuses[$vehicle['status']] ?>
+                                        <?= $statuses[$vehicle['status']] ?? $vehicle['status'] ?>
                                     </span>
                                 </td>
-                                <td class="font-monospace">
-                                    <?= number_format($vehicle['current_mileage']) ?> km
+                                <td class="text-end font-monospace">
+                                    <?= number_format($vehicle['current_mileage']) ?> <small class="text-muted">km</small>
                                 </td>
                                 <td>
                                     <?php if ($vehicle['next_inspection_date']): ?>
-                                        <div class="d-flex align-items-center">
-                                            <span class="badge bg-<?= 
-                                                $vehicle['inspection_status'] === 'ok' ? 'success' : 
-                                                ($vehicle['inspection_status'] === 'warning' ? 'warning' : 
-                                                ($vehicle['inspection_status'] === 'urgent' ? 'danger' : 'dark')) 
-                                            ?> me-2">
+                                        <div class="d-flex align-items-center gap-1">
+                                            <span class="badge bg-<?=
+                                                $vehicle['inspection_status'] === 'ok' ? 'success' :
+                                                ($vehicle['inspection_status'] === 'warning' ? 'warning' :
+                                                ($vehicle['inspection_status'] === 'urgent' ? 'danger' : 'dark'))
+                                            ?>">
                                                 <?= $vehicle['next_inspection_date'] ?>
                                             </span>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                            <?php if ($vehicle['inspection_status'] !== 'ok'): ?>
+                                                <small class="text-<?= $vehicle['inspection_status'] === 'overdue' ? 'danger' : 'warning' ?>">
+                                                    <?= $vehicle['inspection_status'] === 'overdue' ? abs($vehicle['days_to_inspection']) . '日超過' : $vehicle['days_to_inspection'] . '日' ?>
+                                                </small>
+                                            <?php endif; ?>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1"
                                                     onclick="quickUpdateInspection(<?= $vehicle['id'] ?>, '<?= $vehicle['next_inspection_date'] ?>')"
                                                     title="点検日更新">
-                                                <i class="fas fa-edit"></i>
+                                                <i class="fas fa-edit" style="font-size:11px;"></i>
                                             </button>
                                         </div>
                                     <?php else: ?>
                                         <span class="badge bg-secondary">未設定</span>
-                                        <button type="button" class="btn btn-sm btn-outline-warning ms-1" 
+                                        <button type="button" class="btn btn-sm btn-outline-warning py-0 px-1 ms-1"
                                                 onclick="quickUpdateInspection(<?= $vehicle['id'] ?>, '')"
                                                 title="点検日設定">
-                                            <i class="fas fa-calendar-plus"></i>
+                                            <i class="fas fa-calendar-plus" style="font-size:11px;"></i>
                                         </button>
                                     <?php endif; ?>
                                 </td>
-                                <td>
-                                    <div class="btn-group" role="group">
-                                        <button type="button" class="btn btn-sm btn-outline-primary" 
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-primary"
                                                 onclick="editVehicle(<?= htmlspecialchars(json_encode($vehicle), ENT_QUOTES) ?>)"
                                                 title="編集">
                                             <i class="fas fa-edit"></i>
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" 
-                                                onclick="deleteVehicle(<?= $vehicle['id'] ?>, '<?= htmlspecialchars($vehicle['vehicle_number']) ?>')"
+                                        <button type="button" class="btn btn-outline-danger"
+                                                onclick="deleteVehicle(<?= $vehicle['id'] ?>, '<?= htmlspecialchars($vehicle['vehicle_number'], ENT_QUOTES) ?>')"
                                                 title="削除">
                                             <i class="fas fa-trash"></i>
                                         </button>
@@ -466,97 +549,116 @@ echo $page_data['page_header'];
     </div>
 </main>
 
-<!-- 車両追加・編集モーダル -->
+<!-- 車両追加・編集モーダル（統一UIパターン） -->
 <div class="modal fade" id="vehicleModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="vehicleModalTitle">車両追加</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-content unified-modal">
+            <div class="modal-header unified-modal-header">
+                <h5 class="modal-title" id="vehicleModalTitle">
+                    <i class="fas fa-car me-2"></i>車両追加
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="vehicleForm" method="POST">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                 <input type="hidden" name="action" id="modalAction" value="add">
                 <input type="hidden" name="vehicle_id" id="modalVehicleId">
-                
+
                 <div class="modal-body">
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="modalVehicleNumber" class="form-label">
-                                車両番号 <span class="text-danger">*</span>
+                            <label for="modalVehicleNumber" class="form-label unified-label">
+                                <i class="fas fa-hashtag me-1"></i>車両番号 <span class="text-danger">*</span>
                             </label>
-                            <input type="text" class="form-control" id="modalVehicleNumber" 
-                                   name="vehicle_number" required placeholder="例: 福祉001">
+                            <input type="text" class="form-control unified-input" id="modalVehicleNumber"
+                                   name="vehicle_number" required placeholder="例: 大阪801あ16-72">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="modalVehicleName" class="form-label">
-                                車両名 <span class="text-danger">*</span>
+                            <label for="modalVehicleName" class="form-label unified-label">
+                                <i class="fas fa-car me-1"></i>車両名 <span class="text-danger">*</span>
                             </label>
-                            <input type="text" class="form-control" id="modalVehicleName" 
+                            <input type="text" class="form-control unified-input" id="modalVehicleName"
                                    name="vehicle_name" required placeholder="例: スマイルカー1号">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="modalModel" class="form-label">車種・型式</label>
-                            <input type="text" class="form-control" id="modalModel" 
+                            <label for="modalModel" class="form-label unified-label">
+                                <i class="fas fa-cog me-1"></i>車種・型式
+                            </label>
+                            <input type="text" class="form-control unified-input" id="modalModel"
                                    name="model" placeholder="例: トヨタ ハイエース">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="modalRegistrationDate" class="form-label">登録日</label>
-                            <input type="date" class="form-control" id="modalRegistrationDate" 
+                            <label for="modalRegistrationDate" class="form-label unified-label">
+                                <i class="fas fa-calendar me-1"></i>登録日
+                            </label>
+                            <input type="date" class="form-control unified-input" id="modalRegistrationDate"
                                    name="registration_date">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="modalVehicleType" class="form-label">車両タイプ</label>
-                            <select class="form-select" id="modalVehicleType" name="vehicle_type">
+                            <label for="modalVehicleType" class="form-label unified-label">
+                                <i class="fas fa-tag me-1"></i>車両タイプ
+                            </label>
+                            <select class="form-select unified-select" id="modalVehicleType" name="vehicle_type">
                                 <?php foreach ($vehicle_types as $key => $label): ?>
                                 <option value="<?= $key ?>"><?= $label ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="modalCapacity" class="form-label">定員</label>
+                            <label for="modalCapacity" class="form-label unified-label">
+                                <i class="fas fa-users me-1"></i>定員
+                            </label>
                             <div class="input-group">
-                                <input type="number" class="form-control" id="modalCapacity" 
+                                <input type="number" class="form-control unified-input" id="modalCapacity"
                                        name="capacity" min="1" max="20" value="4">
                                 <span class="input-group-text">人</span>
                             </div>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="modalCurrentMileage" class="form-label">現在走行距離</label>
+                            <label for="modalCurrentMileage" class="form-label unified-label">
+                                <i class="fas fa-tachometer-alt me-1"></i>現在走行距離
+                            </label>
                             <div class="input-group">
-                                <input type="number" class="form-control" id="modalCurrentMileage" 
+                                <input type="number" class="form-control unified-input" id="modalCurrentMileage"
                                        name="current_mileage" min="0" value="0">
                                 <span class="input-group-text">km</span>
                             </div>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="modalNextInspectionDate" class="form-label">次回点検日</label>
-                            <input type="date" class="form-control" id="modalNextInspectionDate" 
+                            <label for="modalNextInspectionDate" class="form-label unified-label">
+                                <i class="fas fa-clipboard-check me-1"></i>次回点検日
+                            </label>
+                            <input type="date" class="form-control unified-input" id="modalNextInspectionDate"
                                    name="next_inspection_date">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="modalStatus" class="form-label">ステータス</label>
-                            <select class="form-select" id="modalStatus" name="status">
+                            <label for="modalStatus" class="form-label unified-label">
+                                <i class="fas fa-info-circle me-1"></i>ステータス
+                            </label>
+                            <select class="form-select unified-select" id="modalStatus" name="status">
                                 <?php foreach ($statuses as $key => $label): ?>
                                 <option value="<?= $key ?>"><?= $label ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col-md-6 mb-3" id="activeField" style="display: none;">
-                            <div class="form-check mt-4">
-                                <input class="form-check-input" type="checkbox" id="modalIsActive" 
+                            <label class="form-label unified-label">
+                                <i class="fas fa-toggle-on me-1"></i>有効状態
+                            </label>
+                            <div class="form-check mt-1">
+                                <input class="form-check-input" type="checkbox" id="modalIsActive"
                                        name="is_active" checked>
                                 <label class="form-check-label" for="modalIsActive">
-                                    有効
+                                    有効（チェックを外すと論理削除）
                                 </label>
                             </div>
                         </div>
                     </div>
                 </div>
-                
-                <div class="modal-footer">
+
+                <div class="modal-footer unified-modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        キャンセル
+                        <i class="fas fa-times me-1"></i>キャンセル
                     </button>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save me-1"></i>保存
@@ -567,34 +669,38 @@ echo $page_data['page_header'];
     </div>
 </div>
 
-<!-- 点検日更新モーダル -->
+<!-- 点検日更新モーダル（統一UIパターン） -->
 <div class="modal fade" id="inspectionModal" tabindex="-1">
     <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">点検期限更新</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-content unified-modal">
+            <div class="modal-header unified-modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-calendar-check me-2"></i>点検期限更新
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                 <input type="hidden" name="action" value="update_inspection">
                 <input type="hidden" name="vehicle_id" id="inspectionVehicleId">
-                
+
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="inspectionDate" class="form-label">新しい点検期限</label>
-                        <input type="date" class="form-control" id="inspectionDate" 
+                        <label for="inspectionDate" class="form-label unified-label">
+                            <i class="fas fa-calendar-alt me-1"></i>新しい点検期限 <span class="text-danger">*</span>
+                        </label>
+                        <input type="date" class="form-control unified-input" id="inspectionDate"
                                name="next_inspection_date" required>
                     </div>
-                    <div class="alert alert-info">
+                    <div class="alert alert-info mb-0">
                         <i class="fas fa-info-circle me-2"></i>
                         法定点検は3ヶ月ごとに実施が必要です。
                     </div>
                 </div>
-                
-                <div class="modal-footer">
+
+                <div class="modal-footer unified-modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        キャンセル
+                        <i class="fas fa-times me-1"></i>キャンセル
                     </button>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-calendar-check me-1"></i>更新
@@ -608,28 +714,26 @@ echo $page_data['page_header'];
 <script>
 // 新規追加モーダル表示
 function showAddModal() {
-    document.getElementById('vehicleModalTitle').textContent = '車両追加';
+    document.getElementById('vehicleModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>車両追加';
     document.getElementById('modalAction').value = 'add';
     document.getElementById('modalVehicleId').value = '';
     document.getElementById('activeField').style.display = 'none';
-    
-    // フォームリセット
+
     document.getElementById('vehicleForm').reset();
     document.getElementById('modalCurrentMileage').value = '0';
     document.getElementById('modalCapacity').value = '4';
-    
+
     // 3か月後の日付を自動設定
     const today = new Date();
-    const threeMonthsLater = new Date(today.setMonth(today.getMonth() + 3));
-    const dateString = threeMonthsLater.toISOString().split('T')[0];
-    document.getElementById('modalNextInspectionDate').value = dateString;
-    
+    const threeMonthsLater = new Date(today.getFullYear(), today.getMonth() + 3, today.getDate());
+    document.getElementById('modalNextInspectionDate').value = threeMonthsLater.toISOString().split('T')[0];
+
     new bootstrap.Modal(document.getElementById('vehicleModal')).show();
 }
 
 // 編集モーダル表示
 function editVehicle(vehicle) {
-    document.getElementById('vehicleModalTitle').textContent = '車両編集';
+    document.getElementById('vehicleModalTitle').innerHTML = '<i class="fas fa-edit me-2"></i>車両編集';
     document.getElementById('modalAction').value = 'edit';
     document.getElementById('modalVehicleId').value = vehicle.id;
     document.getElementById('modalVehicleNumber').value = vehicle.vehicle_number;
@@ -643,48 +747,40 @@ function editVehicle(vehicle) {
     document.getElementById('modalStatus').value = vehicle.status || 'active';
     document.getElementById('modalIsActive').checked = vehicle.is_active == 1;
     document.getElementById('activeField').style.display = 'block';
-    
+
     new bootstrap.Modal(document.getElementById('vehicleModal')).show();
 }
 
-// 削除確認
+// 削除確認（統一パターン）
 function deleteVehicle(vehicleId, vehicleNumber) {
-    if (confirm(`車両「${vehicleNumber}」を削除しますか？\n※論理削除のため、後で復旧可能です。`)) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.innerHTML = `
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-            <input type="hidden" name="action" value="delete">
-            <input type="hidden" name="vehicle_id" value="${vehicleId}">
-        `;
-        document.body.appendChild(form);
-        form.submit();
+    if (!confirm('車両「' + vehicleNumber + '」を削除しますか？\n※論理削除のため、後で復旧可能です。')) {
+        return;
     }
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.innerHTML =
+        '<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">' +
+        '<input type="hidden" name="action" value="delete">' +
+        '<input type="hidden" name="vehicle_id" value="' + vehicleId + '">';
+    document.body.appendChild(form);
+    form.submit();
 }
 
 // 点検日更新モーダル
 function quickUpdateInspection(vehicleId, currentDate) {
     document.getElementById('inspectionVehicleId').value = vehicleId;
-    document.getElementById('inspectionDate').value = currentDate;
-    
-    // 現在の日付から3か月後を推奨
-    if (!currentDate) {
+
+    if (currentDate) {
+        document.getElementById('inspectionDate').value = currentDate;
+    } else {
         const today = new Date();
-        const threeMonthsLater = new Date(today.setMonth(today.getMonth() + 3));
-        const dateString = threeMonthsLater.toISOString().split('T')[0];
-        document.getElementById('inspectionDate').value = dateString;
+        const threeMonthsLater = new Date(today.getFullYear(), today.getMonth() + 3, today.getDate());
+        document.getElementById('inspectionDate').value = threeMonthsLater.toISOString().split('T')[0];
     }
-    
+
     new bootstrap.Modal(document.getElementById('inspectionModal')).show();
 }
-
-// Bootstrap初期化確認
-document.addEventListener('DOMContentLoaded', function() {
-    // Bootstrapが正常に読み込まれているかチェック
-    if (typeof bootstrap === 'undefined') {
-        console.warn('Bootstrap が読み込まれていません');
-    }
-});
 </script>
 
 <?php echo $page_data['html_footer']; ?>
