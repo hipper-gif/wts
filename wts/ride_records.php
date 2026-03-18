@@ -133,6 +133,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
 
                 $new_record_id = $pdo->lastInsertId();
+
+                // 経由地の保存
+                $waypoints = $_POST['waypoints'] ?? [];
+                if (!empty($waypoints)) {
+                    $wp_stmt = $pdo->prepare("INSERT INTO ride_waypoints (ride_record_id, stop_order, location) VALUES (?, ?, ?)");
+                    foreach ($waypoints as $i => $wp) {
+                        $wp = trim($wp);
+                        if ($wp !== '') {
+                            $wp_stmt->execute([$new_record_id, $i + 1, $wp]);
+                        }
+                    }
+                }
+
                 logRideAudit($pdo, $new_record_id, 'create', $user_id);
 
                 $pdo->commit();
@@ -218,6 +231,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $fare, $charge, $total_fare, $cash_amount, $card_amount,
                     $transportation_type, $payment_method, $notes, $record_id
                 ]);
+
+                // 経由地の再保存（削除→再挿入）
+                $pdo->prepare("DELETE FROM ride_waypoints WHERE ride_record_id = ?")->execute([$record_id]);
+                $waypoints = $_POST['waypoints'] ?? [];
+                if (!empty($waypoints)) {
+                    $wp_stmt = $pdo->prepare("INSERT INTO ride_waypoints (ride_record_id, stop_order, location) VALUES (?, ?, ?)");
+                    foreach ($waypoints as $i => $wp) {
+                        $wp = trim($wp);
+                        if ($wp !== '') {
+                            $wp_stmt->execute([$record_id, $i + 1, $wp]);
+                        }
+                    }
+                }
 
                 logRideAudit($pdo, $record_id, 'update', $user_id, $changes, $edit_reason ?: null);
 
@@ -348,6 +374,14 @@ $rides_sql = "SELECT r.*, u.name as driver_name, v.vehicle_number, v.vehicle_nam
 $rides_stmt = $pdo->prepare($rides_sql);
 $rides_stmt->execute($params);
 $rides = $rides_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// 各乗車記録の経由地を取得
+$wp_stmt = $pdo->prepare("SELECT location FROM ride_waypoints WHERE ride_record_id = ? ORDER BY stop_order");
+foreach ($rides as &$ride) {
+    $wp_stmt->execute([$ride['id']]);
+    $ride['waypoints'] = $wp_stmt->fetchAll(PDO::FETCH_COLUMN);
+}
+unset($ride);
 
 // 日次集計 - 料金システム統一仕様に準拠
 $summary_sql = "SELECT 
@@ -542,6 +576,12 @@ echo $page_data['page_header'];
                                             <div class="mb-2">
                                                 <i class="fas fa-map-marker-alt text-success me-2"></i>
                                                 <strong><?php echo htmlspecialchars($ride['pickup_location']); ?></strong>
+                                                <?php if (!empty($ride['waypoints'])): ?>
+                                                    <?php foreach ($ride['waypoints'] as $wp): ?>
+                                                        <i class="fas fa-arrow-right mx-1 text-muted" style="font-size:0.7em;"></i>
+                                                        <span class="text-info"><?php echo htmlspecialchars($wp); ?></span>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
                                                 <i class="fas fa-arrow-right mx-2 text-muted"></i>
                                                 <i class="fas fa-map-marker-alt text-danger me-2"></i>
                                                 <strong><?php echo htmlspecialchars($ride['dropoff_location']); ?></strong>
@@ -786,11 +826,19 @@ echo $page_data['page_header'];
                                 <i class="fas fa-map-marker-alt text-danger me-1"></i>降車地 <span class="text-danger">*</span>
                             </label>
                             <div class="unified-dropdown">
-                                <input type="text" class="form-control unified-input" id="modalDropoffLocation" name="dropoff_location" 
+                                <input type="text" class="form-control unified-input" id="modalDropoffLocation" name="dropoff_location"
                                        placeholder="降車地を入力または選択" required>
                                 <div id="dropoffSuggestions" class="unified-suggestions" style="display: none;"></div>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- 経由地 -->
+                    <div class="mb-3" id="waypointSection">
+                        <div id="waypointList"></div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addWaypoint()">
+                            <i class="fas fa-plus me-1"></i>経由地を追加
+                        </button>
                     </div>
 
                     <div class="row">
@@ -1188,10 +1236,13 @@ function showAddModal() {
         document.getElementById('modalVehicleId').value = defaultVehicleId;
     }
     
+    // 経由地クリア
+    clearWaypoints();
+
     // 人数ボタン初期化
     document.querySelectorAll('.passenger-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelector('.passenger-btn[data-count="1"]').classList.add('active');
-    
+
     // Bootstrap Modal を確実に表示
     const modalElement = document.getElementById('rideModal');
     const modal = new bootstrap.Modal(modalElement, {
@@ -1222,6 +1273,12 @@ function editRecord(record) {
     document.getElementById('modalTransportationType').value = record.transportation_type;
     document.getElementById('modalPaymentMethod').value = record.payment_method;
     document.getElementById('modalNotes').value = record.notes || '';
+
+    // 経由地を復元
+    clearWaypoints();
+    if (record.waypoints && record.waypoints.length > 0) {
+        record.waypoints.forEach(function(wp) { addWaypoint(wp); });
+    }
 
     // 修正理由セクションの表示制御（過去日 + Admin の場合のみ表示）
     var editReasonSection = document.getElementById('editReasonSection');
@@ -1276,7 +1333,10 @@ function createReturnTrip(record) {
     // 乗降地を入れ替え
     document.getElementById('modalPickupLocation').value = record.dropoff_location;
     document.getElementById('modalDropoffLocation').value = record.pickup_location;
-    
+
+    // 復路では経由地をクリア
+    clearWaypoints();
+
     document.getElementById('modalFare').value = record.fare;
     document.getElementById('modalCharge').value = record.charge;
     document.getElementById('modalTransportationType').value = record.transportation_type;
@@ -1347,6 +1407,37 @@ function updatePassengerButtons(count) {
             btn.classList.add('active');
         }
     });
+}
+
+// === 経由地管理 ===
+var waypointCounter = 0;
+
+function addWaypoint(value) {
+    waypointCounter++;
+    var n = waypointCounter;
+    var div = document.createElement('div');
+    div.className = 'd-flex align-items-center gap-2 mb-2';
+    div.id = 'waypoint-' + n;
+    div.innerHTML =
+        '<i class="fas fa-map-pin text-info"></i>' +
+        '<input type="text" class="form-control form-control-sm unified-input" name="waypoints[]" ' +
+        'placeholder="経由地を入力" value="' + (value || '') + '">' +
+        '<button type="button" class="btn btn-outline-danger btn-sm" onclick="removeWaypoint(' + n + ')" title="削除">' +
+        '<i class="fas fa-times"></i></button>';
+    document.getElementById('waypointList').appendChild(div);
+    if (!value) {
+        div.querySelector('input').focus();
+    }
+}
+
+function removeWaypoint(n) {
+    var el = document.getElementById('waypoint-' + n);
+    if (el) el.remove();
+}
+
+function clearWaypoints() {
+    document.getElementById('waypointList').innerHTML = '';
+    waypointCounter = 0;
 }
 
 // よく使う場所の候補表示
