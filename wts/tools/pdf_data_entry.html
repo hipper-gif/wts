@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>運行日報 手書きPDF データ入力ツール</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', 'Yu Gothic UI', sans-serif; background: #f0f2f5; color: #333; }
+.header { background: #2c3e50; color: white; padding: 12px 20px; display: flex; align-items: center; gap: 15px; }
+.header h1 { font-size: 18px; }
+.header .stats { margin-left: auto; font-size: 13px; opacity: 0.8; }
+.main { display: flex; height: calc(100vh - 52px); }
+.pdf-panel { width: 50%; background: #1a1a1a; overflow: auto; position: relative; }
+.pdf-panel img { width: 100%; display: block; }
+.pdf-panel .placeholder { color: #888; text-align: center; padding: 60px 20px; }
+.pdf-nav { position: sticky; top: 0; background: #2a2a2a; padding: 8px; display: flex; gap: 8px; align-items: center; z-index: 10; }
+.pdf-nav button { background: #4a90d9; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.pdf-nav button:hover { background: #357abd; }
+.pdf-nav button:disabled { background: #555; cursor: not-allowed; }
+.pdf-nav span { color: #ccc; font-size: 13px; }
+.pdf-nav input[type="file"] { display: none; }
+.form-panel { width: 50%; overflow-y: auto; padding: 16px; }
+.section { background: white; border-radius: 8px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.section h3 { font-size: 14px; color: #2c3e50; margin-bottom: 10px; border-bottom: 2px solid #3498db; padding-bottom: 4px; }
+.form-row { display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.form-group { display: flex; flex-direction: column; }
+.form-group label { font-size: 11px; color: #666; margin-bottom: 2px; font-weight: 600; }
+.form-group input, .form-group select { padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+.form-group input:focus, .form-group select:focus { border-color: #3498db; outline: none; box-shadow: 0 0 0 2px rgba(52,152,219,0.2); }
+.form-group input[type="number"] { width: 90px; }
+.form-group input[type="text"] { width: 160px; }
+.form-group input[type="date"] { width: 140px; }
+.form-group input[type="time"] { width: 110px; }
+.form-group.wide input { width: 100%; }
+.trip-row { display: flex; gap: 6px; align-items: end; padding: 6px 0; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; }
+.trip-row:last-child { border-bottom: none; }
+.trip-no { width: 28px; height: 28px; background: #3498db; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0; }
+.add-trip-btn { background: #27ae60; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-top: 6px; }
+.add-trip-btn:hover { background: #219a52; }
+.remove-trip-btn { background: #e74c3c; color: white; border: none; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; font-size: 14px; flex-shrink: 0; }
+.actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.btn { padding: 8px 18px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.btn-primary { background: #3498db; color: white; }
+.btn-primary:hover { background: #2980b9; }
+.btn-success { background: #27ae60; color: white; }
+.btn-success:hover { background: #219a52; }
+.btn-warning { background: #f39c12; color: white; }
+.btn-warning:hover { background: #d68910; }
+.btn-danger { background: #e74c3c; color: white; }
+.btn-danger:hover { background: #c0392b; }
+.btn-secondary { background: #95a5a6; color: white; }
+.btn-secondary:hover { background: #7f8c8d; }
+.saved-list { max-height: 200px; overflow-y: auto; }
+.saved-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-bottom: 1px solid #eee; font-size: 12px; }
+.saved-item:hover { background: #f8f9fa; }
+.saved-item .edit-btn { background: none; border: none; color: #3498db; cursor: pointer; font-size: 12px; }
+.saved-count { background: #e74c3c; color: white; border-radius: 10px; padding: 2px 8px; font-size: 11px; }
+.zoom-controls { display: flex; gap: 4px; }
+.zoom-controls button { background: #555; padding: 4px 10px; font-size: 12px; }
+.zoom-controls button:hover { background: #666; }
+#pdfCanvas { cursor: grab; }
+.toast { position: fixed; bottom: 20px; right: 20px; background: #27ae60; color: white; padding: 12px 20px; border-radius: 6px; font-size: 13px; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>運行日報 データ入力ツール</h1>
+    <span class="stats">
+        保存済: <span id="savedCount" class="saved-count">0</span> 件
+    </span>
+</div>
+
+<div class="main">
+    <div class="pdf-panel">
+        <div class="pdf-nav">
+            <label class="btn btn-primary" style="padding:6px 14px;font-size:13px;border-radius:4px;cursor:pointer;">
+                PDF読込
+                <input type="file" id="pdfInput" accept=".pdf,.png,.jpg,.jpeg">
+            </label>
+            <div class="zoom-controls">
+                <button onclick="zoom(-0.2)">-</button>
+                <button onclick="zoom(0.2)">+</button>
+                <button onclick="zoomLevel=1;renderPage()">100%</button>
+            </div>
+            <button id="prevPage" onclick="changePage(-1)" disabled>&lt; 前</button>
+            <span id="pageInfo" style="color:#ccc;font-size:13px;">-- / --</span>
+            <button id="nextPage" onclick="changePage(1)" disabled>次 &gt;</button>
+        </div>
+        <div id="pdfContainer">
+            <div class="placeholder">左上の「PDF読込」から<br>手書き運行日報PDFを読み込んでください</div>
+            <canvas id="pdfCanvas"></canvas>
+        </div>
+    </div>
+
+    <div class="form-panel">
+        <!-- 基本情報 -->
+        <div class="section">
+            <h3>基本情報（ヘッダー）</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>運行日</label>
+                    <input type="date" id="rideDate">
+                </div>
+                <div class="form-group">
+                    <label>曜日</label>
+                    <select id="dayOfWeek">
+                        <option value="">--</option>
+                        <option>月</option><option>火</option><option>水</option>
+                        <option>木</option><option>金</option><option>土</option><option>日</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>天候</label>
+                    <select id="weather">
+                        <option value="">--</option>
+                        <option>晴</option><option>曇</option><option>雨</option><option>雪</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>運転者氏名</label>
+                    <input type="text" id="driverName" list="driverList" placeholder="手書きから転記">
+                    <datalist id="driverList"></datalist>
+                </div>
+                <div class="form-group">
+                    <label>車両番号</label>
+                    <select id="vehicleNumber">
+                        <option value="">--</option>
+                        <option value="大阪801あ16-72">大阪801あ16-72</option>
+                        <option value="大阪880り27-38">大阪880り27-38</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>出庫時刻</label>
+                    <input type="time" id="departureTime">
+                </div>
+                <div class="form-group">
+                    <label>運転時間</label>
+                    <input type="text" id="drivingDuration" placeholder="例: 8:00" style="width:80px;">
+                </div>
+            </div>
+        </div>
+
+        <!-- 乗務明細 -->
+        <div class="section">
+            <h3>乗務明細</h3>
+            <div id="tripContainer"></div>
+            <button class="add-trip-btn" onclick="addTrip()">+ 乗務追加</button>
+        </div>
+
+        <!-- メーター・費用 -->
+        <div class="section">
+            <h3>メーター / 費用</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>出庫メーター (km)</label>
+                    <input type="number" id="departureMileage" min="0">
+                </div>
+                <div class="form-group">
+                    <label>帰庫メーター (km)</label>
+                    <input type="number" id="arrivalMileage" min="0">
+                </div>
+                <div class="form-group">
+                    <label>走行距離 (km)</label>
+                    <input type="number" id="totalDistance" min="0" readonly style="background:#f5f5f5;">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>燃料代 (円)</label>
+                    <input type="number" id="fuelCost" min="0" step="1">
+                </div>
+                <div class="form-group">
+                    <label>高速道路等 (円)</label>
+                    <input type="number" id="highwayCost" min="0" step="1">
+                </div>
+                <div class="form-group">
+                    <label>その他費用 (円)</label>
+                    <input type="number" id="otherCost" min="0" step="1">
+                </div>
+            </div>
+        </div>
+
+        <!-- 集計 (回輸送・名輸送) -->
+        <div class="section">
+            <h3>備考</h3>
+            <div class="form-group wide">
+                <textarea id="notes" rows="2" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:13px;" placeholder="休憩場所・時間、その他メモ"></textarea>
+            </div>
+        </div>
+
+        <!-- 操作ボタン -->
+        <div class="section">
+            <div class="actions">
+                <button class="btn btn-success" onclick="saveEntry()">このページを保存</button>
+                <button class="btn btn-primary" onclick="saveAndNext()">保存して次へ</button>
+                <button class="btn btn-warning" onclick="clearForm()">フォームクリア</button>
+            </div>
+        </div>
+
+        <!-- 保存済みデータ -->
+        <div class="section">
+            <h3>保存済みデータ <span id="savedCount2" class="saved-count">0</span></h3>
+            <div id="savedList" class="saved-list"></div>
+            <div class="actions" style="margin-top:10px;">
+                <button class="btn btn-success" onclick="exportCSV()">CSV出力</button>
+                <button class="btn btn-secondary" onclick="exportJSON()">JSON出力</button>
+                <button class="btn btn-danger" onclick="if(confirm('全データを削除しますか？'))clearAll()">全削除</button>
+                <label class="btn btn-warning" style="cursor:pointer;">
+                    CSV読込
+                    <input type="file" id="csvImport" accept=".csv" style="display:none;" onchange="importCSV(event)">
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<!-- PDF.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let pdfDoc = null;
+let currentPage = 1;
+let zoomLevel = 1;
+let savedEntries = JSON.parse(localStorage.getItem('wts_daily_reports') || '[]');
+let tripCount = 0;
+
+// 初期化
+document.addEventListener('DOMContentLoaded', () => {
+    addTrip();
+    updateSavedList();
+    updateDriverList();
+
+    document.getElementById('departureMileage').addEventListener('input', calcDistance);
+    document.getElementById('arrivalMileage').addEventListener('input', calcDistance);
+    document.getElementById('rideDate').addEventListener('change', updateDayOfWeek);
+});
+
+function calcDistance() {
+    const dep = parseInt(document.getElementById('departureMileage').value) || 0;
+    const arr = parseInt(document.getElementById('arrivalMileage').value) || 0;
+    document.getElementById('totalDistance').value = arr > dep ? arr - dep : '';
+}
+
+function updateDayOfWeek() {
+    const date = document.getElementById('rideDate').value;
+    if (date) {
+        const days = ['日','月','火','水','木','金','土'];
+        const d = new Date(date);
+        document.getElementById('dayOfWeek').value = days[d.getDay()];
+    }
+}
+
+// PDF読込
+document.getElementById('pdfInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.type === 'application/pdf') {
+        const data = await file.arrayBuffer();
+        pdfDoc = await pdfjsLib.getDocument({ data }).promise;
+        currentPage = 1;
+        renderPage();
+        document.getElementById('prevPage').disabled = false;
+        document.getElementById('nextPage').disabled = false;
+    } else if (file.type.startsWith('image/')) {
+        // 画像ファイルの場合
+        const url = URL.createObjectURL(file);
+        const container = document.getElementById('pdfContainer');
+        container.innerHTML = `<img src="${url}" style="width:${100*zoomLevel}%">`;
+        document.getElementById('pageInfo').textContent = '画像 1枚';
+    }
+});
+
+async function renderPage() {
+    if (!pdfDoc) return;
+    const page = await pdfDoc.getPage(currentPage);
+    const viewport = page.getViewport({ scale: 1.5 * zoomLevel });
+    const canvas = document.getElementById('pdfCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.display = 'block';
+
+    // placeholder除去
+    const ph = document.querySelector('.placeholder');
+    if (ph) ph.style.display = 'none';
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    document.getElementById('pageInfo').textContent = `${currentPage} / ${pdfDoc.numPages}`;
+    document.getElementById('prevPage').disabled = currentPage <= 1;
+    document.getElementById('nextPage').disabled = currentPage >= pdfDoc.numPages;
+}
+
+function changePage(delta) {
+    if (!pdfDoc) return;
+    const newPage = currentPage + delta;
+    if (newPage >= 1 && newPage <= pdfDoc.numPages) {
+        currentPage = newPage;
+        renderPage();
+    }
+}
+
+function zoom(delta) {
+    zoomLevel = Math.max(0.5, Math.min(3, zoomLevel + delta));
+    if (pdfDoc) renderPage();
+}
+
+// 乗務行の追加・削除
+function addTrip() {
+    tripCount++;
+    const n = tripCount;
+    const container = document.getElementById('tripContainer');
+    const div = document.createElement('div');
+    div.className = 'trip-row';
+    div.id = `trip-${n}`;
+    div.innerHTML = `
+        <div class="trip-no">${n}</div>
+        <div class="form-group">
+            <label>時刻</label>
+            <input type="time" id="tripTime-${n}" style="width:100px;">
+        </div>
+        <div class="form-group">
+            <label>人数</label>
+            <input type="number" id="tripPax-${n}" min="1" max="10" value="1" style="width:50px;">
+        </div>
+        <div class="form-group">
+            <label>乗車地</label>
+            <input type="text" id="tripPickup-${n}" list="locationList" style="width:140px;">
+        </div>
+        <div class="form-group">
+            <label>降車地</label>
+            <input type="text" id="tripDropoff-${n}" list="locationList" style="width:140px;">
+        </div>
+        <div class="form-group">
+            <label>運賃(円)</label>
+            <input type="number" id="tripFare-${n}" min="0" step="10" style="width:80px;">
+        </div>
+        <div class="form-group">
+            <label>種別</label>
+            <select id="tripType-${n}" style="width:70px;padding:6px 2px;">
+                <option value="通院">通院</option>
+                <option value="退院">退院</option>
+                <option value="転院">転院</option>
+                <option value="外出">外出</option>
+                <option value="施設">施設</option>
+                <option value="その他">他</option>
+            </select>
+        </div>
+        <button class="remove-trip-btn" onclick="removeTrip(${n})" title="削除">&times;</button>
+    `;
+    container.appendChild(div);
+    updateLocationList();
+}
+
+function removeTrip(n) {
+    const el = document.getElementById(`trip-${n}`);
+    if (el) el.remove();
+    // 番号振り直し
+    const rows = document.querySelectorAll('.trip-row');
+    rows.forEach((row, i) => {
+        row.querySelector('.trip-no').textContent = i + 1;
+    });
+}
+
+// データ収集
+function collectFormData() {
+    const trips = [];
+    document.querySelectorAll('.trip-row').forEach((row, i) => {
+        const n = row.id.replace('trip-', '');
+        const fare = document.getElementById(`tripFare-${n}`)?.value;
+        const pickup = document.getElementById(`tripPickup-${n}`)?.value;
+        const dropoff = document.getElementById(`tripDropoff-${n}`)?.value;
+        if (fare || pickup || dropoff) {
+            trips.push({
+                no: i + 1,
+                time: document.getElementById(`tripTime-${n}`)?.value || '',
+                passengers: document.getElementById(`tripPax-${n}`)?.value || '1',
+                pickup: pickup || '',
+                dropoff: dropoff || '',
+                fare: fare || '0',
+                type: document.getElementById(`tripType-${n}`)?.value || ''
+            });
+        }
+    });
+
+    return {
+        date: document.getElementById('rideDate').value,
+        dayOfWeek: document.getElementById('dayOfWeek').value,
+        weather: document.getElementById('weather').value,
+        driverName: document.getElementById('driverName').value,
+        vehicleNumber: document.getElementById('vehicleNumber').value,
+        departureTime: document.getElementById('departureTime').value,
+        drivingDuration: document.getElementById('drivingDuration').value,
+        departureMileage: document.getElementById('departureMileage').value,
+        arrivalMileage: document.getElementById('arrivalMileage').value,
+        totalDistance: document.getElementById('totalDistance').value,
+        fuelCost: document.getElementById('fuelCost').value,
+        highwayCost: document.getElementById('highwayCost').value,
+        otherCost: document.getElementById('otherCost').value,
+        notes: document.getElementById('notes').value,
+        trips: trips,
+        pdfPage: pdfDoc ? currentPage : '',
+        savedAt: new Date().toISOString()
+    };
+}
+
+function fillForm(entry) {
+    document.getElementById('rideDate').value = entry.date || '';
+    document.getElementById('dayOfWeek').value = entry.dayOfWeek || '';
+    document.getElementById('weather').value = entry.weather || '';
+    document.getElementById('driverName').value = entry.driverName || '';
+    document.getElementById('vehicleNumber').value = entry.vehicleNumber || '';
+    document.getElementById('departureTime').value = entry.departureTime || '';
+    document.getElementById('drivingDuration').value = entry.drivingDuration || '';
+    document.getElementById('departureMileage').value = entry.departureMileage || '';
+    document.getElementById('arrivalMileage').value = entry.arrivalMileage || '';
+    document.getElementById('totalDistance').value = entry.totalDistance || '';
+    document.getElementById('fuelCost').value = entry.fuelCost || '';
+    document.getElementById('highwayCost').value = entry.highwayCost || '';
+    document.getElementById('otherCost').value = entry.otherCost || '';
+    document.getElementById('notes').value = entry.notes || '';
+
+    // 乗務明細をクリアして再構築
+    document.getElementById('tripContainer').innerHTML = '';
+    tripCount = 0;
+    if (entry.trips && entry.trips.length > 0) {
+        entry.trips.forEach(trip => {
+            addTrip();
+            const n = tripCount;
+            document.getElementById(`tripTime-${n}`).value = trip.time || '';
+            document.getElementById(`tripPax-${n}`).value = trip.passengers || '1';
+            document.getElementById(`tripPickup-${n}`).value = trip.pickup || '';
+            document.getElementById(`tripDropoff-${n}`).value = trip.dropoff || '';
+            document.getElementById(`tripFare-${n}`).value = trip.fare || '';
+            document.getElementById(`tripType-${n}`).value = trip.type || '通院';
+        });
+    } else {
+        addTrip();
+    }
+}
+
+// 保存
+function saveEntry() {
+    const data = collectFormData();
+    if (!data.date) {
+        showToast('運行日を入力してください', '#e74c3c');
+        return;
+    }
+
+    // 同じ日・同じ車両の既存エントリを探す
+    const existingIdx = savedEntries.findIndex(e => e.date === data.date && e.vehicleNumber === data.vehicleNumber);
+    if (existingIdx >= 0) {
+        if (confirm(`${data.date} / ${data.vehicleNumber} のデータが既に存在します。上書きしますか？`)) {
+            savedEntries[existingIdx] = data;
+        } else {
+            return;
+        }
+    } else {
+        savedEntries.push(data);
+    }
+
+    savedEntries.sort((a, b) => a.date.localeCompare(b.date));
+    localStorage.setItem('wts_daily_reports', JSON.stringify(savedEntries));
+    updateSavedList();
+    updateDriverList();
+    showToast(`${data.date} のデータを保存しました`);
+}
+
+function saveAndNext() {
+    saveEntry();
+    clearForm();
+    if (pdfDoc && currentPage < pdfDoc.numPages) {
+        changePage(1);
+    }
+}
+
+function clearForm() {
+    document.querySelectorAll('.form-panel input, .form-panel textarea').forEach(el => {
+        if (el.type !== 'file') el.value = '';
+    });
+    document.querySelectorAll('.form-panel select').forEach(el => el.selectedIndex = 0);
+    document.getElementById('tripContainer').innerHTML = '';
+    tripCount = 0;
+    addTrip();
+}
+
+function clearAll() {
+    savedEntries = [];
+    localStorage.removeItem('wts_daily_reports');
+    updateSavedList();
+}
+
+// 保存一覧
+function updateSavedList() {
+    const list = document.getElementById('savedList');
+    document.getElementById('savedCount').textContent = savedEntries.length;
+    document.getElementById('savedCount2').textContent = savedEntries.length;
+
+    if (savedEntries.length === 0) {
+        list.innerHTML = '<div style="color:#999;font-size:12px;padding:10px;">まだデータがありません</div>';
+        return;
+    }
+
+    list.innerHTML = savedEntries.map((entry, i) => {
+        const tripCount = entry.trips ? entry.trips.length : 0;
+        const totalFare = entry.trips ? entry.trips.reduce((s, t) => s + (parseInt(t.fare) || 0), 0) : 0;
+        return `<div class="saved-item">
+            <span>${entry.date || '日付なし'} | ${entry.vehicleNumber || '車両?'} | ${entry.driverName || '運転者?'} | ${tripCount}件 | ¥${totalFare.toLocaleString()}</span>
+            <span>
+                <button class="edit-btn" onclick="loadEntry(${i})">編集</button>
+                <button class="edit-btn" style="color:#e74c3c;" onclick="deleteEntry(${i})">削除</button>
+            </span>
+        </div>`;
+    }).join('');
+}
+
+function loadEntry(idx) {
+    fillForm(savedEntries[idx]);
+    if (pdfDoc && savedEntries[idx].pdfPage) {
+        currentPage = savedEntries[idx].pdfPage;
+        renderPage();
+    }
+}
+
+function deleteEntry(idx) {
+    if (confirm('このエントリを削除しますか？')) {
+        savedEntries.splice(idx, 1);
+        localStorage.setItem('wts_daily_reports', JSON.stringify(savedEntries));
+        updateSavedList();
+    }
+}
+
+// 運転者リスト更新
+function updateDriverList() {
+    const names = [...new Set(savedEntries.map(e => e.driverName).filter(n => n))];
+    const dl = document.getElementById('driverList');
+    dl.innerHTML = names.map(n => `<option value="${n}">`).join('');
+}
+
+// 場所リスト
+function updateLocationList() {
+    let dl = document.getElementById('locationList');
+    if (!dl) {
+        dl = document.createElement('datalist');
+        dl.id = 'locationList';
+        document.body.appendChild(dl);
+    }
+    const locs = new Set();
+    savedEntries.forEach(e => {
+        (e.trips || []).forEach(t => {
+            if (t.pickup) locs.add(t.pickup);
+            if (t.dropoff) locs.add(t.dropoff);
+        });
+    });
+    dl.innerHTML = [...locs].sort().map(l => `<option value="${l}">`).join('');
+}
+
+// CSV出力
+function exportCSV() {
+    if (savedEntries.length === 0) {
+        showToast('保存データがありません', '#e74c3c');
+        return;
+    }
+
+    const headers = [
+        'date','day_of_week','weather','driver_name','vehicle_number',
+        'departure_time','driving_duration',
+        'departure_mileage','arrival_mileage','total_distance',
+        'trip_no','trip_time','passengers','pickup_location','dropoff_location','fare','transportation_type',
+        'fuel_cost','highway_cost','other_cost','notes'
+    ];
+
+    let rows = [headers.join(',')];
+
+    savedEntries.forEach(entry => {
+        const base = [
+            entry.date, entry.dayOfWeek, entry.weather,
+            csvEscape(entry.driverName), csvEscape(entry.vehicleNumber),
+            entry.departureTime, entry.drivingDuration,
+            entry.departureMileage, entry.arrivalMileage, entry.totalDistance
+        ];
+
+        if (entry.trips && entry.trips.length > 0) {
+            entry.trips.forEach(trip => {
+                rows.push([
+                    ...base,
+                    trip.no, trip.time, trip.passengers,
+                    csvEscape(trip.pickup), csvEscape(trip.dropoff),
+                    trip.fare, csvEscape(trip.type),
+                    entry.fuelCost || '', entry.highwayCost || '', entry.otherCost || '',
+                    csvEscape(entry.notes)
+                ].join(','));
+            });
+        } else {
+            rows.push([
+                ...base,
+                '', '', '', '', '', '', '',
+                entry.fuelCost || '', entry.highwayCost || '', entry.otherCost || '',
+                csvEscape(entry.notes)
+            ].join(','));
+        }
+    });
+
+    downloadFile('daily_reports.csv', '\uFEFF' + rows.join('\n'), 'text/csv');
+    showToast(`CSV出力完了: ${savedEntries.length}日分`);
+}
+
+function exportJSON() {
+    if (savedEntries.length === 0) {
+        showToast('保存データがありません', '#e74c3c');
+        return;
+    }
+    downloadFile('daily_reports.json', JSON.stringify(savedEntries, null, 2), 'application/json');
+    showToast(`JSON出力完了: ${savedEntries.length}日分`);
+}
+
+function importCSV(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result.replace(/^\uFEFF/, '');
+        const lines = text.split('\n').filter(l => l.trim());
+        if (lines.length < 2) { showToast('CSVデータが空です', '#e74c3c'); return; }
+
+        const headers = lines[0].split(',');
+        const entries = {};
+
+        for (let i = 1; i < lines.length; i++) {
+            const vals = parseCSVLine(lines[i]);
+            const key = `${vals[0]}_${vals[4]}`; // date_vehicle
+            if (!entries[key]) {
+                entries[key] = {
+                    date: vals[0], dayOfWeek: vals[1], weather: vals[2],
+                    driverName: vals[3], vehicleNumber: vals[4],
+                    departureTime: vals[5], drivingDuration: vals[6],
+                    departureMileage: vals[7], arrivalMileage: vals[8], totalDistance: vals[9],
+                    fuelCost: vals[17], highwayCost: vals[18], otherCost: vals[19],
+                    notes: vals[20] || '',
+                    trips: [], pdfPage: '', savedAt: new Date().toISOString()
+                };
+            }
+            if (vals[10]) { // trip_no exists
+                entries[key].trips.push({
+                    no: parseInt(vals[10]), time: vals[11], passengers: vals[12],
+                    pickup: vals[13], dropoff: vals[14], fare: vals[15], type: vals[16]
+                });
+            }
+        }
+
+        const imported = Object.values(entries);
+        if (confirm(`${imported.length}日分のデータをインポートします。既存データに追加しますか？`)) {
+            imported.forEach(entry => {
+                const existIdx = savedEntries.findIndex(e => e.date === entry.date && e.vehicleNumber === entry.vehicleNumber);
+                if (existIdx >= 0) {
+                    savedEntries[existIdx] = entry;
+                } else {
+                    savedEntries.push(entry);
+                }
+            });
+            savedEntries.sort((a, b) => a.date.localeCompare(b.date));
+            localStorage.setItem('wts_daily_reports', JSON.stringify(savedEntries));
+            updateSavedList();
+            updateDriverList();
+            showToast(`${imported.length}日分をインポートしました`);
+        }
+    };
+    reader.readAsText(file, 'utf-8');
+    event.target.value = '';
+}
+
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (inQuotes) {
+            if (ch === '"' && line[i+1] === '"') { current += '"'; i++; }
+            else if (ch === '"') { inQuotes = false; }
+            else { current += ch; }
+        } else {
+            if (ch === '"') { inQuotes = true; }
+            else if (ch === ',') { result.push(current.trim()); current = ''; }
+            else { current += ch; }
+        }
+    }
+    result.push(current.trim());
+    return result;
+}
+
+function csvEscape(str) {
+    if (!str) return '';
+    str = String(str);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
+}
+
+function downloadFile(filename, content, type) {
+    const blob = new Blob([content], { type: type + ';charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+}
+
+function showToast(msg, color = '#27ae60') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = color;
+    t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// キーボードショートカット
+document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        saveEntry();
+    }
+    if (e.ctrlKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        saveAndNext();
+    }
+});
+</script>
+</body>
+</html>

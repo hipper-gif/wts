@@ -37,3 +37,8 @@ composer.lock
 
 # Claude Code
 .claude/
+
+# tools data files (contain personal info)
+wts/tools/*.csv
+wts/tools/*.json
+wts/tools/*.txt
