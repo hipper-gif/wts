@@ -349,17 +349,18 @@ $page_data = renderCompletePage(
             </div>
 
             <div class="col-lg-4 col-md-6 mb-3">
-                <div class="master-card coming-soon">
+                <a href="location_management.php" class="master-card">
                     <div class="position-relative">
-                        <span class="status-badge bg-info text-white">開発予定</span>
                         <i class="fas fa-map-marker-alt master-icon icon-locations"></i>
                         <h6 class="fw-bold">場所マスタ管理</h6>
-                        <p class="card-description">
+                        <p class="card-description mb-2">
                             よく使う場所の登録管理<br>
                             病院・施設・駅などの情報
                         </p>
+                        <div class="stats-number text-danger"><?= $location_count ?></div>
+                        <div class="stats-label">登録場所数</div>
                     </div>
-                </div>
+                </a>
             </div>
         </div>
 

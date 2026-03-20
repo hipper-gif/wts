@@ -241,6 +241,15 @@ function getPageConfiguration($page_type) {
             'frequency' => '随時',
             'priority' => 'normal'
         ],
+        'location_management' => [
+            'category' => 'management',
+            'icon' => 'map-marker-alt',
+            'title' => '場所マスタ管理',
+            'subtitle' => '病院・施設・駅などの登録管理',
+            'description' => 'よく使う場所の登録管理',
+            'frequency' => '随時',
+            'priority' => 'normal'
+        ],
         'accident_management' => [
             'category' => 'management',
             'icon' => 'exclamation-triangle',
