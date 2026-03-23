@@ -83,13 +83,12 @@ function getCurrentUser() {
         return $user;
         
     } catch (PDOException $e) {
-        // データベースエラーの場合
+        // データベースエラーの場合 — 安全のためアクセス拒否
         error_log("Database error in session_check: " . $e->getMessage());
-        return (object)[
-            'id' => $_SESSION['user_id'],
-            'name' => 'ゲスト',
-            'permission_level' => 'User'
-        ];
+        session_destroy();
+        global $_sc_base;
+        header('Location: ' . ($_sc_base ?? '') . 'index.php?error=db');
+        exit;
     }
 }
 

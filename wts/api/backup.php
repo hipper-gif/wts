@@ -58,6 +58,11 @@ try {
     ];
 
     foreach ($tables as $table) {
+        // テーブル名のバリデーション（英数字・アンダースコアのみ許可）
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table)) {
+            continue;
+        }
+
         // テーブル構造
         $stmt = $pdo->query("SHOW CREATE TABLE `{$table}`");
         $create_info = $stmt->fetch(PDO::FETCH_ASSOC);

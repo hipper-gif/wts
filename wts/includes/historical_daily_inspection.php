@@ -199,15 +199,15 @@ $historical_data = $_SESSION['historical_data'] ?? null;
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="start_date" class="form-label">開始日</label>
-                                    <input type="date" class="form-control" id="start_date" name="start_date" 
-                                           value="<?= $_POST['start_date'] ?? date('Y-m-01') ?>" required>
+                                    <input type="date" class="form-control" id="start_date" name="start_date"
+                                           value="<?= htmlspecialchars($_POST['start_date'] ?? date('Y-m-01'), ENT_QUOTES, 'UTF-8') ?>" required>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="end_date" class="form-label">終了日</label>
-                                    <input type="date" class="form-control" id="end_date" name="end_date" 
-                                           value="<?= $_POST['end_date'] ?? date('Y-m-t') ?>" required>
+                                    <input type="date" class="form-control" id="end_date" name="end_date"
+                                           value="<?= htmlspecialchars($_POST['end_date'] ?? date('Y-m-t'), ENT_QUOTES, 'UTF-8') ?>" required>
                                 </div>
                             </div>
                         </div>
@@ -219,8 +219,8 @@ $historical_data = $_SESSION['historical_data'] ?? null;
                                     <select class="form-select" id="vehicle_id" name="vehicle_id" required>
                                         <option value="">車両を選択してください</option>
                                         <?php foreach ($vehicles as $vehicle): ?>
-                                            <option value="<?= $vehicle['id'] ?>" 
-                                                    <?= ($_POST['vehicle_id'] ?? '') == $vehicle['id'] ? 'selected' : '' ?>>
+                                            <option value="<?= htmlspecialchars($vehicle['id'], ENT_QUOTES, 'UTF-8') ?>"
+                                                    <?= (int)($_POST['vehicle_id'] ?? '') === (int)$vehicle['id'] ? 'selected' : '' ?>>
                                                 <?= htmlspecialchars($vehicle['vehicle_number']) ?> 
                                                 (<?= htmlspecialchars($vehicle['model']) ?>)
                                             </option>
@@ -234,8 +234,8 @@ $historical_data = $_SESSION['historical_data'] ?? null;
                                     <select class="form-select" id="inspector_id" name="inspector_id" required>
                                         <option value="">点検者を選択してください</option>
                                         <?php foreach ($inspectors as $inspector): ?>
-                                            <option value="<?= $inspector['id'] ?>" 
-                                                    <?= ($_POST['inspector_id'] ?? '') == $inspector['id'] ? 'selected' : '' ?>>
+                                            <option value="<?= htmlspecialchars($inspector['id'], ENT_QUOTES, 'UTF-8') ?>"
+                                                    <?= (int)($_POST['inspector_id'] ?? '') === (int)$inspector['id'] ? 'selected' : '' ?>>
                                                 <?= htmlspecialchars($inspector['name']) ?>
                                             </option>
                                         <?php endforeach; ?>
@@ -248,14 +248,14 @@ $historical_data = $_SESSION['historical_data'] ?? null;
                             <label class="form-label">入力方式</label>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="input_mode" id="bulk_mode" value="bulk" 
-                                       <?= ($_POST['input_mode'] ?? 'bulk') === 'bulk' ? 'checked' : '' ?>>
+                                       <?= htmlspecialchars($_POST['input_mode'] ?? 'bulk', ENT_QUOTES, 'UTF-8') === 'bulk' ? 'checked' : '' ?>>
                                 <label class="form-check-label" for="bulk_mode">
                                     <strong>一括設定モード</strong> - 全て「可」で生成し、問題のある項目のみ個別修正
                                 </label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="input_mode" id="individual_mode" value="individual"
-                                       <?= ($_POST['input_mode'] ?? '') === 'individual' ? 'checked' : '' ?>>
+                                       <?= htmlspecialchars($_POST['input_mode'] ?? '', ENT_QUOTES, 'UTF-8') === 'individual' ? 'checked' : '' ?>>
                                 <label class="form-check-label" for="individual_mode">
                                     <strong>個別入力モード</strong> - 各日付・各項目を個別に設定
                                 </label>

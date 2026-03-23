@@ -21,14 +21,25 @@ if (isset($_GET['timeout']) && $_GET['timeout'] == '1') {
     $error_message = 'セッションがタイムアウトしました。再度ログインしてください。';
 }
 
+// CSRFトークンの初期化（ログイン画面表示時）
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 // ログイン処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // CSRF検証
+    $token = $_POST['csrf_token'] ?? '';
+    if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
+        $error_message = '不正なリクエストです。ページを再読み込みしてください。';
+    }
+
     $login_id = trim($_POST['login_id'] ?? '');
     $password = $_POST['password'] ?? '';
-    
-    if (empty($login_id) || empty($password)) {
+
+    if (empty($error_message) && (empty($login_id) || empty($password))) {
         $error_message = 'ログインIDとパスワードを入力してください。';
-    } else {
+    } elseif (empty($error_message)) {
         try {
             $pdo = getDBConnection();
             
@@ -170,6 +181,7 @@ try {
             <?php endif; ?>
             
             <form method="POST" action="" autocomplete="on">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                 <div class="form-floating">
                     <input type="text" 
                            class="form-control" 

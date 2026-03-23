@@ -9,14 +9,14 @@
                     <div class="row">
                         <div class="col-md-4">
                             <label class="form-label">開始日</label>
-                            <input type="date" name="start_date" 
-                                   value="<?= $_GET['start_date'] ?? date('Y-m-01') ?>" 
+                            <input type="date" name="start_date"
+                                   value="<?= htmlspecialchars($_GET['start_date'] ?? date('Y-m-01'), ENT_QUOTES, 'UTF-8') ?>"
                                    class="form-control">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">終了日</label>
-                            <input type="date" name="end_date" 
-                                   value="<?= $_GET['end_date'] ?? date('Y-m-d') ?>" 
+                            <input type="date" name="end_date"
+                                   value="<?= htmlspecialchars($_GET['end_date'] ?? date('Y-m-d'), ENT_QUOTES, 'UTF-8') ?>"
                                    class="form-control">
                         </div>
                         <div class="col-md-4">
