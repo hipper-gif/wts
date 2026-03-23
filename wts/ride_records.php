@@ -414,7 +414,7 @@ $category_stmt->execute($params);
 $categories = $category_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 輸送分類・支払方法の選択肢
-$transport_categories = ['通院', '外出等', '退院', '転院', '施設入所', 'その他'];
+$transport_categories = ['通院', '外出等', '入院', '退院', '転院', '施設入所', 'その他'];
 $payment_methods = ['現金', 'カード', 'その他'];
 
 // ページ設定（統一ヘッダーシステム準拠）
