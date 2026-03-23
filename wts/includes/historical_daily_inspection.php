@@ -507,7 +507,7 @@ $historical_data = $_SESSION['historical_data'] ?? null;
                     
                     if (saveCount === 0) {
                         e.preventDefault();
-                        alert('保存するデータがありません。少なくとも1件はスキップを解除してください。');
+                        showToast('保存するデータがありません。少なくとも1件はスキップを解除してください。', 'warning');
                         return false;
                     }
                     

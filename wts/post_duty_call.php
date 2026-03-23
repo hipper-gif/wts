@@ -692,7 +692,7 @@ document.getElementById('postDutyForm').addEventListener('submit', function(e) {
 
     if (!driverId) {
         e.preventDefault();
-        alert('運転者を選択してください。');
+        showToast('運転者を選択してください。', 'warning');
         return;
     }
 
@@ -702,7 +702,7 @@ document.getElementById('postDutyForm').addEventListener('submit', function(e) {
 
     if (callerSelect.value === 'その他' && !otherInput.value.trim()) {
         e.preventDefault();
-        alert('点呼者名を入力してください。');
+        showToast('点呼者名を入力してください。', 'warning');
         return;
     }
 
@@ -712,7 +712,7 @@ document.getElementById('postDutyForm').addEventListener('submit', function(e) {
         var editReason = document.getElementById('editReason').value.trim();
         if (!editReason) {
             e.preventDefault();
-            alert('修正理由を入力してください。');
+            showToast('修正理由を入力してください。', 'warning');
             return;
         }
     }

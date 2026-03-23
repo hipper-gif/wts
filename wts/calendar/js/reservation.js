@@ -904,7 +904,7 @@ document.addEventListener('DOMContentLoaded', function() {
             区間: ${reservation.pickupLocation} → ${reservation.dropoffLocation}
             状態: ${reservation.status}
         `;
-        alert(details);
+        showToast(details, 'info');
     };
     
     // =================================================================

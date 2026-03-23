@@ -1396,7 +1396,7 @@ $page_config = getPageConfiguration('daily_inspection');
             
             if (!inspectorId || !vehicleId) {
                 e.preventDefault();
-                alert('点検者と車両を選択してください。');
+                showToast('点検者と車両を選択してください。', 'warning');
                 return;
             }
             
@@ -1416,7 +1416,7 @@ $page_config = getPageConfiguration('daily_inspection');
             
             if (missingItems.length > 0) {
                 e.preventDefault();
-                alert('必須点検項目に未選択があります。すべての必須項目を選択してください。');
+                showToast('必須点検項目に未選択があります。すべての必須項目を選択してください。', 'warning');
                 return;
             }
             
@@ -1426,7 +1426,7 @@ $page_config = getPageConfiguration('daily_inspection');
                 const editReason = document.getElementById('editReason');
                 if (editReason && !editReason.value.trim()) {
                     e.preventDefault();
-                    alert('ロック済みレコードの修正には理由の記入が必要です。');
+                    showToast('ロック済みレコードの修正には理由の記入が必要です。', 'warning');
                     editReason.focus();
                     return;
                 }
@@ -1438,7 +1438,7 @@ $page_config = getPageConfiguration('daily_inspection');
                 const safetyReason = document.getElementById('safetyCriticalReason');
                 if (safetyReason && !safetyReason.value.trim()) {
                     e.preventDefault();
-                    alert('安全に関わる項目の変更理由を入力してください。');
+                    showToast('安全に関わる項目の変更理由を入力してください。', 'warning');
                     safetyReason.focus();
                     return;
                 }
@@ -1466,7 +1466,7 @@ $page_config = getPageConfiguration('daily_inspection');
 
             // ロック中かつ編集不可の場合は何もしない
             if (lockStatus.isLocked && !lockStatus.canEdit) {
-                alert(lockStatus.lockReason || 'この記録は編集できません。');
+                showToast(lockStatus.lockReason || 'この記録は編集できません。', 'warning');
                 return;
             }
 
@@ -1538,7 +1538,7 @@ $page_config = getPageConfiguration('daily_inspection');
             const reason = prompt('削除理由を入力してください（監査ログに記録されます）:');
             if (reason === null) return;
             if (reason.trim() === '') {
-                alert('削除理由を入力してください。');
+                showToast('削除理由を入力してください。', 'warning');
                 return;
             }
             if (confirm('本当に削除しますか？この操作は監査ログに記録されます。')) {

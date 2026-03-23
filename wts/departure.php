@@ -675,7 +675,7 @@ function getVehicleInfo() {
 
 function setCurrentMileage() {
     var select = document.querySelector('select[name="vehicle_id"]');
-    if (!select || !select.value) { alert('車両を選択してください。'); return; }
+    if (!select || !select.value) { showToast('車両を選択してください。', 'warning'); return; }
     var opt = select.options[select.selectedIndex];
     var m = opt.getAttribute('data-mileage');
     var mileageInput = document.getElementById('departure_mileage');
@@ -702,7 +702,7 @@ function updateMileage() {
 function enableEditMode() {
     var lock = window.departureLockStatus || {};
     if (lock.isLocked && !lock.canEdit) {
-        alert(lock.lockReason || 'この記録は編集できません。');
+        showToast(lock.lockReason || 'この記録は編集できません。', 'warning');
         return;
     }
     document.querySelectorAll('input[readonly], textarea[readonly]').forEach(function(el) { el.removeAttribute('readonly'); });
@@ -723,7 +723,7 @@ function enableEditMode() {
 function confirmDelete() {
     var reason = prompt('削除理由を入力してください（監査ログに記録されます）:');
     if (reason === null) return;
-    if (!reason.trim()) { alert('削除理由を入力してください。'); return; }
+    if (!reason.trim()) { showToast('削除理由を入力してください。', 'warning'); return; }
     if (confirm('本当に削除しますか？')) {
         var el = document.getElementById('deleteReason');
         if (el) el.value = reason;

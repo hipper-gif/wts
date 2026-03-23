@@ -659,7 +659,7 @@ function setAlcoholZero() {
 function enableEditMode() {
     var lockStatus = window.callLockStatus || {};
     if (lockStatus.isLocked && !lockStatus.canEdit) {
-        alert(lockStatus.lockReason || 'この記録は編集できません。');
+        showToast(lockStatus.lockReason || 'この記録は編集できません。', 'warning');
         return;
     }
 
@@ -703,7 +703,7 @@ function confirmDelete() {
     var reason = prompt('削除理由を入力してください（監査ログに記録されます）:');
     if (reason === null) return;
     if (reason.trim() === '') {
-        alert('削除理由を入力してください。');
+        showToast('削除理由を入力してください。', 'warning');
         return;
     }
     if (confirm('本当に削除しますか？この操作は監査ログに記録されます。')) {

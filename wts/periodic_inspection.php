@@ -749,7 +749,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (!vehicleId || !inspectorId || !mileage) {
             e.preventDefault();
-            alert('必須項目（車両、点検者、走行距離）を入力してください。');
+            showToast('必須項目（車両、点検者、走行距離）を入力してください。', 'warning');
             return;
         }
         

@@ -396,15 +396,15 @@ echo $page_data['html_head'];
         })
         .then(function(result) {
             if (result.success) {
-                alert('現金カウントを保存しました');
+                showToast('現金カウントを保存しました', 'success');
                 window.location.reload();
             } else {
-                alert('保存に失敗しました: ' + (result.message || '不明なエラー'));
+                showToast('保存に失敗しました: ' + (result.message || '不明なエラー'), 'danger');
             }
         })
         .catch(function(error) {
             console.error('Error:', error);
-            alert('保存中にエラーが発生しました: ' + error.message);
+            showToast('保存中にエラーが発生しました: ' + error.message, 'danger');
         })
         .finally(function() {
             btn.disabled = false;

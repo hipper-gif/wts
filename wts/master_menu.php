@@ -401,6 +401,37 @@ $page_data = renderCompletePage(
                 <?php endif; ?>
             </div>
 
+            <!-- データ管理 -->
+            <div class="col-lg-4 col-md-6 mb-3">
+                <?php if ($is_admin): ?>
+                <a href="data_management.php" class="text-decoration-none">
+                <div class="master-card">
+                    <div class="position-relative">
+                        <span class="status-badge bg-success text-white">利用可能</span>
+                        <i class="fas fa-cogs master-icon text-secondary"></i>
+                        <h6 class="fw-bold">データ管理</h6>
+                        <p class="card-description">
+                            データベースの管理・メンテナンス<br>
+                            不要データの整理・システム設定
+                        </p>
+                    </div>
+                </div>
+                </a>
+                <?php else: ?>
+                <div class="master-card user-only" onclick="showPermissionAlert()">
+                    <div class="position-relative">
+                        <span class="status-badge bg-warning text-dark">要Admin権限</span>
+                        <i class="fas fa-cogs master-icon text-secondary"></i>
+                        <h6 class="fw-bold">データ管理</h6>
+                        <p class="card-description">
+                            データベースの管理・メンテナンス<br>
+                            不要データの整理・システム設定
+                        </p>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
+
             <!-- 運賃マスタ（Phase2） -->
             <div class="col-lg-4 col-md-6 mb-3">
                 <div class="master-card coming-soon">
@@ -475,13 +506,13 @@ $page_data = renderCompletePage(
 
     <script>
     function showPermissionAlert() {
-        alert('この機能を利用するにはAdmin権限が必要です。\n\n現在の権限：<?= htmlspecialchars($user_role_display) ?>');
+        showToast('この機能を利用するにはAdmin権限が必要です。\n\n現在の権限：<?= htmlspecialchars($user_role_display) ?>', 'warning');
     }
 
     document.querySelectorAll('.coming-soon').forEach(function(el) {
         el.addEventListener('click', function(e) {
             e.preventDefault();
-            alert('この機能は今後実装予定です。');
+            showToast('この機能は今後実装予定です。', 'info');
         });
     });
 

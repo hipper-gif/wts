@@ -514,10 +514,19 @@
             }
         });
 
-        // 記録カウンターのリアルタイム更新（APIエンドポイント未実装のため無効化）
+        // 記録カウンターのリアルタイム更新
         function updateRideCounter() {
-            // api/get_today_ride_count.php は存在しないため無効化
+            fetch('api/get_today_ride_count.php')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const el = document.querySelector('#rideCounter .counter-number');
+                        if (el) el.textContent = data.count;
+                    }
+                })
+                .catch(() => {});
         }
+        updateRideCounter();
 
         // 長押しでメニュー表示
         let pressTimer;
@@ -556,7 +565,7 @@
         document.addEventListener('visibilitychange', function() {
             isActive = !document.hidden;
             if (isActive) {
-                // updateRideCounter disabled - API endpoint does not exist
+                updateRideCounter();
             }
         });
     </script>

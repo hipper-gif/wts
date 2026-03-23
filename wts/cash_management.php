@@ -1059,13 +1059,13 @@ function toggleCollection(checkbox) {
             updateSingleDriverStatus();
         } else {
             checkbox.checked = !checkbox.checked;
-            alert('保存エラー: ' + (data.message || '不明なエラー'));
+            showToast('保存エラー: ' + (data.message || '不明なエラー'), 'danger');
         }
     })
     .catch(function(err) {
         checkbox.checked = !checkbox.checked;
         console.error('通信エラー:', err);
-        alert('通信エラー: ' + err.message);
+        showToast('通信エラー: ' + err.message, 'danger');
     })
     .finally(function() {
         checkbox.disabled = false;

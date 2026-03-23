@@ -1146,7 +1146,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (!isAnyChecked) {
                 e.preventDefault();
-                alert('少なくとも1つの職務を選択してください。');
+                showToast('少なくとも1つの職務を選択してください。', 'warning');
                 return false;
             }
         });

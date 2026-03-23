@@ -1338,7 +1338,7 @@ function deleteRecord(recordId, rideDate) {
 
     // 一般ユーザーは当日データのみ削除可
     if (userRole !== 'Admin' && isPastDate) {
-        alert('過去日の記録は管理者のみ削除できます。管理者にお問い合わせください。');
+        showToast('過去日の記録は管理者のみ削除できます。管理者にお問い合わせください。', 'warning');
         return;
     }
 
@@ -1347,7 +1347,7 @@ function deleteRecord(recordId, rideDate) {
         deleteReason = prompt('削除理由を入力してください（監査ログに記録されます）：');
         if (deleteReason === null) return; // キャンセル
         if (deleteReason.trim() === '') {
-            alert('削除理由を入力してください。');
+            showToast('削除理由を入力してください。', 'warning');
             return;
         }
     } else {

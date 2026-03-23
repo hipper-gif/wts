@@ -4,16 +4,10 @@
 // =================================================================
 
 header('Content-Type: application/json; charset=utf-8');
-ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_samesite', 'Lax');
-ini_set('session.use_strict_mode', 1);
-if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
-    ini_set('session.cookie_secure', 1);
-}
-session_start();
 
 require_once '../../config/database.php';
 require_once '../includes/calendar_functions.php';
+require_once dirname(__DIR__, 2) . '/includes/session_check.php';
 
 if (!isset($_SESSION['user_id'])) {
     sendErrorResponse('認証が必要です', 401);
