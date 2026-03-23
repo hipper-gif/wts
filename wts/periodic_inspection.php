@@ -544,7 +544,7 @@ echo $page_data['page_header'];
 
 <!-- 保存ボタン（画面下部固定） -->
 <div style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 1050; background: #fff; padding: 12px 20px; border-top: 2px solid #198754;">
-    <button type="submit" form="inspectionForm" class="btn btn-success btn-lg w-100" style="font-size: 1.1rem; font-weight: 600; padding: 14px;">
+    <button type="submit" form="inspectionForm" class="btn btn-success btn-lg w-100" data-loading-text="保存中..." style="font-size: 1.1rem; font-weight: 600; padding: 14px;">
         <i class="fas fa-save me-2"></i>登録する
     </button>
 </div>

@@ -282,26 +282,20 @@ echo $page_data['page_header'];
 <main class="main-content">
     <div class="container-fluid py-4">
         
-        <!-- 次のステップへの案内バナー -->
-        <?php if ($existing_call && $existing_call['is_completed']): ?>
-        <div class="alert alert-success border-0 shadow-sm mb-4">
-            <div class="d-flex align-items-center">
-                <i class="fas fa-check-circle text-success fs-3 me-3"></i>
-                <div class="flex-grow-1">
-                    <h5 class="alert-heading mb-1">乗務前点呼完了</h5>
-                    <p class="mb-0">次は出庫処理を行ってください</p>
-                </div>
-                <a href="departure.php?driver_id=<?= $existing_call['driver_id'] ?>" 
-                   class="btn btn-success btn-lg">
-                    <i class="fas fa-car me-2"></i>出庫処理へ進む
-                </a>
-            </div>
-        </div>
-        <?php endif; ?>
-
         <!-- アラート表示 -->
         <?php if ($success_message): ?>
             <?= renderAlert('success', '保存完了', $success_message) ?>
+
+        <!-- 次アクションカード -->
+        <?php if ($existing_call && $existing_call['is_completed']): ?>
+        <div class="next-action-card">
+            <div class="next-action-title"><i class="fas fa-check-circle me-2"></i>乗務前点呼完了</div>
+            <div class="next-action-subtitle">次は出庫処理を行ってください</div>
+            <a href="departure.php?driver_id=<?= $existing_call['driver_id'] ?>" class="next-action-btn">
+                <i class="fas fa-car"></i> 出庫処理へ進む <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+        <?php endif; ?>
         <?php endif; ?>
 
         <?php if ($error_message): ?>
@@ -508,7 +502,7 @@ echo $page_data['page_header'];
                             </button>
                             <?php endif; ?>
                         <?php else: ?>
-                            <button type="submit" class="btn btn-success btn-lg">
+                            <button type="submit" class="btn btn-success btn-lg" data-loading-text="保存中...">
                                 <i class="fas fa-save me-2"></i>登録する
                             </button>
                         <?php endif; ?>

@@ -442,6 +442,16 @@ echo $page_data['page_header'];
             <?= renderAlert('success', '操作完了', $success_message) ?>
         <?php endif; ?>
 
+        <?php if (!empty($success_message)): ?>
+        <div class="next-action-card">
+            <div class="next-action-title"><i class="fas fa-check-circle me-2"></i>乗車記録を保存しました</div>
+            <div class="next-action-subtitle">乗車が完了したら入庫処理を行ってください</div>
+            <a href="arrival.php" class="next-action-btn">
+                <i class="fas fa-warehouse"></i> 入庫処理へ <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+        <?php endif; ?>
+
         <?php if ($error_message): ?>
             <?= renderAlert('danger', 'エラー', $error_message) ?>
         <?php endif; ?>

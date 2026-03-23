@@ -901,6 +901,114 @@
         return window.innerWidth >= 1024;
     };
     
+    // ========== 確認モーダル ==========
+    /**
+     * confirm() / prompt() の代替
+     * showConfirm('本当に削除しますか？', () => { 削除処理 });
+     * showConfirm('削除しますか？', callback, { inputLabel: '削除理由', inputRequired: true });
+     */
+    window.showConfirm = function(message, onConfirm, options = {}) {
+        const id = 'wtsConfirmModal';
+        let modal = document.getElementById(id);
+        if (modal) modal.remove();
+
+        const hasInput = !!options.inputLabel;
+        const inputRequired = options.inputRequired || false;
+        const confirmText = options.confirmText || 'はい';
+        const cancelText = options.cancelText || 'キャンセル';
+        const type = options.type || 'warning'; // warning, danger, info
+
+        const colors = { warning: '#f0ad4e', danger: '#dc3545', info: '#667eea' };
+        const icons = { warning: 'exclamation-triangle', danger: 'trash-alt', info: 'question-circle' };
+
+        modal = document.createElement('div');
+        modal.id = id;
+        modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);opacity:0;transition:opacity .2s';
+        modal.innerHTML = `
+            <div style="background:white;border-radius:16px;max-width:420px;width:90%;box-shadow:0 10px 25px rgba(0,0,0,.2);transform:scale(.95);transition:transform .2s">
+                <div style="padding:1.5rem;text-align:center">
+                    <i class="fas fa-${icons[type]}" style="font-size:2.5rem;color:${colors[type]};margin-bottom:1rem;display:block"></i>
+                    <p style="font-size:1rem;color:#333;margin:0 0 1rem;white-space:pre-line">${message}</p>
+                    ${hasInput ? `
+                        <label style="display:block;text-align:left;font-weight:600;color:#4a5568;margin-bottom:.5rem;font-size:.9rem">${options.inputLabel}</label>
+                        <textarea id="wtsConfirmInput" rows="2" style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.75rem;font-size:.95rem;resize:vertical" placeholder="${options.inputPlaceholder || ''}"></textarea>
+                    ` : ''}
+                </div>
+                <div style="display:flex;gap:.75rem;padding:0 1.5rem 1.5rem;justify-content:center">
+                    <button id="wtsConfirmCancel" style="flex:1;padding:.75rem 1.5rem;border:1px solid #e2e8f0;border-radius:8px;background:white;color:#4a5568;font-size:.95rem;cursor:pointer">${cancelText}</button>
+                    <button id="wtsConfirmOk" style="flex:1;padding:.75rem 1.5rem;border:none;border-radius:8px;background:${colors[type]};color:white;font-size:.95rem;font-weight:600;cursor:pointer">${confirmText}</button>
+                </div>
+            </div>`;
+
+        document.body.appendChild(modal);
+        requestAnimationFrame(() => {
+            modal.style.opacity = '1';
+            modal.querySelector('div > div').style.transform = 'scale(1)';
+        });
+
+        const input = document.getElementById('wtsConfirmInput');
+        if (input) input.focus();
+
+        function close() {
+            modal.style.opacity = '0';
+            setTimeout(() => modal.remove(), 200);
+        }
+
+        document.getElementById('wtsConfirmCancel').onclick = close;
+        modal.addEventListener('click', function(e) { if (e.target === modal) close(); });
+
+        document.getElementById('wtsConfirmOk').onclick = function() {
+            if (hasInput && inputRequired) {
+                const val = input.value.trim();
+                if (!val) {
+                    input.style.borderColor = '#dc3545';
+                    input.focus();
+                    return;
+                }
+                close();
+                onConfirm(val);
+            } else if (hasInput) {
+                close();
+                onConfirm(input.value.trim());
+            } else {
+                close();
+                onConfirm();
+            }
+        };
+    };
+
+    // ========== フォーム送信ローディング ==========
+    /**
+     * フォーム送信ボタンをローディング状態にする
+     * const restore = setButtonLoading(btn);
+     * // 処理後: restore();
+     */
+    window.setButtonLoading = function(btn, text = '処理中...') {
+        const original = btn.innerHTML;
+        const originalDisabled = btn.disabled;
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>${text}`;
+        return function() {
+            btn.innerHTML = original;
+            btn.disabled = originalDisabled;
+        };
+    };
+
+    /**
+     * フォームにsubmitローディングを自動付与
+     * 対象: data-loading-text属性を持つsubmitボタン
+     */
+    function initializeFormLoading() {
+        document.querySelectorAll('form').forEach(function(form) {
+            const btn = form.querySelector('button[type="submit"][data-loading-text]');
+            if (!btn) return;
+            form.addEventListener('submit', function() {
+                setButtonLoading(btn, btn.dataset.loadingText || '処理中...');
+            });
+        });
+    }
+    initializeFormLoading();
+
     // グローバルエラーハンドラー
     window.addEventListener('error', function(e) {
         // 本番環境では適切なエラー報告システムに送信

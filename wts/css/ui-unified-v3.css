@@ -1295,6 +1295,52 @@ body {
     }
 }
 
+/* ========== 次アクション導線カード ========== */
+.next-action-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 16px;
+    padding: 1.5rem;
+    color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    margin-bottom: 1.5rem;
+}
+.next-action-card .next-action-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+.next-action-card .next-action-subtitle {
+    font-size: 0.9rem;
+    opacity: 0.85;
+    margin-bottom: 1rem;
+}
+.next-action-card .next-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: white;
+    color: #667eea;
+    font-weight: 700;
+    font-size: 1.05rem;
+    padding: 0.75rem 1.75rem;
+    border-radius: 12px;
+    border: none;
+    text-decoration: none;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.next-action-card .next-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    color: #5a67d8;
+}
+.next-action-card .next-action-btn i.fa-arrow-right {
+    transition: transform 0.2s;
+}
+.next-action-card .next-action-btn:hover i.fa-arrow-right {
+    transform: translateX(4px);
+}
+
 /* Android WebView対応 */
 @media screen and (max-width: 767px) {
     /* スクロールパフォーマンス向上 */

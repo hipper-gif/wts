@@ -427,7 +427,7 @@ echo $page_data['page_header'];
                             </button>
                             <?php endif; ?>
                         <?php else: ?>
-                            <button type="submit" class="btn btn-success btn-lg">
+                            <button type="submit" class="btn btn-success btn-lg" data-loading-text="保存中...">
                                 <i class="fas fa-save me-2"></i>登録する
                             </button>
                         <?php endif; ?>
@@ -444,19 +444,14 @@ echo $page_data['page_header'];
                 </form>
                 <?php endif; ?>
 
-            <!-- 次のステップへの案内 -->
+            <!-- 次アクションカード -->
             <?php if ($success_message && !$edit_mode): ?>
-            <div class="alert alert-success border-0 shadow-sm mb-4">
-                <div class="d-flex align-items-center">
-                    <i class="fas fa-check-circle text-success fs-3 me-3"></i>
-                    <div class="flex-grow-1">
-                        <h5 class="alert-heading mb-1">出庫処理完了</h5>
-                        <p class="mb-0">次は乗車記録を登録してください</p>
-                    </div>
-                    <a href="ride_records.php" class="btn btn-success btn-lg">
-                        <i class="fas fa-users me-2"></i>乗車記録へ進む
-                    </a>
-                </div>
+            <div class="next-action-card">
+                <div class="next-action-title"><i class="fas fa-check-circle me-2"></i>出庫処理完了</div>
+                <div class="next-action-subtitle">次は乗車記録を登録してください</div>
+                <a href="ride_records.php" class="next-action-btn">
+                    <i class="fas fa-users"></i> 乗車記録へ進む <i class="fas fa-arrow-right"></i>
+                </a>
             </div>
             <?php endif; ?>
             </div>

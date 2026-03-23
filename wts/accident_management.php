@@ -747,7 +747,7 @@ $accident_stats = getAccidentStats($pdo, $search_year);
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                        <button type="submit" class="btn btn-danger">
+                        <button type="submit" class="btn btn-danger" data-loading-text="保存中...">
                             <i class="fas fa-save me-1"></i>記録保存
                         </button>
                     </div>
@@ -789,7 +789,7 @@ $accident_stats = getAccidentStats($pdo, $search_year);
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                        <button type="submit" class="btn btn-warning">
+                        <button type="submit" class="btn btn-warning" data-loading-text="保存中...">
                             <i class="fas fa-save me-1"></i>更新保存
                         </button>
                     </div>

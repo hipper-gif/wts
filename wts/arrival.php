@@ -202,19 +202,14 @@ echo $page_data['page_header'];
 <!-- メインコンテンツ -->
 <main class="main-content" id="main-content" tabindex="-1">
     <div class="container-fluid py-4">
-        <!-- 次のステップへの案内バナー -->
+        <!-- 次アクションカード -->
         <?php if ($success_message && isset($saved_driver_id)): ?>
-        <div class="alert alert-success border-0 mb-4">
-            <div class="d-flex align-items-center">
-                <i class="fas fa-check-circle fs-3 me-3"></i>
-                <div class="flex-grow-1">
-                    <h5 class="alert-heading mb-1">入庫処理完了</h5>
-                    <p class="mb-0">次は乗務後点呼を行ってください</p>
-                </div>
-                <a href="post_duty_call.php?driver_id=<?= $saved_driver_id ?>" class="btn btn-success btn-lg">
-                    <i class="fas fa-clipboard-check me-2"></i>乗務後点呼へ進む
-                </a>
-            </div>
+        <div class="next-action-card">
+            <div class="next-action-title"><i class="fas fa-check-circle me-2"></i>入庫処理完了</div>
+            <div class="next-action-subtitle">次は乗務後点呼を行ってください</div>
+            <a href="post_duty_call.php?driver_id=<?= $saved_driver_id ?>" class="next-action-btn">
+                <i class="fas fa-phone-alt"></i> 乗務後点呼へ進む <i class="fas fa-arrow-right"></i>
+            </a>
         </div>
         <?php endif; ?>
 
@@ -418,7 +413,7 @@ echo $page_data['page_header'];
 
                     <!-- 操作ボタン（画面下部固定） -->
                     <div class="text-center" id="actionButtons" style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 1020; background: white; padding: 12px 0; border-top: 1px solid #dee2e6; box-shadow: 0 -2px 8px rgba(0,0,0,0.1);">
-                        <button type="submit" class="btn btn-success btn-lg">
+                        <button type="submit" class="btn btn-success btn-lg" data-loading-text="保存中...">
                             <i class="fas fa-save me-2"></i>登録する
                         </button>
                     </div>
