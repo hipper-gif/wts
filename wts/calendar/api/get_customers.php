@@ -78,17 +78,11 @@ try {
         $stmt->execute([$search_term, $search_term, $search_term]);
         $customers = $stmt->fetchAll();
 
-        // 各顧客のよく使う行き先も取得
+        // よく使う行き先を一括取得してマッピング
+        $customer_ids = array_column($customers, 'id');
+        $dest_map = fetchDestinationsForCustomers($pdo, $customer_ids);
         foreach ($customers as &$customer) {
-            $stmt = $pdo->prepare("
-                SELECT id, location_name, address, location_type, sort_order, notes
-                FROM frequent_destinations
-                WHERE customer_id = ?
-                ORDER BY sort_order ASC, id ASC
-            ");
-            $stmt->execute([$customer['id']]);
-            $customer['frequent_destinations'] = $stmt->fetchAll();
-
+            $customer['frequent_destinations'] = $dest_map[$customer['id']] ?? [];
             $customer = escapeCustomer($customer);
         }
         unset($customer);
@@ -119,17 +113,11 @@ try {
         $stmt->execute([$limit, $offset]);
         $customers = $stmt->fetchAll();
 
-        // 各顧客のよく使う行き先も取得
+        // よく使う行き先を一括取得してマッピング
+        $customer_ids = array_column($customers, 'id');
+        $dest_map = fetchDestinationsForCustomers($pdo, $customer_ids);
         foreach ($customers as &$customer) {
-            $stmt = $pdo->prepare("
-                SELECT id, location_name, address, location_type, sort_order, notes
-                FROM frequent_destinations
-                WHERE customer_id = ?
-                ORDER BY sort_order ASC, id ASC
-            ");
-            $stmt->execute([$customer['id']]);
-            $customer['frequent_destinations'] = $stmt->fetchAll();
-
+            $customer['frequent_destinations'] = $dest_map[$customer['id']] ?? [];
             $customer = escapeCustomer($customer);
         }
         unset($customer);
@@ -182,5 +170,28 @@ function escapeCustomer($customer) {
     }
 
     return $customer;
+}
+
+/**
+ * 複数顧客のよく使う行き先を一括取得（N+1クエリ対策）
+ */
+function fetchDestinationsForCustomers($pdo, $customer_ids) {
+    if (empty($customer_ids)) return [];
+
+    $placeholders = str_repeat('?,', count($customer_ids) - 1) . '?';
+    $stmt = $pdo->prepare("
+        SELECT id, customer_id, location_name, address, location_type, sort_order, notes
+        FROM frequent_destinations
+        WHERE customer_id IN ({$placeholders})
+        ORDER BY sort_order ASC, id ASC
+    ");
+    $stmt->execute($customer_ids);
+    $all_destinations = $stmt->fetchAll();
+
+    $map = [];
+    foreach ($all_destinations as $dest) {
+        $map[$dest['customer_id']][] = $dest;
+    }
+    return $map;
 }
 ?>

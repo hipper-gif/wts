@@ -9,73 +9,11 @@ require_once 'includes/session_check.php';
  * 点検記録の作成・更新・削除時に変更履歴を記録する
  */
 function logInspectionAudit($pdo, $inspection_id, $action, $user_id, $changes = [], $reason = null) {
-    try {
-        $ip_address = $_SERVER['REMOTE_ADDR'] ?? '';
-        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
-
-        if (empty($changes)) {
-            // 作成・削除など変更フィールドがない場合は1件のみ記録
-            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs
-                (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
-                VALUES (?, ?, ?, NULL, NULL, NULL, ?, ?, ?)");
-            $stmt->execute([$inspection_id, $action, $user_id, $reason, $ip_address, $user_agent]);
-        } else {
-            // フィールドごとに変更履歴を記録
-            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs
-                (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            foreach ($changes as $change) {
-                $stmt->execute([
-                    $inspection_id,
-                    $action,
-                    $user_id,
-                    $change['field'],
-                    $change['old'],
-                    $change['new'],
-                    $reason,
-                    $ip_address,
-                    $user_agent
-                ]);
-            }
-        }
-    } catch (Exception $e) {
-        // 監査ログの失敗でメイン処理を止めない
-        error_log("監査ログ記録エラー: " . $e->getMessage());
-    }
+    logAudit($pdo, $inspection_id, $action, $user_id, 'inspection', $changes, $reason);
 }
 
-/**
- * 点検記録の編集可否を判定する
- * 当日分は誰でも編集可、過去分は管理者のみ（理由必須）
- */
 function canEditInspection($inspection, $user_role) {
-    $today = date('Y-m-d');
-    $inspection_date = $inspection['inspection_date'];
-
-    if ($inspection_date === $today) {
-        // 当日の記録は誰でも編集可能
-        return [
-            'can_edit' => true,
-            'needs_reason' => false,
-            'lock_reason' => ''
-        ];
-    }
-
-    if ($inspection_date < $today && $user_role === 'Admin') {
-        // 過去の記録は管理者のみ編集可能（理由必須）
-        return [
-            'can_edit' => true,
-            'needs_reason' => true,
-            'lock_reason' => '過去日の記録です。管理者権限で修正できます。'
-        ];
-    }
-
-    // それ以外はロック
-    return [
-        'can_edit' => false,
-        'needs_reason' => false,
-        'lock_reason' => '過去日の記録はロックされています。管理者にお問い合わせください。'
-    ];
+    return canEditByDate($inspection, 'inspection_date', $user_role);
 }
 
 // ログインチェック

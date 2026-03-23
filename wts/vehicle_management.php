@@ -37,30 +37,7 @@ $page_config = getPageConfiguration('vehicle_management');
 
 // 監査ログ関数
 function logVehicleAudit($pdo, $vehicle_id, $action, $user_id, $changes = [], $reason = null) {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-    $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
-
-    if (empty($changes)) {
-        $stmt = $pdo->prepare("
-            INSERT INTO inspection_audit_logs
-            (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
-            VALUES (?, ?, ?, 'vehicle', NULL, NULL, ?, ?, ?)");
-        $stmt->execute([$vehicle_id, $action, $user_id, $reason, $ip, $ua]);
-    } else {
-        foreach ($changes as $change) {
-            $stmt = $pdo->prepare("
-                INSERT INTO inspection_audit_logs
-                (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([
-                $vehicle_id, $action, $user_id,
-                $change['field'] ?? 'vehicle',
-                $change['old'] ?? null,
-                $change['new'] ?? null,
-                $reason, $ip, $ua
-            ]);
-        }
-    }
+    logAudit($pdo, $vehicle_id, $action, $user_id, 'vehicle', $changes, $reason);
 }
 
 $success_message = '';

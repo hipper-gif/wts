@@ -8,39 +8,11 @@ require_once 'includes/session_check.php';
  * 出庫記録の監査ログ
  */
 function logDepartureAudit($pdo, $record_id, $action, $user_id, $changes = [], $reason = null) {
-    try {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
-        if (empty($changes)) {
-            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs
-                (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
-                VALUES (?, ?, ?, 'departure', NULL, NULL, ?, ?, ?)");
-            $stmt->execute([$record_id, $action, $user_id, $reason, $ip, $ua]);
-        } else {
-            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs
-                (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            foreach ($changes as $c) {
-                $stmt->execute([$record_id, $action, $user_id, $c['field'], $c['old'], $c['new'], $reason, $ip, $ua]);
-            }
-        }
-    } catch (Exception $e) {
-        error_log("出庫監査ログエラー: " . $e->getMessage());
-    }
+    logAudit($pdo, $record_id, $action, $user_id, 'departure', $changes, $reason);
 }
 
-/**
- * 出庫記録の編集可否判定
- */
 function canEditDeparture($record, $user_role) {
-    $today = date('Y-m-d');
-    if ($record['departure_date'] === $today) {
-        return ['can_edit' => true, 'needs_reason' => false, 'lock_reason' => ''];
-    }
-    if ($record['departure_date'] < $today && $user_role === 'Admin') {
-        return ['can_edit' => true, 'needs_reason' => true, 'lock_reason' => '過去日の記録です。管理者権限で修正できます。'];
-    }
-    return ['can_edit' => false, 'needs_reason' => false, 'lock_reason' => '過去日の記録はロックされています。管理者にお問い合わせください。'];
+    return canEditByDate($record, 'departure_date', $user_role);
 }
 
 // $pdo, $user_id, $user_name, $user_role は session_check.php で設定済み

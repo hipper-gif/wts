@@ -93,6 +93,8 @@ $page_options = [
     'additional_js' => [
         // FullCalendar CDN (v6.1.11 - includes all plugins)
         'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js',
+        // 共通ユーティリティ
+        '../js/utils.js?v=' . (file_exists(__DIR__ . '/../js/utils.js') ? filemtime(__DIR__ . '/../js/utils.js') : time()),
         // カレンダー専用JS
         $cache_bust('js/calendar.js'),
         $cache_bust('js/reservation.js'),

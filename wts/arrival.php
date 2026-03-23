@@ -10,21 +10,7 @@ require_once 'includes/session_check.php';
 
 // 監査ログ記録関数
 function logArrivalAudit($pdo, $record_id, $action, $user_id, $changes = [], $reason = null) {
-    try {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
-        if (empty($changes)) {
-            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent) VALUES (?, ?, ?, 'arrival', NULL, NULL, ?, ?, ?)");
-            $stmt->execute([$record_id, $action, $user_id, $reason, $ip, $ua]);
-        } else {
-            foreach ($changes as $change) {
-                $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$record_id, $action, $user_id, $change['field'] ?? 'arrival', $change['old'] ?? null, $change['new'] ?? null, $reason, $ip, $ua]);
-            }
-        }
-    } catch (PDOException $e) {
-        error_log("Arrival audit log error: " . $e->getMessage());
-    }
+    logAudit($pdo, $record_id, $action, $user_id, 'arrival', $changes, $reason);
 }
 
 // 共通関数

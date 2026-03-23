@@ -8,40 +8,11 @@ require_once 'includes/session_check.php';
  * 点呼記録の監査ログ
  */
 function logCallAudit($pdo, $call_id, $action, $user_id, $changes = [], $reason = null) {
-    try {
-        $ip_address = $_SERVER['REMOTE_ADDR'] ?? '';
-        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
-        if (empty($changes)) {
-            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs
-                (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
-                VALUES (?, ?, ?, 'pre_duty_call', NULL, NULL, ?, ?, ?)");
-            $stmt->execute([$call_id, $action, $user_id, $reason, $ip_address, $user_agent]);
-        } else {
-            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs
-                (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            foreach ($changes as $change) {
-                $stmt->execute([$call_id, $action, $user_id, $change['field'], $change['old'], $change['new'], $reason, $ip_address, $user_agent]);
-            }
-        }
-    } catch (Exception $e) {
-        error_log("点呼監査ログエラー: " . $e->getMessage());
-    }
+    logAudit($pdo, $call_id, $action, $user_id, 'pre_duty_call', $changes, $reason);
 }
 
-/**
- * 点呼記録の編集可否判定（当日は自由、過去は管理者のみ理由必須）
- */
 function canEditCall($call, $user_role) {
-    $today = date('Y-m-d');
-    $call_date = $call['call_date'];
-    if ($call_date === $today) {
-        return ['can_edit' => true, 'needs_reason' => false, 'lock_reason' => ''];
-    }
-    if ($call_date < $today && $user_role === 'Admin') {
-        return ['can_edit' => true, 'needs_reason' => true, 'lock_reason' => '過去日の記録です。管理者権限で修正できます。'];
-    }
-    return ['can_edit' => false, 'needs_reason' => false, 'lock_reason' => '過去日の記録はロックされています。管理者にお問い合わせください。'];
+    return canEditByDate($call, 'call_date', $user_role);
 }
 
 // $pdo, $user_id, $user_name, $user_role は session_check.php で設定済み

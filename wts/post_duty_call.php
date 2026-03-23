@@ -6,35 +6,11 @@ require_once 'includes/session_check.php';
 
 // 監査ログ記録関数
 function logPostDutyAudit($pdo, $record_id, $action, $user_id, $changes = [], $reason = null) {
-    try {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
-        if (empty($changes)) {
-            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent) VALUES (?, ?, ?, 'post_duty_call', NULL, NULL, ?, ?, ?)");
-            $stmt->execute([$record_id, $action, $user_id, $reason, $ip, $ua]);
-        } else {
-            foreach ($changes as $change) {
-                $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$record_id, $action, $user_id, $change['field'] ?? 'post_duty_call', $change['old'] ?? null, $change['new'] ?? null, $reason, $ip, $ua]);
-            }
-        }
-    } catch (PDOException $e) {
-        error_log("Post duty call audit log error: " . $e->getMessage());
-    }
+    logAudit($pdo, $record_id, $action, $user_id, 'post_duty_call', $changes, $reason);
 }
 
-// ロック判定関数
 function canEditPostDutyCall($record, $user_role) {
-    $record_date = $record['call_date'] ?? '';
-    $today = date('Y-m-d');
-    $is_locked = ($record_date < $today);
-    if (!$is_locked) {
-        return ['can_edit' => true, 'needs_reason' => false, 'lock_reason' => ''];
-    }
-    if ($user_role === 'Admin') {
-        return ['can_edit' => true, 'needs_reason' => true, 'lock_reason' => '過去日の記録です。管理者権限で修正できます。'];
-    }
-    return ['can_edit' => false, 'needs_reason' => false, 'lock_reason' => '過去日の記録はロックされています。管理者にお問い合わせください。'];
+    return canEditByDate($record, 'call_date', $user_role);
 }
 
 $today = date('Y-m-d');

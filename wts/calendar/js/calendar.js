@@ -7,10 +7,7 @@
 // 作成日: 2025年9月27日
 // =================================================================
 
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-}
+// escapeHtml() は js/utils.js で定義済み
 
 document.addEventListener('DOMContentLoaded', function() {
     // =================================================================

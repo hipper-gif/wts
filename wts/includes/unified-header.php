@@ -676,13 +676,13 @@ function renderWorkflowProgress($current_step = 1, $completed_steps = [], $date 
 function renderCompleteHTMLFooter($additional_js = []) {
     $html = '
     <!-- Bootstrap JavaScript -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>';
-    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" defer></script>';
+
     // 追加JavaScript
     foreach ($additional_js as $js) {
         $js_safe = htmlspecialchars($js, ENT_QUOTES, 'UTF-8');
         $html .= '
-    <script src="' . $js_safe . '"></script>';
+    <script src="' . $js_safe . '" defer></script>';
     }
     
     $html .= '

@@ -143,5 +143,61 @@ function h($str) {
     return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
 }
 
+/**
+ * 統一監査ログ記録
+ * @param PDO $pdo データベース接続
+ * @param int $record_id 対象レコードID
+ * @param string $action 操作種別 (create, edit, delete, admin_unlock)
+ * @param int $user_id 操作ユーザーID
+ * @param string $type レコード種別 (arrival, departure, ride_record, inspection, pre_duty_call, post_duty_call, location, vehicle)
+ * @param array $changes 変更内容の配列 [['field'=>..., 'old'=>..., 'new'=>...], ...]
+ * @param string|null $reason 編集理由
+ */
+function logAudit($pdo, $record_id, $action, $user_id, $type = 'record', $changes = [], $reason = null) {
+    try {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs
+            (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        if (empty($changes)) {
+            $stmt->execute([$record_id, $action, $user_id, $type, null, null, $reason, $ip, $ua]);
+        } else {
+            foreach ($changes as $change) {
+                $stmt->execute([
+                    $record_id, $action, $user_id,
+                    $change['field'] ?? $type,
+                    $change['old'] ?? null,
+                    $change['new'] ?? null,
+                    $reason, $ip, $ua
+                ]);
+            }
+        }
+    } catch (Exception $e) {
+        error_log("監査ログ記録エラー: " . $e->getMessage());
+    }
+}
+
+/**
+ * 日付ベースの編集可否判定（共通）
+ * @param array $record レコードデータ
+ * @param string $date_column 日付カラム名
+ * @param string $user_role ユーザー権限 (Admin/User)
+ * @return array ['can_edit'=>bool, 'needs_reason'=>bool, 'lock_reason'=>string]
+ */
+function canEditByDate($record, $date_column, $user_role) {
+    $today = date('Y-m-d');
+    $record_date = $record[$date_column] ?? '';
+
+    if ($record_date >= $today) {
+        return ['can_edit' => true, 'needs_reason' => false, 'lock_reason' => ''];
+    }
+
+    if ($user_role === 'Admin') {
+        return ['can_edit' => true, 'needs_reason' => true, 'lock_reason' => '過去日の記録です。管理者権限で修正できます。'];
+    }
+
+    return ['can_edit' => false, 'needs_reason' => false, 'lock_reason' => '過去日の記録はロックされています。管理者にお問い合わせください。'];
+}
 
 ?>

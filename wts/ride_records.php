@@ -7,36 +7,11 @@ require_once 'includes/session_check.php';
 
 // 監査ログ記録（departure.phpのlogDepartureAudit()と同パターン）
 function logRideAudit($pdo, $record_id, $action, $user_id, $changes = [], $reason = null) {
-    try {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
-        if (empty($changes)) {
-            $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent) VALUES (?, ?, ?, 'ride_record', NULL, NULL, ?, ?, ?)");
-            $stmt->execute([$record_id, $action, $user_id, $reason, $ip, $ua]);
-        } else {
-            foreach ($changes as $change) {
-                $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$record_id, $action, $user_id, $change['field'] ?? 'ride_record', $change['old'] ?? null, $change['new'] ?? null, $reason, $ip, $ua]);
-            }
-        }
-    } catch (PDOException $e) {
-        error_log("Ride audit log error: " . $e->getMessage());
-    }
+    logAudit($pdo, $record_id, $action, $user_id, 'ride_record', $changes, $reason);
 }
 
-// 編集可否判定（pre_duty_call.php, departure.phpと同パターン）
 function canEditRide($record, $user_role) {
-    $record_date = $record['ride_date'] ?? '';
-    $today = date('Y-m-d');
-    $is_locked = ($record_date < $today);
-
-    if (!$is_locked) {
-        return ['can_edit' => true, 'needs_reason' => false, 'lock_reason' => ''];
-    }
-    if ($user_role === 'Admin') {
-        return ['can_edit' => true, 'needs_reason' => true, 'lock_reason' => '過去日の記録です。管理者権限で修正できます。'];
-    }
-    return ['can_edit' => false, 'needs_reason' => false, 'lock_reason' => '過去日の記録はロックされています。管理者にお問い合わせください。'];
+    return canEditByDate($record, 'ride_date', $user_role);
 }
 
 // session_check.phpで$pdo, $user_id, $user_name, $user_role('Admin'/'User')が設定済み
