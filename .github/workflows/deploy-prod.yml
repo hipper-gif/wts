@@ -71,6 +71,28 @@ jobs:
 
         echo "✅ セキュリティチェック完了"
 
+    - name: 📦 デプロイ前バックアップ（SSH経由）
+      env:
+        SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$SSH_KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        BACKUP_NAME="pre-deploy_$(date +%Y%m%d_%H%M%S)"
+        ssh -p 10022 -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+          twinklemark@sv16114.xserver.jp \
+          "cd ~/twinklemark.xsrv.jp/public_html/Smiley/taxi && \
+           tar czf ~/backups/wts_${BACKUP_NAME}.tar.gz \
+             --exclude='wts/.env' \
+             --exclude='wts/sql' \
+             wts/ && \
+           echo 'Backup created: wts_${BACKUP_NAME}.tar.gz' && \
+           ls -lh ~/backups/wts_${BACKUP_NAME}.tar.gz && \
+           ls ~/backups/wts_*.tar.gz | head -n -5 | xargs -r rm -f && \
+           echo 'Old backups cleaned (keeping last 5)'"
+        rm -f ~/.ssh/deploy_key
+        echo "✅ プリデプロイバックアップ完了"
+
     - name: 🔥 本番環境にデプロイ
       uses: SamKirkland/FTP-Deploy-Action@4.3.3
       with:

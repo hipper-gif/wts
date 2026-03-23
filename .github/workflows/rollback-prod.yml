@@ -1,0 +1,122 @@
+name: ⏪ 本番ロールバック（手動）
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_type:
+        description: 'ロールバック方法'
+        required: true
+        type: choice
+        options:
+        - 'backup'
+        - 'commit'
+      backup_name:
+        description: 'バックアップ名（backup選択時。空欄=最新のバックアップ）'
+        required: false
+        default: ''
+      commit_sha:
+        description: 'コミットSHA（commit選択時）'
+        required: false
+        default: ''
+      confirmation:
+        description: '本番ロールバックを実行しますか？'
+        required: true
+        default: 'no'
+        type: choice
+        options:
+        - 'no'
+        - 'yes'
+
+jobs:
+  rollback:
+    name: 本番環境ロールバック
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 確認チェック
+      if: github.event.inputs.confirmation != 'yes'
+      run: |
+        echo "ロールバックがキャンセルされました"
+        exit 1
+
+    # ---- バックアップからのロールバック ----
+    - name: 📦 バックアップからロールバック
+      if: github.event.inputs.rollback_type == 'backup'
+      env:
+        SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$SSH_KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+
+        BACKUP="${{ github.event.inputs.backup_name }}"
+
+        ssh -p 10022 -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+          twinklemark@sv16114.xserver.jp bash -s "$BACKUP" << 'REMOTE_SCRIPT'
+          BACKUP_NAME="$1"
+          DEPLOY_DIR="$HOME/twinklemark.xsrv.jp/public_html/Smiley/taxi"
+          BACKUP_DIR="$HOME/backups"
+
+          # バックアップ指定がなければ最新を使う
+          if [ -z "$BACKUP_NAME" ]; then
+            BACKUP_NAME=$(ls -t "$BACKUP_DIR"/wts_pre-deploy_*.tar.gz 2>/dev/null | head -1)
+            if [ -z "$BACKUP_NAME" ]; then
+              echo "バックアップが見つかりません"
+              exit 1
+            fi
+          else
+            BACKUP_NAME="$BACKUP_DIR/$BACKUP_NAME"
+          fi
+
+          echo "ロールバック元: $BACKUP_NAME"
+
+          # 現在のファイルを退避
+          SAFETY_BACKUP="$BACKUP_DIR/wts_pre-rollback_$(date +%Y%m%d_%H%M%S).tar.gz"
+          cd "$DEPLOY_DIR"
+          tar czf "$SAFETY_BACKUP" --exclude='wts/.env' wts/
+          echo "安全バックアップ作成: $SAFETY_BACKUP"
+
+          # .envを保護してロールバック
+          cp wts/.env /tmp/wts_env_backup
+          rm -rf wts/
+          tar xzf "$BACKUP_NAME" -C "$DEPLOY_DIR/"
+          cp /tmp/wts_env_backup wts/.env
+          rm -f /tmp/wts_env_backup
+
+          echo "ロールバック完了"
+        REMOTE_SCRIPT
+
+        rm -f ~/.ssh/deploy_key
+
+    # ---- 特定コミットからのロールバック ----
+    - name: 📂 コード取得
+      if: github.event.inputs.rollback_type == 'commit'
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.commit_sha }}
+
+    - name: 🔁 コミットから再デプロイ
+      if: github.event.inputs.rollback_type == 'commit'
+      uses: SamKirkland/FTP-Deploy-Action@4.3.3
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        local-dir: ./wts/
+        server-dir: /tw1nkle.com/public_html/Smiley/taxi/wts/
+        exclude: |
+          **/.git*
+          **/.gitignore
+          **/README.md
+          **/.github/**
+          **/node_modules/**
+          **/.env
+          **/.env.example
+          **/sql/**
+        dry-run: false
+
+    - name: ロールバック完了通知
+      run: |
+        echo "ロールバック完了"
+        echo "方法: ${{ github.event.inputs.rollback_type }}"
+        echo "実行者: ${{ github.actor }}"
+        echo "日時: $(date '+%Y-%m-%d %H:%M:%S UTC')"

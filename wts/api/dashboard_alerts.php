@@ -1,15 +1,7 @@
 <?php
-ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_samesite', 'Lax');
-ini_set('session.use_strict_mode', 1);
-if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
-    ini_set('session.cookie_secure', 1);
-}
-session_start();
 header('Content-Type: application/json');
-
-// データベース接続
 require_once dirname(__DIR__) . '/config/database.php';
+require_once dirname(__DIR__) . '/includes/session_check.php';
 
 // ログインチェック
 if (!isset($_SESSION['user_id'])) {

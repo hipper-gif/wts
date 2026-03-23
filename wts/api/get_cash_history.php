@@ -4,13 +4,8 @@
 // 作成日: 2025年8月28日
 
 header('Content-Type: application/json; charset=utf-8');
-ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_samesite', 'Lax');
-ini_set('session.use_strict_mode', 1);
-if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
-    ini_set('session.cookie_secure', 1);
-}
-session_start();
+require_once '../config/database.php';
+require_once dirname(__DIR__) . '/includes/session_check.php';
 
 // 認証チェック
 if (!isset($_SESSION['user_id'])) {
@@ -18,8 +13,6 @@ if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => '認証が必要です']);
     exit;
 }
-
-require_once '../config/database.php';
 
 // 関数型データベース接続に対応
 try {
