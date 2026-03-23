@@ -11,11 +11,11 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 try {
-    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET, DB_USER, DB_PASS);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
+    $pdo = getDBConnection();
+} catch (Exception $e) {
     error_log("Database connection error: " . $e->getMessage());
-    die('データベース接続エラーが発生しました。管理者にお問い合わせください。');
+    header('Location: index.php?error=db');
+    exit;
 }
 
 // ユーザー情報取得
@@ -31,7 +31,8 @@ if (!$user) {
 
 // 権限チェック
 if (!in_array($user['role'], ['管理者', 'システム管理者'])) {
-    die('アクセス権限がありません。管理者のみ利用可能です。');
+    header('Location: dashboard.php');
+    exit;
 }
 
 // 事故管理テーブルの確認・作成

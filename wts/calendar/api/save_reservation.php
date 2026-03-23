@@ -229,7 +229,7 @@ try {
     }
     
     error_log("予約保存エラー: " . $e->getMessage());
-    sendErrorResponse('予約保存中にエラーが発生しました: ' . $e->getMessage());
+    sendErrorResponse('予約保存中にエラーが発生しました');
 }
 
 /**

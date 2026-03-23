@@ -147,9 +147,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $new_id = $pdo->lastInsertId();
 
-            // 車両の走行距離を更新
-            $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ?");
-            $stmt->execute([$arrival_mileage, $vehicle_id]);
+            // 車両の走行距離を更新（楽観的ロック：メーターが逆行しないことを保証）
+            $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ? AND current_mileage <= ?");
+            $stmt->execute([$arrival_mileage, $vehicle_id, $arrival_mileage]);
 
             // 監査ログ記録
             logArrivalAudit($pdo, $new_id, 'create', $user_id);

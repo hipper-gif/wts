@@ -74,7 +74,7 @@ try {
     }
 
     error_log("顧客削除エラー: " . $e->getMessage());
-    sendErrorResponse('顧客削除中にエラーが発生しました: ' . $e->getMessage());
+    sendErrorResponse('顧客削除中にエラーが発生しました');
 }
 
 /**

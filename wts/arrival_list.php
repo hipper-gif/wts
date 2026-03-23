@@ -15,7 +15,9 @@ require_once 'includes/unified-header.php';
 try {
     $pdo = getDBConnection();
 } catch (Exception $e) {
-    die("データベース接続エラー: " . $e->getMessage());
+    error_log("arrival_list DB error: " . $e->getMessage());
+    header('Location: index.php?error=db');
+    exit;
 }
 
 // ログインチェック

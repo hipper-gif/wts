@@ -116,7 +116,7 @@ try {
     
 } catch (Exception $e) {
     error_log("乗車記録変換エラー: " . $e->getMessage());
-    sendErrorResponse('変換中にエラーが発生しました: ' . $e->getMessage());
+    sendErrorResponse('変換中にエラーが発生しました');
 }
 
 /**

@@ -9,7 +9,7 @@ require_once dirname(__DIR__) . '/includes/session_check.php';
 // セッション確認
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
-    exit(json_encode(['success' => false, 'error' => 'ログインが必要です']));
+    exit(json_encode(['success' => false, 'message' => 'ログインが必要です']));
 }
 
 // CSRF検証
@@ -18,23 +18,22 @@ validateCsrfToken();
 // POSTメソッドのみ許可
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    exit(json_encode(['success' => false, 'error' => 'POST method required']));
+    exit(json_encode(['success' => false, 'message' => 'POSTメソッドが必要です']));
 }
 
 try {
     // データベース接続
-    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET, DB_USER, DB_PASS);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo = getDBConnection();
     
     // パラメータ取得・バリデーション
     $arrival_id = $_POST['arrival_id'] ?? null;
     $arrival_date = $_POST['arrival_date'] ?? null;
     $arrival_time = $_POST['arrival_time'] ?? null;
     $arrival_mileage = $_POST['arrival_mileage'] ?? null;
-    $fuel_cost = (int)($_POST['fuel_cost'] ?? 0);
-    $highway_cost = (int)($_POST['highway_cost'] ?? 0);
-    $toll_cost = (int)($_POST['toll_cost'] ?? 0);
-    $other_cost = (int)($_POST['other_cost'] ?? 0);
+    $fuel_cost = max(0, (int)($_POST['fuel_cost'] ?? 0));
+    $highway_cost = max(0, (int)($_POST['highway_cost'] ?? 0));
+    $toll_cost = max(0, (int)($_POST['toll_cost'] ?? 0));
+    $other_cost = max(0, (int)($_POST['other_cost'] ?? 0));
     $remarks = $_POST['remarks'] ?? null;
     $edit_reason = $_POST['edit_reason'] ?? null;
     $user_id = $_SESSION['user_id'];
@@ -42,7 +41,7 @@ try {
     // 必須パラメータチェック
     if (!$arrival_id || !$arrival_date || !$arrival_time || !$arrival_mileage || !$edit_reason) {
         http_response_code(400);
-        exit(json_encode(['success' => false, 'error' => '必須項目が入力されていません']));
+        exit(json_encode(['success' => false, 'message' => '必須項目が入力されていません']));
     }
     
     $arrival_mileage = (int)$arrival_mileage;
@@ -71,7 +70,7 @@ try {
     // 権限チェック
     if (!canEditArrivalRecord($pdo, $arrival_id, $user_id)) {
         http_response_code(403);
-        exit(json_encode(['success' => false, 'error' => '編集権限がありません']));
+        exit(json_encode(['success' => false, 'message' => '編集権限がありません']));
     }
     
     // トランザクション開始
@@ -90,7 +89,7 @@ try {
     if (!$data) {
         $pdo->rollback();
         http_response_code(404);
-        exit(json_encode(['success' => false, 'error' => '入庫記録が見つかりません']));
+        exit(json_encode(['success' => false, 'message' => '入庫記録が見つかりません']));
     }
     
     // メーターバリデーション
@@ -99,7 +98,7 @@ try {
         http_response_code(400);
         exit(json_encode([
             'success' => false, 
-            'error' => "入庫メーターは出庫メーター({$data['departure_mileage']}km)以上である必要があります"
+            'message' => "入庫メーターは出庫メーター({$data['departure_mileage']}km)以上である必要があります"
         ]));
     }
     
@@ -134,19 +133,19 @@ try {
     if (!$update_result) {
         $pdo->rollback();
         http_response_code(500);
-        exit(json_encode(['success' => false, 'error' => '入庫記録の更新に失敗しました']));
+        exit(json_encode(['success' => false, 'message' => '入庫記録の更新に失敗しました']));
     }
     
-    // 3. 車両の現在メーター更新
+    // 3. 車両の現在メーター更新（楽観的ロック：メーターが逆行しないことを保証）
     $vehicle_stmt = $pdo->prepare("
-        UPDATE vehicles SET current_mileage = ? WHERE id = ?
+        UPDATE vehicles SET current_mileage = ? WHERE id = ? AND current_mileage <= ?
     ");
-    $vehicle_result = $vehicle_stmt->execute([$arrival_mileage, $data['vehicle_id']]);
+    $vehicle_result = $vehicle_stmt->execute([$arrival_mileage, $data['vehicle_id'], $arrival_mileage]);
     
     if (!$vehicle_result) {
         $pdo->rollback();
         http_response_code(500);
-        exit(json_encode(['success' => false, 'error' => '車両メーターの更新に失敗しました']));
+        exit(json_encode(['success' => false, 'message' => '車両メーターの更新に失敗しました']));
     }
     
     // コミット
@@ -171,7 +170,7 @@ try {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'データベースエラーが発生しました'
+        'message' => 'データベースエラーが発生しました'
     ]);
 } catch (Exception $e) {
     if (isset($pdo) && $pdo->inTransaction()) {
@@ -181,7 +180,7 @@ try {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'エラーが発生しました: ' . $e->getMessage()
+        'message' => 'エラーが発生しました'
     ]);
 }
 ?>

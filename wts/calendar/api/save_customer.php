@@ -194,7 +194,7 @@ try {
     }
 
     error_log("顧客保存エラー: " . $e->getMessage());
-    sendErrorResponse('顧客保存中にエラーが発生しました: ' . $e->getMessage());
+    sendErrorResponse('顧客保存中にエラーが発生しました');
 }
 
 /**

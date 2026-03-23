@@ -7,7 +7,8 @@ require_once 'includes/session_check.php';
 
 // 権限チェック（Admin限定ページ）
 if ($user_role !== 'Admin') {
-    die('アクセス権限がありません。管理者のみ利用可能です。');
+    header('Location: dashboard.php');
+    exit;
 }
 
 // --- 監査ログ関数 ---

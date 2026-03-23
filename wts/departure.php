@@ -132,10 +132,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $update_stmt = $pdo->prepare($update_sql);
             $update_stmt->execute([$departure_time, $weather, $departure_mileage, $edit_id, $departure_date]);
 
-            // 車両の走行距離も更新
-            $update_vehicle_sql = "UPDATE vehicles SET current_mileage = ?, updated_at = NOW() WHERE id = ?";
+            // 車両の走行距離も更新（楽観的ロック）
+            $update_vehicle_sql = "UPDATE vehicles SET current_mileage = ?, updated_at = NOW() WHERE id = ? AND current_mileage <= ?";
             $update_vehicle_stmt = $pdo->prepare($update_vehicle_sql);
-            $update_vehicle_stmt->execute([$departure_mileage, $vehicle_id]);
+            $update_vehicle_stmt->execute([$departure_mileage, $vehicle_id, $departure_mileage]);
 
             logDepartureAudit($pdo, $_POST['edit_id'], 'edit', $user_id, [], $_POST['edit_reason'] ?? null);
             $pdo->commit();
@@ -145,14 +145,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $edit_record = null;
 
         } else {
-            // 新規登録処理
+            // 新規登録処理 — トランザクション内でチェック＋INSERTを一括保護
+            $pdo->beginTransaction();
 
-            // 複数出庫対応：入庫済みの場合は再出庫を許可
+            // 複数出庫対応：入庫済みの場合は再出庫を許可（FOR UPDATEで競合防止）
             $duplicate_check_sql = "
                 SELECT dr.id, ar.id as arrival_id
                 FROM departure_records dr
                 LEFT JOIN arrival_records ar ON dr.id = ar.departure_record_id
                 WHERE dr.vehicle_id = ? AND dr.departure_date = ?
+                FOR UPDATE
             ";
             $duplicate_stmt = $pdo->prepare($duplicate_check_sql);
             $duplicate_stmt->execute([$vehicle_id, $departure_date]);
@@ -164,21 +166,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             });
 
             if (!empty($unfinished_departures)) {
+                $pdo->rollBack();
                 throw new Exception('この車両は本日まだ入庫されていません。先に入庫処理を完了してください。');
             }
 
             // データ保存
-            $pdo->beginTransaction();
             $insert_sql = "INSERT INTO departure_records
                 (driver_id, vehicle_id, departure_date, departure_time, weather, departure_mileage, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, NOW())";
             $insert_stmt = $pdo->prepare($insert_sql);
             $insert_stmt->execute([$driver_id, $vehicle_id, $departure_date, $departure_time, $weather, $departure_mileage]);
 
-            // 車両の走行距離を更新
-            $update_sql = "UPDATE vehicles SET current_mileage = ?, updated_at = NOW() WHERE id = ?";
+            // 車両の走行距離を更新（楽観的ロック：メーターが逆行しないことを保証）
+            $update_sql = "UPDATE vehicles SET current_mileage = ?, updated_at = NOW() WHERE id = ? AND current_mileage <= ?";
             $update_stmt = $pdo->prepare($update_sql);
-            $update_stmt->execute([$departure_mileage, $vehicle_id]);
+            $update_stmt->execute([$departure_mileage, $vehicle_id, $departure_mileage]);
 
             $new_id = $pdo->lastInsertId();
             logDepartureAudit($pdo, $new_id, 'create', $user_id);

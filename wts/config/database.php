@@ -43,7 +43,7 @@ function getDBConnection() {
         return $pdo;
     } catch(PDOException $e) {
         error_log("DB接続エラー: " . $e->getMessage());
-        die("データベース接続に失敗しました。");
+        throw new RuntimeException("データベース接続に失敗しました。");
     }
 }
 ?>

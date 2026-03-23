@@ -32,8 +32,8 @@ try {
 
 try {
     // パラメータ取得
-    $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
-    $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+    $limit = isset($_GET['limit']) ? max(1, min(100, (int)$_GET['limit'])) : 10;
+    $offset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
     $driver_id = isset($_GET['driver_id']) ? (int)$_GET['driver_id'] : null;
     $date_from = $_GET['date_from'] ?? null;
     $date_to = $_GET['date_to'] ?? null;
@@ -149,7 +149,7 @@ try {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'message' => 'データ取得エラー: ' . $e->getMessage(),
+        'message' => 'データ取得中にエラーが発生しました',
         'error_code' => 'FETCH_ERROR'
     ]);
 }

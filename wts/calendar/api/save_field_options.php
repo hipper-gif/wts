@@ -74,11 +74,12 @@ try {
             }
             if (isset($input['sort_order'])) {
                 $sets[] = "sort_order = ?";
-                $params[] = intval($input['sort_order']);
+                $params[] = max(0, min(1000, intval($input['sort_order'])));
             }
             if (isset($input['is_active'])) {
+                $is_active = intval($input['is_active']);
                 $sets[] = "is_active = ?";
-                $params[] = intval($input['is_active']);
+                $params[] = ($is_active === 1) ? 1 : 0;
             }
 
             if (empty($sets)) {
@@ -131,6 +132,6 @@ try {
         $pdo->rollBack();
     }
     error_log("項目保存エラー: " . $e->getMessage());
-    sendErrorResponse('保存に失敗しました: ' . $e->getMessage());
+    sendErrorResponse('保存に失敗しました');
 }
 ?>

@@ -63,14 +63,14 @@ try {
     // データを安全に取得（デフォルト値設定）
     $confirmation_date = $data['confirmation_date'];
     $driver_id = $_SESSION['user_id'];
-    $bill_10000 = (int)($data['bill_10000'] ?? 0);
-    $bill_5000 = (int)($data['bill_5000'] ?? 0);
-    $bill_1000 = (int)($data['bill_1000'] ?? 0);
-    $coin_500 = (int)($data['coin_500'] ?? 0);
-    $coin_100 = (int)($data['coin_100'] ?? 0);
-    $coin_50 = (int)($data['coin_50'] ?? 0);
-    $coin_10 = (int)($data['coin_10'] ?? 0);
-    $total_amount = (int)($data['total_amount'] ?? 0);
+    $bill_10000 = max(0, (int)($data['bill_10000'] ?? 0));
+    $bill_5000 = max(0, (int)($data['bill_5000'] ?? 0));
+    $bill_1000 = max(0, (int)($data['bill_1000'] ?? 0));
+    $coin_500 = max(0, (int)($data['coin_500'] ?? 0));
+    $coin_100 = max(0, (int)($data['coin_100'] ?? 0));
+    $coin_50 = max(0, (int)($data['coin_50'] ?? 0));
+    $coin_10 = max(0, (int)($data['coin_10'] ?? 0));
+    $total_amount = max(0, (int)($data['total_amount'] ?? 0));
     $memo = $data['memo'] ?? '';
 
     // トランザクション開始
@@ -178,7 +178,7 @@ try {
     http_response_code(400);
     echo json_encode([
         'success' => false,
-        'message' => $e->getMessage()
+        'message' => '入力データにエラーがあります'
     ]);
 }
 ?>

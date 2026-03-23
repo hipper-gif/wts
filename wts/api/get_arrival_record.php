@@ -14,25 +14,24 @@ header('Content-Type: application/json');
 // セッション確認
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
-    exit(json_encode(['success' => false, 'error' => 'ログインが必要です']));
+    exit(json_encode(['success' => false, 'message' => 'ログインが必要です']));
 }
 
 // GETメソッドのみ許可
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
-    exit(json_encode(['success' => false, 'error' => 'GET method required']));
+    exit(json_encode(['success' => false, 'message' => 'GETメソッドが必要です']));
 }
 
 // パラメータ確認
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     http_response_code(400);
-    exit(json_encode(['success' => false, 'error' => 'ID parameter required']));
+    exit(json_encode(['success' => false, 'message' => 'IDパラメータが必要です']));
 }
 
 try {
     // データベース接続
-    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET, DB_USER, DB_PASS);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo = getDBConnection();
     
     $arrival_id = (int)$_GET['id'];
     $user_id = $_SESSION['user_id'];
@@ -61,7 +60,7 @@ try {
     // 権限チェック
     if (!canEditArrivalRecord($pdo, $arrival_id, $user_id)) {
         http_response_code(403);
-        exit(json_encode(['success' => false, 'error' => '編集権限がありません']));
+        exit(json_encode(['success' => false, 'message' => '編集権限がありません']));
     }
     
     // 入庫記録と関連データを取得
@@ -85,7 +84,7 @@ try {
     
     if (!$record) {
         http_response_code(404);
-        exit(json_encode(['success' => false, 'error' => '入庫記録が見つかりません']));
+        exit(json_encode(['success' => false, 'message' => '入庫記録が見つかりません']));
     }
     
     // 日付・時刻フォーマット調整
@@ -106,14 +105,14 @@ try {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'データベースエラーが発生しました'
+        'message' => 'データベースエラーが発生しました'
     ]);
 } catch (Exception $e) {
     error_log("General error in get_arrival_record.php: " . $e->getMessage());
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'エラーが発生しました'
+        'message' => 'エラーが発生しました'
     ]);
 }
 ?>

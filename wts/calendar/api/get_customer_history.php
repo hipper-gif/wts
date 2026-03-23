@@ -32,7 +32,7 @@ try {
     }
 
     $customer_id = intval($customer_id);
-    $page = max(1, intval($_GET['page'] ?? 1));
+    $page = max(1, min(10000, intval($_GET['page'] ?? 1)));
     $limit = max(1, min(100, intval($_GET['limit'] ?? 20)));
     $offset = ($page - 1) * $limit;
 

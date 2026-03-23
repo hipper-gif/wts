@@ -27,7 +27,7 @@ try {
     // パラメータ取得
     $id = $_GET['id'] ?? null;
     $q = $_GET['q'] ?? null;
-    $page = max(1, intval($_GET['page'] ?? 1));
+    $page = max(1, min(10000, intval($_GET['page'] ?? 1)));
     $limit = max(1, min(100, intval($_GET['limit'] ?? 20)));
     $offset = ($page - 1) * $limit;
 

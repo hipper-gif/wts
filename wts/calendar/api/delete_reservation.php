@@ -94,7 +94,7 @@ try {
     }
 
     error_log("予約削除エラー: " . $e->getMessage());
-    sendErrorResponse('予約削除中にエラーが発生しました: ' . $e->getMessage());
+    sendErrorResponse('予約削除中にエラーが発生しました');
 }
 
 /**

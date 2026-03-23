@@ -34,7 +34,8 @@ try {
     $date = $_GET['date'] ?? '';
     $time = $_GET['time'] ?? '';
     $rental_service = $_GET['rental_service'] ?? 'なし';
-    $exclude_id = $_GET['exclude_id'] ?? null;
+    $exclude_id = isset($_GET['exclude_id']) ? max(0, intval($_GET['exclude_id'])) : null;
+    if ($exclude_id === 0) $exclude_id = null;
     
     // 必須パラメータチェック
     if (!$date || !$time) {

@@ -45,7 +45,7 @@ try {
     }
     
     $parent_reservation_id = intval($input['parent_reservation_id']);
-    $hours_later = intval($input['hours_later'] ?? 3);
+    $hours_later = max(1, min(24, intval($input['hours_later'] ?? 3)));
     $custom_time = $input['custom_time'] ?? null;
     
     // 権限チェック
@@ -157,7 +157,7 @@ try {
     }
     
     error_log("復路作成エラー: " . $e->getMessage());
-    sendErrorResponse('復路作成中にエラーが発生しました: ' . $e->getMessage());
+    sendErrorResponse('復路作成中にエラーが発生しました');
 }
 
 /**
