@@ -306,13 +306,43 @@ class CashMobileManager {
         }, 3000);
     }
     
-    // オフラインデータ同期（APIエンドポイント未実装のため無効化）
+    // オフラインデータ同期
     syncOfflineData() {
-        // LocalStorageからオフラインデータを取得して同期
-        const offlineData = localStorage.getItem('cash_offline_data');
-        if (offlineData) {
-            // APIエンドポイント未実装のためスキップ
-        }
+        const raw = localStorage.getItem('cash_offline_data');
+        if (!raw) return;
+
+        let entries;
+        try { entries = JSON.parse(raw); } catch(e) { return; }
+        if (!Array.isArray(entries) || entries.length === 0) return;
+
+        const csrfToken = document.querySelector('input[name="csrf_token"]')?.value
+                       || document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+        fetch('api/sync_offline_data.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            body: JSON.stringify({ entries: entries, csrf_token: csrfToken })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                localStorage.removeItem('cash_offline_data');
+                this.showConnectionStatus(
+                    `${data.synced}件のオフラインデータを同期しました`, 'success'
+                );
+                this.refreshData();
+            }
+        })
+        .catch(() => {});
+    }
+
+    // オフライン時にデータをlocalStorageに保存
+    saveOffline(cashData) {
+        let entries = [];
+        try { entries = JSON.parse(localStorage.getItem('cash_offline_data') || '[]'); } catch(e) { entries = []; }
+        entries.push(cashData);
+        localStorage.setItem('cash_offline_data', JSON.stringify(entries));
+        this.showConnectionStatus('オフライン保存しました（オンライン復帰時に同期）', 'warning');
     }
     
     // データ更新
