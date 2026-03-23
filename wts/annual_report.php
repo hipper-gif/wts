@@ -864,7 +864,7 @@ echo $page_data['page_header'];
             </div>
         </div>
         <div class="col-lg-3">
-            <div class="card bg-success text-white">
+            <div class="card bg-primary text-white">
                 <div class="card-body text-center">
                     <div class="display-4 mb-0"><?= number_format($transport_results['ride_count']) ?></div>
                     <div class="h5">運送回数</div>
@@ -1016,8 +1016,8 @@ echo $page_data['page_header'];
     <!-- 第4号様式出力・管理 -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card border-success">
-                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-file-pdf me-2"></i>第4号様式（輸送実績報告書）</h5>
                     <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#createReportModal">
                         <i class="fas fa-plus me-1"></i>新規作成

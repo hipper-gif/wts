@@ -202,7 +202,9 @@ $page_config = getPageConfiguration('departure');
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [],
-    'additional_js' => [],
+    'additional_js' => [
+        'js/ui-interactions.js'
+    ],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
         ['text' => '日次業務', 'url' => '#'],
@@ -720,14 +722,17 @@ function enableEditMode() {
 }
 
 function confirmDelete() {
-    var reason = prompt('削除理由を入力してください（監査ログに記録されます）:');
-    if (reason === null) return;
-    if (!reason.trim()) { showToast('削除理由を入力してください。', 'warning'); return; }
-    if (confirm('本当に削除しますか？')) {
+    showConfirm('この出庫記録を削除しますか？', function(reason) {
         var el = document.getElementById('deleteReason');
         if (el) el.value = reason;
         document.getElementById('delete-form').submit();
-    }
+    }, {
+        inputLabel: '削除理由',
+        inputRequired: true,
+        inputPlaceholder: '削除理由を入力してください（監査ログに記録されます）',
+        type: 'danger',
+        confirmText: '削除する'
+    });
 }
 
 var formDirty = false;

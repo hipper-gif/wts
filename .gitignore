@@ -42,3 +42,4 @@ composer.lock
 wts/tools/*.csv
 wts/tools/*.json
 wts/tools/*.txt
+twinklemark.key

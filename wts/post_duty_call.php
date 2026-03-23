@@ -268,7 +268,9 @@ $page_config = getPageConfiguration('post_duty_call');
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [],
-    'additional_js' => [],
+    'additional_js' => [
+        'js/ui-interactions.js'
+    ],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
         ['text' => '日次業務', 'url' => '#'],
@@ -609,11 +611,16 @@ function updateCheckItemStyle(checkbox) {
 
 // 削除確認
 function confirmDelete() {
-    var reason = prompt('削除理由を入力してください（監査ログに記録されます）');
-    if (reason !== null && reason.trim() !== '') {
+    showConfirm('この乗務後点呼記録を削除しますか？', function(reason) {
         document.getElementById('deleteReason').value = reason;
         document.getElementById('delete-form').submit();
-    }
+    }, {
+        inputLabel: '削除理由',
+        inputRequired: true,
+        inputPlaceholder: '削除理由を入力してください（監査ログに記録されます）',
+        type: 'danger',
+        confirmText: '削除する'
+    });
 }
 
 // 編集モード有効化

@@ -155,6 +155,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ページ設定
 $page_config = getPageConfiguration('periodic_inspection');
 $page_options = [
+    'additional_js' => [
+        'js/ui-interactions.js'
+    ],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
         ['text' => '定期業務', 'url' => '#'],
@@ -753,9 +756,14 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        if (!confirm('定期点検記録を保存しますか？\n\n次回点検日が自動的に3か月後に設定されます。')) {
-            e.preventDefault();
-        }
+        e.preventDefault();
+        var form = this;
+        showConfirm('定期点検記録を保存しますか？\n\n次回点検日が自動的に3か月後に設定されます。', function() {
+            form.submit();
+        }, {
+            type: 'info',
+            confirmText: '登録する'
+        });
     });
 });
 </script>

@@ -391,8 +391,8 @@ function getDataStatistics($pdo) {
                     <form method="POST" class="mb-3">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                         <input type="hidden" name="action" value="add_sample_flag">
-                        <button type="submit" class="btn btn-primary" 
-                                onclick="return confirm('全テーブルにサンプルフラグを追加しますか？')">
+                        <button type="submit" class="btn btn-primary"
+                                onclick="event.preventDefault(); var form=this.closest('form'); showConfirm('全テーブルにサンプルフラグを追加しますか？', function(){ form.submit(); }, { type: 'danger', confirmText: '追加する' }); return false;">
                             <i class="fas fa-flag me-1"></i>サンプルフラグ追加
                         </button>
                     </form>
@@ -422,8 +422,8 @@ function getDataStatistics($pdo) {
                                        value="<?= date('Y-m-d', strtotime('-7 days')) ?>" required>
                             </div>
                         </div>
-                        <button type="submit" class="btn btn-warning btn-sm mt-2" 
-                                onclick="return confirm('指定期間のデータをサンプルとしてマークしますか？')">
+                        <button type="submit" class="btn btn-warning btn-sm mt-2"
+                                onclick="event.preventDefault(); var form=this.closest('form'); showConfirm('指定期間のデータをサンプルとしてマークしますか？', function(){ form.submit(); }, { type: 'danger', confirmText: 'マークする' }); return false;">
                             <i class="fas fa-tag me-1"></i>期間指定でマーク
                         </button>
                     </form>
@@ -444,8 +444,8 @@ function getDataStatistics($pdo) {
                             <input type="date" name="production_start_date" class="form-control" 
                                    value="<?= date('Y-m-d') ?>" required>
                         </div>
-                        <button type="submit" class="btn btn-success" 
-                                onclick="return confirm('本番運用モードに設定しますか？この操作により、開始日以前のデータはサンプル扱いになります。')">
+                        <button type="submit" class="btn btn-success"
+                                onclick="event.preventDefault(); var form=this.closest('form'); showConfirm('本番運用モードに設定しますか？この操作により、開始日以前のデータはサンプル扱いになります。', function(){ form.submit(); }, { type: 'danger', confirmText: '本番運用開始' }); return false;">
                             <i class="fas fa-play me-1"></i>本番運用開始
                         </button>
                     </form>
@@ -487,8 +487,8 @@ function getDataStatistics($pdo) {
                     <form method="POST" class="d-inline">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                         <input type="hidden" name="action" value="delete_sample_data">
-                        <button type="submit" class="btn btn-danger" 
-                                onclick="return confirm('⚠️ 警告: サンプルデータを完全に削除します。この操作は元に戻せません。本当に実行しますか？')">
+                        <button type="submit" class="btn btn-danger"
+                                onclick="event.preventDefault(); var form=this.closest('form'); showConfirm('警告: サンプルデータを完全に削除します。この操作は元に戻せません。本当に実行しますか？', function(){ form.submit(); }, { type: 'danger', confirmText: '削除する' }); return false;">
                             <i class="fas fa-trash me-1"></i>サンプルデータ削除
                         </button>
                     </form>
@@ -528,5 +528,6 @@ function getDataStatistics($pdo) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/ui-interactions.js"></script>
 </body>
 </html>

@@ -471,7 +471,7 @@ echo $page_data['html_head'];
                             <small class="text-muted">出庫</small>
                         </div>
                         <div class="col-3">
-                            <div class="h4 text-success mb-0"><?= $today_ride_records ?></div>
+                            <div class="h4 text-primary mb-0"><?= $today_ride_records ?></div>
                             <small class="text-muted">乗車</small>
                         </div>
                         <div class="col-3">

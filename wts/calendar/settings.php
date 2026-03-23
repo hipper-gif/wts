@@ -95,7 +95,7 @@ $cache_bust = function($path) {
 $page_options = [
     'description'    => $page_config['description'],
     'additional_css' => [$cache_bust('css/calendar-custom.css')],
-    'additional_js'  => [],
+    'additional_js'  => ['../js/ui-interactions.js'],
     'breadcrumb'     => [
         ['text' => 'ダッシュボード', 'url' => '../dashboard.php'],
         ['text' => '予約管理', 'url' => 'index.php'],
@@ -368,18 +368,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // ========== 削除 ==========
     document.querySelectorAll('.btn-delete').forEach(btn => {
         btn.addEventListener('click', function() {
-            if (!confirm('この選択肢を削除しますか？')) return;
-
             const row = this.closest('tr');
             const id = row.dataset.id;
 
-            apiCall({ action: 'delete', id: id }).then(res => {
-                if (res.success) {
-                    showToast(res.message, 'success');
-                    row.remove();
-                } else {
-                    showToast(res.message, 'error');
-                }
+            showConfirm('この選択肢を削除しますか？', function() {
+                apiCall({ action: 'delete', id: id }).then(res => {
+                    if (res.success) {
+                        showToast(res.message, 'success');
+                        row.remove();
+                    } else {
+                        showToast(res.message, 'error');
+                    }
+                });
+            }, {
+                type: 'danger',
+                confirmText: '削除する'
             });
         });
     });

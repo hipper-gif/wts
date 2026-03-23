@@ -270,7 +270,8 @@ $page_options = [
         'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
     ],
     'additional_js' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'
+        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
+        'js/ui-interactions.js'
     ],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
@@ -1115,7 +1116,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 削除確認
 function deleteUser(userId, userName) {
-    if (confirm(`ユーザー「${userName}」を削除しますか？\n\n※論理削除のため、データは残りますが無効になります。`)) {
+    showConfirm('ユーザー「' + userName + '」を削除しますか？\n\n※論理削除のため、データは残りますが無効になります。', function() {
         const form = document.createElement('form');
         form.method = 'POST';
         form.innerHTML = `
@@ -1125,7 +1126,10 @@ function deleteUser(userId, userName) {
         `;
         document.body.appendChild(form);
         form.submit();
-    }
+    }, {
+        type: 'danger',
+        confirmText: '削除する'
+    });
 }
 
 // リスト更新

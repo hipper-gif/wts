@@ -284,7 +284,7 @@ echo $page_data['page_header'];
                                                 <strong>出庫: <?php echo number_format($arrival['departure_mileage']); ?>km</strong>
                                                 <i class="fas fa-arrow-right mx-2 text-muted"></i>
                                                 <strong>入庫: <?php echo number_format($arrival['arrival_mileage']); ?>km</strong>
-                                                <span class="ms-3 text-success">
+                                                <span class="ms-3 text-primary fw-bold">
                                                     <i class="fas fa-route me-1"></i><?php echo number_format($arrival['total_distance']); ?>km
                                                 </span>
                                             </div>
@@ -364,7 +364,7 @@ echo $page_data['page_header'];
                             <div class="col-12 mb-3">
                                 <div class="unified-payment-stat">
                                     <strong><i class="fas fa-gas-pump me-2"></i>燃料代</strong>
-                                    <div class="text-success fw-bold mt-1">¥<?php echo number_format($summary['total_fuel_cost'] ?? 0); ?></div>
+                                    <div class="text-primary fw-bold mt-1">¥<?php echo number_format($summary['total_fuel_cost'] ?? 0); ?></div>
                                 </div>
                             </div>
                             <div class="col-12 mb-3">
@@ -424,7 +424,7 @@ echo $page_data['page_header'];
                         <input type="number" class="form-control unified-input" id="modalArrivalMileage" name="arrival_mileage" min="0" required>
                         <div class="form-text">
                             出庫メーター: <span id="departureMileageDisplay" class="fw-bold"></span>km
-                            <span id="distanceDisplay" class="ms-3 text-success"></span>
+                            <span id="distanceDisplay" class="ms-3 text-primary fw-bold"></span>
                         </div>
                     </div>
 
@@ -749,7 +749,7 @@ function calculateDistance() {
         displayElement.className = 'ms-3 text-danger';
     } else {
         displayElement.innerHTML = `<i class="fas fa-route"></i> 走行距離: ${distance.toLocaleString()}km`;
-        displayElement.className = 'ms-3 text-success';
+        displayElement.className = 'ms-3 text-primary fw-bold';
 
         if (distance > 500) {
             displayElement.innerHTML += ' <i class="fas fa-info-circle text-warning ms-2"></i> 走行距離が500kmを超えています';
@@ -758,45 +758,44 @@ function calculateDistance() {
 }
 
 // フォーム送信処理
-document.getElementById('editForm').addEventListener('submit', async function(e) {
+document.getElementById('editForm').addEventListener('submit', function(e) {
     e.preventDefault();
+    var self = this;
 
-    if (!confirm('入庫記録を修正しますか？\n※修正履歴が記録されます')) {
-        return;
-    }
+    showConfirm('入庫記録を修正しますか？\n※修正履歴が記録されます', async function() {
+        const formData = new FormData(self);
 
-    const formData = new FormData(this);
+        try {
+            var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            if (csrfMeta) formData.append('csrf_token', csrfMeta.content);
+            const response = await fetch('api/edit_arrival_record.php', {
+                method: 'POST',
+                body: formData
+            });
 
-    try {
-        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
-        if (csrfMeta) formData.append('csrf_token', csrfMeta.content);
-        const response = await fetch('api/edit_arrival_record.php', {
-            method: 'POST',
-            body: formData
-        });
+            const data = await response.json();
 
-        const data = await response.json();
+            if (data.success) {
+                // モーダルを閉じる
+                const modalElement = document.getElementById('editModal');
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                modal.hide();
 
-        if (data.success) {
-            // モーダルを閉じる
-            const modalElement = document.getElementById('editModal');
-            const modal = bootstrap.Modal.getInstance(modalElement);
-            modal.hide();
+                // 成功メッセージ表示
+                showAlert('success', '修正完了', data.message);
 
-            // 成功メッセージ表示
-            showAlert('success', '修正完了', data.message);
-
-            // ページをリロード
-            setTimeout(() => {
-                location.reload();
-            }, 1500);
-        } else {
-            showAlert('danger', 'エラー', data.error);
+                // ページをリロード
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showAlert('danger', 'エラー', data.error);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showAlert('danger', 'エラー', '修正の保存に失敗しました');
         }
-    } catch (error) {
-        console.error('Error:', error);
-        showAlert('danger', 'エラー', '修正の保存に失敗しました');
-    }
+    });
 });
 
 // アラート表示関数

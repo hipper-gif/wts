@@ -269,7 +269,7 @@ $page_data = renderCompletePage(
                             車両情報の登録・編集・削除<br>
                             点検期限管理と稼働状況
                         </p>
-                        <div class="stats-number text-success"><?= $vehicle_count ?></div>
+                        <div class="stats-number text-primary"><?= $vehicle_count ?></div>
                         <div class="stats-label">登録車両数</div>
                     </div>
                 </a>

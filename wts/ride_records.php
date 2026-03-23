@@ -559,7 +559,7 @@ echo $page_data['page_header'];
                                                 </small>
                                             </div>
                                             <div class="mb-2">
-                                                <i class="fas fa-map-marker-alt text-success me-2"></i>
+                                                <i class="fas fa-map-marker-alt text-primary me-2"></i>
                                                 <strong><?php echo htmlspecialchars($ride['pickup_location']); ?></strong>
                                                 <?php if (!empty($ride['waypoints'])): ?>
                                                     <?php foreach ($ride['waypoints'] as $wp): ?>
@@ -797,7 +797,7 @@ echo $page_data['page_header'];
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="modalPickupLocation" class="form-label unified-label">
-                                <i class="fas fa-map-marker-alt text-success me-1"></i>乗車地 <span class="text-danger">*</span>
+                                <i class="fas fa-map-marker-alt text-primary me-1"></i>乗車地 <span class="text-danger">*</span>
                             </label>
                             <div class="unified-dropdown">
                                 <input type="text" class="form-control unified-input" id="modalPickupLocation" name="pickup_location" 

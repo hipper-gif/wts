@@ -294,7 +294,8 @@ $page_options = [
         'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
     ],
     'additional_js' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'
+        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
+        'js/ui-interactions.js'
     ],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
@@ -347,7 +348,7 @@ echo $page_data['page_header'];
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="card bg-success text-white">
+            <div class="card bg-primary text-white">
                 <div class="card-body py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
@@ -730,18 +731,19 @@ function editVehicle(vehicle) {
 
 // 削除確認（統一パターン）
 function deleteVehicle(vehicleId, vehicleNumber) {
-    if (!confirm('車両「' + vehicleNumber + '」を削除しますか？\n※論理削除のため、後で復旧可能です。')) {
-        return;
-    }
-
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.innerHTML =
-        '<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">' +
-        '<input type="hidden" name="action" value="delete">' +
-        '<input type="hidden" name="vehicle_id" value="' + vehicleId + '">';
-    document.body.appendChild(form);
-    form.submit();
+    showConfirm('車両「' + vehicleNumber + '」を削除しますか？\n※論理削除のため、後で復旧可能です。', function() {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.innerHTML =
+            '<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">' +
+            '<input type="hidden" name="action" value="delete">' +
+            '<input type="hidden" name="vehicle_id" value="' + vehicleId + '">';
+        document.body.appendChild(form);
+        form.submit();
+    }, {
+        type: 'danger',
+        confirmText: '削除する'
+    });
 }
 
 // 点検日更新モーダル

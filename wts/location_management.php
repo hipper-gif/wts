@@ -257,7 +257,8 @@ $page_options = [
         'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
     ],
     'additional_js' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'
+        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
+        'js/ui-interactions.js'
     ],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
@@ -581,18 +582,19 @@ function editLocation(location) {
 
 // 削除確認（統一パターン）
 function deleteLocation(locationId, locationName) {
-    if (!confirm('場所「' + locationName + '」を削除しますか？\n※論理削除のため、後で復旧可能です。')) {
-        return;
-    }
-
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.innerHTML =
-        '<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">' +
-        '<input type="hidden" name="action" value="delete">' +
-        '<input type="hidden" name="location_id" value="' + locationId + '">';
-    document.body.appendChild(form);
-    form.submit();
+    showConfirm('場所「' + locationName + '」を削除しますか？\n※論理削除のため、後で復旧可能です。', function() {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.innerHTML =
+            '<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">' +
+            '<input type="hidden" name="action" value="delete">' +
+            '<input type="hidden" name="location_id" value="' + locationId + '">';
+        document.body.appendChild(form);
+        form.submit();
+    }, {
+        type: 'danger',
+        confirmText: '削除する'
+    });
 }
 </script>
 

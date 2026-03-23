@@ -799,6 +799,7 @@ $accident_stats = getAccidentStats($pdo, $search_year);
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/ui-interactions.js"></script>
     
     <script>
         // 事故データ（PHPから取得）
@@ -1050,7 +1051,7 @@ $accident_stats = getAccidentStats($pdo, $search_year);
         
         // 事故記録削除
         function deleteAccident(accidentId) {
-            if (confirm('この事故記録を削除してもよろしいですか？\n削除後は復元できません。')) {
+            showConfirm('この事故記録を削除してもよろしいですか？\n削除後は復元できません。', function() {
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.innerHTML = `
@@ -1059,14 +1060,22 @@ $accident_stats = getAccidentStats($pdo, $search_year);
                 `;
                 document.body.appendChild(form);
                 form.submit();
-            }
+            }, {
+                type: 'danger',
+                confirmText: '削除する'
+            });
         }
         
         // フォーム送信確認
         document.getElementById('addAccidentForm').addEventListener('submit', function(e) {
-            if (!confirm('事故記録を登録します。よろしいですか？')) {
-                e.preventDefault();
-            }
+            e.preventDefault();
+            var form = this;
+            showConfirm('事故記録を登録します。よろしいですか？', function() {
+                form.submit();
+            }, {
+                type: 'warning',
+                confirmText: '登録する'
+            });
         });
     </script>
 </body>

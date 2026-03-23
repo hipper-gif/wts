@@ -432,6 +432,7 @@ $historical_data = $_SESSION['historical_data'] ?? null;
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/ui-interactions.js"></script>
     <script>
         // 全項目を指定値に設定
         function setAllItems(value) {
@@ -477,16 +478,22 @@ $historical_data = $_SESSION['historical_data'] ?? null;
 
         // フォームリセット
         function resetForm() {
-            if (confirm('入力内容がリセットされます。よろしいですか？')) {
+            showConfirm('入力内容がリセットされます。よろしいですか？', function() {
                 window.location.href = 'daily_inspection.php?mode=historical';
-            }
+            }, {
+                type: 'warning',
+                confirmText: 'リセットする'
+            });
         }
 
         // 入力キャンセル
         function cancelInput() {
-            if (confirm('入力を中止して通常モードに戻りますか？')) {
+            showConfirm('入力を中止して通常モードに戻りますか？', function() {
                 window.location.href = 'daily_inspection.php';
-            }
+            }, {
+                type: 'warning',
+                confirmText: '中止する'
+            });
         }
 
         // ページ読み込み時の初期化
@@ -511,10 +518,14 @@ $historical_data = $_SESSION['historical_data'] ?? null;
                         return false;
                     }
                     
-                    if (!confirm(saveCount + '件のデータを保存します。よろしいですか？')) {
-                        e.preventDefault();
-                        return false;
-                    }
+                    e.preventDefault();
+                    showConfirm(saveCount + '件のデータを保存します。よろしいですか？', function() {
+                        form.submit();
+                    }, {
+                        type: 'info',
+                        confirmText: '保存する'
+                    });
+                    return false;
                 });
             }
         });
