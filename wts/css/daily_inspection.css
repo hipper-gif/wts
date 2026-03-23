@@ -1,0 +1,73 @@
+.hover-bg-light:hover { background: #f8f9fa; }
+
+@media (max-width: 767px) {
+    .inspection-item .btn-group {
+        width: 100%;
+        justify-content: center;
+    }
+    .inspection-item .btn-group .btn {
+        flex: 1;
+        min-height: 44px;
+    }
+    .inspection-item label.form-label {
+        text-align: left !important;
+        margin-bottom: 4px;
+    }
+}
+
+/* 印刷用スタイル */
+@media print {
+    /* 非印刷要素を非表示 */
+    .system-header-container, .system-header, .page-header, #draftBanner,
+    #progressCard, #actionButtons, #auditHistorySection, .bottom-nav-card,
+    .mode-switch, #editReasonSection, #safetyCriticalReasonSection,
+    .inspection-lock-badge, .form-select, .form-text,
+    input[type="date"], input[type="time"], input[type="number"],
+    input[type="text"].form-control, textarea.form-control,
+    .alert, #deleteForm, .input-group-text,
+    #printBtnWrap, .badge { display: none !important; }
+
+    /* ラジオボタンのbtn-groupを非表示（ラベル含む） */
+    .inspection-item .btn-group { display: none !important; }
+    .inspection-item input[type="radio"] { display: none !important; }
+
+    /* 印刷ヘッダー表示 */
+    #printHeader { display: block !important; }
+
+    /* 印刷フッター表示 */
+    #printFooter { display: block !important; }
+
+    /* 印刷用結果テキスト表示 */
+    .print-result-text { display: inline !important; font-weight: bold; font-size: 12pt; }
+    .print-result-ok { color: #000; }
+    .print-result-ng { color: #000; text-decoration: underline; }
+    .print-result-skip { color: #666; }
+    .print-result-none { color: #999; font-style: italic; }
+
+    /* 印刷用テキスト値表示 */
+    .print-value-text { display: inline !important; font-size: 11pt; }
+
+    /* クリーンレイアウト */
+    body { font-size: 11pt; color: #000; background: #fff; padding: 0; margin: 0; }
+    .container { max-width: 100%; padding: 0 10mm; margin: 0; }
+    .main-content { margin: 0; padding: 0; }
+    .card { border: 1px solid #000 !important; box-shadow: none !important; break-inside: avoid; margin-bottom: 8px !important; }
+    .card-body { padding: 8px 12px !important; }
+    .card-header, .section-header { background: #f0f0f0 !important; color: #000 !important; padding: 4px 12px !important; border-bottom: 1px solid #000 !important; }
+    .section-header .section-title { color: #000 !important; }
+    .inspection-item { border: none !important; border-bottom: 1px solid #ccc !important; padding: 4px 0 !important; margin-bottom: 0 !important; border-radius: 0 !important; }
+    .inspection-item:last-child { border-bottom: none !important; }
+    .inspection-item .row { display: flex; align-items: center; }
+    .inspection-item .col-md-6:first-child { flex: 0 0 65%; max-width: 65%; }
+    .inspection-item .col-md-6:last-child,
+    .inspection-item .col-md-6.text-end { flex: 0 0 35%; max-width: 35%; text-align: right !important; }
+
+    /* 不良個所・備考セクション */
+    .print-defect-section { display: block !important; }
+
+    /* A4縦レイアウト */
+    @page { size: A4 portrait; margin: 10mm 15mm; }
+}
+
+/* 画面表示では非表示 */
+#printHeader, #printFooter, .print-result-text, .print-value-text, .print-defect-section { display: none; }

@@ -57,7 +57,13 @@ $base_total = 18000;
 
 // 既存の今日のカウントデータ取得
 $existing_count = null;
-$ex_stmt = $pdo->prepare("SELECT * FROM cash_count_details WHERE confirmation_date = CURDATE() AND driver_id = ?");
+$ex_stmt = $pdo->prepare("
+    SELECT id, bill_10000, bill_5000, bill_1000,
+           coin_500, coin_100, coin_50, coin_10,
+           total_amount, memo
+    FROM cash_count_details
+    WHERE confirmation_date = CURDATE() AND driver_id = ?
+");
 $ex_stmt->execute([$current_user->id]);
 $existing_count = $ex_stmt->fetch(PDO::FETCH_OBJ);
 

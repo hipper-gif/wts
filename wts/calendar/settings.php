@@ -65,7 +65,11 @@ try {
 }
 
 // 既存データ取得
-$stmt = $pdo->query("SELECT * FROM reservation_field_options ORDER BY field_name, sort_order, id");
+$stmt = $pdo->query("
+    SELECT id, field_name, option_value, option_label, is_active
+    FROM reservation_field_options
+    ORDER BY field_name, sort_order, id
+");
 $all_options = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $grouped_options = [];

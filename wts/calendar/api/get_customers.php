@@ -36,7 +36,13 @@ try {
         $customer_id = intval($id);
 
         $stmt = $pdo->prepare("
-            SELECT * FROM customers WHERE id = ? AND is_active = 1
+            SELECT id, name, name_kana, phone, phone_secondary, email,
+                   postal_code, address, address_detail,
+                   care_level, disability_type, mobility_type, wheelchair_type,
+                   default_pickup_location, default_dropoff_location,
+                   emergency_contact_name, emergency_contact_phone,
+                   notes, created_at, updated_at
+            FROM customers WHERE id = ? AND is_active = 1
         ");
         $stmt->execute([$customer_id]);
         $customer = $stmt->fetch();

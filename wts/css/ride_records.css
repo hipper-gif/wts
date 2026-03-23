@@ -1,0 +1,273 @@
+/* モダンミニマル統一CSS（v3.1準拠） */
+.unified-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    border: 1px solid rgba(0,0,0,0.06);
+    overflow: hidden;
+}
+
+.unified-card-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1.25rem 1.5rem;
+    border: none;
+}
+
+.unified-card-body {
+    padding: 1.5rem;
+}
+
+.unified-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin: 0;
+}
+
+.unified-subtitle {
+    color: #718096;
+    font-size: 0.95rem;
+}
+
+.unified-record-item {
+    background: #f8f9fa;
+    padding: 1.25rem;
+    border-radius: 12px;
+    border-left: 4px solid #667eea;
+    transition: all 0.2s;
+}
+
+.unified-record-item:hover {
+    transform: translateX(2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+.unified-record-item.return-trip {
+    border-left-color: #28a745;
+    background: linear-gradient(90deg, #f0f8f0 0%, #f8f9fa 20%);
+}
+
+.unified-amount-display {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #28a745;
+}
+
+.unified-stat-card {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    padding: 1rem;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.06);
+}
+
+.unified-stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.unified-stat-label {
+    font-size: 0.8rem;
+    color: #718096;
+    font-weight: 500;
+}
+
+.unified-payment-stat {
+    padding: 0.75rem;
+    background: rgba(102, 126, 234, 0.08);
+    border-radius: 8px;
+}
+
+.unified-badge {
+    padding: 0.35rem 0.8rem;
+    font-size: 0.75rem;
+    border-radius: 20px;
+    font-weight: 500;
+}
+
+.badge-primary { background: #667eea; color: white; }
+.badge-success { background: #28a745; color: white; }
+
+.unified-alert {
+    padding: 1rem 1.25rem;
+    border-radius: 12px;
+    border: none;
+}
+
+/* モーダル関連のスタイル - z-index問題解決 */
+.modal {
+    z-index: 1055 !important;
+}
+
+.modal-backdrop {
+    z-index: 1050 !important;
+    background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+.unified-modal {
+    border-radius: 16px;
+    overflow: hidden;
+    border: none;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.unified-modal-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 1.5rem;
+}
+
+.unified-modal-footer {
+    background: #f8f9fa;
+    border-top: 1px solid rgba(0,0,0,0.06);
+    padding: 1.25rem 1.5rem;
+}
+
+.unified-label {
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 0.5rem;
+}
+
+.unified-input, .unified-select, .unified-textarea {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    transition: all 0.2s;
+    font-size: 0.95rem;
+}
+
+.unified-input:focus, .unified-select:focus, .unified-textarea:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
+}
+
+.unified-dropdown {
+    position: relative;
+}
+
+.unified-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-top: none;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1060;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.unified-suggestion {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f7fafc;
+    transition: background-color 0.2s;
+}
+
+.unified-suggestion:hover {
+    background-color: #f8f9fa;
+}
+
+.unified-suggestion:last-child {
+    border-bottom: none;
+}
+
+.passenger-btn {
+    min-width: 60px;
+    border-radius: 20px;
+    transition: all 0.2s;
+    border: 2px solid #667eea;
+    color: #667eea;
+    background: white;
+}
+
+.passenger-btn:hover {
+    background: #667eea;
+    color: white;
+}
+
+.passenger-btn.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+    .unified-card-body {
+        padding: 1rem;
+    }
+
+    .unified-record-item {
+        padding: 1rem;
+    }
+
+    .unified-amount-display {
+        font-size: 1.2rem;
+    }
+
+    .passenger-btn {
+        min-width: 50px;
+        font-size: 0.85rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .btn-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .btn-group .btn {
+        width: 100%;
+        margin: 0;
+    }
+
+    .modal-dialog {
+        margin: 0.5rem;
+        max-width: calc(100% - 1rem);
+    }
+
+    .unified-modal-header {
+        padding: 1rem;
+    }
+
+    .unified-modal-footer {
+        padding: 1rem;
+    }
+}
+
+/* Bootstrap overrides for better modal behavior */
+.modal.show {
+    display: block !important;
+}
+
+.modal-open {
+    overflow: hidden;
+}
+
+.modal-dialog-centered {
+    min-height: calc(100% - 1rem);
+    display: flex;
+    align-items: center;
+}
+
+/* ボタンのホバー効果改善 */
+.btn {
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+.btn:active {
+    transform: translateY(0);
+}

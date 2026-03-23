@@ -27,7 +27,11 @@ $edit_record = null;
 // 修正モードの確認
 if (isset($_GET['edit']) && $_GET['edit'] == 'true' && isset($_GET['id'])) {
     $edit_id = intval($_GET['id']);
-    $edit_stmt = $pdo->prepare("SELECT * FROM departure_records WHERE id = ? AND departure_date = ?");
+    $edit_stmt = $pdo->prepare("
+        SELECT id, driver_id, vehicle_id, departure_date,
+               departure_time, weather, departure_mileage
+        FROM departure_records WHERE id = ? AND departure_date = ?
+    ");
     $edit_stmt->execute([$edit_id, $today]);
     $edit_record = $edit_stmt->fetch(PDO::FETCH_ASSOC);
 
