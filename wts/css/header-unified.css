@@ -110,6 +110,17 @@ body {
 }
 
 /* システムタイトル */
+.system-title-link {
+    text-decoration: none;
+    color: inherit;
+}
+.system-title-link:hover {
+    text-decoration: none;
+}
+.system-title-link:hover .system-title {
+    color: var(--primary);
+}
+
 .system-title-area .system-title {
     display: flex;
     align-items: center;
@@ -119,11 +130,7 @@ body {
     font-size: 1.25rem;
     font-weight: 600;
     letter-spacing: -0.02em;
-}
-
-.system-title:hover {
-    color: var(--primary);
-    text-decoration: none;
+    transition: color 0.2s;
 }
 
 .system-title i {

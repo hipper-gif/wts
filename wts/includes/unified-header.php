@@ -418,7 +418,7 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
     $header_base_path = getBasePath();
     if ($show_dashboard_link) {
         $dashboard_link = '<a href="' . $header_base_path . 'dashboard.php" class="dashboard-link" aria-label="ダッシュボードへ戻る">
-            <i class="fas fa-tachometer-alt"></i>
+            <i class="fas fa-home"></i>
             <span class="d-none d-md-inline">ダッシュボード</span>
         </a>';
     }
@@ -428,13 +428,15 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
         <header class="system-header" role="banner">
             <div class="container-fluid">
                 <div class="d-flex align-items-center justify-content-between h-100">
-                    <!-- システムタイトル（レスポンシブ対応） -->
+                    <!-- システムタイトル（タップでダッシュボードへ） -->
                     <div class="system-title-area">
-                        <h1 class="system-title m-0">
-                            <i class="fas fa-taxi text-primary"></i>
-                            <span class="system-name-display d-none d-md-inline">' . htmlspecialchars($system_names['full']) . '</span>
-                            <span class="system-name-mobile d-inline d-md-none">' . htmlspecialchars($system_names['mobile']) . '</span>
-                        </h1>
+                        <a href="' . $header_base_path . 'dashboard.php" class="system-title-link">
+                            <h1 class="system-title m-0">
+                                <i class="fas fa-taxi text-primary"></i>
+                                <span class="system-name-display d-none d-md-inline">' . htmlspecialchars($system_names['full']) . '</span>
+                                <span class="system-name-mobile d-inline d-md-none">' . htmlspecialchars($system_names['mobile']) . '</span>
+                            </h1>
+                        </a>
                     </div>
                     
                     <!-- ユーザー情報エリア -->
