@@ -508,6 +508,15 @@ function renderPageHeader($icon, $title, $subtitle = '', $category = 'other', $b
         $breadcrumb_html .= '</ol></nav>';
     }
     
+    // ステッパーは固定ヘッダーの外（メインコンテンツ先頭）に配置
+    $stepper_section = '';
+    if ($workflow_stepper) {
+        $stepper_section = '
+    <div class="workflow-stepper-wrap">
+        <div class="container-fluid">' . $workflow_stepper . '</div>
+    </div>';
+    }
+
     return '
     <div class="page-header">
         <div class="container-fluid">
@@ -518,11 +527,11 @@ function renderPageHeader($icon, $title, $subtitle = '', $category = 'other', $b
                         ' . $title_safe . '
                         ' . $subtitle_html . '
                     </h2>
-                    ' . ($workflow_stepper ?: $breadcrumb_html) . '
+                    ' . $breadcrumb_html . '
                 </div>
             </div>
         </div>
-    </div>';
+    </div>' . $stepper_section;
 }
 
 /**

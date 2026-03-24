@@ -1,7 +1,17 @@
 /* ========== ワークフローステッパー ========== */
+.workflow-stepper-wrap {
+    background: #f8f9fa;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.25rem 0;
+}
+.workflow-stepper-wrap .container-fluid {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
 .workflow-stepper {
     padding: 0.5rem 0;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0;
 }
 
 .stepper-steps {
