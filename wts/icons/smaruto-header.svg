@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 44" fill="none">
+  <defs>
+    <linearGradient id="teal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38B2AC"/>
+      <stop offset="100%" stop-color="#2C7A7B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- シンボル：まるっとスマイル -->
+  <circle cx="20" cy="22" r="17" fill="url(#teal)"/>
+  <circle cx="14" cy="19" r="2.2" fill="white"/>
+  <circle cx="26" cy="19" r="2.2" fill="white"/>
+  <path d="M13 27 Q20 33 27 27" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
+
+  <!-- テキスト -->
+  <text x="44" y="30" font-family="'Rounded Mplus 1c', 'Hiragino Maru Gothic Pro', 'M PLUS Rounded 1c', sans-serif" font-size="22" font-weight="700" fill="url(#teal)" letter-spacing="1">スマルト</text>
+</svg>

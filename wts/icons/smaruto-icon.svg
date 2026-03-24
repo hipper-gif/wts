@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38B2AC"/>
+      <stop offset="100%" stop-color="#2C7A7B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景丸角 -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <!-- 笑顔の目 -->
+  <circle cx="185" cy="200" r="28" fill="white"/>
+  <circle cx="327" cy="200" r="28" fill="white"/>
+
+  <!-- 笑顔の口 -->
+  <path d="M165 300 Q256 380 347 300" stroke="white" stroke-width="22" stroke-linecap="round" fill="none"/>
+
+  <!-- 「ス」の文字（下部） -->
+  <text x="256" y="450" text-anchor="middle" font-family="'Rounded Mplus 1c', 'Hiragino Maru Gothic Pro', sans-serif" font-size="80" font-weight="700" fill="white" opacity="0.9">スマルト</text>
+</svg>

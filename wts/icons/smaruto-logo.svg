@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" fill="none">
+  <defs>
+    <linearGradient id="teal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38B2AC"/>
+      <stop offset="100%" stop-color="#2C7A7B"/>
+    </linearGradient>
+    <linearGradient id="smile" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F6AD55"/>
+      <stop offset="100%" stop-color="#ED8936"/>
+    </linearGradient>
+  </defs>
+
+  <!-- シンボル：丸(まるっと) + スマイル -->
+  <circle cx="36" cy="40" r="30" fill="url(#teal)"/>
+  <!-- 笑顔の目 -->
+  <circle cx="26" cy="34" r="3.5" fill="white"/>
+  <circle cx="46" cy="34" r="3.5" fill="white"/>
+  <!-- 笑顔の口（にっこり） -->
+  <path d="M24 46 Q36 56 48 46" stroke="white" stroke-width="3" stroke-linecap="round" fill="none"/>
+
+  <!-- テキスト「スマルト」 -->
+  <text x="80" y="54" font-family="'Rounded Mplus 1c', 'Hiragino Maru Gothic Pro', 'M PLUS Rounded 1c', sans-serif" font-size="42" font-weight="700" fill="url(#teal)" letter-spacing="2">スマルト</text>
+</svg>
