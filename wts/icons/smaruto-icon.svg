@@ -1,10 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
   <defs>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500');</style>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#38B2AC"/>
       <stop offset="100%" stop-color="#2C7A7B"/>
     </linearGradient>
-    <linearGradient id="orange" x1="0%" y1="0%" x2="100%" y2="0%">
+    <linearGradient id="lamp" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#F6AD55"/>
       <stop offset="100%" stop-color="#ED8936"/>
     </linearGradient>
@@ -13,23 +14,15 @@
   <!-- 背景 -->
   <rect width="512" height="512" rx="96" fill="url(#bg)"/>
 
-  <!-- タクシー車体 -->
-  <rect x="120" y="230" width="272" height="110" rx="30" fill="white" opacity="0.95"/>
-  <rect x="165" y="175" width="140" height="72" rx="22" fill="white" opacity="0.85"/>
-  <!-- タイヤ -->
-  <circle cx="180" cy="350" r="28" fill="#1D6560"/>
-  <circle cx="332" cy="350" r="28" fill="#1D6560"/>
-  <!-- タイヤ内側 -->
-  <circle cx="180" cy="350" r="14" fill="#2C7A7B"/>
-  <circle cx="332" cy="350" r="14" fill="#2C7A7B"/>
   <!-- 行灯 -->
-  <rect x="210" y="140" width="85" height="42" rx="21" fill="url(#orange)"/>
+  <rect x="198" y="70" width="116" height="60" rx="30" fill="url(#lamp)"/>
+  <line x1="256" y1="130" x2="256" y2="152" stroke="#ED8936" stroke-width="12" stroke-linecap="round"/>
 
-  <!-- 笑顔（フロントガラス内） -->
-  <circle cx="215" cy="213" r="12" fill="#2C7A7B"/>
-  <circle cx="275" cy="213" r="12" fill="#2C7A7B"/>
-  <path d="M200 248 Q245 290 290 248" stroke="#2C7A7B" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <!-- にっこり顔 -->
+  <ellipse cx="195" cy="220" rx="22" ry="25" fill="white"/>
+  <ellipse cx="317" cy="220" rx="22" ry="25" fill="white"/>
+  <path d="M170 300 Q256 370 342 300" stroke="white" stroke-width="18" stroke-linecap="round" fill="none"/>
 
-  <!-- 下部テキスト -->
-  <text x="256" y="445" text-anchor="middle" font-family="'Zen Maru Gothic', 'Kosugi Maru', 'Hiragino Maru Gothic Pro', sans-serif" font-size="72" font-weight="500" fill="white" opacity="0.95">スマルト</text>
+  <!-- テキスト -->
+  <text x="256" y="440" text-anchor="middle" font-family="'Zen Maru Gothic', sans-serif" font-size="72" font-weight="500" fill="white" opacity="0.95">スマルト</text>
 </svg>

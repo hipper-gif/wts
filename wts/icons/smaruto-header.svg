@@ -1,32 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 48" fill="none">
   <defs>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500');</style>
     <linearGradient id="teal" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#38B2AC"/>
       <stop offset="100%" stop-color="#2C7A7B"/>
     </linearGradient>
-    <linearGradient id="orange" x1="0%" y1="0%" x2="100%" y2="0%">
+    <linearGradient id="lamp" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#F6AD55"/>
       <stop offset="100%" stop-color="#ED8936"/>
     </linearGradient>
   </defs>
 
-  <!-- シンボル：まるっとスマイル + タクシー -->
-  <circle cx="22" cy="22" r="19" fill="url(#teal)"/>
+  <!-- スマイル丸 -->
+  <circle cx="22" cy="26" r="18" fill="url(#teal)"/>
 
-  <!-- タクシー車体 -->
-  <rect x="10" y="20" width="24" height="10" rx="3" fill="white" opacity="0.95"/>
-  <rect x="14" y="16" width="12" height="7" rx="2" fill="white" opacity="0.85"/>
-  <!-- タイヤ -->
-  <circle cx="15" cy="31" r="2.5" fill="#2C7A7B"/>
-  <circle cx="29" cy="31" r="2.5" fill="#2C7A7B"/>
-  <!-- 行灯（あんどん） -->
-  <rect x="18" y="12" width="8" height="5" rx="2.5" fill="url(#orange)"/>
+  <!-- 行灯（タクシーの象徴）-->
+  <rect x="15" y="4" width="14" height="8" rx="4" fill="url(#lamp)"/>
+  <!-- 行灯の支え -->
+  <line x1="22" y1="12" x2="22" y2="15" stroke="#ED8936" stroke-width="2" stroke-linecap="round"/>
 
-  <!-- 笑顔（フロントガラス内） -->
-  <circle cx="18" cy="19" r="1" fill="#2C7A7B"/>
-  <circle cx="24" cy="19" r="1" fill="#2C7A7B"/>
-  <path d="M17 21.5 Q21 24 25 21.5" stroke="#2C7A7B" stroke-width="0.8" stroke-linecap="round" fill="none"/>
+  <!-- にっこり顔 -->
+  <ellipse cx="16" cy="23" rx="2" ry="2.5" fill="white"/>
+  <ellipse cx="28" cy="23" rx="2" ry="2.5" fill="white"/>
+  <path d="M14 31 Q22 37 30 31" stroke="white" stroke-width="2.2" stroke-linecap="round" fill="none"/>
 
-  <!-- テキスト「スマルト」手書き風 -->
-  <text x="48" y="32" font-family="'Zen Maru Gothic', 'Kosugi Maru', 'Hiragino Maru Gothic Pro', 'M PLUS Rounded 1c', sans-serif" font-size="24" font-weight="500" fill="url(#teal)" letter-spacing="2">スマルト</text>
+  <!-- テキスト -->
+  <text x="48" y="33" font-family="'Zen Maru Gothic', sans-serif" font-size="23" font-weight="500" fill="url(#teal)" letter-spacing="1.5">スマルト</text>
 </svg>
