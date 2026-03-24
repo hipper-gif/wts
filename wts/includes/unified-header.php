@@ -781,17 +781,19 @@ function renderWorkflowStepper($current_step, $completed, $prev = null, $next = 
 
     $html .= '</div>'; // .stepper-steps
 
-    // 前後ナビボタン
-    if ($prev || $next) {
-        $html .= '<div class="stepper-nav">';
-        if ($prev) {
-            $html .= '<a href="' . $base_path . htmlspecialchars($prev['url']) . '" class="stepper-nav-btn prev"><i class="fas fa-chevron-left"></i> ' . htmlspecialchars($prev['label']) . '</a>';
-        }
-        if ($next) {
-            $html .= '<a href="' . $base_path . htmlspecialchars($next['url']) . '" class="stepper-nav-btn next">' . htmlspecialchars($next['label']) . ' <i class="fas fa-chevron-right"></i></a>';
-        }
-        $html .= '</div>';
+    // 前後ナビボタン（常に左=前、右=次で固定配置）
+    $html .= '<div class="stepper-nav">';
+    if ($prev) {
+        $html .= '<a href="' . $base_path . htmlspecialchars($prev['url']) . '" class="stepper-nav-btn prev"><i class="fas fa-chevron-left"></i> ' . htmlspecialchars($prev['label']) . '</a>';
+    } else {
+        $html .= '<span></span>';
     }
+    if ($next) {
+        $html .= '<a href="' . $base_path . htmlspecialchars($next['url']) . '" class="stepper-nav-btn next">' . htmlspecialchars($next['label']) . ' <i class="fas fa-chevron-right"></i></a>';
+    } else {
+        $html .= '<span></span>';
+    }
+    $html .= '</div>';
 
     $html .= '</div>'; // .workflow-stepper
 
