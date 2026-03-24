@@ -447,64 +447,61 @@ echo $page_data['page_header'];
             <?= renderAlert('danger', 'エラー', $error_message) ?>
         <?php endif; ?>
 
-        <!-- メインアクションエリア -->
-        <div class="unified-card mb-4">
-            <div class="unified-card-body">
-                <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <h3 class="unified-title mb-2">
-                            <i class="fas fa-clipboard-list me-2 text-primary"></i>乗車記録管理
-                        </h3>
-                        <p class="unified-subtitle mb-0">乗車記録の新規登録・編集・復路作成ができます</p>
-                    </div>
-                    <div class="col-md-4 text-end">
-                        <button type="button" class="btn btn-primary btn-lg shadow-sm" onclick="showAddModal()">
-                            <i class="fas fa-plus me-2"></i>新規登録
-                        </button>
-                    </div>
-                </div>
-            </div>
+        <!-- メインアクション + 検索トグル -->
+        <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+            <button type="button" class="btn btn-primary btn-lg shadow-sm px-4" onclick="showAddModal()" style="font-size:1.05rem;">
+                <i class="fas fa-plus me-2"></i>乗車記録を登録する
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#searchCollapse" aria-expanded="false">
+                <i class="fas fa-search me-1"></i>検索
+            </button>
+            <span class="text-muted ms-auto" style="font-size:0.85rem;">
+                <?php echo htmlspecialchars($search_date); ?>
+                <?php if ($search_driver): ?> / <?php echo htmlspecialchars($drivers[array_search($search_driver, array_column($drivers, 'id'))]['name'] ?? ''); ?><?php endif; ?>
+            </span>
         </div>
 
-        <!-- 検索フォーム -->
-        <div class="unified-card mb-4">
-            <div class="unified-card-body">
-                <form method="GET" class="row g-3">
-                    <div class="col-md-3">
-                        <label for="search_date" class="form-label unified-label">日付</label>
-                        <input type="date" class="form-control unified-input" id="search_date" name="search_date" 
-                               value="<?php echo htmlspecialchars($search_date); ?>">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="search_driver" class="form-label unified-label">運転者</label>
-                        <select class="form-select unified-select" id="search_driver" name="search_driver">
-                            <option value="">全て</option>
-                            <?php foreach ($drivers as $driver): ?>
-                                <option value="<?php echo $driver['id']; ?>" 
-                                    <?php echo ($search_driver == $driver['id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($driver['name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label for="search_vehicle" class="form-label unified-label">車両</label>
-                        <select class="form-select unified-select" id="search_vehicle" name="search_vehicle">
-                            <option value="">全て</option>
-                            <?php foreach ($vehicles as $vehicle): ?>
-                                <option value="<?php echo $vehicle['id']; ?>" 
-                                    <?php echo ($search_vehicle == $vehicle['id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($vehicle['vehicle_number']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-3 d-flex align-items-end">
-                        <button type="submit" class="btn btn-outline-primary w-100">
-                            <i class="fas fa-search me-1"></i>検索
-                        </button>
-                    </div>
-                </form>
+        <!-- 検索フォーム（折りたたみ） -->
+        <div class="collapse <?php echo ($search_driver || $search_vehicle || $search_date !== date('Y-m-d')) ? 'show' : ''; ?> mb-4" id="searchCollapse">
+            <div class="unified-card">
+                <div class="unified-card-body">
+                    <form method="GET" class="row g-3 align-items-end">
+                        <div class="col-md-3">
+                            <label for="search_date" class="form-label unified-label">日付</label>
+                            <input type="date" class="form-control unified-input" id="search_date" name="search_date"
+                                   value="<?php echo htmlspecialchars($search_date); ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="search_driver" class="form-label unified-label">運転者</label>
+                            <select class="form-select unified-select" id="search_driver" name="search_driver">
+                                <option value="">全て</option>
+                                <?php foreach ($drivers as $driver): ?>
+                                    <option value="<?php echo $driver['id']; ?>"
+                                        <?php echo ($search_driver == $driver['id']) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($driver['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="search_vehicle" class="form-label unified-label">車両</label>
+                            <select class="form-select unified-select" id="search_vehicle" name="search_vehicle">
+                                <option value="">全て</option>
+                                <?php foreach ($vehicles as $vehicle): ?>
+                                    <option value="<?php echo $vehicle['id']; ?>"
+                                        <?php echo ($search_vehicle == $vehicle['id']) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($vehicle['vehicle_number']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-search me-1"></i>検索
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
 
@@ -520,9 +517,12 @@ echo $page_data['page_header'];
                     </div>
                     <div class="unified-card-body">
                         <?php if (empty($rides)): ?>
-                            <div class="text-center py-5 text-muted">
-                                <i class="fas fa-info-circle fs-2 mb-3 d-block"></i>
-                                該当する乗車記録がありません。
+                            <div class="text-center py-5">
+                                <i class="fas fa-car-side text-muted fs-1 mb-3 d-block" style="opacity:.3"></i>
+                                <p class="text-muted mb-3">乗車記録がありません</p>
+                                <button type="button" class="btn btn-primary" onclick="showAddModal()">
+                                    <i class="fas fa-plus me-1"></i>最初の記録を登録する
+                                </button>
                             </div>
                         <?php else: ?>
                             <?php foreach ($rides as $ride):
@@ -684,6 +684,32 @@ echo $page_data['page_header'];
         </div>
     </div>
 </main>
+
+<!-- スマホ用フローティング新規ボタン -->
+<button type="button" class="ride-fab d-md-none" onclick="showAddModal()" aria-label="新規登録">
+    <i class="fas fa-plus"></i>
+</button>
+<style>
+.ride-fab {
+    position: fixed;
+    bottom: 24px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #667eea;
+    color: white;
+    border: none;
+    font-size: 1.3rem;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    z-index: 1040;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+.ride-fab:active { transform: scale(0.92); }
+</style>
 
 <!-- 乗車記録入力・編集モーダル -->
 <div class="modal fade" id="rideModal" tabindex="-1" aria-labelledby="rideModalTitle" aria-hidden="true" data-bs-backdrop="true" data-bs-keyboard="true">
