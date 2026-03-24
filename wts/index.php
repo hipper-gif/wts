@@ -107,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // システム名を動的取得（設定可能システム名対応）
-$system_name = 'WTS';
+$system_name = 'スマルト';
 try {
     $pdo = getDBConnection();
     $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'system_name'");

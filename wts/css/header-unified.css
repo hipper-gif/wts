@@ -121,6 +121,12 @@ body {
     color: var(--primary);
 }
 
+.system-logo {
+    height: 28px;
+    width: auto;
+    vertical-align: middle;
+}
+
 .system-title-area .system-title {
     display: flex;
     align-items: center;

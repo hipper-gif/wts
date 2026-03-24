@@ -1,7 +1,7 @@
 {
-  "name": "福祉輸送管理システム",
-  "short_name": "WTS",
-  "description": "スマイリーケアタクシーの7段階業務管理システム",
+  "name": "スマルト - 介護タクシー業務管理",
+  "short_name": "スマルト",
+  "description": "介護タクシー業務をまるっと管理。予約・配車カレンダーと運行記録。",
   "start_url": "/Smiley/taxi/wts/?utm_source=pwa",
   "scope": "/Smiley/taxi/wts/",
   "display": "standalone",
