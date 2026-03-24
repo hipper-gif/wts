@@ -4,18 +4,32 @@
       <stop offset="0%" stop-color="#38B2AC"/>
       <stop offset="100%" stop-color="#2C7A7B"/>
     </linearGradient>
+    <linearGradient id="orange" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F6AD55"/>
+      <stop offset="100%" stop-color="#ED8936"/>
+    </linearGradient>
   </defs>
 
-  <!-- 背景丸角 -->
+  <!-- 背景 -->
   <rect width="512" height="512" rx="96" fill="url(#bg)"/>
 
-  <!-- 笑顔の目 -->
-  <circle cx="185" cy="200" r="28" fill="white"/>
-  <circle cx="327" cy="200" r="28" fill="white"/>
+  <!-- タクシー車体 -->
+  <rect x="120" y="230" width="272" height="110" rx="30" fill="white" opacity="0.95"/>
+  <rect x="165" y="175" width="140" height="72" rx="22" fill="white" opacity="0.85"/>
+  <!-- タイヤ -->
+  <circle cx="180" cy="350" r="28" fill="#1D6560"/>
+  <circle cx="332" cy="350" r="28" fill="#1D6560"/>
+  <!-- タイヤ内側 -->
+  <circle cx="180" cy="350" r="14" fill="#2C7A7B"/>
+  <circle cx="332" cy="350" r="14" fill="#2C7A7B"/>
+  <!-- 行灯 -->
+  <rect x="210" y="140" width="85" height="42" rx="21" fill="url(#orange)"/>
 
-  <!-- 笑顔の口 -->
-  <path d="M165 300 Q256 380 347 300" stroke="white" stroke-width="22" stroke-linecap="round" fill="none"/>
+  <!-- 笑顔（フロントガラス内） -->
+  <circle cx="215" cy="213" r="12" fill="#2C7A7B"/>
+  <circle cx="275" cy="213" r="12" fill="#2C7A7B"/>
+  <path d="M200 248 Q245 290 290 248" stroke="#2C7A7B" stroke-width="10" stroke-linecap="round" fill="none"/>
 
-  <!-- 「ス」の文字（下部） -->
-  <text x="256" y="450" text-anchor="middle" font-family="'Rounded Mplus 1c', 'Hiragino Maru Gothic Pro', sans-serif" font-size="80" font-weight="700" fill="white" opacity="0.9">スマルト</text>
+  <!-- 下部テキスト -->
+  <text x="256" y="445" text-anchor="middle" font-family="'Zen Maru Gothic', 'Kosugi Maru', 'Hiragino Maru Gothic Pro', sans-serif" font-size="72" font-weight="500" fill="white" opacity="0.95">スマルト</text>
 </svg>

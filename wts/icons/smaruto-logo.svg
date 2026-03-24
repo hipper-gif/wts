@@ -1,23 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 90" fill="none">
   <defs>
     <linearGradient id="teal" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#38B2AC"/>
       <stop offset="100%" stop-color="#2C7A7B"/>
     </linearGradient>
-    <linearGradient id="smile" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="orange" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#F6AD55"/>
       <stop offset="100%" stop-color="#ED8936"/>
     </linearGradient>
   </defs>
 
-  <!-- シンボル：丸(まるっと) + スマイル -->
-  <circle cx="36" cy="40" r="30" fill="url(#teal)"/>
-  <!-- 笑顔の目 -->
-  <circle cx="26" cy="34" r="3.5" fill="white"/>
-  <circle cx="46" cy="34" r="3.5" fill="white"/>
-  <!-- 笑顔の口（にっこり） -->
-  <path d="M24 46 Q36 56 48 46" stroke="white" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <!-- シンボル：まるっとスマイルタクシー -->
+  <circle cx="40" cy="42" r="34" fill="url(#teal)"/>
+
+  <!-- タクシー車体 -->
+  <rect x="18" y="38" width="44" height="18" rx="5" fill="white" opacity="0.95"/>
+  <rect x="25" y="30" width="22" height="12" rx="3.5" fill="white" opacity="0.85"/>
+  <!-- タイヤ -->
+  <circle cx="27" cy="58" r="4.5" fill="#2C7A7B"/>
+  <circle cx="53" cy="58" r="4.5" fill="#2C7A7B"/>
+  <!-- 行灯 -->
+  <rect x="32" y="22" width="14" height="9" rx="4.5" fill="url(#orange)"/>
+
+  <!-- 笑顔（フロントガラス内） -->
+  <circle cx="32" cy="36" r="2" fill="#2C7A7B"/>
+  <circle cx="44" cy="36" r="2" fill="#2C7A7B"/>
+  <path d="M30 40 Q38 46 46 40" stroke="#2C7A7B" stroke-width="1.5" stroke-linecap="round" fill="none"/>
 
   <!-- テキスト「スマルト」 -->
-  <text x="80" y="54" font-family="'Rounded Mplus 1c', 'Hiragino Maru Gothic Pro', 'M PLUS Rounded 1c', sans-serif" font-size="42" font-weight="700" fill="url(#teal)" letter-spacing="2">スマルト</text>
+  <text x="90" y="58" font-family="'Zen Maru Gothic', 'Kosugi Maru', 'Hiragino Maru Gothic Pro', 'M PLUS Rounded 1c', sans-serif" font-size="46" font-weight="500" fill="url(#teal)" letter-spacing="3">スマルト</text>
 </svg>
