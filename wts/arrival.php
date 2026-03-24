@@ -175,11 +175,13 @@ $pageDescription = "入庫時刻・走行距離・費用記録";
 $page_config = getPageConfiguration('arrival');
 $page_options = [
     'description' => $page_config['description'],
-    'breadcrumb' => [
-        ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
-        ['text' => '日次業務', 'url' => '#'],
-        ['text' => '入庫処理', 'url' => 'arrival.php']
-    ]
+    'additional_css' => ['css/workflow-stepper.css'],
+    'workflow_stepper' => renderWorkflowStepper(
+        'arrival',
+        getWorkflowCompletionStatus($pdo, $user_id),
+        ['url' => 'ride_records.php', 'label' => '乗車記録'],
+        ['url' => 'post_duty_call.php', 'label' => '乗務後点呼']
+    )
 ];
 
 $page_data = renderCompletePage(
@@ -202,16 +204,6 @@ echo $page_data['page_header'];
 <!-- メインコンテンツ -->
 <main class="main-content" id="main-content" tabindex="-1">
     <div class="container-fluid py-4">
-        <!-- 次アクションカード -->
-        <?php if ($success_message && isset($saved_driver_id)): ?>
-        <div class="next-action-card">
-            <div class="next-action-title"><i class="fas fa-check-circle me-2"></i>入庫処理完了</div>
-            <div class="next-action-subtitle">次は乗務後点呼を行ってください</div>
-            <a href="post_duty_call.php?driver_id=<?= $saved_driver_id ?>" class="next-action-btn">
-                <i class="fas fa-phone-alt"></i> 乗務後点呼へ進む <i class="fas fa-arrow-right"></i>
-            </a>
-        </div>
-        <?php endif; ?>
 
         <!-- 入庫記録一覧へのリンク -->
         <div class="mb-4">
@@ -220,12 +212,8 @@ echo $page_data['page_header'];
             </a>
         </div>
 
-        <!-- アラート表示 -->
         <?php if ($success_message): ?>
-            <div class="alert alert-success alert-dismissible fade show">
-                <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($success_message) ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
+        <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?= addslashes($success_message) ?>', 'success'); });</script>
         <?php endif; ?>
 
         <?php if ($error_message): ?>

@@ -393,12 +393,14 @@ $page_config = getPageConfiguration('daily_inspection');
 ]) ?>
 <body>
     <link rel="stylesheet" href="css/daily_inspection.css">
+    <link rel="stylesheet" href="css/workflow-stepper.css">
     <?= renderSystemHeader($user_name, $user_role, 'daily_inspection') ?>
-    <?= renderPageHeader($page_config['icon'], $page_config['title'], $page_config['subtitle'], $page_config['category'], [
-        ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
-        ['text' => '日次業務', 'url' => '#'],
-        ['text' => '日常点検', 'url' => 'daily_inspection.php']
-    ]) ?>
+    <?= renderPageHeader($page_config['icon'], $page_config['title'], $page_config['subtitle'], $page_config['category'], [], renderWorkflowStepper(
+        'inspection',
+        getWorkflowCompletionStatus($pdo, $user_id),
+        null,
+        ['url' => 'pre_duty_call.php', 'label' => '乗務前点呼']
+    )) ?>
     
     <div class="container mt-4" id="main-content" tabindex="-1">
         <div id="printHeader">
@@ -513,20 +515,8 @@ $page_config = getPageConfiguration('daily_inspection');
         </div>
         <?php endif; ?>
 
-        <!-- アラート表示 -->
         <?php if ($success_message): ?>
-            <?= renderAlert('success', '完了', $success_message) ?>
-
-        <!-- 次アクションカード -->
-        <?php if ($existing_inspection): ?>
-        <div class="next-action-card">
-            <div class="next-action-title"><i class="fas fa-check-circle me-2"></i>日常点検完了</div>
-            <div class="next-action-subtitle">次は乗務前点呼を行ってください</div>
-            <a href="pre_duty_call.php?driver_id=<?= $existing_inspection['driver_id'] ?>" class="next-action-btn">
-                <i class="fas fa-clipboard-check"></i> 乗務前点呼へ進む <i class="fas fa-arrow-right"></i>
-            </a>
-        </div>
-        <?php endif; ?>
+        <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?= addslashes($success_message) ?>', 'success'); });</script>
         <?php endif; ?>
 
         <?php if ($error_message): ?>

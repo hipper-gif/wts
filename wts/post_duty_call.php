@@ -267,15 +267,16 @@ $page_config = getPageConfiguration('post_duty_call');
 // 統一ヘッダーでページ生成
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => [],
+    'additional_css' => ['css/workflow-stepper.css'],
     'additional_js' => [
         'js/ui-interactions.js'
     ],
-    'breadcrumb' => [
-        ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
-        ['text' => '日次業務', 'url' => '#'],
-        ['text' => '乗務後点呼', 'url' => 'post_duty_call.php']
-    ]
+    'workflow_stepper' => renderWorkflowStepper(
+        'post_duty',
+        getWorkflowCompletionStatus($pdo, $user_id),
+        ['url' => 'arrival.php', 'label' => '入庫処理'],
+        ['url' => 'cash_management.php', 'label' => '売上金確認']
+    )
 ];
 
 $page_data = renderCompletePage(
@@ -300,20 +301,8 @@ echo $page_data['page_header'];
 <main class="main-content">
     <div class="container-fluid py-4">
 
-        <!-- アラート表示 -->
         <?php if ($success_message): ?>
-            <?= renderAlert('success', '保存完了', $success_message) ?>
-
-        <!-- 次アクションカード -->
-        <?php if ($existing_call && $existing_call['is_completed']): ?>
-        <div class="next-action-card">
-            <div class="next-action-title"><i class="fas fa-check-circle me-2"></i>乗務後点呼完了</div>
-            <div class="next-action-subtitle">業務お疲れさまでした。売上金を確認してください</div>
-            <a href="cash_management.php?driver_id=<?= $existing_call['driver_id'] ?>" class="next-action-btn">
-                <i class="fas fa-yen-sign"></i> 売上金確認へ進む <i class="fas fa-arrow-right"></i>
-            </a>
-        </div>
-        <?php endif; ?>
+        <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?= addslashes($success_message) ?>', 'success'); });</script>
         <?php endif; ?>
 
         <?php if ($error_message): ?>

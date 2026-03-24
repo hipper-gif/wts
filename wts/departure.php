@@ -201,15 +201,16 @@ $page_config = getPageConfiguration('departure');
 // 統一ヘッダーでページ生成
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => [],
+    'additional_css' => ['css/workflow-stepper.css'],
     'additional_js' => [
         'js/ui-interactions.js'
     ],
-    'breadcrumb' => [
-        ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
-        ['text' => '日次業務', 'url' => '#'],
-        ['text' => '出庫処理', 'url' => 'departure.php']
-    ]
+    'workflow_stepper' => renderWorkflowStepper(
+        'departure',
+        getWorkflowCompletionStatus($pdo, $user_id),
+        ['url' => 'pre_duty_call.php', 'label' => '乗務前点呼'],
+        ['url' => 'ride_records.php', 'label' => '乗車記録']
+    )
 ];
 
 $page_data = renderCompletePage(
@@ -253,9 +254,8 @@ echo $page_data['page_header'];
         </div>
         <?php endif; ?>
 
-        <!-- アラート表示 -->
         <?php if ($success_message): ?>
-            <?= renderAlert('success', '保存完了', $success_message) ?>
+        <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?= addslashes($success_message) ?>', 'success'); });</script>
         <?php endif; ?>
 
         <?php if ($error_message): ?>
@@ -446,16 +446,6 @@ echo $page_data['page_header'];
                 </form>
                 <?php endif; ?>
 
-            <!-- 次アクションカード -->
-            <?php if ($success_message && !$edit_mode): ?>
-            <div class="next-action-card">
-                <div class="next-action-title"><i class="fas fa-check-circle me-2"></i>出庫処理完了</div>
-                <div class="next-action-subtitle">次は乗車記録を登録してください</div>
-                <a href="ride_records.php" class="next-action-btn">
-                    <i class="fas fa-users"></i> 乗車記録へ進む <i class="fas fa-arrow-right"></i>
-                </a>
-            </div>
-            <?php endif; ?>
             </div>
 
             <!-- サイドバー（本日の出庫記録） -->

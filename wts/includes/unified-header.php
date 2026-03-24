@@ -463,7 +463,7 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
 /**
  * 📄 統一ページヘッダー生成（頻度別対応）
  */
-function renderPageHeader($icon, $title, $subtitle = '', $category = 'other', $breadcrumb = []) {
+function renderPageHeader($icon, $title, $subtitle = '', $category = 'other', $breadcrumb = [], $workflow_stepper = '') {
     $icon_safe = htmlspecialchars($icon, ENT_QUOTES, 'UTF-8');
     $title_safe = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
     $subtitle_safe = htmlspecialchars($subtitle, ENT_QUOTES, 'UTF-8');
@@ -518,7 +518,7 @@ function renderPageHeader($icon, $title, $subtitle = '', $category = 'other', $b
                         ' . $title_safe . '
                         ' . $subtitle_html . '
                     </h2>
-                    ' . $breadcrumb_html . '
+                    ' . ($workflow_stepper ?: $breadcrumb_html) . '
                 </div>
             </div>
         </div>
@@ -671,6 +671,134 @@ function renderWorkflowProgress($current_step = 1, $completed_steps = [], $date 
 }
 
 /**
+ * 当日の業務フロー完了状況をDBから取得
+ */
+function getWorkflowCompletionStatus($pdo, $user_id, $date = null) {
+    $date = $date ?: date('Y-m-d');
+    $completed = [];
+    try {
+        // 1.日常点検
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM daily_inspections WHERE driver_id = ? AND inspection_date = ?");
+        $stmt->execute([$user_id, $date]);
+        if ($stmt->fetchColumn() > 0) $completed[] = 'inspection';
+
+        // 2.乗務前点呼
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? AND is_completed = 1");
+        $stmt->execute([$user_id, $date]);
+        if ($stmt->fetchColumn() > 0) $completed[] = 'pre_duty';
+
+        // 3.出庫
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE driver_id = ? AND departure_date = ?");
+        $stmt->execute([$user_id, $date]);
+        if ($stmt->fetchColumn() > 0) $completed[] = 'departure';
+
+        // 4.乗車記録
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM ride_records WHERE driver_id = ? AND ride_date = ?");
+        $stmt->execute([$user_id, $date]);
+        if ($stmt->fetchColumn() > 0) $completed[] = 'ride';
+
+        // 5.入庫
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE driver_id = ? AND arrival_date = ?");
+        $stmt->execute([$user_id, $date]);
+        if ($stmt->fetchColumn() > 0) $completed[] = 'arrival';
+
+        // 6.乗務後点呼
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM post_duty_calls WHERE driver_id = ? AND call_date = ? AND is_completed = 1");
+        $stmt->execute([$user_id, $date]);
+        if ($stmt->fetchColumn() > 0) $completed[] = 'post_duty';
+
+        // 7.売上金確認
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM cash_count_details WHERE driver_id = ? AND confirmation_date = ?");
+        $stmt->execute([$user_id, $date]);
+        if ($stmt->fetchColumn() > 0) $completed[] = 'cash';
+    } catch (Exception $e) {
+        // エラー時は空配列を返す
+    }
+    return $completed;
+}
+
+/**
+ * ワークフローステッパーHTML生成
+ *
+ * @param string $current_step 現在のステップキー
+ * @param array $completed getWorkflowCompletionStatus()の戻り値
+ * @param array|null $prev 前ステップ ['url'=>'xxx.php','label'=>'yyy'] or null
+ * @param array|null $next 次ステップ ['url'=>'xxx.php','label'=>'yyy'] or null
+ * @return string HTML
+ */
+function renderWorkflowStepper($current_step, $completed, $prev = null, $next = null) {
+    $steps = [
+        'inspection' => ['label' => '点検', 'url' => 'daily_inspection.php', 'icon' => 'tools', 'title' => '日常点検'],
+        'pre_duty'   => ['label' => '点呼', 'url' => 'pre_duty_call.php', 'icon' => 'clipboard-check', 'title' => '乗務前点呼'],
+        'departure'  => ['label' => '出庫', 'url' => 'departure.php', 'icon' => 'car', 'title' => '出庫処理'],
+        'ride'       => ['label' => '乗車', 'url' => 'ride_records.php', 'icon' => 'route', 'title' => '乗車記録'],
+        'arrival'    => ['label' => '入庫', 'url' => 'arrival.php', 'icon' => 'warehouse', 'title' => '入庫処理'],
+        'post_duty'  => ['label' => '点呼', 'url' => 'post_duty_call.php', 'icon' => 'phone-alt', 'title' => '乗務後点呼'],
+        'cash'       => ['label' => '売上', 'url' => 'cash_management.php', 'icon' => 'yen-sign', 'title' => '売上金確認'],
+    ];
+
+    $base_path = getBasePath();
+    $step_keys = array_keys($steps);
+
+    $html = '<div class="workflow-stepper">';
+    $html .= '<div class="stepper-steps">';
+    $html .= '<a href="' . $base_path . 'dashboard.php" class="stepper-home" title="ダッシュボード"><i class="fas fa-home"></i></a>';
+
+    $step_num = 0;
+    $prev_key = null;
+    foreach ($steps as $key => $step) {
+        $step_num++;
+        $is_completed = in_array($key, $completed);
+        $is_current = ($key === $current_step);
+
+        // コネクタ（最初のステップ以外）
+        if ($prev_key !== null) {
+            $prev_completed = in_array($prev_key, $completed);
+            $connector_class = $prev_completed ? ' completed' : '';
+            $html .= '<span class="stepper-connector' . $connector_class . '"></span>';
+        }
+
+        // ステップ本体
+        if ($is_current) {
+            $html .= '<span class="stepper-step current" title="' . htmlspecialchars($step['title']) . '">';
+            $html .= '<span class="step-indicator">' . $step_num . '</span>';
+            $html .= '<span class="step-label">' . htmlspecialchars($step['label']) . '</span>';
+            $html .= '</span>';
+        } elseif ($is_completed) {
+            $html .= '<a href="' . $base_path . htmlspecialchars($step['url']) . '" class="stepper-step completed" title="' . htmlspecialchars($step['title']) . '">';
+            $html .= '<span class="step-indicator"><i class="fas fa-check"></i></span>';
+            $html .= '<span class="step-label">' . htmlspecialchars($step['label']) . '</span>';
+            $html .= '</a>';
+        } else {
+            $html .= '<a href="' . $base_path . htmlspecialchars($step['url']) . '" class="stepper-step pending" title="' . htmlspecialchars($step['title']) . '">';
+            $html .= '<span class="step-indicator">' . $step_num . '</span>';
+            $html .= '<span class="step-label">' . htmlspecialchars($step['label']) . '</span>';
+            $html .= '</a>';
+        }
+
+        $prev_key = $key;
+    }
+
+    $html .= '</div>'; // .stepper-steps
+
+    // 前後ナビボタン
+    if ($prev || $next) {
+        $html .= '<div class="stepper-nav">';
+        if ($prev) {
+            $html .= '<a href="' . $base_path . htmlspecialchars($prev['url']) . '" class="stepper-nav-btn prev"><i class="fas fa-chevron-left"></i> ' . htmlspecialchars($prev['label']) . '</a>';
+        }
+        if ($next) {
+            $html .= '<a href="' . $base_path . htmlspecialchars($next['url']) . '" class="stepper-nav-btn next">' . htmlspecialchars($next['label']) . ' <i class="fas fa-chevron-right"></i></a>';
+        }
+        $html .= '</div>';
+    }
+
+    $html .= '</div>'; // .workflow-stepper
+
+    return $html;
+}
+
+/**
  * 📋 完全HTMLフッター生成（PWA対応）
  */
 function renderCompleteHTMLFooter($additional_js = []) {
@@ -704,7 +832,7 @@ function renderCompleteHTMLFooter($additional_js = []) {
 function renderCompletePage($page_title, $user_name, $user_role, $current_page, $icon, $title, $subtitle = '', $category = 'other', $options = []) {
     $html_head = renderCompleteHTMLHead($page_title, $options);
     $system_header = renderSystemHeader($user_name, $user_role, $current_page);
-    $page_header = renderPageHeader($icon, $title, $subtitle, $category, $options['breadcrumb'] ?? []);
+    $page_header = renderPageHeader($icon, $title, $subtitle, $category, $options['breadcrumb'] ?? [], $options['workflow_stepper'] ?? '');
     
     return [
         'html_head' => $html_head,

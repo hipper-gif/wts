@@ -400,17 +400,19 @@ $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [
         'css/ui-unified-v3.css',
-        'css/header-unified.css'
+        'css/header-unified.css',
+        'css/workflow-stepper.css'
     ],
     'additional_js' => [
         'js/ui-interactions.js',
         'js/mobile-ride-access.js'
     ],
-    'breadcrumb' => [
-        ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
-        ['text' => '日次業務', 'url' => '#'],
-        ['text' => '乗車記録', 'url' => 'ride_records.php']
-    ]
+    'workflow_stepper' => renderWorkflowStepper(
+        'ride',
+        getWorkflowCompletionStatus($pdo, $user_id),
+        ['url' => 'departure.php', 'label' => '出庫処理'],
+        ['url' => 'arrival.php', 'label' => '入庫処理']
+    )
 ];
 
 $page_data = renderCompletePage(
@@ -437,19 +439,8 @@ echo $page_data['page_header'];
 
 
 
-        <!-- アラート表示 -->
         <?php if ($success_message): ?>
-            <?= renderAlert('success', '操作完了', $success_message) ?>
-        <?php endif; ?>
-
-        <?php if (!empty($success_message)): ?>
-        <div class="next-action-card">
-            <div class="next-action-title"><i class="fas fa-check-circle me-2"></i>乗車記録を保存しました</div>
-            <div class="next-action-subtitle">乗車が完了したら入庫処理を行ってください</div>
-            <a href="arrival.php" class="next-action-btn">
-                <i class="fas fa-warehouse"></i> 入庫処理へ <i class="fas fa-arrow-right"></i>
-            </a>
-        </div>
+        <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?= addslashes($success_message) ?>', 'success'); });</script>
         <?php endif; ?>
 
         <?php if ($error_message): ?>
