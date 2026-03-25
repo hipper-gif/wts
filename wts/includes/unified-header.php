@@ -411,7 +411,7 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
                     <div class="system-title-area">
                         <a href="' . $header_base_path . 'dashboard.php" class="system-title-link">
                             <h1 class="system-title m-0">
-                                <img src="' . $header_base_path . 'icons/smaruto-header.svg" alt="スマルト" class="system-logo" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'inline\'">
+                                <img src="' . $header_base_path . 'icons/smaruto-header@2x.png" alt="スマルト" class="system-logo" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'inline\'">
                                 <i class="fas fa-taxi text-primary" style="display:none"></i>
                                 <span class="system-name-display d-none d-md-inline">' . htmlspecialchars($system_names['full']) . '</span>
                                 <span class="system-name-mobile d-inline d-md-none">' . htmlspecialchars($system_names['mobile']) . '</span>
