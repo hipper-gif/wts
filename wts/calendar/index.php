@@ -144,7 +144,7 @@ echo $page_data['system_header'];
                 <i class="fas fa-plus me-1"></i>新規予約
             </button>
         </div>
-        <!-- 2行目：表示切替 + フィルター + 管理 -->
+        <!-- 2行目：表示切替 + フィルター + 本日件数 + 管理 -->
         <div class="d-flex align-items-center gap-1 mb-1">
             <div class="btn-group">
                 <input type="radio" class="btn-check" name="viewMode" id="monthView" value="dayGridMonth" <?= $view_mode === 'month' || $view_mode === 'dayGridMonth' ? 'checked' : '' ?>>
@@ -162,6 +162,10 @@ echo $page_data['system_header'];
                     </option>
                 <?php endforeach; ?>
             </select>
+            <!-- 本日の件数（インラインバッジ） -->
+            <span class="text-muted small d-none d-sm-inline ms-1">今日</span>
+            <span class="badge bg-primary" id="todayReservationCount" title="予約件数">0</span>
+            <span class="badge bg-success" id="todayCompletedCount" title="完了">0</span>
             <div class="ms-auto d-flex gap-1">
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="customerManagementBtn" title="顧客管理">
                     <i class="fas fa-address-book"></i>
@@ -172,55 +176,10 @@ echo $page_data['system_header'];
             </div>
         </div>
 
-        <!-- カレンダー（フルワイド） -->
-        <div class="row">
-            <div class="col-12 col-lg-9 mb-2 mb-lg-0">
-                <div id="calendar"></div>
-            </div>
-
-            <!-- サイドバー -->
-            <div class="col-12 col-lg-3">
-                <!-- 本日の概要 -->
-                <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-calendar-day me-2"></i>本日の概要
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span>予約件数</span>
-                            <span class="badge bg-primary fs-6" id="todayReservationCount">0件</span>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span>完了件数</span>
-                            <span class="badge bg-success fs-6" id="todayCompletedCount">0件</span>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span>進行中</span>
-                            <span class="badge bg-warning fs-6" id="todayInProgressCount">0件</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 車両状況（スマホでは折りたたみ） -->
-                <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-header bg-info text-white" data-bs-toggle="collapse" data-bs-target="#vehicleStatusCollapse" style="cursor:pointer">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="card-title mb-0">
-                                <i class="fas fa-car me-2"></i>車両状況
-                            </h5>
-                            <i class="fas fa-chevron-down d-lg-none"></i>
-                        </div>
-                    </div>
-                    <div class="collapse show" id="vehicleStatusCollapse">
-                        <div class="card-body" id="vehicleStatusArea">
-                            <p class="text-muted text-center">データを読み込み中...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- カレンダー（フル幅） -->
+        <div id="calendar"></div>
+        <!-- サイドバー情報はツールバーのバッジに統合 -->
+        <div id="vehicleStatusArea" style="display:none"></div>
     </div>
 </main>
 

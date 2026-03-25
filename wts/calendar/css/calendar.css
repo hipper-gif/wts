@@ -31,9 +31,17 @@ body.calendar-page {
     }
 }
 
+/* カレンダーページはcontainer幅制限を解除 */
+.calendar-page .container-fluid {
+    max-width: none;
+}
+.calendar-page .main-content {
+    min-height: auto;
+}
+
 #calendar {
     padding: 0;
-    min-height: calc(100vh - 110px);
+    min-height: calc(100vh - 105px);
 }
 
 /* タイトル（年月）のコンパクト化 */
@@ -57,7 +65,7 @@ body.calendar-page {
 @media (max-width: 576px) {
     #calendar {
         padding: 0;
-        min-height: calc(100vh - 100px);
+        min-height: calc(100vh - 95px);
     }
     #calendar .fc-toolbar-title {
         font-size: 0.95rem !important;
