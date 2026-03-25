@@ -121,57 +121,53 @@ $page_data = renderCompletePage(
     $page_options
 );
 
-// HTMLヘッダー出力
+// HTMLヘッダー出力（カレンダー画面はページヘッダー非表示）
 echo $page_data['html_head'];
 echo $page_data['system_header'];
-echo $page_data['page_header'];
+// echo $page_data['page_header']; // カレンダー専用ツールバーに統合
 ?>
 
+<!-- ページヘッダー分のpadding除去 -->
+<script>document.body.classList.add('calendar-page');</script>
 <!-- メインコンテンツ開始 -->
 <main class="main-content" id="main-content" tabindex="-1">
     <div class="container-fluid px-2 px-md-3 py-1">
 
-        <!-- コンパクトツールバー -->
-        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-            <!-- 新規予約（メインCTA） -->
-            <button type="button" class="btn btn-success" id="createReservationBtn">
-                <i class="fas fa-plus me-1"></i><span class="d-none d-sm-inline">新規予約</span>
-            </button>
-
-            <!-- ナビゲーション -->
-            <div class="btn-group">
+        <!-- カレンダーツールバー -->
+        <div class="cal-toolbar">
+            <!-- 左：ナビ + タイトル -->
+            <div class="cal-toolbar-left">
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="prevBtn"><i class="fas fa-chevron-left"></i></button>
-                <button type="button" class="btn btn-primary btn-sm" id="todayBtn">今日</button>
+                <span class="cal-toolbar-title" id="calToolbarTitle"></span>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="nextBtn"><i class="fas fa-chevron-right"></i></button>
+                <button type="button" class="btn btn-outline-primary btn-sm ms-1" id="todayBtn">今日</button>
             </div>
-
-            <!-- 表示切り替え -->
-            <div class="btn-group">
-                <input type="radio" class="btn-check" name="viewMode" id="monthView" value="dayGridMonth" <?= $view_mode === 'month' || $view_mode === 'dayGridMonth' ? 'checked' : '' ?>>
-                <label class="btn btn-outline-secondary btn-sm" for="monthView">月</label>
-                <input type="radio" class="btn-check" name="viewMode" id="weekView" value="timeGridWeek" <?= $view_mode === 'week' || $view_mode === 'timeGridWeek' ? 'checked' : '' ?>>
-                <label class="btn btn-outline-secondary btn-sm" for="weekView">週</label>
-                <input type="radio" class="btn-check" name="viewMode" id="dayView" value="timeGridDay" <?= $view_mode === 'day' || $view_mode === 'timeGridDay' ? 'checked' : '' ?>>
-                <label class="btn btn-outline-secondary btn-sm" for="dayView">日</label>
-            </div>
-
-            <!-- 運転者フィルター -->
-            <select class="form-select form-select-sm" id="driverFilter" style="width:auto;max-width:140px">
-                <option value="all">全員</option>
-                <?php foreach ($drivers as $driver): ?>
-                    <option value="<?= $driver['id'] ?>" <?= $driver_filter == $driver['id'] ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($driver['name']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-
-            <!-- 右寄せ：管理ボタン -->
-            <div class="ms-auto d-flex gap-1">
+            <!-- 右：操作 -->
+            <div class="cal-toolbar-right">
+                <div class="btn-group">
+                    <input type="radio" class="btn-check" name="viewMode" id="monthView" value="dayGridMonth" <?= $view_mode === 'month' || $view_mode === 'dayGridMonth' ? 'checked' : '' ?>>
+                    <label class="btn btn-outline-secondary btn-sm" for="monthView">月</label>
+                    <input type="radio" class="btn-check" name="viewMode" id="weekView" value="timeGridWeek" <?= $view_mode === 'week' || $view_mode === 'timeGridWeek' ? 'checked' : '' ?>>
+                    <label class="btn btn-outline-secondary btn-sm" for="weekView">週</label>
+                    <input type="radio" class="btn-check" name="viewMode" id="dayView" value="timeGridDay" <?= $view_mode === 'day' || $view_mode === 'timeGridDay' ? 'checked' : '' ?>>
+                    <label class="btn btn-outline-secondary btn-sm" for="dayView">日</label>
+                </div>
+                <select class="form-select form-select-sm" id="driverFilter" style="width:auto;max-width:120px">
+                    <option value="all">全員</option>
+                    <?php foreach ($drivers as $driver): ?>
+                        <option value="<?= $driver['id'] ?>" <?= $driver_filter == $driver['id'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($driver['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="button" class="btn btn-success btn-sm" id="createReservationBtn">
+                    <i class="fas fa-plus"></i><span class="d-none d-sm-inline ms-1">新規</span>
+                </button>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="customerManagementBtn" title="顧客管理">
                     <i class="fas fa-address-book"></i>
                 </button>
                 <a href="settings.php" class="btn btn-outline-secondary btn-sm" title="設定">
-                    <i class="fas fa-sliders-h"></i>
+                    <i class="fas fa-cog"></i>
                 </a>
             </div>
         </div>

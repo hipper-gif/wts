@@ -39,12 +39,8 @@ document.addEventListener('DOMContentLoaded', function() {
             initialView: currentConfig.viewMode || 'dayGridMonth',
             initialDate: currentConfig.currentDate || new Date(),
 
-            // ヘッダー設定（ナビは独自ツールバーで制御、タイトルのみ表示）
-            headerToolbar: {
-                left: '',
-                center: 'title',
-                right: ''
-            },
+            // ヘッダー非表示（独自ツールバーで全制御）
+            headerToolbar: false,
 
             // ボタンテキスト
             buttonText: {
@@ -120,6 +116,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         calendar.render();
+
+        // 初期タイトルをツールバーにセット
+        var titleEl = document.getElementById('calToolbarTitle');
+        if (titleEl) titleEl.textContent = calendar.view.title;
     }
     
     // =================================================================
@@ -258,9 +258,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function handleDatesChange(info) {
         // 表示期間変更時の処理
-        // ビューが変更された場合、currentConfigを更新
         if (info.view && info.view.type) {
             currentConfig.viewMode = info.view.type;
+        }
+        // 独自ツールバータイトルを更新
+        var titleEl = document.getElementById('calToolbarTitle');
+        if (titleEl && calendar) {
+            titleEl.textContent = calendar.view.title;
         }
         updateSidebarContent(info.start, info.end);
     }
