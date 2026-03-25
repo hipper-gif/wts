@@ -212,7 +212,6 @@ self.addEventListener('message', (event) => {
                     cacheNames.map((cacheName) => caches.delete(cacheName))
                 );
             })
-        )
         );
     }
 });
