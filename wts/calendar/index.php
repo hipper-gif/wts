@@ -298,26 +298,53 @@ echo $page_data['page_header'];
                         <div class="card-body">
                             <div class="row">
                                 <div class="col-md-4 mb-3">
-                                    <label for="reservationDate" class="form-label">予約日 <span class="text-danger">*</span></label>
+                                    <label for="reservationDate" class="form-label">予約日 <span class="text-danger fw-bold small">（必須）</span></label>
                                     <input type="date" class="form-control" id="reservationDate" name="reservationDate" required>
                                 </div>
                                 <div class="col-md-4 mb-3">
-                                    <label for="reservationTime" class="form-label">予約時刻 <span class="text-danger">*</span></label>
-                                    <input type="time" class="form-control" id="reservationTime" name="reservationTime" required>
+                                    <label for="reservationTime" class="form-label">予約時刻 <span class="text-danger fw-bold small">（必須）</span></label>
+                                    <select class="form-select" id="reservationTime" name="reservationTime" required>
+                                        <option value="">時間を選択</option>
+                                        <option value="07:00">07:00</option>
+                                        <option value="07:30">07:30</option>
+                                        <option value="08:00">08:00</option>
+                                        <option value="08:30">08:30</option>
+                                        <option value="09:00">09:00</option>
+                                        <option value="09:30">09:30</option>
+                                        <option value="10:00">10:00</option>
+                                        <option value="10:30">10:30</option>
+                                        <option value="11:00">11:00</option>
+                                        <option value="11:30">11:30</option>
+                                        <option value="12:00">12:00</option>
+                                        <option value="12:30">12:30</option>
+                                        <option value="13:00">13:00</option>
+                                        <option value="13:30">13:30</option>
+                                        <option value="14:00">14:00</option>
+                                        <option value="14:30">14:30</option>
+                                        <option value="15:00">15:00</option>
+                                        <option value="15:30">15:30</option>
+                                        <option value="16:00">16:00</option>
+                                        <option value="16:30">16:30</option>
+                                        <option value="17:00">17:00</option>
+                                        <option value="17:30">17:30</option>
+                                        <option value="18:00">18:00</option>
+                                        <option value="18:30">18:30</option>
+                                        <option value="19:00">19:00</option>
+                                    </select>
                                 </div>
                                 <div class="col-md-4 mb-3">
-                                    <label for="clientName" class="form-label">利用者名 <span class="text-danger">*</span></label>
+                                    <label for="clientName" class="form-label">利用者名 <span class="text-danger fw-bold small">（必須）</span></label>
                                     <input type="text" class="form-control" id="clientName" name="clientName" placeholder="例: 山田太郎" required>
                                     <div id="customerInfoBadge" class="mt-1"></div>
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label for="pickupLocation" class="form-label">乗車場所 <span class="text-danger">*</span></label>
+                                    <label for="pickupLocation" class="form-label">乗車場所 <span class="text-danger fw-bold small">（必須）</span></label>
                                     <input type="text" class="form-control" id="pickupLocation" name="pickupLocation" placeholder="例: 東京都渋谷区..." required>
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label for="dropoffLocation" class="form-label">降車場所 <span class="text-danger">*</span></label>
+                                    <label for="dropoffLocation" class="form-label">降車場所 <span class="text-danger fw-bold small">（必須）</span></label>
                                     <input type="text" class="form-control" id="dropoffLocation" name="dropoffLocation" placeholder="例: 渋谷駅" required>
                                 </div>
                             </div>
@@ -333,10 +360,10 @@ echo $page_data['page_header'];
                             <div class="row">
                                 <div class="col-md-3 mb-3">
                                     <label for="passengerCount" class="form-label">乗客数</label>
-                                    <input type="number" class="form-control" id="passengerCount" name="passengerCount" min="1" max="4" value="1">
+                                    <input type="number" class="form-control" id="passengerCount" name="passengerCount" min="1" max="4" value="1" inputmode="numeric">
                                 </div>
                                 <div class="col-md-3 mb-3">
-                                    <label for="serviceType" class="form-label">サービス種別 <span class="text-danger">*</span></label>
+                                    <label for="serviceType" class="form-label">サービス種別 <span class="text-danger fw-bold small">（必須）</span></label>
                                     <select class="form-select" id="serviceType" name="serviceType" required>
                                         <?php if (!empty($field_options['service_type'])): ?>
                                             <?php foreach ($field_options['service_type'] as $opt): ?>
@@ -430,7 +457,7 @@ echo $page_data['page_header'];
                         <div class="card-body">
                             <div class="row">
                                 <div class="col-md-4 mb-3">
-                                    <label for="referrerType" class="form-label">紹介者種別 <span class="text-danger">*</span></label>
+                                    <label for="referrerType" class="form-label">紹介者種別 <span class="text-danger fw-bold small">（必須）</span></label>
                                     <select class="form-select" id="referrerType" name="referrerType" required>
                                         <?php if (!empty($field_options['referrer_type'])): ?>
                                             <?php foreach ($field_options['referrer_type'] as $opt): ?>
@@ -452,7 +479,7 @@ echo $page_data['page_header'];
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label for="referrerContact" class="form-label">紹介者連絡先</label>
-                                    <input type="text" class="form-control" id="referrerContact" name="referrerContact" placeholder="電話番号またはメール">
+                                    <input type="text" class="form-control" id="referrerContact" name="referrerContact" placeholder="電話番号またはメール" inputmode="tel">
                                 </div>
                             </div>
                         </div>
@@ -468,14 +495,14 @@ echo $page_data['page_header'];
                                 <div class="col-md-4 mb-3">
                                     <label for="estimatedFare" class="form-label">見積料金</label>
                                     <div class="input-group">
-                                        <input type="number" class="form-control" id="estimatedFare" name="estimatedFare" placeholder="0">
+                                        <input type="number" class="form-control" id="estimatedFare" name="estimatedFare" placeholder="0" inputmode="numeric">
                                         <span class="input-group-text">円</span>
                                     </div>
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label for="actualFare" class="form-label">実際の料金</label>
                                     <div class="input-group">
-                                        <input type="number" class="form-control" id="actualFare" name="actualFare" placeholder="0">
+                                        <input type="number" class="form-control" id="actualFare" name="actualFare" placeholder="0" inputmode="numeric">
                                         <span class="input-group-text">円</span>
                                     </div>
                                 </div>

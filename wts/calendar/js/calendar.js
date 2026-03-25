@@ -618,8 +618,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const deleteBtn = document.getElementById('deleteReservationBtn');
         if (deleteBtn) {
             deleteBtn.addEventListener('click', function() {
-                if (currentDetailReservation && confirm('この予約を削除しますか？')) {
-                    deleteReservation(currentDetailReservation.reservationId);
+                if (currentDetailReservation) {
+                    showConfirm('この予約を削除しますか？', function() {
+                        deleteReservation(currentDetailReservation.reservationId);
+                    }, { type: 'danger', confirmText: '削除する' });
                 }
             });
         }

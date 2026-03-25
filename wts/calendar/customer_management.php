@@ -207,7 +207,7 @@ echo $page_data['page_header'];
                         <div class="card-body">
                             <div class="row g-3">
                                 <div class="col-12 col-md-6">
-                                    <label class="form-label">名前 <span class="text-danger">*</span></label>
+                                    <label class="form-label">名前 <span class="text-danger fw-bold small">（必須）</span></label>
                                     <input type="text" class="form-control" id="customerName" name="name" required>
                                 </div>
                                 <div class="col-12 col-md-6">
@@ -216,11 +216,11 @@ echo $page_data['page_header'];
                                 </div>
                                 <div class="col-12 col-md-4">
                                     <label class="form-label">電話番号</label>
-                                    <input type="tel" class="form-control" id="customerPhone" name="phone">
+                                    <input type="tel" class="form-control" id="customerPhone" name="phone" inputmode="tel">
                                 </div>
                                 <div class="col-12 col-md-4">
                                     <label class="form-label">副電話番号</label>
-                                    <input type="tel" class="form-control" id="customerPhoneSecondary" name="phone_secondary">
+                                    <input type="tel" class="form-control" id="customerPhoneSecondary" name="phone_secondary" inputmode="tel">
                                 </div>
                                 <div class="col-12 col-md-4">
                                     <label class="form-label">メール</label>
@@ -237,7 +237,7 @@ echo $page_data['page_header'];
                             <div class="row g-3">
                                 <div class="col-12 col-md-4">
                                     <label class="form-label">郵便番号</label>
-                                    <input type="text" class="form-control" id="customerPostalCode" name="postal_code" placeholder="000-0000">
+                                    <input type="text" class="form-control" id="customerPostalCode" name="postal_code" placeholder="000-0000" inputmode="numeric">
                                 </div>
                                 <div class="col-12 col-md-8">
                                     <label class="form-label">住所</label>
@@ -318,7 +318,7 @@ echo $page_data['page_header'];
                                 </div>
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">連絡先電話番号</label>
-                                    <input type="tel" class="form-control" id="customerEmergencyPhone" name="emergency_contact_phone">
+                                    <input type="tel" class="form-control" id="customerEmergencyPhone" name="emergency_contact_phone" inputmode="tel">
                                 </div>
                             </div>
                         </div>

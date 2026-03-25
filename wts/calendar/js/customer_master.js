@@ -396,6 +396,9 @@
                     const phone = item.phone ? this._highlight(escapeHtml(item.phone), query) : '';
                     const address = escapeHtml(item.address || '');
 
+                    const careLevel = escapeHtml(item.care_level || '');
+                    const mobility = escapeHtml(item.mobility_type || '');
+
                     html += `
                         <div class="cm-autocomplete-item" data-index="${index}">
                             <div>
@@ -404,7 +407,8 @@
                             </div>
                             <div class="cm-item-sub">
                                 ${phone ? '<span class="cm-item-phone"><i class="fas fa-phone-alt me-1"></i>' + phone + '</span>' : ''}
-                                ${address ? '<span class="cm-item-address"><i class="fas fa-map-marker-alt me-1"></i>' + address + '</span>' : ''}
+                                ${careLevel ? '<span class="cm-item-address">' + careLevel + '</span>' : ''}
+                                ${mobility ? '<span class="cm-item-address">' + mobility + '</span>' : ''}
                             </div>
                         </div>
                     `;
@@ -465,16 +469,34 @@
                 phoneField.value = customer.phone;
             }
 
-            // 住所 → 乗車場所
+            // 乗車場所（default_pickup_location を優先、なければ address）
             const pickupField = document.getElementById('pickupLocation');
-            if (pickupField && customer.address) {
-                pickupField.value = customer.address;
+            if (pickupField) {
+                if (customer.default_pickup_location) {
+                    pickupField.value = customer.default_pickup_location;
+                } else if (customer.address) {
+                    pickupField.value = customer.address;
+                }
             }
 
-            // よく行く目的地があれば降車場所の候補として設定
+            // 降車場所（default_dropoff_location を優先）
             const dropoffField = document.getElementById('dropoffLocation');
-            if (dropoffField && customer.frequent_destination) {
-                dropoffField.value = customer.frequent_destination;
+            if (dropoffField && customer.default_dropoff_location) {
+                dropoffField.value = customer.default_dropoff_location;
+            }
+
+            // 顧客情報バッジ表示
+            const customerBadge = document.getElementById('customerInfoBadge');
+            if (customerBadge) {
+                const badgeParts = [];
+                if (customer.phone) badgeParts.push('\ud83d\udcde ' + escapeHtml(customer.phone));
+                if (customer.care_level) badgeParts.push(escapeHtml(customer.care_level));
+                if (customer.mobility_type) badgeParts.push(escapeHtml(customer.mobility_type));
+                if (badgeParts.length > 0) {
+                    customerBadge.innerHTML = '<span class="badge bg-light text-dark border" style="font-size:0.82rem">' + badgeParts.join(' | ') + '</span>';
+                } else {
+                    customerBadge.innerHTML = '';
+                }
             }
 
             this._hideDropdown();
@@ -557,6 +579,12 @@
             this.selectedCustomer = null;
             this.hiddenInput.value = '';
             this._removeDetailPanel();
+
+            // 顧客情報バッジもクリア
+            const customerBadge = document.getElementById('customerInfoBadge');
+            if (customerBadge) {
+                customerBadge.innerHTML = '';
+            }
         }
 
         _showDetailPanel(customer) {
@@ -1202,10 +1230,7 @@
         _delete() {
             if (!this._customerId) return;
 
-            if (!confirm('この顧客情報を削除しますか？\n関連する予約データは削除されません。')) {
-                return;
-            }
-
+            showConfirm('この顧客情報を削除しますか？\n関連する予約データは削除されません。', () => {
             fetch('api/delete_customer.php', {
                 method: 'POST',
                 headers: {
@@ -1233,6 +1258,7 @@
             .catch(error => {
                 showNotification(error.message, 'error');
             });
+            }, { type: 'danger', confirmText: '削除する' });
         },
 
         _loadHistory(customerId) {

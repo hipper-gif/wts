@@ -479,3 +479,16 @@
         border: 1px solid black !important;
     }
 }
+
+/* スマホでモーダルをフルスクリーン化 */
+@media (max-width: 576px) {
+    #reservationModal .modal-dialog {
+        margin: 0;
+        max-width: 100%;
+        min-height: 100vh;
+    }
+    #reservationModal .modal-content {
+        border-radius: 0;
+        min-height: 100vh;
+    }
+}
