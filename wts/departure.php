@@ -708,7 +708,7 @@ function enableEditMode() {
 
     var ab = document.getElementById('actionButtons');
     if (ab) {
-        ab.innerHTML = '<button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save me-2"></i>変更を保存</button>' +
+        ab.innerHTML = '<button type="submit" class="btn btn-primary btn-lg" data-loading-text="保存中..."><i class="fas fa-save me-2"></i>変更を保存</button>' +
             '<button type="button" class="btn btn-secondary btn-lg ms-2" onclick="location.reload()"><i class="fas fa-times me-2"></i>キャンセル</button>';
     }
 }

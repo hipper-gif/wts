@@ -908,7 +908,7 @@ echo $page_data['page_header'];
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="fas fa-times me-1"></i>キャンセル
                     </button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" data-loading-text="保存中...">
                         <i class="fas fa-save me-1"></i>保存
                     </button>
                 </div>

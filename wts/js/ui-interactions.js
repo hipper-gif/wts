@@ -28,6 +28,7 @@
         initializeDropdowns();
         initializeModals();
         initializeToasts();
+        initializeFormSubmitLoading();
         initializeCheckItems();
         initializeCashCounters();
         initializeTableSorting();
@@ -181,7 +182,7 @@
      */
     function initializeToasts() {
         // トースト表示
-        window.showToast = function(message, type = 'info', duration = 5000) {
+        window.showToast = function(message, type = 'info', duration = type === 'success' ? 8000 : 5000) {
             const toastContainer = getOrCreateToastContainer();
             const toast = createToast(message, type);
             
@@ -277,6 +278,33 @@
         }, 300);
     }
     
+    /**
+     * フォーム送信時のボタンローディング状態を初期化
+     * data-loading-text 属性があるボタンを含むフォームに適用
+     */
+    function initializeFormSubmitLoading() {
+        document.addEventListener('submit', function(e) {
+            const form = e.target;
+            // Ajaxフォームはスキップ（data-ajax属性で判定）
+            if (form.dataset.ajax) return;
+
+            const btn = form.querySelector('button[type="submit"][data-loading-text], button[type="submit"].btn-submit-guard');
+            if (!btn) return;
+
+            const originalHtml = btn.innerHTML;
+            const loadingText = btn.dataset.loadingText || '送信中...';
+
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>${loadingText}`;
+
+            // ページ遷移が起きない場合（バリデーション等でsubmitが止まる）への保険
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }, 15000);
+        });
+    }
+
     /**
      * 点検項目チェックボタンを初期化
      */

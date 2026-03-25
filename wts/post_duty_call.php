@@ -640,7 +640,7 @@ function enableEditMode() {
     <?php endif; ?>
 
     // ボタンを変更を保存に切り替え
-    document.getElementById('actionButtons').innerHTML = '<button type="submit" class="btn btn-success btn-lg"><i class="fas fa-save me-2"></i>変更を保存</button>';
+    document.getElementById('actionButtons').innerHTML = '<button type="submit" class="btn btn-success btn-lg" data-loading-text="保存中..."><i class="fas fa-save me-2"></i>変更を保存</button>';
 
     formDirty = true;
 }
