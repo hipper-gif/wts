@@ -461,6 +461,8 @@
 
             // フォームへのデータ反映
             this.input.value = customer.name || '';
+            this.input.dispatchEvent(new Event('input', { bubbles: true }));
+            this.input.dispatchEvent(new Event('change', { bubbles: true }));
             this.hiddenInput.value = customer.id || '';
 
             // 電話番号

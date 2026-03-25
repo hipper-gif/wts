@@ -400,52 +400,60 @@ echo $page_data['page_header'];
                                     </select>
                                 </div>
                             </div>
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label for="rentalService" class="form-label">レンタルサービス</label>
-                                    <select class="form-select" id="rentalService" name="rentalService">
-                                        <?php if (!empty($field_options['rental_service'])): ?>
-                                            <?php foreach ($field_options['rental_service'] as $opt): ?>
-                                                <option value="<?= htmlspecialchars($opt['value']) ?>"><?= htmlspecialchars($opt['label']) ?></option>
-                                            <?php endforeach; ?>
-                                        <?php else: ?>
-                                            <option value="なし">なし</option>
-                                            <option value="車椅子">車椅子</option>
-                                            <option value="ストレッチャー">ストレッチャー</option>
-                                            <option value="酸素ボンベ">酸素ボンベ</option>
-                                        <?php endif; ?>
-                                    </select>
-                                </div>
-                                <div class="col-md-8">
-                                    <label class="form-label">追加サービス</label>
-                                    <div class="d-flex flex-wrap gap-3">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="entranceAssistance" name="entranceAssistance">
-                                            <label class="form-check-label" for="entranceAssistance">玄関介助</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="disabilityCard" name="disabilityCard">
-                                            <label class="form-check-label" for="disabilityCard">障害者手帳</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="careServiceUser" name="careServiceUser">
-                                            <label class="form-check-label" for="careServiceUser">介護保険利用</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="isTimeCritical" name="isTimeCritical" checked>
-                                            <label class="form-check-label" for="isTimeCritical">時間厳守</label>
-                                        </div>
+                            <div class="mb-3">
+                                <label class="form-label">オプション</label>
+                                <div class="d-flex flex-wrap gap-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="isTimeCritical" name="isTimeCritical" checked>
+                                        <label class="form-check-label" for="isTimeCritical">時間厳守</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="entranceAssistance" name="entranceAssistance">
+                                        <label class="form-check-label" for="entranceAssistance">玄関介助</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="disabilityCard" name="disabilityCard">
+                                        <label class="form-check-label" for="disabilityCard">障害者手帳</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="careServiceUser" name="careServiceUser">
+                                        <label class="form-check-label" for="careServiceUser">介護保険利用</label>
                                     </div>
                                 </div>
                             </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="hospitalEscortStaff" class="form-label">病院付き添いスタッフ</label>
-                                    <input type="text" class="form-control" id="hospitalEscortStaff" name="hospitalEscortStaff" placeholder="スタッフ名">
+                            <div class="mb-3">
+                                <label class="form-label">レンタル・追加サービス</label>
+                                <div class="d-flex flex-wrap gap-3 mb-2">
+                                    <input type="hidden" id="rentalService" name="rentalService" value="なし">
+                                    <div class="form-check">
+                                        <input class="form-check-input rental-check" type="checkbox" id="rentalWheelchair" value="車椅子" onchange="updateRentalService()">
+                                        <label class="form-check-label" for="rentalWheelchair">車椅子</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input rental-check" type="checkbox" id="rentalStretcher" value="ストレッチャー" onchange="updateRentalService()">
+                                        <label class="form-check-label" for="rentalStretcher">ストレッチャー</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input rental-check" type="checkbox" id="rentalOxygen" value="酸素ボンベ" onchange="updateRentalService()">
+                                        <label class="form-check-label" for="rentalOxygen">酸素ボンベ</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="needHospitalEscort" onchange="toggleStaffInput('hospitalEscort')">
+                                        <label class="form-check-label" for="needHospitalEscort">院内付添</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="needDualAssistance" onchange="toggleStaffInput('dualAssistance')">
+                                        <label class="form-check-label" for="needDualAssistance">2名介助</label>
+                                    </div>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="dualAssistanceStaff" class="form-label">2名介助スタッフ</label>
-                                    <input type="text" class="form-control" id="dualAssistanceStaff" name="dualAssistanceStaff" placeholder="スタッフ名">
+                                <!-- チェック時のみ表示されるスタッフ名入力 -->
+                                <div class="row" id="staffInputArea" style="display:none">
+                                    <div class="col-md-6 mb-2" id="hospitalEscortWrap" style="display:none">
+                                        <input type="text" class="form-control form-control-sm" id="hospitalEscortStaff" name="hospitalEscortStaff" placeholder="院内付添スタッフ名">
+                                    </div>
+                                    <div class="col-md-6 mb-2" id="dualAssistanceWrap" style="display:none">
+                                        <input type="text" class="form-control form-control-sm" id="dualAssistanceStaff" name="dualAssistanceStaff" placeholder="2名介助スタッフ名">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -708,6 +716,29 @@ window.calendarConfig = {
 <!-- クイック予約FAB -->
 <div id="quickBookingFAB"></div>
 <script>
+// レンタルサービス：チェックボックス → hidden値同期
+function updateRentalService() {
+    var checked = document.querySelectorAll('.rental-check:checked');
+    var vals = Array.from(checked).map(function(c) { return c.value; });
+    document.getElementById('rentalService').value = vals.length > 0 ? vals.join(',') : 'なし';
+}
+
+// 追加サービスのスタッフ名入力表示切替
+function toggleStaffInput(type) {
+    var wrap = document.getElementById(type + 'Wrap');
+    var checkbox = document.getElementById('need' + type.charAt(0).toUpperCase() + type.slice(1));
+    if (!wrap || !checkbox) return;
+    wrap.style.display = checkbox.checked ? '' : 'none';
+    // いずれかのスタッフ入力が表示中ならエリアを表示
+    var area = document.getElementById('staffInputArea');
+    var anyVisible = document.getElementById('hospitalEscortWrap').style.display !== 'none'
+                  || document.getElementById('dualAssistanceWrap').style.display !== 'none';
+    area.style.display = anyVisible ? '' : 'none';
+    if (checkbox.checked) {
+        wrap.querySelector('input').focus();
+    }
+}
+
 function toggleTimeInput(e) {
     e.preventDefault();
     var selectWrap = document.getElementById('timeSelectWrap');

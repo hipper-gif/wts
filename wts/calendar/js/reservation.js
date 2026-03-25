@@ -169,10 +169,26 @@ document.addEventListener('DOMContentLoaded', function() {
         setFormValue('vehicleId', data.vehicle_id || data.vehicleId);
         
         // レンタル・支援
-        setFormValue('rentalService', data.rental_service || data.rentalService || 'なし');
+        var rentalVal = data.rental_service || data.rentalService || 'なし';
+        setFormValue('rentalService', rentalVal);
+        // レンタルチェックボックス復元
+        document.querySelectorAll('.rental-check').forEach(function(cb) { cb.checked = false; });
+        if (rentalVal && rentalVal !== 'なし') {
+            rentalVal.split(',').forEach(function(v) {
+                var cb = document.querySelector('.rental-check[value="' + v.trim() + '"]');
+                if (cb) cb.checked = true;
+            });
+        }
         setFormCheckbox('entranceAssistance', data.entrance_assistance);
         setFormCheckbox('disabilityCard', data.disability_card);
         setFormCheckbox('careServiceUser', data.care_service_user);
+        // 院内付添・2名介助の復元
+        var hasEscort = !!(data.hospital_escort_staff || data.hospitalEscortStaff);
+        var hasDual = !!(data.dual_assistance_staff || data.dualAssistanceStaff);
+        var needEscortCb = document.getElementById('needHospitalEscort');
+        var needDualCb = document.getElementById('needDualAssistance');
+        if (needEscortCb) { needEscortCb.checked = hasEscort; toggleStaffInput('hospitalEscort'); }
+        if (needDualCb) { needDualCb.checked = hasDual; toggleStaffInput('dualAssistance'); }
         setFormValue('hospitalEscortStaff', data.hospital_escort_staff);
         setFormValue('dualAssistanceStaff', data.dual_assistance_staff);
         
