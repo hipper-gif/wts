@@ -1,0 +1,51 @@
+/* 書類管理ページ - document_management.css */
+
+/* 期限切れ行のハイライト強調 */
+.table .table-danger td {
+    background-color: rgba(220, 53, 69, 0.08);
+}
+.table .table-warning td {
+    background-color: rgba(255, 193, 7, 0.08);
+}
+
+/* ファイルアイコンの色分け */
+.fa-file-pdf {
+    color: #dc3545;
+}
+.fa-file-image {
+    color: #17a2b8;
+}
+
+/* スマホ用カード表示 */
+.doc-card {
+    border-left-width: 3px;
+    transition: box-shadow 0.2s ease;
+}
+.doc-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.doc-card.border-danger {
+    border-left-color: #dc3545;
+}
+.doc-card.border-warning {
+    border-left-color: #ffc107;
+}
+
+/* アップロードモーダルのファイル入力 */
+#uploadFile {
+    cursor: pointer;
+}
+
+/* プレビューモーダル */
+#previewBody iframe,
+#previewBody img {
+    border-radius: 4px;
+}
+
+/* レスポンシブ微調整 */
+@media (max-width: 767.98px) {
+    .doc-card .btn-group-sm .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+    }
+}

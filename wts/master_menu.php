@@ -432,6 +432,37 @@ $page_data = renderCompletePage(
                 <?php endif; ?>
             </div>
 
+            <!-- 書類管理 -->
+            <div class="col-lg-4 col-md-6 mb-3">
+                <?php if ($is_admin): ?>
+                <a href="document_management.php" class="text-decoration-none">
+                <div class="master-card">
+                    <div class="position-relative">
+                        <span class="status-badge bg-success text-white">利用可能</span>
+                        <i class="fas fa-folder-open master-icon" style="color:#e67e22;"></i>
+                        <h6 class="fw-bold">書類管理</h6>
+                        <p class="card-description">
+                            許可証・保険・車検証等のファイル管理<br>
+                            有効期限アラート付き
+                        </p>
+                    </div>
+                </div>
+                </a>
+                <?php else: ?>
+                <div class="master-card user-only" onclick="showPermissionAlert()">
+                    <div class="position-relative">
+                        <span class="status-badge bg-warning text-dark">要Admin権限</span>
+                        <i class="fas fa-folder-open master-icon" style="color:#e67e22;"></i>
+                        <h6 class="fw-bold">書類管理</h6>
+                        <p class="card-description">
+                            許可証・保険・車検証等のファイル管理<br>
+                            有効期限アラート付き
+                        </p>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
+
             <!-- 運賃マスタ（Phase2） -->
             <div class="col-lg-4 col-md-6 mb-3">
                 <div class="master-card coming-soon">

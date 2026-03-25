@@ -229,6 +229,15 @@ function getPageConfiguration($page_type) {
             'frequency' => '随時',
             'priority' => 'normal'
         ],
+        'document_management' => [
+            'category' => 'management',
+            'icon' => 'folder-open',
+            'title' => '書類管理',
+            'subtitle' => '許可証・保険・車検証等のファイル管理',
+            'description' => '書類ファイルのアップロード・期限管理',
+            'frequency' => '随時',
+            'priority' => 'normal'
+        ],
         'accident_management' => [
             'category' => 'management',
             'icon' => 'exclamation-triangle',
