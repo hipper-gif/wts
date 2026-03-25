@@ -216,6 +216,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const element = document.getElementById(elementId);
         if (element && value !== undefined && value !== null) {
             element.value = value;
+            // 時間セレクトに該当しない値の場合、手入力モードに切り替え
+            if (elementId === 'reservationTime' && element.tagName === 'SELECT' && value && !element.querySelector('option[value="' + value + '"]')) {
+                var manual = document.getElementById('reservationTimeManual');
+                if (manual) {
+                    manual.value = value;
+                    document.getElementById('timeSelectWrap').style.display = 'none';
+                    document.getElementById('timeInputWrap').style.display = '';
+                }
+            }
         }
     }
     
@@ -698,6 +707,15 @@ document.addEventListener('DOMContentLoaded', function() {
         for (let [key, value] of formData.entries()) {
             const mappedKey = fieldMapping[key] || key;
             data[mappedKey] = value;
+        }
+
+        // 時間入力：手入力モードの場合はそちらの値を使う
+        var timeInputWrap = document.getElementById('timeInputWrap');
+        if (timeInputWrap && timeInputWrap.style.display !== 'none') {
+            var manual = document.getElementById('reservationTimeManual');
+            if (manual && manual.value) {
+                data.reservation_time = manual.value;
+            }
         }
 
         // チェックボックスの処理

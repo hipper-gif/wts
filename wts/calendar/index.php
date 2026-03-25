@@ -259,15 +259,20 @@ echo $page_data['page_header'];
                     </div>
                 </div>
 
-                <!-- 車両状況 -->
-                <div class="card border-0 shadow-sm mb-4 d-none d-lg-block">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-car me-2"></i>車両状況
-                        </h5>
+                <!-- 車両状況（スマホでは折りたたみ） -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-info text-white" data-bs-toggle="collapse" data-bs-target="#vehicleStatusCollapse" style="cursor:pointer">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-car me-2"></i>車両状況
+                            </h5>
+                            <i class="fas fa-chevron-down d-lg-none"></i>
+                        </div>
                     </div>
-                    <div class="card-body" id="vehicleStatusArea">
-                        <p class="text-muted text-center">データを読み込み中...</p>
+                    <div class="collapse show" id="vehicleStatusCollapse">
+                        <div class="card-body" id="vehicleStatusArea">
+                            <p class="text-muted text-center">データを読み込み中...</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -302,35 +307,32 @@ echo $page_data['page_header'];
                                     <input type="date" class="form-control" id="reservationDate" name="reservationDate" required>
                                 </div>
                                 <div class="col-md-4 mb-3">
-                                    <label for="reservationTime" class="form-label">予約時刻 <span class="text-danger fw-bold small">（必須）</span></label>
-                                    <select class="form-select" id="reservationTime" name="reservationTime" required>
-                                        <option value="">時間を選択</option>
-                                        <option value="07:00">07:00</option>
-                                        <option value="07:30">07:30</option>
-                                        <option value="08:00">08:00</option>
-                                        <option value="08:30">08:30</option>
-                                        <option value="09:00">09:00</option>
-                                        <option value="09:30">09:30</option>
-                                        <option value="10:00">10:00</option>
-                                        <option value="10:30">10:30</option>
-                                        <option value="11:00">11:00</option>
-                                        <option value="11:30">11:30</option>
-                                        <option value="12:00">12:00</option>
-                                        <option value="12:30">12:30</option>
-                                        <option value="13:00">13:00</option>
-                                        <option value="13:30">13:30</option>
-                                        <option value="14:00">14:00</option>
-                                        <option value="14:30">14:30</option>
-                                        <option value="15:00">15:00</option>
-                                        <option value="15:30">15:30</option>
-                                        <option value="16:00">16:00</option>
-                                        <option value="16:30">16:30</option>
-                                        <option value="17:00">17:00</option>
-                                        <option value="17:30">17:30</option>
-                                        <option value="18:00">18:00</option>
-                                        <option value="18:30">18:30</option>
-                                        <option value="19:00">19:00</option>
-                                    </select>
+                                    <label for="reservationTime" class="form-label">
+                                        予約時刻 <span class="text-danger fw-bold small">（必須）</span>
+                                    </label>
+                                    <div id="timeSelectWrap">
+                                        <select class="form-select" id="reservationTime" name="reservationTime" required>
+                                            <option value="">時間を選択</option>
+                                            <option value="07:00">07:00</option><option value="07:30">07:30</option>
+                                            <option value="08:00">08:00</option><option value="08:30">08:30</option>
+                                            <option value="09:00">09:00</option><option value="09:30">09:30</option>
+                                            <option value="10:00">10:00</option><option value="10:30">10:30</option>
+                                            <option value="11:00">11:00</option><option value="11:30">11:30</option>
+                                            <option value="12:00">12:00</option><option value="12:30">12:30</option>
+                                            <option value="13:00">13:00</option><option value="13:30">13:30</option>
+                                            <option value="14:00">14:00</option><option value="14:30">14:30</option>
+                                            <option value="15:00">15:00</option><option value="15:30">15:30</option>
+                                            <option value="16:00">16:00</option><option value="16:30">16:30</option>
+                                            <option value="17:00">17:00</option><option value="17:30">17:30</option>
+                                            <option value="18:00">18:00</option><option value="18:30">18:30</option>
+                                            <option value="19:00">19:00</option>
+                                        </select>
+                                        <a href="#" class="small text-muted" onclick="toggleTimeInput(event)">手入力に切替</a>
+                                    </div>
+                                    <div id="timeInputWrap" style="display:none">
+                                        <input type="time" class="form-control" id="reservationTimeManual" min="05:00" max="22:00" step="300">
+                                        <a href="#" class="small text-muted" onclick="toggleTimeInput(event)">選択に戻す</a>
+                                    </div>
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label for="clientName" class="form-label">利用者名 <span class="text-danger fw-bold small">（必須）</span></label>
@@ -705,5 +707,25 @@ window.calendarConfig = {
 
 <!-- クイック予約FAB -->
 <div id="quickBookingFAB"></div>
+<script>
+function toggleTimeInput(e) {
+    e.preventDefault();
+    var selectWrap = document.getElementById('timeSelectWrap');
+    var inputWrap = document.getElementById('timeInputWrap');
+    if (selectWrap.style.display === 'none') {
+        // 手入力 → セレクトに戻す
+        selectWrap.style.display = '';
+        inputWrap.style.display = 'none';
+    } else {
+        // セレクト → 手入力に切替
+        var selectVal = document.getElementById('reservationTime').value;
+        var manual = document.getElementById('reservationTimeManual');
+        if (selectVal) manual.value = selectVal;
+        selectWrap.style.display = 'none';
+        inputWrap.style.display = '';
+        manual.focus();
+    }
+}
+</script>
 </body>
 </html>
