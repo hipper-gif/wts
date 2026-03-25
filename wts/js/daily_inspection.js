@@ -425,6 +425,10 @@ function saveDraft() {
     const form = document.getElementById('inspectionForm');
     if (!form) return;
 
+    // ラジオボタンが1つも選択されていなければ保存しない（空フォーム対策）
+    const anyChecked = form.querySelector('input[type="radio"]:checked');
+    if (!anyChecked) return;
+
     const draft = {
         timestamp: new Date().toISOString()
     };
