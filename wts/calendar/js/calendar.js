@@ -39,11 +39,11 @@ document.addEventListener('DOMContentLoaded', function() {
             initialView: currentConfig.viewMode || 'dayGridMonth',
             initialDate: currentConfig.currentDate || new Date(),
 
-            // ヘッダー設定
+            // ヘッダー設定（ナビは独自ツールバーで制御、タイトルのみ表示）
             headerToolbar: {
-                left: 'prev,next today',
+                left: '',
                 center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                right: ''
             },
 
             // ボタンテキスト

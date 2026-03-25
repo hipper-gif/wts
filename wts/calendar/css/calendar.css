@@ -12,8 +12,18 @@
    ================================================================= */
 
 #calendar {
-    padding: 1.5rem;
-    min-height: 600px;
+    padding: 0.5rem;
+    min-height: calc(100vh - 180px);
+}
+
+@media (max-width: 576px) {
+    #calendar {
+        padding: 0.25rem;
+        min-height: calc(100vh - 160px);
+    }
+    #calendar .fc-header-toolbar {
+        display: none; /* FullCalendarのヘッダーを非表示（独自ツールバー使用） */
+    }
 }
 
 .fc {

@@ -129,109 +129,57 @@ echo $page_data['page_header'];
 
 <!-- メインコンテンツ開始 -->
 <main class="main-content" id="main-content" tabindex="-1">
-    <div class="container-fluid py-4">
+    <div class="container-fluid px-2 px-md-4 py-2">
 
-        <!-- カレンダーコントロールパネル -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <!-- 表示切り替え -->
-                            <div class="col-12 col-md-4 mb-3 mb-md-0">
-                                <div class="btn-group w-100" role="group">
-                                    <input type="radio" class="btn-check" name="viewMode" id="monthView" value="dayGridMonth" <?= $view_mode === 'month' || $view_mode === 'dayGridMonth' ? 'checked' : '' ?>>
-                                    <label class="btn btn-outline-primary" for="monthView">
-                                        <i class="fas fa-calendar d-md-none"></i>
-                                        <span class="d-none d-md-inline"><i class="fas fa-calendar me-1"></i>月表示</span>
-                                    </label>
+        <!-- コンパクトツールバー -->
+        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+            <!-- 新規予約（メインCTA） -->
+            <button type="button" class="btn btn-success" id="createReservationBtn">
+                <i class="fas fa-plus me-1"></i><span class="d-none d-sm-inline">新規予約</span>
+            </button>
 
-                                    <input type="radio" class="btn-check" name="viewMode" id="weekView" value="timeGridWeek" <?= $view_mode === 'week' || $view_mode === 'timeGridWeek' ? 'checked' : '' ?>>
-                                    <label class="btn btn-outline-primary" for="weekView">
-                                        <i class="fas fa-calendar-week d-md-none"></i>
-                                        <span class="d-none d-md-inline"><i class="fas fa-calendar-week me-1"></i>週表示</span>
-                                    </label>
-
-                                    <input type="radio" class="btn-check" name="viewMode" id="dayView" value="timeGridDay" <?= $view_mode === 'day' || $view_mode === 'timeGridDay' ? 'checked' : '' ?>>
-                                    <label class="btn btn-outline-primary" for="dayView">
-                                        <i class="fas fa-calendar-day d-md-none"></i>
-                                        <span class="d-none d-md-inline"><i class="fas fa-calendar-day me-1"></i>日表示</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- 運転者フィルター -->
-                            <div class="col-12 col-md-3 mb-3 mb-md-0">
-                                <select class="form-select" id="driverFilter">
-                                    <option value="all">全運転者</option>
-                                    <?php foreach ($drivers as $driver): ?>
-                                        <option value="<?= $driver['id'] ?>" <?= $driver_filter == $driver['id'] ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($driver['name']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-
-                            <!-- 新規予約作成ボタン -->
-                            <div class="col-12 col-md-5">
-                                <div class="d-flex flex-wrap gap-2 justify-content-md-end">
-                                    <button type="button" class="btn btn-success flex-grow-1 flex-md-grow-0" id="createReservationBtn">
-                                        <i class="fas fa-plus me-2"></i>新規予約作成
-                                    </button>
-
-                                    <button type="button" class="btn btn-primary" id="todayBtn">
-                                        <i class="fas fa-calendar-day me-1"></i>今日
-                                    </button>
-
-                                    <div class="btn-group">
-                                        <button type="button" class="btn btn-outline-secondary" id="prevBtn">
-                                            <i class="fas fa-chevron-left"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-outline-secondary" id="nextBtn">
-                                            <i class="fas fa-chevron-right"></i>
-                                        </button>
-                                    </div>
-
-                                    <button type="button" class="btn btn-outline-info" id="customerManagementBtn" title="顧客管理">
-                                        <i class="fas fa-address-book me-1"></i><span class="d-none d-md-inline">顧客管理</span>
-                                    </button>
-
-                                    <a href="settings.php" class="btn btn-outline-secondary" title="項目カスタマイズ">
-                                        <i class="fas fa-sliders-h"></i>
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <!-- ナビゲーション -->
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="prevBtn"><i class="fas fa-chevron-left"></i></button>
+                <button type="button" class="btn btn-primary btn-sm" id="todayBtn">今日</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="nextBtn"><i class="fas fa-chevron-right"></i></button>
             </div>
-        </div>
-        
-        <!-- 色分け凡例 -->
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-body py-2">
-                <div class="calendar-legend">
-                    <span class="text-muted fw-bold me-1"><i class="fas fa-palette me-1"></i>ステータス:</span>
-                    <span class="calendar-legend-item"><span class="calendar-legend-color" style="background:#2196F3"></span>予約</span>
-                    <span class="calendar-legend-item"><span class="calendar-legend-color" style="background:#FF9800"></span>進行中</span>
-                    <span class="calendar-legend-item"><span class="calendar-legend-color" style="background:#4CAF50"></span>完了</span>
-                    <span class="calendar-legend-item"><span class="calendar-legend-color" style="background:#757575"></span>キャンセル</span>
-                    <span class="text-muted fw-bold ms-2 me-1">|</span>
-                    <span class="calendar-legend-item"><span class="calendar-legend-color dashed"></span>復路</span>
-                    <span class="calendar-legend-item"><span class="calendar-legend-color rental" style="background:#2196F3"></span>レンタルあり</span>
-                </div>
+
+            <!-- 表示切り替え -->
+            <div class="btn-group">
+                <input type="radio" class="btn-check" name="viewMode" id="monthView" value="dayGridMonth" <?= $view_mode === 'month' || $view_mode === 'dayGridMonth' ? 'checked' : '' ?>>
+                <label class="btn btn-outline-secondary btn-sm" for="monthView">月</label>
+                <input type="radio" class="btn-check" name="viewMode" id="weekView" value="timeGridWeek" <?= $view_mode === 'week' || $view_mode === 'timeGridWeek' ? 'checked' : '' ?>>
+                <label class="btn btn-outline-secondary btn-sm" for="weekView">週</label>
+                <input type="radio" class="btn-check" name="viewMode" id="dayView" value="timeGridDay" <?= $view_mode === 'day' || $view_mode === 'timeGridDay' ? 'checked' : '' ?>>
+                <label class="btn btn-outline-secondary btn-sm" for="dayView">日</label>
+            </div>
+
+            <!-- 運転者フィルター -->
+            <select class="form-select form-select-sm" id="driverFilter" style="width:auto;max-width:140px">
+                <option value="all">全員</option>
+                <?php foreach ($drivers as $driver): ?>
+                    <option value="<?= $driver['id'] ?>" <?= $driver_filter == $driver['id'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($driver['name']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+
+            <!-- 右寄せ：管理ボタン -->
+            <div class="ms-auto d-flex gap-1">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="customerManagementBtn" title="顧客管理">
+                    <i class="fas fa-address-book"></i>
+                </button>
+                <a href="settings.php" class="btn btn-outline-secondary btn-sm" title="設定">
+                    <i class="fas fa-sliders-h"></i>
+                </a>
             </div>
         </div>
 
-        <!-- カレンダー表示エリア -->
+        <!-- カレンダー（フルワイド） -->
         <div class="row">
-            <!-- メインカレンダー -->
-            <div class="col-12 col-lg-9 mb-4 mb-lg-0">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body p-0">
-                        <div id="calendar"></div>
-                    </div>
-                </div>
+            <div class="col-12 col-lg-9 mb-2 mb-lg-0">
+                <div id="calendar"></div>
             </div>
 
             <!-- サイドバー -->
