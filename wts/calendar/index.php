@@ -131,47 +131,47 @@ echo $page_data['system_header'];
 <script>document.body.classList.add('calendar-page');</script>
 <!-- メインコンテンツ開始 -->
 <main class="main-content" id="main-content" tabindex="-1">
-    <div class="container-fluid px-1 px-md-2 py-0">
+    <div class="container-fluid px-1 px-md-3 py-0">
 
         <!-- カレンダーツールバー（2行構成） -->
         <!-- 1行目：ナビ + タイトル + 新規予約 -->
-        <div class="d-flex align-items-center gap-1 mb-1">
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="prevBtn"><i class="fas fa-chevron-left"></i></button>
+        <div class="d-flex align-items-center gap-2 mb-1 cal-row">
+            <button type="button" class="btn btn-outline-secondary" id="prevBtn"><i class="fas fa-chevron-left"></i></button>
             <span class="cal-toolbar-title" id="calToolbarTitle"></span>
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="nextBtn"><i class="fas fa-chevron-right"></i></button>
-            <button type="button" class="btn btn-outline-primary btn-sm" id="todayBtn">今日</button>
-            <button type="button" class="btn btn-success btn-sm ms-auto" id="createReservationBtn">
+            <button type="button" class="btn btn-outline-secondary" id="nextBtn"><i class="fas fa-chevron-right"></i></button>
+            <button type="button" class="btn btn-outline-primary" id="todayBtn">今日</button>
+            <button type="button" class="btn btn-success ms-auto" id="createReservationBtn">
                 <i class="fas fa-plus me-1"></i>新規予約
             </button>
         </div>
         <!-- 2行目：表示切替 + フィルター + 本日件数 + 管理 -->
-        <div class="d-flex align-items-center gap-1 mb-1">
+        <div class="d-flex align-items-center gap-2 mb-1 cal-row">
             <div class="btn-group">
                 <input type="radio" class="btn-check" name="viewMode" id="monthView" value="dayGridMonth" <?= $view_mode === 'month' || $view_mode === 'dayGridMonth' ? 'checked' : '' ?>>
-                <label class="btn btn-outline-secondary btn-sm" for="monthView">月</label>
+                <label class="btn btn-outline-secondary" for="monthView">月</label>
                 <input type="radio" class="btn-check" name="viewMode" id="weekView" value="timeGridWeek" <?= $view_mode === 'week' || $view_mode === 'timeGridWeek' ? 'checked' : '' ?>>
-                <label class="btn btn-outline-secondary btn-sm" for="weekView">週</label>
+                <label class="btn btn-outline-secondary" for="weekView">週</label>
                 <input type="radio" class="btn-check" name="viewMode" id="dayView" value="timeGridDay" <?= $view_mode === 'day' || $view_mode === 'timeGridDay' ? 'checked' : '' ?>>
-                <label class="btn btn-outline-secondary btn-sm" for="dayView">日</label>
+                <label class="btn btn-outline-secondary" for="dayView">日</label>
             </div>
-            <select class="form-select form-select-sm" id="driverFilter" style="width:auto;max-width:110px">
-                <option value="all">全員</option>
+            <select class="form-select" id="driverFilter" style="width:auto;max-width:150px">
+                <option value="all">全運転者</option>
                 <?php foreach ($drivers as $driver): ?>
                     <option value="<?= $driver['id'] ?>" <?= $driver_filter == $driver['id'] ? 'selected' : '' ?>>
                         <?= htmlspecialchars($driver['name']) ?>
                     </option>
                 <?php endforeach; ?>
             </select>
-            <!-- 本日の件数（インラインバッジ） -->
-            <span class="text-muted small d-none d-sm-inline ms-1">今日</span>
+            <!-- 本日の件数 -->
+            <span class="text-muted d-none d-md-inline ms-1">今日</span>
             <span class="badge bg-primary" id="todayReservationCount" title="予約件数">0</span>
             <span class="badge bg-success" id="todayCompletedCount" title="完了">0</span>
-            <div class="ms-auto d-flex gap-1">
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="customerManagementBtn" title="顧客管理">
-                    <i class="fas fa-address-book"></i>
+            <div class="ms-auto d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary" id="customerManagementBtn" title="顧客管理">
+                    <i class="fas fa-address-book me-1"></i><span class="d-none d-lg-inline">顧客管理</span>
                 </button>
-                <a href="settings.php" class="btn btn-outline-secondary btn-sm" title="設定">
-                    <i class="fas fa-cog"></i>
+                <a href="settings.php" class="btn btn-outline-secondary" title="設定">
+                    <i class="fas fa-cog me-1"></i><span class="d-none d-lg-inline">設定</span>
                 </a>
             </div>
         </div>
