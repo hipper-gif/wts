@@ -251,6 +251,9 @@ echo $page_data['page_header'];
                                 <small class="text-muted">出庫メーター: <?= number_format($departure->departure_mileage) ?>km</small>
                             </div>
                         </div>
+                        <div class="text-end mt-1">
+                            <small class="unreturned-item-hint text-primary"><i class="fas fa-hand-pointer me-1"></i>クリックして選択</small>
+                        </div>
                     </div>
                     <?php endforeach; ?>
                 </div>
@@ -272,7 +275,7 @@ echo $page_data['page_header'];
                     <div class="row mb-4">
                         <div class="col-md-6 mb-3">
                             <label for="driver_id" class="form-label">
-                                <i class="fas fa-user me-1"></i>運転者 <span class="text-danger">*</span>
+                                <i class="fas fa-user me-1"></i>運転者 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
                             <select class="form-select" id="driver_id" name="driver_id" required>
                                 <option value="">運転者を選択</option>
@@ -284,7 +287,7 @@ echo $page_data['page_header'];
 
                         <div class="col-md-6 mb-3">
                             <label for="vehicle_id" class="form-label">
-                                <i class="fas fa-car me-1"></i>車両 <span class="text-danger">*</span>
+                                <i class="fas fa-car me-1"></i>車両 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
                             <select class="form-select" id="vehicle_id" name="vehicle_id" required>
                                 <option value="">車両を選択</option>
@@ -299,7 +302,7 @@ echo $page_data['page_header'];
                     <div class="row mb-4">
                         <div class="col-md-6 mb-3">
                             <label for="arrival_date" class="form-label">
-                                <i class="fas fa-calendar me-1"></i>入庫日 <span class="text-danger">*</span>
+                                <i class="fas fa-calendar me-1"></i>入庫日 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
                             <input type="date" class="form-control" id="arrival_date" name="arrival_date" 
                                    value="<?= date('Y-m-d') ?>" required>
@@ -307,7 +310,7 @@ echo $page_data['page_header'];
 
                         <div class="col-md-6 mb-3">
                             <label for="arrival_time" class="form-label">
-                                <i class="fas fa-clock me-1"></i>入庫時刻 <span class="text-danger">*</span>
+                                <i class="fas fa-clock me-1"></i>入庫時刻 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
                             <input type="time" class="form-control" id="arrival_time" name="arrival_time" 
                                    value="<?= date('H:i') ?>" required>
@@ -318,16 +321,16 @@ echo $page_data['page_header'];
                     <div class="row mb-4">
                         <div class="col-md-6 mb-3">
                             <label for="arrival_mileage" class="form-label">
-                                <i class="fas fa-tachometer-alt me-1"></i>入庫メーター(km) <span class="text-danger">*</span>
+                                <i class="fas fa-tachometer-alt me-1"></i>入庫メーター(km) <span class="text-danger fw-bold small">（必須）</span>
                             </label>
-                            <input type="number" class="form-control" id="arrival_mileage" name="arrival_mileage" required>
+                            <input type="number" class="form-control" id="arrival_mileage" name="arrival_mileage" required inputmode="numeric" placeholder="例：145280">
                         </div>
 
                         <div class="col-md-6 mb-3">
                             <label for="total_distance" class="form-label">
                                 <i class="fas fa-route me-1"></i>走行距離(km)
                             </label>
-                            <input type="number" class="form-control" id="total_distance" name="total_distance" readonly>
+                            <input type="number" class="form-control" id="total_distance" name="total_distance" readonly inputmode="numeric">
                             <div class="form-text">自動計算されます</div>
                         </div>
                     </div>
@@ -338,21 +341,21 @@ echo $page_data['page_header'];
                             <label for="fuel_cost" class="form-label">
                                 <i class="fas fa-gas-pump me-1"></i>燃料代(円)
                             </label>
-                            <input type="number" class="form-control" id="fuel_cost" name="fuel_cost" value="0" min="0">
+                            <input type="number" class="form-control" id="fuel_cost" name="fuel_cost" value="0" min="0" inputmode="numeric" placeholder="0">
                         </div>
 
                         <div class="col-md-4 mb-3">
                             <label for="highway_cost" class="form-label">
                                 <i class="fas fa-road me-1"></i>高速代(円)
                             </label>
-                            <input type="number" class="form-control" id="highway_cost" name="highway_cost" value="0" min="0">
+                            <input type="number" class="form-control" id="highway_cost" name="highway_cost" value="0" min="0" inputmode="numeric" placeholder="0">
                         </div>
 
                         <div class="col-md-4 mb-3">
                             <label for="other_cost" class="form-label">
                                 <i class="fas fa-receipt me-1"></i>その他費用(円)
                             </label>
-                            <input type="number" class="form-control" id="other_cost" name="other_cost" value="0" min="0">
+                            <input type="number" class="form-control" id="other_cost" name="other_cost" value="0" min="0" inputmode="numeric" placeholder="0">
                         </div>
                     </div>
 
@@ -421,16 +424,28 @@ echo $page_data['page_header'];
     border-radius: 8px;
     margin: 0.5rem;
     padding: 1rem;
+    border: 2px solid transparent;
 }
 
 .unreturned-item:hover {
     background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
     transform: translateX(5px);
+    border-color: #2196F3;
+    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+}
+
+.unreturned-item:hover .unreturned-item-hint {
+    font-weight: 600;
 }
 
 .unreturned-item.selected {
     background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
     color: white;
+    border-color: #1565C0;
+}
+
+.unreturned-item.selected .unreturned-item-hint {
+    color: rgba(255, 255, 255, 0.8) !important;
 }
 
 .form-control.border-warning {

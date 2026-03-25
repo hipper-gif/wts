@@ -749,7 +749,7 @@ echo $page_data['page_header'];
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="modalDriverId" class="form-label unified-label">
-                                <i class="fas fa-user me-1"></i>運転者 <span class="text-danger">*</span>
+                                <i class="fas fa-user me-1"></i>運転者 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
                             <select class="form-select unified-select" id="modalDriverId" name="driver_id" required>
                                 <option value="">運転者を選択</option>
@@ -764,7 +764,7 @@ echo $page_data['page_header'];
 
                         <div class="col-md-6 mb-3">
                             <label for="modalVehicleId" class="form-label unified-label">
-                                <i class="fas fa-car me-1"></i>車両 <span class="text-danger">*</span>
+                                <i class="fas fa-car me-1"></i>車両 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
                             <select class="form-select unified-select" id="modalVehicleId" name="vehicle_id" required>
                                 <option value="">車両を選択</option>
@@ -781,7 +781,7 @@ echo $page_data['page_header'];
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="modalRideDate" class="form-label unified-label">
-                                <i class="fas fa-calendar me-1"></i>乗車日 <span class="text-danger">*</span>
+                                <i class="fas fa-calendar me-1"></i>乗車日 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
                             <input type="date" class="form-control unified-input" id="modalRideDate" name="ride_date" 
                                    value="<?php echo $today; ?>" required>
@@ -789,7 +789,7 @@ echo $page_data['page_header'];
 
                         <div class="col-md-6 mb-3">
                             <label for="modalRideTime" class="form-label unified-label">
-                                <i class="fas fa-clock me-1"></i>乗車時刻 <span class="text-danger">*</span>
+                                <i class="fas fa-clock me-1"></i>乗車時刻 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
                             <input type="time" class="form-control unified-input" id="modalRideTime" name="ride_time" 
                                    value="<?php echo $current_time; ?>" required>
@@ -799,22 +799,22 @@ echo $page_data['page_header'];
                     <!-- 人数選択（1-3人はボタン、4人以上は入力） -->
                     <div class="mb-3">
                         <label class="form-label unified-label">
-                            <i class="fas fa-users me-1"></i>人員数 <span class="text-danger">*</span>
+                            <i class="fas fa-users me-1"></i>人員数 <span class="text-danger fw-bold small">（必須）</span>
                         </label>
                         <div class="d-flex align-items-center gap-2 mb-2">
                             <button type="button" class="btn btn-outline-primary passenger-btn" data-count="1">1名</button>
                             <button type="button" class="btn btn-outline-primary passenger-btn" data-count="2">2名</button>
                             <button type="button" class="btn btn-outline-primary passenger-btn active" data-count="3">3名</button>
                             <span class="text-muted">または</span>
-                            <input type="number" class="form-control unified-input" id="modalPassengerCount" name="passenger_count" 
-                                   style="max-width: 100px;" value="1" min="1" max="10" placeholder="4名以上">
+                            <input type="number" class="form-control unified-input" id="modalPassengerCount" name="passenger_count"
+                                   style="max-width: 100px;" value="1" min="1" max="10" inputmode="numeric" placeholder="4名以上">
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="modalPickupLocation" class="form-label unified-label">
-                                <i class="fas fa-map-marker-alt text-primary me-1"></i>乗車地 <span class="text-danger">*</span>
+                                <i class="fas fa-map-marker-alt text-primary me-1"></i>乗車地 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
                             <div class="unified-dropdown">
                                 <input type="text" class="form-control unified-input" id="modalPickupLocation" name="pickup_location" 
@@ -825,7 +825,7 @@ echo $page_data['page_header'];
 
                         <div class="col-md-6 mb-3">
                             <label for="modalDropoffLocation" class="form-label unified-label">
-                                <i class="fas fa-map-marker-alt text-danger me-1"></i>降車地 <span class="text-danger">*</span>
+                                <i class="fas fa-map-marker-alt text-danger me-1"></i>降車地 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
                             <div class="unified-dropdown">
                                 <input type="text" class="form-control unified-input" id="modalDropoffLocation" name="dropoff_location"
@@ -846,23 +846,23 @@ echo $page_data['page_header'];
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="modalFare" class="form-label unified-label">
-                                <i class="fas fa-yen-sign me-1"></i>運賃 <span class="text-danger">*</span>
+                                <i class="fas fa-yen-sign me-1"></i>運賃 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
-                            <input type="number" class="form-control unified-input" id="modalFare" name="fare" min="0" step="10" required>
+                            <input type="number" class="form-control unified-input" id="modalFare" name="fare" min="0" step="10" inputmode="numeric" placeholder="例：5000" required>
                         </div>
 
                         <div class="col-md-6 mb-3">
                             <label for="modalCharge" class="form-label unified-label">
                                 <i class="fas fa-plus me-1"></i>追加料金
                             </label>
-                            <input type="number" class="form-control unified-input" id="modalCharge" name="charge" min="0" step="10" value="0">
+                            <input type="number" class="form-control unified-input" id="modalCharge" name="charge" min="0" step="10" inputmode="numeric" placeholder="0" value="0">
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="modalTransportationType" class="form-label unified-label">
-                                <i class="fas fa-tags me-1"></i>輸送分類 <span class="text-danger">*</span>
+                                <i class="fas fa-tags me-1"></i>輸送分類 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
                             <select class="form-select unified-select" id="modalTransportationType" name="transportation_type" required>
                                 <option value="">分類を選択</option>
@@ -874,7 +874,7 @@ echo $page_data['page_header'];
 
                         <div class="col-md-6 mb-3">
                             <label for="modalPaymentMethod" class="form-label unified-label">
-                                <i class="fas fa-credit-card me-1"></i>支払方法 <span class="text-danger">*</span>
+                                <i class="fas fa-credit-card me-1"></i>支払方法 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
                             <select class="form-select unified-select" id="modalPaymentMethod" name="payment_method" required>
                                 <?php foreach ($payment_methods as $method): ?>

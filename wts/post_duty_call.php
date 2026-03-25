@@ -354,8 +354,8 @@ echo $page_data['page_header'];
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">運転者 <span class="text-danger">*</span></label>
-                            <select class="form-select" name="driver_id" <?= $is_edit_mode ? 'readonly' : '' ?> required>
+                            <label for="post_driver_id" class="form-label fw-bold">運転者 <span class="text-danger fw-bold small">（必須）</span></label>
+                            <select class="form-select" id="post_driver_id" name="driver_id" <?= $is_edit_mode ? 'readonly' : '' ?> required>
                                 <option value="">選択してください</option>
                                 <?php foreach ($drivers as $driver): ?>
                                 <option value="<?= $driver['id'] ?>"
@@ -366,14 +366,14 @@ echo $page_data['page_header'];
                             </select>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">点呼時刻 <span class="text-danger">*</span></label>
-                            <input type="time" class="form-control" name="call_time"
+                            <label for="post_call_time" class="form-label fw-bold">点呼時刻 <span class="text-danger fw-bold small">（必須）</span></label>
+                            <input type="time" class="form-control" id="post_call_time" name="call_time"
                                    value="<?= $existing_call ? $existing_call['call_time'] : $current_time ?>"
                                    <?= $is_edit_mode ? 'readonly' : '' ?> required>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">点呼者 <span class="text-danger">*</span></label>
-                            <select class="form-select" name="caller_name" <?= $is_edit_mode ? 'disabled' : '' ?> required>
+                            <label for="post_caller_name" class="form-label fw-bold">点呼者 <span class="text-danger fw-bold small">（必須）</span></label>
+                            <select class="form-select" id="post_caller_name" name="caller_name" <?= $is_edit_mode ? 'disabled' : '' ?> required>
                                 <option value="">選択してください</option>
                                 <?php foreach ($callers as $caller): ?>
                                 <option value="<?= htmlspecialchars($caller['name']) ?>"
@@ -459,12 +459,13 @@ echo $page_data['page_header'];
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col-auto">
-                            <label class="form-label fw-bold mb-0">測定値 <span class="text-danger">*</span></label>
+                            <label for="alcohol_check_value" class="form-label fw-bold mb-0">測定値 <span class="text-danger fw-bold small">（必須）</span></label>
                         </div>
                         <div class="col-auto">
                             <input type="number" class="form-control" name="alcohol_check_value" id="alcohol_check_value"
-                                   step="0.001" min="0" max="1" style="width: 120px;"
+                                   step="0.001" min="0" max="1" style="width: 120px;" inputmode="decimal"
                                    value="<?= $existing_call ? $existing_call['alcohol_check_value'] : '0.000' ?>"
+                                   placeholder="0.000"
                                    <?= $is_edit_mode ? 'readonly' : '' ?> required>
                         </div>
                         <div class="col-auto">

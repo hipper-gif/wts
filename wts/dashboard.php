@@ -311,7 +311,7 @@ echo $page_data['html_head'];
     <!-- Layer 2: アラート表示 -->
     <?php if (!empty($alerts)): ?>
     <div class="alert-area">
-        <h5><i class="fas fa-exclamation-triangle me-2 text-danger"></i>重要なお知らせ</h5>
+        <h5><i class="fas fa-exclamation-triangle me-2 text-danger"></i>今すぐ対応が必要です</h5>
         <?php foreach ($alerts as $alert): ?>
         <div class="alert alert-<?= $alert['type'] ?> <?= $alert['priority'] === 'critical' ? 'pulse' : '' ?>">
             <div class="row align-items-center">
@@ -323,7 +323,15 @@ echo $page_data['html_head'];
                     <?= htmlspecialchars($alert['message']) ?>
                 </div>
                 <div class="col-auto">
-                    <a href="<?= htmlspecialchars($alert['action']) ?>" class="btn btn-sm btn-outline-primary">対応</a>
+                    <a href="<?= htmlspecialchars($alert['action']) ?>" class="btn btn-sm btn-outline-primary"><?php
+                        $action_labels = [
+                            'pre_duty_call.php' => '乗務前点呼を実施',
+                            'arrival.php' => '入庫処理へ',
+                            'departure.php' => '出庫処理へ',
+                            'daily_inspection.php' => '日常点検へ',
+                        ];
+                        echo $action_labels[$alert['action']] ?? '対応する';
+                    ?></a>
                 </div>
             </div>
         </div>

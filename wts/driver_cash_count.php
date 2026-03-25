@@ -230,7 +230,7 @@ echo $page_data['html_head'];
                        id="<?php echo $type; ?>"
                        class="count-input"
                        value="<?php echo $existing_count ? $existing_count->$type : $info['count']; ?>"
-                       min="0"
+                       min="0" inputmode="numeric"
                        onchange="recalc()">
                 <button class="count-btn plus" onclick="adjustCount('<?php echo $type; ?>', 1)">
                     <i class="fas fa-plus"></i>

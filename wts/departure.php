@@ -290,7 +290,7 @@ echo $page_data['page_header'];
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label for="driver_id" class="form-label">
-                                            <i class="fas fa-user me-1"></i>運転者 <span class="text-danger">*</span>
+                                            <i class="fas fa-user me-1"></i>運転者 <span class="text-danger fw-bold small">（必須）</span>
                                         </label>
                                         <select class="form-select" id="driver_id" name="driver_id" required
                                                 <?= $edit_mode ? 'disabled' : '' ?>>
@@ -313,7 +313,7 @@ echo $page_data['page_header'];
 
                                     <div class="col-md-6 mb-3">
                                         <label for="vehicle_id" class="form-label">
-                                            <i class="fas fa-car me-1"></i>車両 <span class="text-danger">*</span>
+                                            <i class="fas fa-car me-1"></i>車両 <span class="text-danger fw-bold small">（必須）</span>
                                         </label>
                                         <select class="form-select" id="vehicle_id" name="vehicle_id" required
                                                 <?= $edit_mode ? 'disabled' : '' ?> onchange="getVehicleInfo()">
@@ -348,7 +348,7 @@ echo $page_data['page_header'];
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label for="departure_date" class="form-label">
-                                            <i class="fas fa-calendar me-1"></i>出庫日 <span class="text-danger">*</span>
+                                            <i class="fas fa-calendar me-1"></i>出庫日 <span class="text-danger fw-bold small">（必須）</span>
                                         </label>
                                         <input type="date" class="form-control" id="departure_date" name="departure_date"
                                                value="<?= $edit_mode ? $edit_record['departure_date'] : $today ?>"
@@ -357,7 +357,7 @@ echo $page_data['page_header'];
 
                                     <div class="col-md-6 mb-3">
                                         <label for="departure_time" class="form-label">
-                                            <i class="fas fa-clock me-1"></i>出庫時刻 <span class="text-danger">*</span>
+                                            <i class="fas fa-clock me-1"></i>出庫時刻 <span class="text-danger fw-bold small">（必須）</span>
                                         </label>
                                         <input type="time" class="form-control" id="departure_time" name="departure_time"
                                                value="<?= $edit_mode ? substr($edit_record['departure_time'], 0, 5) : $current_time ?>" required>
@@ -366,7 +366,7 @@ echo $page_data['page_header'];
 
                                 <div class="mb-3">
                                     <label class="form-label">
-                                        <i class="fas fa-cloud-sun me-1"></i>天候 <span class="text-danger">*</span>
+                                        <i class="fas fa-cloud-sun me-1"></i>天候 <span class="text-danger fw-bold small">（必須）</span>
                                     </label>
                                     <!-- 改善：よりコンパクトなレイアウト -->
                                     <div class="d-flex gap-2 flex-wrap">
@@ -385,17 +385,19 @@ echo $page_data['page_header'];
 
                                 <div class="mb-3">
                                     <label for="departure_mileage" class="form-label">
-                                        <i class="fas fa-tachometer-alt me-1"></i>出庫メーター <span class="text-danger">*</span>
+                                        <i class="fas fa-tachometer-alt me-1"></i>出庫メーター <span class="text-danger fw-bold small">（必須）</span>
                                     </label>
                                     <div class="input-group">
                                         <input type="number" class="form-control" id="departure_mileage"
-                                               name="departure_mileage" required min="0" step="1"
+                                               name="departure_mileage" required min="0" step="1" inputmode="numeric"
+                                               placeholder="例：145230"
                                                value="<?= $edit_mode ? $edit_record['departure_mileage'] : '' ?>">
                                         <span class="input-group-text">km</span>
                                         <button type="button" class="btn btn-outline-secondary" onclick="setCurrentMileage()" id="autoSetBtn">
-                                            <i class="fas fa-sync-alt"></i>
+                                            <i class="fas fa-sync-alt me-1"></i>前回値
                                         </button>
                                     </div>
+                                    <small class="form-text text-muted">前回の出庫メーター値が入力されます</small>
                                     <div class="form-text" id="mileageInfo"></div>
                                 </div>
                         </div>

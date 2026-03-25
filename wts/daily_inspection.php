@@ -577,7 +577,7 @@ $page_config = getPageConfiguration('daily_inspection');
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">点検日 <span class="text-danger">*</span></label>
+                            <label class="form-label">点検日 <span class="text-danger fw-bold small">（必須）</span></label>
                             <input type="<?= $is_edit_mode ? 'text' : 'date' ?>" class="form-control" name="<?= $is_edit_mode ? 'inspection_date_display' : 'inspection_date' ?>"
                                    value="<?= $existing_inspection ? $existing_inspection['inspection_date'] : $target_date ?>"
                                    <?= $is_edit_mode ? 'readonly' : 'required' ?>>
@@ -589,7 +589,7 @@ $page_config = getPageConfiguration('daily_inspection');
                                    <?= $is_edit_mode ? 'readonly' : '' ?>>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">点検者（運転手） <span class="text-danger">*</span></label>
+                            <label class="form-label">点検者（運転手） <span class="text-danger fw-bold small">（必須）</span></label>
                             <?php if ($is_edit_mode): ?>
                                 <?php
                                 $inspector_name = '';
@@ -618,7 +618,7 @@ $page_config = getPageConfiguration('daily_inspection');
                             <?php endif; ?>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">車両 <span class="text-danger">*</span></label>
+                            <label class="form-label">車両 <span class="text-danger fw-bold small">（必須）</span></label>
                             <?php if ($is_edit_mode): ?>
                                 <?php
                                 $vehicle_name = '';
@@ -650,7 +650,7 @@ $page_config = getPageConfiguration('daily_inspection');
                         <div class="col-md-6 mb-3">
                             <label class="form-label">走行距離</label>
                             <div class="input-group">
-                                <input type="number" class="form-control" name="mileage" id="mileage"
+                                <input type="number" class="form-control" name="mileage" id="mileage" inputmode="numeric"
                                        value="<?= $existing_inspection ? $existing_inspection['mileage'] : '' ?>"
                                        placeholder="現在の走行距離"
                                        <?= $is_edit_mode ? 'readonly' : '' ?>>
@@ -699,18 +699,18 @@ $page_config = getPageConfiguration('daily_inspection');
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="可" id="<?= $key ?>_ok"
                                            <?= ($existing_inspection && $existing_inspection[$key] == '可') ? 'checked' : '' ?>
                                            <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                    <label class="btn btn-outline-success" for="<?= $key ?>_ok">可</label>
+                                    <label class="btn btn-outline-success" for="<?= $key ?>_ok">可（良好）</label>
 
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="否" id="<?= $key ?>_ng"
                                            <?= ($existing_inspection && $existing_inspection[$key] == '否') ? 'checked' : '' ?>
                                            <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                    <label class="btn btn-outline-danger" for="<?= $key ?>_ng">否</label>
+                                    <label class="btn btn-outline-danger" for="<?= $key ?>_ng">否（要修理）</label>
 
                                     <?php if (!$item['required']): ?>
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="省略" id="<?= $key ?>_skip"
                                            <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>
                                            <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                    <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略</label>
+                                    <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略（対象外）</label>
                                     <?php endif; ?>
                                 </div>
                                 <span class="print-result-text" data-print-for="<?= $key ?>"></span>
@@ -753,18 +753,18 @@ $page_config = getPageConfiguration('daily_inspection');
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="可" id="<?= $key ?>_ok"
                                            <?= ($existing_inspection && $existing_inspection[$key] == '可') ? 'checked' : '' ?>
                                            <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                    <label class="btn btn-outline-success" for="<?= $key ?>_ok">可</label>
+                                    <label class="btn btn-outline-success" for="<?= $key ?>_ok">可（良好）</label>
 
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="否" id="<?= $key ?>_ng"
                                            <?= ($existing_inspection && $existing_inspection[$key] == '否') ? 'checked' : '' ?>
                                            <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                    <label class="btn btn-outline-danger" for="<?= $key ?>_ng">否</label>
+                                    <label class="btn btn-outline-danger" for="<?= $key ?>_ng">否（要修理）</label>
 
                                     <?php if (!$item['required']): ?>
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="省略" id="<?= $key ?>_skip"
                                            <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>
                                            <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                    <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略</label>
+                                    <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略（対象外）</label>
                                     <?php endif; ?>
                                 </div>
                                 <span class="print-result-text" data-print-for="<?= $key ?>"></span>
@@ -806,18 +806,18 @@ $page_config = getPageConfiguration('daily_inspection');
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="可" id="<?= $key ?>_ok"
                                            <?= ($existing_inspection && $existing_inspection[$key] == '可') ? 'checked' : '' ?>
                                            <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                    <label class="btn btn-outline-success" for="<?= $key ?>_ok">可</label>
+                                    <label class="btn btn-outline-success" for="<?= $key ?>_ok">可（良好）</label>
 
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="否" id="<?= $key ?>_ng"
                                            <?= ($existing_inspection && $existing_inspection[$key] == '否') ? 'checked' : '' ?>
                                            <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                    <label class="btn btn-outline-danger" for="<?= $key ?>_ng">否</label>
+                                    <label class="btn btn-outline-danger" for="<?= $key ?>_ng">否（要修理）</label>
 
                                     <?php if (!$item['required']): ?>
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="省略" id="<?= $key ?>_skip"
                                            <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>
                                            <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                    <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略</label>
+                                    <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略（対象外）</label>
                                     <?php endif; ?>
                                 </div>
                                 <span class="print-result-text" data-print-for="<?= $key ?>"></span>
