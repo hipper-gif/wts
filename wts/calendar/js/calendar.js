@@ -128,6 +128,29 @@ document.addEventListener('DOMContentLoaded', function() {
         // 初期タイトルをツールバーにセット
         var titleEl = document.getElementById('calToolbarTitle');
         if (titleEl) titleEl.textContent = calendar.view.title;
+
+        // フリックで月/週/日を切り替え
+        (function() {
+            var startX = 0, startY = 0, startTime = 0;
+            calendarEl.addEventListener('touchstart', function(e) {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                startTime = Date.now();
+            }, { passive: true });
+            calendarEl.addEventListener('touchend', function(e) {
+                var dx = e.changedTouches[0].clientX - startX;
+                var dy = e.changedTouches[0].clientY - startY;
+                var dt = Date.now() - startTime;
+                // 横方向50px以上、縦より横が大きい、500ms以内
+                if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) && dt < 500) {
+                    if (dx > 0) {
+                        calendar.prev();
+                    } else {
+                        calendar.next();
+                    }
+                }
+            }, { passive: true });
+        })();
     }
     
     // =================================================================
