@@ -147,7 +147,29 @@ echo $page_data['html_head'];
 }
 .summary-row:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
 .summary-label { font-size: 15px; opacity: 0.9; }
+.summary-note {
+    display: block; font-size: 11px; opacity: 0.7;
+    margin-top: 2px; font-weight: 400;
+}
 .summary-value { font-size: 18px; font-weight: bold; }
+.calc-operator {
+    text-align: center; margin: -4px 0;
+    position: relative; z-index: 1;
+}
+.calc-symbol {
+    display: inline-block; width: 30px; height: 30px; line-height: 28px;
+    background: rgba(255,255,255,0.25); border-radius: 50%;
+    font-size: 18px; font-weight: bold; text-align: center;
+}
+.result-row {
+    background: rgba(255,255,255,0.15); border-radius: 8px;
+    padding: 12px !important; margin: 0 -8px;
+}
+.difference-alert {
+    background: rgba(255,255,255,0.15); border-radius: 8px;
+    padding: 10px 14px; margin-top: 8px;
+    font-size: 13px; line-height: 1.5;
+}
 .difference {
     padding: 6px 14px; border-radius: 16px;
     font-weight: bold; font-size: 13px; display: inline-block;
@@ -249,30 +271,67 @@ echo $page_data['html_head'];
         </div>
     </div>
 
-    <!-- 集計結果 -->
+    <!-- 入金額の計算 -->
     <div class="summary-card">
-        <h6 style="margin-bottom:16px;"><i class="fas fa-calculator"></i> 集計結果</h6>
+        <h6 style="margin-bottom:16px;"><i class="fas fa-calculator"></i> 本日の入金額</h6>
+
         <div class="summary-row">
             <span class="summary-label">カウント合計</span>
             <span class="summary-value" id="totalCount">¥0</span>
         </div>
+
+        <div class="calc-operator">
+            <span class="calc-symbol">−</span>
+        </div>
+
         <div class="summary-row">
-            <span class="summary-label">基準おつり</span>
+            <div>
+                <span class="summary-label">基準おつり</span>
+                <span class="summary-note">常時携帯する釣銭</span>
+            </div>
             <span class="summary-value">¥<?php echo number_format($base_total); ?></span>
         </div>
-        <div class="summary-row">
-            <span class="summary-label">入金額</span>
-            <span class="summary-value" id="depositAmount">¥0</span>
+
+        <div class="calc-operator">
+            <span class="calc-symbol">=</span>
         </div>
-        <div class="summary-row">
-            <span class="summary-label">予想金額</span>
-            <span class="summary-value">¥<?php echo number_format($base_total + $today_sales->cash_sales); ?></span>
+
+        <div class="summary-row result-row">
+            <div>
+                <span class="summary-label" style="font-size:16px;">本日入金額</span>
+                <span class="summary-note">銀行に預ける金額</span>
+            </div>
+            <span class="summary-value" id="depositAmount" style="font-size:22px;">¥0</span>
         </div>
+    </div>
+
+    <!-- 売上実績との照合 -->
+    <div class="summary-card" style="background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);">
+        <h6 style="margin-bottom:16px;"><i class="fas fa-check-circle"></i> 売上実績との照合</h6>
+
         <div class="summary-row">
-            <span class="summary-label">差額</span>
+            <div>
+                <span class="summary-label">本日の現金売上</span>
+                <span class="summary-note">乗車記録から自動集計</span>
+            </div>
+            <span class="summary-value">¥<?php echo number_format($today_sales->cash_sales); ?></span>
+        </div>
+
+        <div class="summary-row">
+            <span class="summary-label">本日入金額</span>
+            <span class="summary-value" id="depositAmount2">¥0</span>
+        </div>
+
+        <div class="summary-row" style="border-bottom:none;">
+            <span class="summary-label" style="font-size:16px;">差額</span>
             <span class="summary-value">
                 <span class="difference zero" id="differenceDisplay">¥0</span>
             </span>
+        </div>
+
+        <div id="differenceAlert" class="difference-alert" style="display:none;">
+            <i class="fas fa-exclamation-triangle"></i>
+            差額があります。下のメモ欄に理由を記入してください。
         </div>
     </div>
 
@@ -353,10 +412,14 @@ echo $page_data['html_head'];
 
         document.getElementById('totalCount').textContent = '¥' + totalCount.toLocaleString();
         document.getElementById('depositAmount').textContent = '¥' + depositAmount.toLocaleString();
+        document.getElementById('depositAmount2').textContent = '¥' + depositAmount.toLocaleString();
 
         var diffDisplay = document.getElementById('differenceDisplay');
         diffDisplay.textContent = (difference >= 0 ? '+' : '') + '¥' + difference.toLocaleString();
         diffDisplay.className = 'difference ' + (difference > 0 ? 'positive' : difference < 0 ? 'negative' : 'zero');
+
+        var alertEl = document.getElementById('differenceAlert');
+        alertEl.style.display = (difference !== 0) ? 'block' : 'none';
     }
 
     function resetToBase() {

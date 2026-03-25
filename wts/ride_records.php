@@ -799,15 +799,17 @@ echo $page_data['page_header'];
                     <!-- 人数選択（1-3人はボタン、4人以上は入力） -->
                     <div class="mb-3">
                         <label class="form-label unified-label">
-                            <i class="fas fa-users me-1"></i>人員数 <span class="text-danger fw-bold small">（必須）</span>
+                            <i class="fas fa-users me-1"></i>人数 <span class="text-danger fw-bold small">（必須）</span>
                         </label>
-                        <div class="d-flex align-items-center gap-2 mb-2">
-                            <button type="button" class="btn btn-outline-primary passenger-btn" data-count="1">1名</button>
-                            <button type="button" class="btn btn-outline-primary passenger-btn" data-count="2">2名</button>
-                            <button type="button" class="btn btn-outline-primary passenger-btn active" data-count="3">3名</button>
-                            <span class="text-muted">または</span>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <button type="button" class="btn btn-outline-primary passenger-btn" data-count="1" onclick="updatePassengerButtons(1)">1名</button>
+                            <button type="button" class="btn btn-outline-primary passenger-btn" data-count="2" onclick="updatePassengerButtons(2)">2名</button>
+                            <button type="button" class="btn btn-outline-primary passenger-btn" data-count="3" onclick="updatePassengerButtons(3)">3名</button>
+                            <span class="text-muted small">4名以上→</span>
                             <input type="number" class="form-control unified-input" id="modalPassengerCount" name="passenger_count"
-                                   style="max-width: 100px;" value="1" min="1" max="10" inputmode="numeric" placeholder="4名以上">
+                                   style="width: 70px;" value="1" min="1" max="20" inputmode="numeric"
+                                   onchange="updatePassengerButtons(this.value)">
+                            <span class="text-muted small">名</span>
                         </div>
                     </div>
 

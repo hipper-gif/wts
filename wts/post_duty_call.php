@@ -345,7 +345,7 @@ echo $page_data['page_header'];
 
 
 
-        <form method="POST" id="postDutyForm">
+        <form method="POST" id="postDutyForm" onsubmit="return validateForm(this)">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
             <!-- 基本情報セクション -->
             <?= renderSectionHeader('info', '基本情報', '運転者・点呼者・時刻') ?>

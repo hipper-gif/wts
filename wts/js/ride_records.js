@@ -211,6 +211,8 @@ function getCurrentTime() {
 
 // 人数ボタンの更新
 function updatePassengerButtons(count) {
+    count = parseInt(count) || 1;
+    document.getElementById('modalPassengerCount').value = count;
     document.querySelectorAll('.passenger-btn').forEach(btn => {
         btn.classList.remove('active');
         if (btn.dataset.count == count) {

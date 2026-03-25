@@ -1019,4 +1019,55 @@
         e.preventDefault();
     });
 
+    /**
+     * フォームバリデーション - 必須項目チェック
+     * form要素を渡すと、required属性のある空フィールドに赤枠+メッセージを表示
+     * 使い方: form.addEventListener('submit', function(e) { if (!validateForm(this)) e.preventDefault(); });
+     */
+    window.validateForm = function(form) {
+        // 既存のエラー表示をクリア
+        form.querySelectorAll('.field-error').forEach(el => el.remove());
+        form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+
+        let firstError = null;
+        let valid = true;
+
+        form.querySelectorAll('[required]').forEach(function(field) {
+            const val = field.value.trim();
+            if (!val || (field.type === 'select-one' && !val)) {
+                valid = false;
+                field.classList.add('is-invalid');
+
+                // ラベルテキストを取得
+                const label = form.querySelector('label[for="' + field.id + '"]');
+                const fieldName = label ? label.textContent.replace('（必須）', '').trim() : 'この項目';
+
+                // エラーメッセージを挿入
+                const msg = document.createElement('div');
+                msg.className = 'field-error text-danger small mt-1';
+                msg.innerHTML = '<i class="fas fa-exclamation-circle me-1"></i>' + fieldName + 'を入力してください';
+                field.parentNode.appendChild(msg);
+
+                if (!firstError) firstError = field;
+            }
+        });
+
+        if (!valid && firstError) {
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            firstError.focus();
+            showToast('入力が不足している項目があります', 'warning');
+        }
+
+        return valid;
+    };
+
+    // 入力時にエラー表示をクリア
+    document.addEventListener('input', function(e) {
+        if (e.target.classList.contains('is-invalid')) {
+            e.target.classList.remove('is-invalid');
+            const err = e.target.parentNode.querySelector('.field-error');
+            if (err) err.remove();
+        }
+    });
+
 })();

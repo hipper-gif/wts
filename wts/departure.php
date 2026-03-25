@@ -277,7 +277,7 @@ echo $page_data['page_header'];
         <div class="row">
             <!-- メイン入力フォーム -->
             <div class="col-lg-8">
-                <form method="POST" id="departureForm">
+                <form method="POST" id="departureForm" onsubmit="return validateForm(this)">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <?php if ($edit_mode): ?>
                         <input type="hidden" name="edit_id" value="<?= $edit_record['id'] ?>">

@@ -267,7 +267,7 @@ echo $page_data['page_header'];
                 <i class="fas fa-edit me-2"></i>入庫記録入力
             </div>
             <div class="card-body">
-                <form method="POST" id="arrivalForm">
+                <form method="POST" id="arrivalForm" onsubmit="return validateForm(this)">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <input type="hidden" id="departure_record_id" name="departure_record_id" value="">
                     
@@ -541,8 +541,8 @@ echo $page_data['page_header'];
         toast.show();
     }
 
-    // フォームバリデーション
-    function validateForm() {
+    // フォームバリデーション（arrival固有チェック）
+    function validateArrivalFields() {
         const requiredFields = ['driver_id', 'vehicle_id', 'arrival_date', 'arrival_time', 'arrival_mileage'];
         let isValid = true;
 
@@ -608,9 +608,9 @@ echo $page_data['page_header'];
         document.getElementById('break_start_time').addEventListener('change', validateBreakTime);
         document.getElementById('break_end_time').addEventListener('change', validateBreakTime);
 
-        // フォーム送信時の検証
+        // フォーム送信時の検証（arrival固有チェック）
         document.getElementById('arrivalForm').addEventListener('submit', function(e) {
-            if (!validateForm() || !validateBreakTime()) {
+            if (!validateArrivalFields() || !validateBreakTime()) {
                 e.preventDefault();
             }
         });

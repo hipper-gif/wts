@@ -308,7 +308,7 @@ echo $page_data['page_header'];
         <!-- メインフォーム -->
         <div class="row">
             <div class="col-lg-8">
-                <form method="POST" id="pre-duty-form">
+                <form method="POST" id="pre-duty-form" onsubmit="return validateForm(this)">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                     <?php if ($is_edit_mode): ?>
                         <input type="hidden" name="driver_id" value="<?= $existing_call['driver_id'] ?>">
