@@ -54,22 +54,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 day: '日'
             },
 
+            // タイトルフォーマット（ツールバー中央）
+            titleFormat: { year: 'numeric', month: 'long' },
+
+            // 月表示の日付セル：「1日」→「1」
+            dayCellContent: function(arg) {
+                return arg.date.getDate().toString();
+            },
+
             // ビュー別設定
             views: {
+                dayGridMonth: {
+                    dayHeaderFormat: { weekday: 'short' }
+                },
                 timeGridWeek: {
-                    // 週表示: 日と曜日のみ
-                    dayHeaderFormat: {
-                        day: 'numeric',
-                        weekday: 'short'
-                    }
+                    dayHeaderFormat: { day: 'numeric', weekday: 'short' }
                 },
                 timeGridDay: {
-                    // 日表示: 月/日(曜)
-                    dayHeaderFormat: {
-                        month: 'numeric',
-                        day: 'numeric',
-                        weekday: 'short'
-                    }
+                    dayHeaderFormat: { month: 'numeric', day: 'numeric', weekday: 'short' }
                 }
             },
 

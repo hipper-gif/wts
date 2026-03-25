@@ -12,17 +12,39 @@
    ================================================================= */
 
 #calendar {
-    padding: 0.5rem;
-    min-height: calc(100vh - 180px);
+    padding: 0.25rem;
+    min-height: calc(100vh - 150px);
+}
+
+/* タイトル（年月）のコンパクト化 */
+#calendar .fc-toolbar-title {
+    font-size: 1.1rem !important;
+    font-weight: 600;
+}
+
+/* 月表示の日付セルをコンパクトに */
+#calendar .fc-daygrid-day-number {
+    padding: 2px 6px;
+    font-size: 0.85rem;
+}
+
+/* 曜日ヘッダーをコンパクトに */
+#calendar .fc-col-header-cell {
+    padding: 4px 0;
+    font-size: 0.8rem;
 }
 
 @media (max-width: 576px) {
     #calendar {
-        padding: 0.25rem;
-        min-height: calc(100vh - 160px);
+        padding: 0;
+        min-height: calc(100vh - 130px);
     }
-    #calendar .fc-header-toolbar {
-        display: none; /* FullCalendarのヘッダーを非表示（独自ツールバー使用） */
+    #calendar .fc-toolbar-title {
+        font-size: 0.95rem !important;
+    }
+    #calendar .fc-daygrid-day-number {
+        padding: 1px 4px;
+        font-size: 0.8rem;
     }
 }
 

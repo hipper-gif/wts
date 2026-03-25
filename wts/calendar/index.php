@@ -129,7 +129,7 @@ echo $page_data['page_header'];
 
 <!-- メインコンテンツ開始 -->
 <main class="main-content" id="main-content" tabindex="-1">
-    <div class="container-fluid px-2 px-md-4 py-2">
+    <div class="container-fluid px-2 px-md-3 py-1">
 
         <!-- コンパクトツールバー -->
         <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
