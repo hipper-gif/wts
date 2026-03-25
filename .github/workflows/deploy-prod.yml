@@ -110,6 +110,7 @@ jobs:
           **/.env
           **/.env.example
           **/sql/**
+          **/uploads/documents/**
         dry-run: false
         log-level: verbose
 
