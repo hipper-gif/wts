@@ -59,22 +59,20 @@ function updateMileage() {
     const mileageInfo = document.getElementById('mileageInfo');
     const mileageText = document.getElementById('mileageText');
 
-    if (vehicleSelect.value) {
+    if (vehicleSelect && vehicleSelect.value) {
         const selectedOption = vehicleSelect.options[vehicleSelect.selectedIndex];
         const currentMileage = selectedOption.getAttribute('data-mileage');
 
         if (currentMileage && currentMileage !== '0') {
-            mileageText.textContent = `前回記録: ${currentMileage}km`;
+            mileageText.innerHTML = '前回: <strong>' + Number(currentMileage).toLocaleString() + '</strong>km ';
             mileageInfo.style.display = 'block';
-
-            if (!mileageInput.value) {
-                mileageInput.value = currentMileage;
-            }
+            // 自動入力はしない（必ずメーターを目視確認してもらう）
         } else {
-            mileageInfo.style.display = 'none';
+            mileageInfo.style.display = 'block';
+            mileageText.innerHTML = '前回記録なし ';
         }
     } else {
-        mileageInfo.style.display = 'none';
+        if (mileageInfo) mileageInfo.style.display = 'none';
     }
 }
 

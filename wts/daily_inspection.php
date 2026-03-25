@@ -575,17 +575,18 @@ $page_config = getPageConfiguration('daily_inspection');
                             <?php endif; ?>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">走行距離</label>
+                            <label class="form-label">走行距離 <span class="text-danger fw-bold small">（必須・メーター確認）</span></label>
                             <div class="input-group">
                                 <input type="number" class="form-control" name="mileage" id="mileage" inputmode="numeric"
                                        value="<?= $existing_inspection ? $existing_inspection['mileage'] : '' ?>"
-                                       placeholder="現在の走行距離"
+                                       placeholder="メーターの数値を入力" required
                                        <?= $is_edit_mode ? 'readonly' : '' ?>>
                                 <span class="input-group-text">km</span>
                             </div>
                             <?php if (!$is_edit_mode): ?>
-                            <small class="form-text text-muted" id="mileageInfo" style="display: none;">
-                                <span id="mileageText">前回: </span>
+                            <small class="form-text text-warning" id="mileageInfo" style="display: none;">
+                                <i class="fas fa-exclamation-triangle me-1"></i><span id="mileageText">前回: </span>
+                                <strong>車両メーターを確認して入力してください</strong>
                             </small>
                             <?php endif; ?>
                         </div>
