@@ -427,63 +427,23 @@ $page_config = getPageConfiguration('daily_inspection');
             <hr style="margin:8px 0; border:1px solid #000;">
         </div>
         <!-- モード切替ボタン -->
-        <div class="mode-switch mb-4">
-            <div class="btn-group" role="group">
-                <a href="daily_inspection.php" class="btn btn-primary">
-                    <i class="fas fa-edit"></i> 通常入力
-                </a>
-                <?php if ($user_role === 'Admin'): ?>
-                <a href="daily_inspection.php?mode=historical" class="btn btn-outline-success">
-                    <i class="fas fa-history"></i> 過去データ入力
-                </a>
-                <?php endif; ?>
-            </div>
+        <?php if (!empty($today_inspections)): ?>
+        <!-- 本日の点検完了：コンパクト表示 -->
+        <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+            <span class="badge bg-success py-2 px-3"><i class="fas fa-check-circle me-1"></i>本日の点検完了済み</span>
+            <?php foreach ($today_inspections as $ti): ?>
+            <a href="daily_inspection.php?inspector_id=<?= urlencode($ti['driver_id']) ?>&vehicle_id=<?= urlencode($ti['vehicle_id']) ?>&date=<?= urlencode($ti['inspection_date']) ?>"
+               class="btn btn-outline-secondary btn-sm">
+                <?= htmlspecialchars($ti['vehicle_number'] ?? '') ?> <?= htmlspecialchars($ti['inspection_time'] ?? '') ?>
+            </a>
+            <?php endforeach; ?>
+            <?php if ($user_role === 'Admin'): ?>
+            <a href="daily_inspection.php?mode=historical" class="btn btn-outline-secondary btn-sm ms-auto">
+                <i class="fas fa-history me-1"></i>過去データ
+            </a>
+            <?php endif; ?>
         </div>
-
-        <!-- 本日の点検状況サマリー -->
-        <div class="card mb-4 border-0 shadow-sm">
-            <div class="card-header <?= !empty($today_inspections) ? 'bg-success text-white' : 'bg-warning text-dark' ?> py-2"
-                 data-bs-toggle="collapse" data-bs-target="#todaySummaryBody" style="cursor:pointer;">
-                <div class="d-flex align-items-center justify-content-between">
-                    <h6 class="mb-0">
-                        <?php if (!empty($today_inspections)): ?>
-                            <i class="fas fa-check-circle me-2"></i>本日の点検完了済み
-                        <?php else: ?>
-                            <i class="fas fa-exclamation-circle me-2"></i>本日の点検がまだ完了していません
-                        <?php endif; ?>
-                    </h6>
-                    <i class="fas fa-chevron-down"></i>
-                </div>
-            </div>
-            <div class="collapse <?= !empty($today_inspections) ? 'show' : '' ?>" id="todaySummaryBody">
-                <div class="card-body py-2">
-                    <?php if (!empty($today_inspections)): ?>
-                        <?php foreach ($today_inspections as $ti): ?>
-                        <a href="daily_inspection.php?inspector_id=<?= urlencode($ti['driver_id']) ?>&vehicle_id=<?= urlencode($ti['vehicle_id']) ?>&date=<?= urlencode($ti['inspection_date']) ?>"
-                           class="d-flex align-items-center justify-content-between py-2 px-2 border-bottom text-decoration-none text-dark rounded hover-bg-light"
-                           style="transition: background 0.15s;">
-                            <div>
-                                <i class="fas fa-car me-1 text-muted"></i>
-                                <strong><?= htmlspecialchars($ti['vehicle_number'] ?? '') ?></strong>
-                                <?php if (!empty($ti['vehicle_model'])): ?>
-                                    <small class="text-muted">(<?= htmlspecialchars($ti['vehicle_model']) ?>)</small>
-                                <?php endif; ?>
-                            </div>
-                            <div>
-                                <span class="badge bg-success"><i class="fas fa-clock me-1"></i><?= htmlspecialchars($ti['inspection_time'] ?? '') ?></span>
-                                <i class="fas fa-chevron-right ms-2 text-muted"></i>
-                            </div>
-                        </a>
-                        <?php endforeach; ?>
-                        <div class="text-muted small mt-2">
-                            <i class="fas fa-info-circle me-1"></i>クリックで点検記録を表示・編集できます。新規入力は下のフォームから行えます。
-                        </div>
-                    <?php else: ?>
-                        <p class="mb-0 text-muted"><i class="fas fa-info-circle me-1"></i>下のフォームから日常点検を実施してください。</p>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
+        <?php endif; ?>
 
         <!-- 下書き復元バナー -->
         <div id="draftBanner" class="alert alert-info alert-dismissible d-none" role="alert">
@@ -499,18 +459,17 @@ $page_config = getPageConfiguration('daily_inspection');
             </div>
         </div>
 
-        <!-- ロック状態バッジ -->
         <?php if ($is_edit_mode && $existing_inspection): ?>
-        <div class="mb-3">
+        <div class="mb-2">
             <?php if (!$is_locked): ?>
-                <span class="badge bg-success fs-6"><i class="fas fa-unlock me-1"></i>編集可能（本日中）</span>
+                <span class="badge bg-success"><i class="fas fa-unlock me-1"></i>編集可能</span>
             <?php elseif ($is_locked && $can_edit): ?>
-                <span class="badge bg-warning text-dark fs-6"><i class="fas fa-lock me-1"></i>ロック中（管理者解除可）</span>
+                <span class="badge bg-warning text-dark"><i class="fas fa-lock me-1"></i>ロック中</span>
             <?php else: ?>
-                <span class="badge bg-danger fs-6"><i class="fas fa-lock me-1"></i>ロック済み（変更不可）</span>
+                <span class="badge bg-danger"><i class="fas fa-lock me-1"></i>変更不可</span>
             <?php endif; ?>
             <?php if ($edit_count > 0): ?>
-                <span class="badge bg-info fs-6 ms-2"><i class="fas fa-pen me-1"></i>修正 <?= $edit_count ?>回</span>
+                <span class="badge bg-info ms-1">修正<?= $edit_count ?>回</span>
             <?php endif; ?>
         </div>
         <?php endif; ?>
@@ -531,47 +490,19 @@ $page_config = getPageConfiguration('daily_inspection');
                 <input type="hidden" name="inspection_date" value="<?= htmlspecialchars($existing_inspection['inspection_date']) ?>">
             <?php endif; ?>
 
-            <!-- 進捗インジケーター -->
-            <div class="card mb-3 border-0 shadow-sm" id="progressCard">
-                <div class="card-body py-2">
-                    <div class="d-flex align-items-center justify-content-between mb-1">
-                        <small class="text-muted"><i class="fas fa-tasks me-1"></i>必須項目の入力状況</small>
-                        <small class="fw-bold" id="progressText">0 / 7 完了</small>
-                    </div>
-                    <div class="progress" style="height: 8px;">
+            <!-- 進捗バー + クイック操作（1行） -->
+            <div class="d-flex align-items-center gap-2 mb-3 flex-wrap" id="progressCard">
+                <div class="flex-grow-1">
+                    <div class="progress" style="height: 6px;">
                         <div class="progress-bar bg-success" role="progressbar" id="progressBar"
                              style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
                     </div>
                 </div>
+                <small class="fw-bold text-nowrap" id="progressText">0/7</small>
+                <?php if (!$is_edit_mode): ?>
+                <button type="button" class="btn btn-success btn-sm" onclick="setAllOk()">全て可</button>
+                <?php endif; ?>
             </div>
-
-            <!-- 基本情報 -->
-            <?php
-            $actions = [];
-            if (!$is_edit_mode) {
-                $actions = [
-                    [
-                        'icon' => 'check-circle',
-                        'text' => '必須項目 全て可',
-                        'url' => 'javascript:setAllOk()',
-                        'class' => 'btn-success btn-sm'
-                    ],
-                    [
-                        'icon' => 'check-double',
-                        'text' => '全項目 可',
-                        'url' => 'javascript:setAllOkIncludingOptional()',
-                        'class' => 'btn-outline-success btn-sm'
-                    ],
-                    [
-                        'icon' => 'times-circle',
-                        'text' => '全て否',
-                        'url' => 'javascript:setAllNg()',
-                        'class' => 'btn-danger btn-sm'
-                    ]
-                ];
-            }
-            echo renderSectionHeader('info-circle', '基本情報', '必須項目の入力', $actions);
-            ?>
             
             <div class="card mb-4">
                 <div class="card-body">
@@ -611,10 +542,6 @@ $page_config = getPageConfiguration('daily_inspection');
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <div class="form-text">
-                                    <i class="fas fa-info-circle me-1"></i>
-                                    日常点検は運転手が実施します
-                                </div>
                             <?php endif; ?>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -657,10 +584,9 @@ $page_config = getPageConfiguration('daily_inspection');
                                 <span class="input-group-text">km</span>
                             </div>
                             <?php if (!$is_edit_mode): ?>
-                            <div class="alert alert-info mt-2" id="mileageInfo" style="display: none;">
-                                <i class="fas fa-info-circle me-1"></i>
-                                <span id="mileageText">前回記録: </span>
-                            </div>
+                            <small class="form-text text-muted" id="mileageInfo" style="display: none;">
+                                <span id="mileageText">前回: </span>
+                            </small>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -691,7 +617,6 @@ $page_config = getPageConfiguration('daily_inspection');
                                     <span class="badge bg-danger ms-2">必須</span>
                                 <?php else: ?>
                                     <span class="badge bg-warning ms-2">省略可</span>
-                                    <div class="text-muted small">※走行距離・運行状態により省略可</div>
                                 <?php endif; ?>
                             </div>
                             <div class="col-md-6 text-end">
@@ -745,7 +670,6 @@ $page_config = getPageConfiguration('daily_inspection');
                                     <span class="badge bg-danger ms-2">必須</span>
                                 <?php else: ?>
                                     <span class="badge bg-warning ms-2">省略可</span>
-                                    <div class="text-muted small">※走行距離・運行状態により省略可</div>
                                 <?php endif; ?>
                             </div>
                             <div class="col-md-6 text-end">
@@ -798,7 +722,6 @@ $page_config = getPageConfiguration('daily_inspection');
                                     <span class="badge bg-danger ms-2">必須</span>
                                 <?php else: ?>
                                     <span class="badge bg-warning ms-2">省略可</span>
-                                    <div class="text-muted small">※走行距離・運行状態により省略可</div>
                                 <?php endif; ?>
                             </div>
                             <div class="col-md-6 text-end">
