@@ -116,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $phone = trim($_POST['phone'] ?? '');
             $email = trim($_POST['email'] ?? '');
             $is_active = isset($_POST['is_active']) ? 1 : 0;
-            
+
             // 職務フラグの処理（6つ）
             $is_driver = isset($_POST['is_driver']) ? 1 : 0;
             $is_caller = isset($_POST['is_caller']) ? 1 : 0;
@@ -124,24 +124,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $is_admin = isset($_POST['is_admin']) ? 1 : 0;
             $is_manager = isset($_POST['is_manager']) ? 1 : 0;
             $is_mechanic = isset($_POST['is_mechanic']) ? 1 : 0;
-            
+
+            // 乗務員台帳フィールド
+            $date_of_birth = trim($_POST['date_of_birth'] ?? '') ?: null;
+            $hire_date = trim($_POST['hire_date'] ?? '') ?: null;
+            $address = trim($_POST['address'] ?? '') ?: null;
+            $emergency_contact = trim($_POST['emergency_contact'] ?? '') ?: null;
+            $driver_license_number = trim($_POST['driver_license_number'] ?? '') ?: null;
+            $driver_license_type = trim($_POST['driver_license_type'] ?? '') ?: null;
+            $driver_license_expiry = trim($_POST['driver_license_expiry'] ?? '') ?: null;
+            $care_qualification = trim($_POST['care_qualification'] ?? '') ?: null;
+            $care_qualification_date = trim($_POST['care_qualification_date'] ?? '') ?: null;
+            $health_check_date = trim($_POST['health_check_date'] ?? '') ?: null;
+            $health_check_next = trim($_POST['health_check_next'] ?? '') ?: null;
+            $aptitude_test_date = trim($_POST['aptitude_test_date'] ?? '') ?: null;
+            $aptitude_test_next = trim($_POST['aptitude_test_next'] ?? '') ?: null;
+            $notes = trim($_POST['notes'] ?? '') ?: null;
+
             // バリデーション
             if (empty($name) || empty($login_id)) {
                 throw new Exception('名前とログインIDは必須です。');
             }
-            
+
             if (!$is_driver && !$is_caller && !$is_inspector && !$is_admin && !$is_manager && !$is_mechanic) {
                 throw new Exception('少なくとも1つの職務を選択してください。');
             }
-            
+
             // ログインID重複チェック（自分以外）
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE login_id = ? AND id != ?");
             $stmt->execute([$login_id, $edit_user_id]);
             if ($stmt->fetchColumn() > 0) {
                 throw new Exception('このログインIDは既に使用されています。');
             }
-            
-            // ユーザー更新（最適化済みテーブル構造対応）
+
+            // ユーザー更新（乗務員台帳フィールド含む）
             $pdo->beginTransaction();
             try {
                 $stmt = $pdo->prepare("
@@ -149,13 +165,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     SET name = ?, login_id = ?, permission_level = ?,
                         is_driver = ?, is_caller = ?, is_inspector = ?,
                         is_admin = ?, is_manager = ?, is_mechanic = ?,
-                        phone = ?, email = ?, is_active = ?, updated_at = NOW()
+                        phone = ?, email = ?, is_active = ?,
+                        date_of_birth = ?, hire_date = ?, address = ?, emergency_contact = ?,
+                        driver_license_number = ?, driver_license_type = ?, driver_license_expiry = ?,
+                        care_qualification = ?, care_qualification_date = ?,
+                        health_check_date = ?, health_check_next = ?,
+                        aptitude_test_date = ?, aptitude_test_next = ?,
+                        notes = ?, updated_at = NOW()
                     WHERE id = ?
                 ");
                 $stmt->execute([
                     $name, $login_id, $permission_level,
                     $is_driver, $is_caller, $is_inspector, $is_admin, $is_manager, $is_mechanic,
-                    $phone, $email, $is_active, $edit_user_id
+                    $phone, $email, $is_active,
+                    $date_of_birth, $hire_date, $address, $emergency_contact,
+                    $driver_license_number, $driver_license_type, $driver_license_expiry,
+                    $care_qualification, $care_qualification_date,
+                    $health_check_date, $health_check_next,
+                    $aptitude_test_date, $aptitude_test_next,
+                    $notes, $edit_user_id
                 ]);
                 logUserManagementAudit($pdo, $user_id, $user_name, 'ユーザー編集', "target_id={$edit_user_id}, name={$name}");
                 $pdo->commit();
@@ -220,10 +248,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ユーザー一覧取得（最適化済みテーブル構造対応）
 try {
     $stmt = $pdo->prepare("
-        SELECT id, name, login_id, permission_level, 
+        SELECT id, name, login_id, permission_level,
                is_driver, is_caller, is_inspector, is_admin, is_manager, is_mechanic,
-               phone, email, is_active, created_at, last_login_at
-        FROM users 
+               phone, email, is_active, created_at, last_login_at,
+               date_of_birth, hire_date, address, emergency_contact,
+               driver_license_number, driver_license_type, driver_license_expiry,
+               care_qualification, care_qualification_date,
+               health_check_date, health_check_next,
+               aptitude_test_date, aptitude_test_next,
+               notes
+        FROM users
         ORDER BY is_active DESC, permission_level, name
     ");
     $stmt->execute();
@@ -712,7 +746,7 @@ echo $page_data['page_header'];
 
 <!-- ユーザー追加・編集モーダル -->
 <div class="modal fade" id="userModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="userModalTitle">ユーザー追加</h5>
@@ -786,7 +820,7 @@ echo $page_data['page_header'];
                         <label class="form-label">職務権限 <span class="text-danger">*</span></label>
                         <div class="roles-grid">
                             <div class="role-item">
-                                <input class="form-check-input" type="checkbox" id="modalIsDriver" name="is_driver">
+                                <input class="form-check-input" type="checkbox" id="modalIsDriver" name="is_driver" onchange="toggleDriverProfileSection()">
                                 <label class="form-check-label" for="modalIsDriver">
                                     <span class="role-badge driver">運転者</span>
                                     <small class="role-description">車両の運転業務を行う</small>
@@ -830,8 +864,115 @@ echo $page_data['page_header'];
                         </div>
                         <small class="form-text text-muted">複数の職務を同時に選択することができます。少なくとも1つは選択してください。</small>
                     </div>
+
+                    <!-- 乗務員台帳セクション（is_driverのみ表示） -->
+                    <div id="driverProfileSection" style="display:none;">
+                        <hr class="my-3">
+                        <h6 class="fw-bold text-primary mb-3"><i class="fas fa-id-card me-2"></i>乗務員台帳情報</h6>
+
+                        <!-- 基本情報 -->
+                        <div class="row">
+                            <div class="col-lg-4">
+                                <div class="mb-3">
+                                    <label for="modalDateOfBirth" class="form-label">生年月日</label>
+                                    <input type="date" class="form-control" id="modalDateOfBirth" name="date_of_birth">
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="mb-3">
+                                    <label for="modalHireDate" class="form-label">入社日</label>
+                                    <input type="date" class="form-control" id="modalHireDate" name="hire_date">
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="mb-3">
+                                    <label for="modalEmergencyContact" class="form-label">緊急連絡先</label>
+                                    <input type="text" class="form-control" id="modalEmergencyContact" name="emergency_contact" placeholder="氏名・電話番号">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="modalAddress" class="form-label">住所</label>
+                            <input type="text" class="form-control" id="modalAddress" name="address">
+                        </div>
+
+                        <!-- 運転免許情報 -->
+                        <h6 class="fw-bold text-secondary mb-2 mt-3"><i class="fas fa-car me-2"></i>運転免許情報</h6>
+                        <div class="row">
+                            <div class="col-lg-4">
+                                <div class="mb-3">
+                                    <label for="modalLicenseNumber" class="form-label">免許証番号</label>
+                                    <input type="text" class="form-control" id="modalLicenseNumber" name="driver_license_number" placeholder="12桁">
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="mb-3">
+                                    <label for="modalLicenseType" class="form-label">免許種別</label>
+                                    <input type="text" class="form-control" id="modalLicenseType" name="driver_license_type" placeholder="普通二種 等">
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="mb-3">
+                                    <label for="modalLicenseExpiry" class="form-label">有効期限</label>
+                                    <input type="date" class="form-control" id="modalLicenseExpiry" name="driver_license_expiry">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 介護資格 -->
+                        <h6 class="fw-bold text-secondary mb-2 mt-3"><i class="fas fa-hands-helping me-2"></i>介護資格</h6>
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <div class="mb-3">
+                                    <label for="modalCareQualification" class="form-label">資格名</label>
+                                    <input type="text" class="form-control" id="modalCareQualification" name="care_qualification" placeholder="介護職員初任者研修 等">
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="mb-3">
+                                    <label for="modalCareQualificationDate" class="form-label">取得日</label>
+                                    <input type="date" class="form-control" id="modalCareQualificationDate" name="care_qualification_date">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 健康診断・適性診断 -->
+                        <h6 class="fw-bold text-secondary mb-2 mt-3"><i class="fas fa-stethoscope me-2"></i>健康診断・適性診断</h6>
+                        <div class="row">
+                            <div class="col-lg-3">
+                                <div class="mb-3">
+                                    <label for="modalHealthCheckDate" class="form-label">健康診断（実施日）</label>
+                                    <input type="date" class="form-control" id="modalHealthCheckDate" name="health_check_date">
+                                </div>
+                            </div>
+                            <div class="col-lg-3">
+                                <div class="mb-3">
+                                    <label for="modalHealthCheckNext" class="form-label">健康診断（次回予定）</label>
+                                    <input type="date" class="form-control" id="modalHealthCheckNext" name="health_check_next">
+                                </div>
+                            </div>
+                            <div class="col-lg-3">
+                                <div class="mb-3">
+                                    <label for="modalAptitudeTestDate" class="form-label">適性診断（実施日）</label>
+                                    <input type="date" class="form-control" id="modalAptitudeTestDate" name="aptitude_test_date">
+                                </div>
+                            </div>
+                            <div class="col-lg-3">
+                                <div class="mb-3">
+                                    <label for="modalAptitudeTestNext" class="form-label">適性診断（次回予定）</label>
+                                    <input type="date" class="form-control" id="modalAptitudeTestNext" name="aptitude_test_next">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 備考 -->
+                        <div class="mb-3">
+                            <label for="modalNotes" class="form-label">備考・メモ</label>
+                            <textarea class="form-control" id="modalNotes" name="notes" rows="3"></textarea>
+                        </div>
+                    </div>
                 </div>
-                
+
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
                     <button type="submit" class="btn btn-success">
@@ -951,7 +1092,8 @@ function showAddModal() {
     
     // フォームリセット
     document.getElementById('userForm').reset();
-    
+    toggleDriverProfileSection();
+
     // Bootstrap使用可能かチェック
     if (typeof bootstrap !== 'undefined') {
         try {
@@ -959,7 +1101,7 @@ function showAddModal() {
             if (existingModal) {
                 existingModal.dispose();
             }
-            
+
             const modal = new bootstrap.Modal(modalElement, {
                 backdrop: true,
                 keyboard: true,
@@ -974,6 +1116,12 @@ function showAddModal() {
         // フォールバック使用
         showModalFallback('userModal');
     }
+}
+
+// 運転者チェックで台帳セクション表示切替
+function toggleDriverProfileSection() {
+    const isDriver = document.getElementById('modalIsDriver').checked;
+    document.getElementById('driverProfileSection').style.display = isDriver ? 'block' : 'none';
 }
 
 // 編集モーダル（確実動作版）
@@ -1005,6 +1153,25 @@ function editUser(user) {
     document.getElementById('passwordField').style.display = 'none';
     document.getElementById('isActiveField').style.display = 'block';
     document.getElementById('modalPassword').required = false;
+
+    // 乗務員台帳フィールド
+    document.getElementById('modalDateOfBirth').value = user.date_of_birth || '';
+    document.getElementById('modalHireDate').value = user.hire_date || '';
+    document.getElementById('modalAddress').value = user.address || '';
+    document.getElementById('modalEmergencyContact').value = user.emergency_contact || '';
+    document.getElementById('modalLicenseNumber').value = user.driver_license_number || '';
+    document.getElementById('modalLicenseType').value = user.driver_license_type || '';
+    document.getElementById('modalLicenseExpiry').value = user.driver_license_expiry || '';
+    document.getElementById('modalCareQualification').value = user.care_qualification || '';
+    document.getElementById('modalCareQualificationDate').value = user.care_qualification_date || '';
+    document.getElementById('modalHealthCheckDate').value = user.health_check_date || '';
+    document.getElementById('modalHealthCheckNext').value = user.health_check_next || '';
+    document.getElementById('modalAptitudeTestDate').value = user.aptitude_test_date || '';
+    document.getElementById('modalAptitudeTestNext').value = user.aptitude_test_next || '';
+    document.getElementById('modalNotes').value = user.notes || '';
+
+    // 運転者の場合に台帳セクション表示
+    toggleDriverProfileSection();
     
     // Bootstrap使用可能かチェック
     if (typeof bootstrap !== 'undefined') {

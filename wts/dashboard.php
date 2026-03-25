@@ -185,6 +185,38 @@ try {
             ];
         }
     }
+
+    // 書類期限切れチェック
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM documents WHERE is_active = 1 AND expiry_date IS NOT NULL AND expiry_date < CURDATE()");
+        $stmt->execute();
+        $expired_docs = (int)$stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM documents WHERE is_active = 1 AND expiry_date IS NOT NULL AND expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)");
+        $stmt->execute();
+        $expiring_soon_docs = (int)$stmt->fetchColumn();
+
+        if ($expired_docs > 0) {
+            $alerts[] = [
+                'type' => 'danger', 'priority' => 'high',
+                'icon' => 'fas fa-file-exclamation',
+                'title' => '書類期限切れ',
+                'message' => "期限切れの書類が{$expired_docs}件あります。早急に更新してください。",
+                'action' => 'document_management.php?expiry=expired'
+            ];
+        }
+        if ($expiring_soon_docs > 0) {
+            $alerts[] = [
+                'type' => 'warning', 'priority' => 'normal',
+                'icon' => 'fas fa-file-contract',
+                'title' => '書類期限間近',
+                'message' => "7日以内に期限切れとなる書類が{$expiring_soon_docs}件あります。",
+                'action' => 'document_management.php?expiry=expired'
+            ];
+        }
+    } catch (Exception $e) {
+        // 書類テーブルが存在しない場合等はスキップ
+    }
 } catch (Exception $e) {
     error_log("ダッシュボード アラート生成エラー: " . $e->getMessage());
 }
