@@ -131,7 +131,7 @@ echo $page_data['system_header'];
 <script>document.body.classList.add('calendar-page');</script>
 <!-- メインコンテンツ開始 -->
 <main class="main-content" id="main-content" tabindex="-1">
-    <div class="container-fluid px-2 px-md-3 py-1">
+    <div class="container-fluid px-1 px-md-2 py-0">
 
         <!-- カレンダーツールバー（2行構成） -->
         <!-- 1行目：ナビ + タイトル + 新規予約 -->

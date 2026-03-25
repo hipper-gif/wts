@@ -31,12 +31,15 @@ body.calendar-page {
     }
 }
 
-/* カレンダーページはcontainer幅制限を解除 */
+/* カレンダーページ：余白を最小化 */
 .calendar-page .container-fluid {
     max-width: none;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
 }
 .calendar-page .main-content {
     min-height: auto;
+    padding: 0;
 }
 
 #calendar {
@@ -152,7 +155,7 @@ body.calendar-page {
 }
 
 .fc-daygrid-day-number {
-    padding: 4px;
+    padding: 2px 6px;
     font-weight: bold;
 }
 
@@ -186,8 +189,8 @@ body.calendar-page {
 
 @media (max-width: 768px) {
     #calendar {
-        padding: 0.5rem;
-        min-height: 400px;
+        padding: 0;
+        min-height: calc(100vh - 100px);
     }
 
     .fc-event {
