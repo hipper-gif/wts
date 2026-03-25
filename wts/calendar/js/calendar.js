@@ -33,7 +33,15 @@ document.addEventListener('DOMContentLoaded', function() {
             // 基本設定
             locale: 'ja',
             timeZone: 'Asia/Tokyo',
-            height: 'auto',
+            height: function() {
+                // ツールバー+ヘッダー分を引いた残りをカレンダーに
+                var offset = calendarEl.getBoundingClientRect().top;
+                return window.innerHeight - offset - 8;
+            }(),
+            windowResize: function() {
+                var offset = calendarEl.getBoundingClientRect().top;
+                calendar.setOption('height', window.innerHeight - offset - 8);
+            },
 
             // 初期表示
             initialView: currentConfig.viewMode || 'dayGridMonth',
