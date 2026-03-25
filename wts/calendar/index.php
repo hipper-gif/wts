@@ -133,36 +133,36 @@ echo $page_data['system_header'];
 <main class="main-content" id="main-content" tabindex="-1">
     <div class="container-fluid px-2 px-md-3 py-1">
 
-        <!-- カレンダーツールバー -->
-        <div class="cal-toolbar">
-            <!-- 左：ナビ + タイトル -->
-            <div class="cal-toolbar-left">
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="prevBtn"><i class="fas fa-chevron-left"></i></button>
-                <span class="cal-toolbar-title" id="calToolbarTitle"></span>
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="nextBtn"><i class="fas fa-chevron-right"></i></button>
-                <button type="button" class="btn btn-outline-primary btn-sm ms-1" id="todayBtn">今日</button>
+        <!-- カレンダーツールバー（2行構成） -->
+        <!-- 1行目：ナビ + タイトル + 新規予約 -->
+        <div class="d-flex align-items-center gap-1 mb-1">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="prevBtn"><i class="fas fa-chevron-left"></i></button>
+            <span class="cal-toolbar-title" id="calToolbarTitle"></span>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="nextBtn"><i class="fas fa-chevron-right"></i></button>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="todayBtn">今日</button>
+            <button type="button" class="btn btn-success btn-sm ms-auto" id="createReservationBtn">
+                <i class="fas fa-plus me-1"></i>新規予約
+            </button>
+        </div>
+        <!-- 2行目：表示切替 + フィルター + 管理 -->
+        <div class="d-flex align-items-center gap-1 mb-1">
+            <div class="btn-group">
+                <input type="radio" class="btn-check" name="viewMode" id="monthView" value="dayGridMonth" <?= $view_mode === 'month' || $view_mode === 'dayGridMonth' ? 'checked' : '' ?>>
+                <label class="btn btn-outline-secondary btn-sm" for="monthView">月</label>
+                <input type="radio" class="btn-check" name="viewMode" id="weekView" value="timeGridWeek" <?= $view_mode === 'week' || $view_mode === 'timeGridWeek' ? 'checked' : '' ?>>
+                <label class="btn btn-outline-secondary btn-sm" for="weekView">週</label>
+                <input type="radio" class="btn-check" name="viewMode" id="dayView" value="timeGridDay" <?= $view_mode === 'day' || $view_mode === 'timeGridDay' ? 'checked' : '' ?>>
+                <label class="btn btn-outline-secondary btn-sm" for="dayView">日</label>
             </div>
-            <!-- 右：操作 -->
-            <div class="cal-toolbar-right">
-                <div class="btn-group">
-                    <input type="radio" class="btn-check" name="viewMode" id="monthView" value="dayGridMonth" <?= $view_mode === 'month' || $view_mode === 'dayGridMonth' ? 'checked' : '' ?>>
-                    <label class="btn btn-outline-secondary btn-sm" for="monthView">月</label>
-                    <input type="radio" class="btn-check" name="viewMode" id="weekView" value="timeGridWeek" <?= $view_mode === 'week' || $view_mode === 'timeGridWeek' ? 'checked' : '' ?>>
-                    <label class="btn btn-outline-secondary btn-sm" for="weekView">週</label>
-                    <input type="radio" class="btn-check" name="viewMode" id="dayView" value="timeGridDay" <?= $view_mode === 'day' || $view_mode === 'timeGridDay' ? 'checked' : '' ?>>
-                    <label class="btn btn-outline-secondary btn-sm" for="dayView">日</label>
-                </div>
-                <select class="form-select form-select-sm" id="driverFilter" style="width:auto;max-width:120px">
-                    <option value="all">全員</option>
-                    <?php foreach ($drivers as $driver): ?>
-                        <option value="<?= $driver['id'] ?>" <?= $driver_filter == $driver['id'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($driver['name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <button type="button" class="btn btn-success btn-sm" id="createReservationBtn">
-                    <i class="fas fa-plus"></i><span class="d-none d-sm-inline ms-1">新規</span>
-                </button>
+            <select class="form-select form-select-sm" id="driverFilter" style="width:auto;max-width:110px">
+                <option value="all">全員</option>
+                <?php foreach ($drivers as $driver): ?>
+                    <option value="<?= $driver['id'] ?>" <?= $driver_filter == $driver['id'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($driver['name']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <div class="ms-auto d-flex gap-1">
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="customerManagementBtn" title="顧客管理">
                     <i class="fas fa-address-book"></i>
                 </button>
