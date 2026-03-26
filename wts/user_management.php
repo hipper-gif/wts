@@ -595,9 +595,19 @@ echo $page_data['page_header'];
         <?php if ($success_message): ?>
             <?= renderAlert('success', '成功', $success_message) ?>
         <?php endif; ?>
-        
+
         <?php if ($error_message): ?>
             <?= renderAlert('danger', 'エラー', $error_message) ?>
+        <?php endif; ?>
+
+        <?php if ($success_message): ?>
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof showToast === 'function') {
+                showToast('<?= addslashes($success_message) ?>', 'success');
+            }
+        });
+        </script>
         <?php endif; ?>
         
         <!-- メインアクションエリア -->
@@ -1304,7 +1314,7 @@ function refreshUserList() {
     location.reload();
 }
 
-// 職務選択バリデーション（確実動作版）
+// 職務選択バリデーション（確実動作版）+ フォーム送信時のローディング状態
 document.addEventListener('DOMContentLoaded', function() {
     const userForm = document.getElementById('userForm');
     if (userForm) {
@@ -1314,11 +1324,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 const element = document.getElementById(id);
                 return element && element.checked;
             });
-            
+
             if (!isAnyChecked) {
                 e.preventDefault();
                 showToast('少なくとも1つの職務を選択してください。', 'warning');
                 return false;
+            }
+
+            // ローディング状態
+            var btn = this.querySelector('button[type="submit"]') || this.querySelector('.btn-success');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>保存中...';
+            }
+        });
+    }
+
+    // パスワード変更フォームのローディング状態
+    var pwForm = document.querySelector('#passwordModal form');
+    if (pwForm) {
+        pwForm.addEventListener('submit', function() {
+            var btn = this.querySelector('button[type="submit"]') || this.querySelector('.btn-warning');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>変更中...';
             }
         });
     }

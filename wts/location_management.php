@@ -295,6 +295,16 @@ echo $page_data['page_header'];
         <?= renderAlert('danger', 'エラー', $error_message) ?>
     <?php endif; ?>
 
+    <?php if ($success_message): ?>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof showToast === 'function') {
+            showToast('<?= addslashes($success_message) ?>', 'success');
+        }
+    });
+    </script>
+    <?php endif; ?>
+
     <!-- 統計情報ダッシュボード -->
     <div class="row mb-4 g-2">
         <div class="col-6 col-md-3">
@@ -579,6 +589,20 @@ function editLocation(location) {
 
     new bootstrap.Modal(document.getElementById('locationModal')).show();
 }
+
+// フォーム送信時のローディング状態
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('locationForm');
+    if (form) {
+        form.addEventListener('submit', function() {
+            var btn = this.querySelector('button[type="submit"]') || this.querySelector('.btn-primary');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>保存中...';
+            }
+        });
+    }
+});
 
 // 削除確認（統一パターン）
 function deleteLocation(locationId, locationName) {

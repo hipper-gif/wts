@@ -475,6 +475,10 @@ $page_config = getPageConfiguration('daily_inspection');
         <?php endif; ?>
 
         <?php if ($success_message): ?>
+        <div class="alert alert-success alert-dismissible fade show text-center py-3" style="font-size: 1.1rem; font-weight: 600; border-radius: 12px; box-shadow: 0 4px 15px rgba(25,135,84,0.3);">
+            <i class="fas fa-check-circle me-2 fa-lg"></i><?= htmlspecialchars($success_message) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
         <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?= addslashes($success_message) ?>', 'success'); });</script>
         <?php endif; ?>
 
@@ -1018,8 +1022,37 @@ $page_config = getPageConfiguration('daily_inspection');
         </div>
     </div>
 
+    <style>
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+        to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+    </style>
+
+    <script>
+    // 中央表示版showToast（ui-interactions.jsの定義を上書き）
+    function showToast(message, type) {
+        var existing = document.getElementById('centralToast');
+        if (existing) existing.remove();
+        var colors = { success: '#198754', warning: '#ffc107', error: '#dc3545', info: '#0d6efd' };
+        var icons = { success: 'check-circle', warning: 'exclamation-triangle', error: 'times-circle', info: 'info-circle' };
+        var textColor = type === 'warning' ? '#000' : '#fff';
+        var html = '<div id="centralToast" style="position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;'
+            + 'background:' + colors[type] + ';color:' + textColor + ';padding:16px 32px;border-radius:12px;'
+            + 'box-shadow:0 8px 32px rgba(0,0,0,0.3);font-size:1.1rem;font-weight:600;'
+            + 'display:flex;align-items:center;gap:10px;animation:slideDown 0.4s ease;">'
+            + '<i class="fas fa-' + icons[type] + ' fa-lg"></i><span>' + message + '</span></div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+        setTimeout(function() {
+            var el = document.getElementById('centralToast');
+            if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.5s'; setTimeout(function() { el.remove(); }, 500); }
+        }, 8000);
+    }
+    window.showToast = showToast;
+    </script>
+
     <?= renderCompleteHTMLFooter() ?>
-    
+
     <script>
         // PHP→JS変数ブリッジ
         window.inspectionLockStatus = {

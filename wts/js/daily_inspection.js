@@ -256,6 +256,13 @@ document.getElementById('inspectionForm').addEventListener('submit', function(e)
         }
     }
 
+    // 送信ボタンにローディング状態を追加
+    var btn = this.querySelector('button[type="submit"]');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>保存中...';
+    }
+
     // 送信成功時に下書きをクリア
     localStorage.removeItem('inspection_draft');
 });
