@@ -238,12 +238,30 @@ function getPageConfiguration($page_type) {
             'frequency' => '随時',
             'priority' => 'normal'
         ],
+        'driver_roster' => [
+            'category' => 'management',
+            'icon' => 'id-card',
+            'title' => '乗務員台帳',
+            'subtitle' => '乗務員の資格・免許・健診情報一覧',
+            'description' => '乗務員の資格・免許・健診情報を一覧管理',
+            'frequency' => '随時',
+            'priority' => 'normal'
+        ],
         'accident_management' => [
             'category' => 'management',
             'icon' => 'exclamation-triangle',
             'title' => '事故管理',
             'subtitle' => '事故記録・報告管理',
             'description' => '事故発生時の記録・報告管理',
+            'frequency' => '随時',
+            'priority' => 'high'
+        ],
+        'document_generator' => [
+            'category' => 'management',
+            'icon' => 'shield-alt',
+            'title' => '監査対応',
+            'subtitle' => 'コンプライアンス状況確認・監査資料作成',
+            'description' => '運輸局監査の準備状況確認・法定帳票の一括生成',
             'frequency' => '随時',
             'priority' => 'high'
         ],

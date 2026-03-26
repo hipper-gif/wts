@@ -463,6 +463,68 @@ $page_data = renderCompletePage(
                 <?php endif; ?>
             </div>
 
+            <!-- 乗務員台帳 -->
+            <div class="col-lg-4 col-md-6 mb-3">
+                <?php if ($is_admin || (!empty($user_data['is_manager']) && $user_data['is_manager'])): ?>
+                <a href="driver_roster.php" class="text-decoration-none">
+                <div class="master-card">
+                    <div class="position-relative">
+                        <span class="status-badge bg-success text-white">利用可能</span>
+                        <i class="fas fa-id-card master-icon" style="color:#667eea;"></i>
+                        <h6 class="fw-bold">乗務員台帳</h6>
+                        <p class="card-description">
+                            乗務員の資格・免許・健診情報一覧<br>
+                            期限アラート付き台帳管理
+                        </p>
+                    </div>
+                </div>
+                </a>
+                <?php else: ?>
+                <div class="master-card user-only" onclick="showPermissionAlert()">
+                    <div class="position-relative">
+                        <span class="status-badge bg-warning text-dark">要管理者権限</span>
+                        <i class="fas fa-id-card master-icon" style="color:#667eea;"></i>
+                        <h6 class="fw-bold">乗務員台帳</h6>
+                        <p class="card-description">
+                            乗務員の資格・免許・健診情報一覧<br>
+                            期限アラート付き台帳管理
+                        </p>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- 監査対応 -->
+            <div class="col-lg-4 col-md-6 mb-3">
+                <?php if ($is_admin || (!empty($user_data['is_manager']) && $user_data['is_manager'])): ?>
+                <a href="document_generator.php" class="text-decoration-none">
+                <div class="master-card">
+                    <div class="position-relative">
+                        <span class="status-badge bg-success text-white">利用可能</span>
+                        <i class="fas fa-shield-alt master-icon" style="color:#6f42c1;"></i>
+                        <h6 class="fw-bold">監査対応</h6>
+                        <p class="card-description">
+                            コンプライアンス状況確認<br>
+                            監査資料の一括作成・印刷
+                        </p>
+                    </div>
+                </div>
+                </a>
+                <?php else: ?>
+                <div class="master-card user-only" onclick="showPermissionAlert()">
+                    <div class="position-relative">
+                        <span class="status-badge bg-warning text-dark">要管理者権限</span>
+                        <i class="fas fa-shield-alt master-icon" style="color:#6f42c1;"></i>
+                        <h6 class="fw-bold">監査対応</h6>
+                        <p class="card-description">
+                            コンプライアンス状況確認<br>
+                            監査資料の一括作成・印刷
+                        </p>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
+
             <!-- 運賃マスタ（Phase2） -->
             <div class="col-lg-4 col-md-6 mb-3">
                 <div class="master-card coming-soon">

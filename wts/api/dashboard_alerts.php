@@ -126,7 +126,48 @@ try {
             ];
         }
     }
-    
+
+    // 乗務員 免許・健診・適性診断 期限チェック（管理者向け）
+    if ($_SESSION['permission_level'] === 'Admin') {
+        try {
+            $driver_alert_configs = [
+                ['column' => 'driver_license_expiry', 'icon' => 'fas fa-id-card',
+                 'title_danger' => '運転免許期限切れ', 'title_warning' => '運転免許期限間近',
+                 'msg_danger' => '期限切れの運転免許がある乗務員が%d名います。',
+                 'msg_warning' => '30日以内に期限切れとなる運転免許がある乗務員が%d名います。'],
+                ['column' => 'health_check_next', 'icon' => 'fas fa-heartbeat',
+                 'title_danger' => '健康診断期限切れ', 'title_warning' => '健康診断期限間近',
+                 'msg_danger' => '健康診断の期限が切れている乗務員が%d名います。',
+                 'msg_warning' => '30日以内に健康診断の期限が切れる乗務員が%d名います。'],
+                ['column' => 'aptitude_test_next', 'icon' => 'fas fa-clipboard-check',
+                 'title_danger' => '適性診断期限切れ', 'title_warning' => '適性診断期限間近',
+                 'msg_danger' => '適性診断の期限が切れている乗務員が%d名います。',
+                 'msg_warning' => '30日以内に適性診断の期限が切れる乗務員が%d名います。'],
+            ];
+            foreach ($driver_alert_configs as $cfg) {
+                $col = $cfg['column'];
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE is_active = 1 AND is_driver = 1 AND {$col} IS NOT NULL AND {$col} < CURDATE()");
+                $stmt->execute();
+                $expired = (int)$stmt->fetchColumn();
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE is_active = 1 AND is_driver = 1 AND {$col} IS NOT NULL AND {$col} BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)");
+                $stmt->execute();
+                $expiring = (int)$stmt->fetchColumn();
+                if ($expired > 0) {
+                    $alerts[] = ['type' => 'danger', 'priority' => 'high', 'icon' => $cfg['icon'],
+                        'message' => sprintf($cfg['msg_danger'], $expired),
+                        'action' => 'user_management.php', 'action_text' => '乗務員管理へ'];
+                }
+                if ($expiring > 0) {
+                    $alerts[] = ['type' => 'warning', 'priority' => 'medium', 'icon' => $cfg['icon'],
+                        'message' => sprintf($cfg['msg_warning'], $expiring),
+                        'action' => 'user_management.php', 'action_text' => '乗務員管理へ'];
+                }
+            }
+        } catch (Exception $e) {
+            // 乗務員台帳カラムが存在しない場合等はスキップ
+        }
+    }
+
     // アラートを優先度でソート
     usort($alerts, function($a, $b) {
         $priority_order = ['critical' => 0, 'high' => 1, 'medium' => 2, 'low' => 3];
