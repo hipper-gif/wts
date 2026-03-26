@@ -213,6 +213,10 @@ echo $page_data['page_header'];
         </div>
 
         <?php if ($success_message): ?>
+        <div class="alert alert-success alert-dismissible fade show text-center py-3" style="font-size: 1.1rem; font-weight: 600; border-radius: 12px; box-shadow: 0 4px 15px rgba(25,135,84,0.3);">
+            <i class="fas fa-check-circle me-2 fa-lg"></i><?= htmlspecialchars($success_message) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
         <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?= addslashes($success_message) ?>', 'success'); });</script>
         <?php endif; ?>
 
@@ -418,6 +422,10 @@ echo $page_data['page_header'];
 
 <!-- カスタムスタイル -->
 <style>
+@keyframes slideDown {
+    from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
 .unreturned-item {
     cursor: pointer;
     transition: all 0.2s ease;
@@ -508,37 +516,34 @@ echo $page_data['page_header'];
         }
     }
 
-    // 通知表示
+    // 通知表示（中央表示・目立つ版）
     function showNotification(message, type = 'info') {
-        // 既存のトーストを削除
-        const existingToast = document.querySelector('.toast');
-        if (existingToast) {
-            existingToast.remove();
-        }
+        const existingToast = document.getElementById('centralToast');
+        if (existingToast) existingToast.remove();
 
-        const colors = {
-            success: 'bg-success',
-            warning: 'bg-warning',
-            error: 'bg-danger',
-            info: 'bg-primary'
-        };
+        const colors = { success: '#198754', warning: '#ffc107', error: '#dc3545', info: '#0d6efd' };
+        const icons = { success: 'check-circle', warning: 'exclamation-triangle', error: 'times-circle', info: 'info-circle' };
+        const textColor = type === 'warning' ? '#000' : '#fff';
 
         const toastHtml = `
-            <div class="toast position-fixed top-0 end-0 m-3" style="z-index: 9999" role="alert">
-                <div class="toast-header ${colors[type]} text-white">
-                    <i class="fas fa-info-circle me-2"></i>
-                    <strong class="me-auto">通知</strong>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
-                </div>
-                <div class="toast-body">
-                    ${message}
-                </div>
+            <div id="centralToast" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999;
+                background:${colors[type]}; color:${textColor}; padding:16px 32px; border-radius:12px;
+                box-shadow:0 8px 32px rgba(0,0,0,0.3); font-size:1.1rem; font-weight:600;
+                display:flex; align-items:center; gap:10px; animation:slideDown 0.4s ease;">
+                <i class="fas fa-${icons[type]} fa-lg"></i>
+                <span>${message}</span>
             </div>
         `;
-
         document.body.insertAdjacentHTML('beforeend', toastHtml);
-        const toast = new bootstrap.Toast(document.querySelector('.toast'));
-        toast.show();
+        setTimeout(() => {
+            const el = document.getElementById('centralToast');
+            if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.5s'; setTimeout(() => el.remove(), 500); }
+        }, 8000);
+    }
+
+    // showToast（成功時の中央表示）
+    function showToast(message, type) {
+        showNotification(message, type);
     }
 
     // フォームバリデーション（arrival固有チェック）
@@ -608,11 +613,16 @@ echo $page_data['page_header'];
         document.getElementById('break_start_time').addEventListener('change', validateBreakTime);
         document.getElementById('break_end_time').addEventListener('change', validateBreakTime);
 
-        // フォーム送信時の検証（arrival固有チェック）
+        // フォーム送信時の検証 + ローディング状態
         document.getElementById('arrivalForm').addEventListener('submit', function(e) {
             if (!validateArrivalFields() || !validateBreakTime()) {
                 e.preventDefault();
+                return;
             }
+            // 送信ボタンをローディング状態に
+            const btn = this.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>保存中...';
         });
 
         // リアルタイムバリデーション
