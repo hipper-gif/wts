@@ -256,6 +256,24 @@ function getPageConfiguration($page_type) {
             'frequency' => '随時',
             'priority' => 'high'
         ],
+        'supervision_records' => [
+            'category' => 'management',
+            'icon' => 'chalkboard-teacher',
+            'title' => '指導監督記録',
+            'subtitle' => '乗務員への指導・教育記録',
+            'description' => '乗務員への安全運転指導・教育の記録管理',
+            'frequency' => '随時',
+            'priority' => 'normal'
+        ],
+        'complaint_records' => [
+            'category' => 'management',
+            'icon' => 'envelope-open-text',
+            'title' => '苦情処理記録',
+            'subtitle' => '顧客苦情の受付・対応管理',
+            'description' => '顧客からの苦情を受付から解決まで一元管理',
+            'frequency' => '随時',
+            'priority' => 'high'
+        ],
         'document_generator' => [
             'category' => 'management',
             'icon' => 'shield-alt',

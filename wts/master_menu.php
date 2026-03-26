@@ -525,6 +525,68 @@ $page_data = renderCompletePage(
                 <?php endif; ?>
             </div>
 
+            <!-- 苦情処理記録 -->
+            <div class="col-lg-4 col-md-6 mb-3">
+                <?php if ($is_admin || (!empty($user_data['is_manager']) && $user_data['is_manager'])): ?>
+                <a href="complaint_records.php" class="text-decoration-none">
+                <div class="master-card">
+                    <div class="position-relative">
+                        <span class="status-badge bg-success text-white">利用可能</span>
+                        <i class="fas fa-envelope-open-text master-icon" style="color:#e74c3c;"></i>
+                        <h6 class="fw-bold">苦情処理記録</h6>
+                        <p class="card-description">
+                            顧客苦情の受付・対応管理<br>
+                            苦情処理の進捗・再発防止策
+                        </p>
+                    </div>
+                </div>
+                </a>
+                <?php else: ?>
+                <div class="master-card user-only" onclick="showPermissionAlert()">
+                    <div class="position-relative">
+                        <span class="status-badge bg-warning text-dark">要管理者権限</span>
+                        <i class="fas fa-envelope-open-text master-icon" style="color:#e74c3c;"></i>
+                        <h6 class="fw-bold">苦情処理記録</h6>
+                        <p class="card-description">
+                            顧客苦情の受付・対応管理<br>
+                            苦情処理の進捗・再発防止策
+                        </p>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- 指導監督記録 -->
+            <div class="col-lg-4 col-md-6 mb-3">
+                <?php if ($is_admin || (!empty($user_data['is_manager']) && $user_data['is_manager'])): ?>
+                <a href="supervision_records.php" class="text-decoration-none">
+                <div class="master-card">
+                    <div class="position-relative">
+                        <span class="status-badge bg-success text-white">利用可能</span>
+                        <i class="fas fa-chalkboard-teacher master-icon" style="color:#2ecc71;"></i>
+                        <h6 class="fw-bold">指導監督記録</h6>
+                        <p class="card-description">
+                            乗務員への安全運転指導・教育記録<br>
+                            フォローアップ管理
+                        </p>
+                    </div>
+                </div>
+                </a>
+                <?php else: ?>
+                <div class="master-card user-only" onclick="showPermissionAlert()">
+                    <div class="position-relative">
+                        <span class="status-badge bg-warning text-dark">要管理者権限</span>
+                        <i class="fas fa-chalkboard-teacher master-icon" style="color:#2ecc71;"></i>
+                        <h6 class="fw-bold">指導監督記録</h6>
+                        <p class="card-description">
+                            乗務員への安全運転指導・教育記録<br>
+                            フォローアップ管理
+                        </p>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
+
             <!-- 運賃マスタ（Phase2） -->
             <div class="col-lg-4 col-md-6 mb-3">
                 <div class="master-card coming-soon">
