@@ -77,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
                 session_regenerate_id(true);
+                $_SESSION['last_activity'] = time();
 
                 // 最終ログイン時刻を更新（最適化後のカラム名：last_login_at）
                 try {
@@ -92,6 +93,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['pwa_login'] = true;
                 }
                 
+                // セッションを確実に書き込んでからリダイレクト（Android PWA対応）
+                session_write_close();
                 header('Location: dashboard.php');
                 exit;
             } else {
