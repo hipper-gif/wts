@@ -3,23 +3,10 @@ require_once 'config/database.php';
 require_once 'functions.php';
 require_once 'includes/session_check.php';
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
-}
-
-// 管理者権限チェック - 柔軟な権限確認
-$has_admin_permission = false;
-if (isset($_SESSION['permission_level']) && $_SESSION['permission_level'] === 'Admin') {
-    $has_admin_permission = true;
-} elseif (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin') {
-    $has_admin_permission = true;
-} elseif (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1) {
-    $has_admin_permission = true;
-} elseif (isset($_SESSION['is_manager']) && $_SESSION['is_manager'] == 1) {
-    $has_admin_permission = true;
-}
+// 管理者権限チェック（$user_role は session_check.php で設定済み）
+$is_admin = ($user_role === 'Admin');
+$is_manager = !empty($_SESSION['is_manager']);
+$has_admin_permission = $is_admin || $is_manager;
 
 if (!$has_admin_permission) {
     header('Location: dashboard.php?error=permission_denied');
@@ -27,18 +14,10 @@ if (!$has_admin_permission) {
 }
 
 $pdo = getDBConnection();
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'ユーザー';
-$user_role = $_SESSION['permission_level'] ?? $_SESSION['user_role'] ?? 'User';
 
 // 統一ヘッダーシステム
 require_once 'includes/unified-header.php';
 $page_config = getPageConfiguration('location_management');
-
-// 監査ログ関数
-function logLocationAudit($pdo, $location_id, $action, $user_id, $changes = [], $reason = null) {
-    logAudit($pdo, $location_id, $action, $user_id, 'location', $changes, $reason);
-}
 
 $success_message = '';
 $error_message = '';
@@ -90,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 $new_id = $pdo->lastInsertId();
 
-                logLocationAudit($pdo, $new_id, 'create', $user_id);
+                logAudit($pdo, $new_id, 'create', $user_id, 'location');
 
                 $pdo->commit();
                 $success_message = "場所「{$name}」を追加しました。";
@@ -148,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $address, $phone, $notes, $location_id
                 ]);
 
-                logLocationAudit($pdo, $location_id, 'edit', $user_id, $changes);
+                logAudit($pdo, $location_id, 'edit', $user_id, 'location', $changes);
 
                 $pdo->commit();
                 $success_message = "場所「{$name}」を更新しました。";
@@ -170,7 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("UPDATE location_master SET is_active = 0, updated_at = NOW() WHERE id = ?");
                 $stmt->execute([$location_id]);
 
-                logLocationAudit($pdo, $location_id, 'delete', $user_id, [], '論理削除');
+                logAudit($pdo, $location_id, 'delete', $user_id, 'location', [], '論理削除');
 
                 $pdo->commit();
                 $success_message = "場所「{$del_name}」を削除しました。";
@@ -252,12 +231,8 @@ $type_badge_colors = [
 // ページオプション設定
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
-    ],
+    'additional_css' => [],
     'additional_js' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
         'js/ui-interactions.js'
     ],
     'breadcrumb' => [
@@ -293,16 +268,6 @@ echo $page_data['page_header'];
 
     <?php if ($error_message): ?>
         <?= renderAlert('danger', 'エラー', $error_message) ?>
-    <?php endif; ?>
-
-    <?php if ($success_message): ?>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        if (typeof showToast === 'function') {
-            showToast('<?= addslashes($success_message) ?>', 'success');
-        }
-    });
-    </script>
     <?php endif; ?>
 
     <!-- 統計情報ダッシュボード -->
@@ -553,7 +518,7 @@ echo $page_data['page_header'];
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="fas fa-times me-1"></i>キャンセル
                     </button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" data-loading-text="保存中...">
                         <i class="fas fa-save me-1"></i>保存
                     </button>
                 </div>
@@ -589,20 +554,6 @@ function editLocation(location) {
 
     new bootstrap.Modal(document.getElementById('locationModal')).show();
 }
-
-// フォーム送信時のローディング状態
-document.addEventListener('DOMContentLoaded', function() {
-    var form = document.getElementById('locationForm');
-    if (form) {
-        form.addEventListener('submit', function() {
-            var btn = this.querySelector('button[type="submit"]') || this.querySelector('.btn-primary');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>保存中...';
-            }
-        });
-    }
-});
 
 // 削除確認（統一パターン）
 function deleteLocation(locationId, locationName) {

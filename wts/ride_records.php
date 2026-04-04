@@ -5,11 +5,6 @@ require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-// 監査ログ記録（departure.phpのlogDepartureAudit()と同パターン）
-function logRideAudit($pdo, $record_id, $action, $user_id, $changes = [], $reason = null) {
-    logAudit($pdo, $record_id, $action, $user_id, 'ride_record', $changes, $reason);
-}
-
 function canEditRide($record, $user_role) {
     return canEditByDate($record, 'ride_date', $user_role);
 }
@@ -79,6 +74,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $notes = $_POST['notes'] ?? '';
             $is_return_trip = (isset($_POST['is_return_trip']) && $_POST['is_return_trip'] == '1') ? 1 : 0;
             $original_ride_id = !empty($_POST['original_ride_id']) ? $_POST['original_ride_id'] : null;
+            $dropoff_time = !empty($_POST['dropoff_time']) ? $_POST['dropoff_time'] : null;
+            $ride_distance = !empty($_POST['ride_distance']) ? $_POST['ride_distance'] : null;
+            $disability_discount = (isset($_POST['disability_discount']) && $_POST['disability_discount'] == '1') ? 1 : 0;
+            $ticket_amount = intval($_POST['ticket_amount'] ?? 0);
+
+            if (empty($driver_id) || empty($vehicle_id) || empty($ride_date) || empty($pickup_location) || empty($dropoff_location)) {
+                throw new Exception('運転者、車両、乗車日、乗車地、降車地は必須です。');
+            }
 
             // 料金システム統一仕様に準拠
             $total_fare = $fare + $charge;
@@ -94,16 +97,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->beginTransaction();
             try {
                 $insert_sql = "INSERT INTO ride_records
-                    (driver_id, vehicle_id, ride_date, ride_time, passenger_count,
-                     pickup_location, dropoff_location, fare, charge, total_fare,
+                    (driver_id, vehicle_id, ride_date, ride_time, dropoff_time, passenger_count,
+                     pickup_location, dropoff_location, ride_distance, fare, charge, total_fare,
                      cash_amount, card_amount, transportation_type, payment_method,
+                     disability_discount, ticket_amount,
                      notes, is_return_trip, original_ride_id, departure_record_id, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
                 $insert_stmt = $pdo->prepare($insert_sql);
                 $insert_stmt->execute([
-                    $driver_id, $vehicle_id, $ride_date, $ride_time, $passenger_count,
-                    $pickup_location, $dropoff_location, $fare, $charge, $total_fare,
+                    $driver_id, $vehicle_id, $ride_date, $ride_time, $dropoff_time, $passenger_count,
+                    $pickup_location, $dropoff_location, $ride_distance, $fare, $charge, $total_fare,
                     $cash_amount, $card_amount, $transportation_type, $payment_method,
+                    $disability_discount, $ticket_amount,
                     $notes, $is_return_trip, $original_ride_id, $departure_record_id
                 ]);
 
@@ -121,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                logRideAudit($pdo, $new_record_id, 'create', $user_id);
+                logAudit($pdo, $new_record_id, 'create', $user_id, 'ride_record');
 
                 $pdo->commit();
             } catch (Exception $e) {
@@ -150,6 +155,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $payment_method = $_POST['payment_method'];
             $notes = $_POST['notes'] ?? '';
             $edit_reason = $_POST['edit_reason'] ?? '';
+            $dropoff_time = !empty($_POST['dropoff_time']) ? $_POST['dropoff_time'] : null;
+            $ride_distance = !empty($_POST['ride_distance']) ? $_POST['ride_distance'] : null;
+            $disability_discount = (isset($_POST['disability_discount']) && $_POST['disability_discount'] == '1') ? 1 : 0;
+            $ticket_amount = intval($_POST['ticket_amount'] ?? 0);
 
             // 既存レコード取得（ロック判定・変更差分用）
             $existing_stmt = $pdo->prepare("SELECT * FROM ride_records WHERE id = ?");
@@ -178,10 +187,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $changes = [];
             $field_map = [
                 'driver_id' => $driver_id, 'vehicle_id' => $vehicle_id,
-                'ride_time' => $ride_time, 'passenger_count' => $passenger_count,
+                'ride_time' => $ride_time, 'dropoff_time' => $dropoff_time,
+                'passenger_count' => $passenger_count,
                 'pickup_location' => $pickup_location, 'dropoff_location' => $dropoff_location,
+                'ride_distance' => $ride_distance,
                 'fare' => $fare, 'charge' => $charge,
                 'transportation_type' => $transportation_type, 'payment_method' => $payment_method,
+                'disability_discount' => $disability_discount, 'ticket_amount' => $ticket_amount,
                 'notes' => $notes
             ];
             foreach ($field_map as $field => $new_val) {
@@ -195,16 +207,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $update_sql = "UPDATE ride_records SET
                     driver_id = ?, vehicle_id = ?,
-                    ride_time = ?, passenger_count = ?, pickup_location = ?, dropoff_location = ?,
+                    ride_time = ?, dropoff_time = ?, passenger_count = ?,
+                    pickup_location = ?, dropoff_location = ?, ride_distance = ?,
                     fare = ?, charge = ?, total_fare = ?, cash_amount = ?, card_amount = ?,
-                    transportation_type = ?, payment_method = ?, notes = ?, updated_at = NOW()
+                    transportation_type = ?, payment_method = ?,
+                    disability_discount = ?, ticket_amount = ?,
+                    notes = ?, updated_at = NOW()
                     WHERE id = ?";
                 $update_stmt = $pdo->prepare($update_sql);
                 $update_stmt->execute([
                     $driver_id, $vehicle_id,
-                    $ride_time, $passenger_count, $pickup_location, $dropoff_location,
+                    $ride_time, $dropoff_time, $passenger_count,
+                    $pickup_location, $dropoff_location, $ride_distance,
                     $fare, $charge, $total_fare, $cash_amount, $card_amount,
-                    $transportation_type, $payment_method, $notes, $record_id
+                    $transportation_type, $payment_method,
+                    $disability_discount, $ticket_amount,
+                    $notes, $record_id
                 ]);
 
                 // 経由地の再保存（削除→再挿入）
@@ -220,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                logRideAudit($pdo, $record_id, 'update', $user_id, $changes, $edit_reason ?: null);
+                logAudit($pdo, $record_id, 'edit', $user_id, 'ride_record', $changes, $edit_reason ?: null);
 
                 $pdo->commit();
             } catch (Exception $e) {
@@ -256,7 +274,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $delete_stmt = $pdo->prepare($delete_sql);
                 $delete_stmt->execute([$record_id]);
 
-                logRideAudit($pdo, $record_id, 'delete', $user_id, [], $delete_reason ?: null);
+                logAudit($pdo, $record_id, 'delete', $user_id, 'ride_record', [], $delete_reason ?: null);
 
                 $pdo->commit();
             } catch (Exception $e) {
@@ -404,8 +422,7 @@ $page_options = [
         'css/workflow-stepper.css'
     ],
     'additional_js' => [
-        'js/ui-interactions.js',
-        'js/mobile-ride-access.js'
+        'js/ui-interactions.js'
     ],
     'workflow_stepper' => renderWorkflowStepper(
         'ride',
@@ -795,12 +812,18 @@ echo $page_data['page_header'];
                                    value="<?php echo $today; ?>" required>
                         </div>
 
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label for="modalRideTime" class="form-label unified-label">
                                 <i class="fas fa-clock me-1"></i>乗車時刻 <span class="text-danger fw-bold small">（必須）</span>
                             </label>
-                            <input type="time" class="form-control unified-input" id="modalRideTime" name="ride_time" 
+                            <input type="time" class="form-control unified-input" id="modalRideTime" name="ride_time"
                                    value="<?php echo $current_time; ?>" required>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="modalDropoffTime" class="form-label unified-label">
+                                <i class="fas fa-clock me-1" style="opacity:.5"></i>降車時刻
+                            </label>
+                            <input type="time" class="form-control unified-input" id="modalDropoffTime" name="dropoff_time">
                         </div>
                     </div>
 
@@ -845,6 +868,17 @@ echo $page_data['page_header'];
                         </div>
                     </div>
 
+                    <!-- 走行距離 -->
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="modalRideDistance" class="form-label unified-label">
+                                <i class="fas fa-road me-1"></i>走行距離 (km)
+                            </label>
+                            <input type="number" class="form-control unified-input" id="modalRideDistance" name="ride_distance"
+                                   min="0" step="0.1" inputmode="decimal" placeholder="例：12.5">
+                        </div>
+                    </div>
+
                     <!-- 経由地 -->
                     <div class="mb-3" id="waypointSection">
                         <div id="waypointList"></div>
@@ -866,6 +900,24 @@ echo $page_data['page_header'];
                                 <i class="fas fa-plus me-1"></i>追加料金
                             </label>
                             <input type="number" class="form-control unified-input" id="modalCharge" name="charge" min="0" step="10" inputmode="numeric" placeholder="0" value="0">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="modalTicketAmount" class="form-label unified-label">
+                                <i class="fas fa-ticket-alt me-1"></i>利用券額
+                            </label>
+                            <input type="number" class="form-control unified-input" id="modalTicketAmount" name="ticket_amount"
+                                   min="0" step="100" inputmode="numeric" placeholder="0" value="0">
+                        </div>
+                        <div class="col-md-4 mb-3 d-flex align-items-end">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="modalDisabilityDiscount" name="disability_discount" value="1">
+                                <label class="form-check-label" for="modalDisabilityDiscount">
+                                    障害者割引
+                                </label>
+                            </div>
                         </div>
                     </div>
 

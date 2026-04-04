@@ -1,3 +1,8 @@
+<?php
+// TODO: このファイルは未実装の関数に依存しています。cash_management.php のタブUIから使用されますが、
+// formatAmount(), getDifferenceClass() 等の関数が未定義のため、一部の表示が動作しません。
+// ただし設定フォームやインラインSQLによる表示部分は動作します。
+?>
 <!-- 設定管理 -->
 <div class="row mb-4">
     <div class="col-md-6">

@@ -36,12 +36,8 @@ try {
     require_once dirname(__DIR__) . '/config/database.php';
     $pdo = getDBConnection();
 
-    // 権限チェック（簡略化）
-    $stmt = $pdo->prepare("SELECT permission_level FROM users WHERE id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $user = $stmt->fetch();
-    
-    if (!$user || $user['permission_level'] !== 'Admin') {
+    // 権限チェック
+    if ($user_role !== 'Admin') {
         http_response_code(403);
         echo json_encode(['success' => false, 'message' => '削除権限がありません']);
         exit;

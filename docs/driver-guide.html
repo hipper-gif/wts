@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スマルト ドライバー向け使い方ガイド</title>
+    <style>
+        /* ============================================================
+           印刷用スタイル
+           ============================================================ */
+        @page {
+            size: A4;
+            margin: 18mm 15mm 20mm 15mm;
+        }
+
+        /* ── 基本設定 ── */
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+            font-size: 10.5pt;
+            line-height: 1.7;
+            color: #1a1a1a;
+            margin: 0;
+            padding: 0;
+            background: #fff;
+        }
+
+        /* ── 画面表示用レイアウト ── */
+        .page-wrapper {
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 20mm 15mm;
+        }
+
+        /* ── 表紙 ── */
+        .cover {
+            text-align: center;
+            padding: 60px 0 40px;
+            border-bottom: 3px solid #0d6efd;
+            margin-bottom: 40px;
+            page-break-after: always;
+        }
+        .cover-logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+        }
+        .cover h1 {
+            font-size: 24pt;
+            font-weight: 700;
+            color: #0d6efd;
+            margin: 0 0 8px;
+            letter-spacing: 0.05em;
+        }
+        .cover .subtitle {
+            font-size: 13pt;
+            color: #555;
+            margin: 0 0 40px;
+        }
+        .cover .meta {
+            font-size: 10pt;
+            color: #888;
+        }
+        .cover .company {
+            font-size: 11pt;
+            color: #333;
+            margin-top: 30px;
+            font-weight: 500;
+        }
+
+        /* ── 目次 ── */
+        .toc {
+            page-break-after: always;
+            padding-bottom: 20px;
+        }
+        .toc h2 {
+            font-size: 16pt;
+            color: #0d6efd;
+            border-bottom: 2px solid #0d6efd;
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+        }
+        .toc ol {
+            list-style: none;
+            padding: 0;
+            counter-reset: toc-counter;
+        }
+        .toc ol li {
+            counter-increment: toc-counter;
+            padding: 10px 0;
+            border-bottom: 1px dotted #ccc;
+            font-size: 11pt;
+        }
+        .toc ol li::before {
+            content: counter(toc-counter) ".";
+            font-weight: 700;
+            color: #0d6efd;
+            margin-right: 10px;
+            display: inline-block;
+            width: 24px;
+        }
+        .toc ol li .page-ref {
+            float: right;
+            color: #888;
+            font-size: 9.5pt;
+        }
+
+        /* ── セクション ── */
+        section {
+            page-break-inside: avoid;
+            margin-bottom: 30px;
+        }
+        section.page-break {
+            page-break-before: always;
+        }
+
+        h2 {
+            font-size: 15pt;
+            font-weight: 700;
+            color: #0d6efd;
+            border-left: 5px solid #0d6efd;
+            padding: 6px 0 6px 12px;
+            margin: 30px 0 16px;
+            page-break-after: avoid;
+        }
+        h3 {
+            font-size: 11.5pt;
+            font-weight: 700;
+            color: #333;
+            margin: 20px 0 10px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #dee2e6;
+            page-break-after: avoid;
+        }
+        h4 {
+            font-size: 10.5pt;
+            font-weight: 700;
+            color: #444;
+            margin: 14px 0 6px;
+        }
+
+        p { margin: 6px 0; }
+
+        /* ── リスト ── */
+        ol, ul { padding-left: 24px; margin: 8px 0; }
+        li { margin: 4px 0; }
+
+        /* ── テーブル ── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0 16px;
+            font-size: 9.5pt;
+            page-break-inside: avoid;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 6px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background: #e8f0fe;
+            font-weight: 700;
+            color: #1a1a1a;
+            white-space: nowrap;
+        }
+        td:first-child {
+            white-space: nowrap;
+        }
+        tr:nth-child(even) td {
+            background: #f8f9fa;
+        }
+
+        /* ── 強調ボックス ── */
+        .tip {
+            background: #e8f5e9;
+            border-left: 4px solid #43a047;
+            padding: 10px 14px;
+            margin: 12px 0;
+            border-radius: 0 4px 4px 0;
+            font-size: 9.5pt;
+        }
+        .tip::before {
+            content: "ポイント";
+            font-weight: 700;
+            color: #2e7d32;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .warning {
+            background: #fff3e0;
+            border-left: 4px solid #ef6c00;
+            padding: 10px 14px;
+            margin: 12px 0;
+            border-radius: 0 4px 4px 0;
+            font-size: 9.5pt;
+        }
+        .warning::before {
+            content: "注意";
+            font-weight: 700;
+            color: #e65100;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        /* ── フロー図 ── */
+        .workflow {
+            background: #f0f4ff;
+            border: 1px solid #b3c6ff;
+            border-radius: 6px;
+            padding: 20px 24px;
+            margin: 16px 0;
+            page-break-inside: avoid;
+        }
+        .workflow-phase {
+            font-weight: 700;
+            color: #0d6efd;
+            font-size: 11pt;
+            margin: 14px 0 6px;
+        }
+        .workflow-phase:first-child { margin-top: 0; }
+        .workflow-step {
+            display: flex;
+            align-items: flex-start;
+            margin: 6px 0;
+            padding-left: 16px;
+        }
+        .workflow-step .step-num {
+            background: #0d6efd;
+            color: #fff;
+            font-weight: 700;
+            font-size: 9pt;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-right: 10px;
+            margin-top: 2px;
+        }
+        .workflow-step .step-label {
+            font-weight: 600;
+            margin-right: 6px;
+        }
+        .workflow-step .step-desc {
+            color: #555;
+        }
+        .workflow-connector {
+            border-left: 2px dashed #90b0ff;
+            height: 12px;
+            margin-left: 27px;
+        }
+        .workflow-repeat {
+            font-size: 9pt;
+            color: #666;
+            padding-left: 50px;
+            font-style: italic;
+        }
+
+        /* ── 結果バッジ ── */
+        .badge {
+            display: inline-block;
+            padding: 1px 10px;
+            border-radius: 3px;
+            font-weight: 700;
+            font-size: 9pt;
+            margin-right: 4px;
+        }
+        .badge-ok { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+        .badge-ng { background: #fce4ec; color: #c62828; border: 1px solid #ef9a9a; }
+        .badge-skip { background: #fff8e1; color: #f57f17; border: 1px solid #ffe082; }
+        .badge-blue { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+        .badge-green { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+        .badge-red { background: #fce4ec; color: #c62828; border: 1px solid #ef9a9a; }
+
+        /* ── 必須マーク ── */
+        .required {
+            color: #c62828;
+            font-weight: 700;
+            font-size: 9pt;
+        }
+
+        /* ── FAQ ── */
+        .faq-item {
+            margin: 16px 0;
+            page-break-inside: avoid;
+        }
+        .faq-q {
+            font-weight: 700;
+            color: #0d6efd;
+            font-size: 10.5pt;
+            margin-bottom: 4px;
+        }
+        .faq-a {
+            padding-left: 16px;
+        }
+
+        /* ── フッター ── */
+        .page-footer {
+            text-align: center;
+            font-size: 8.5pt;
+            color: #999;
+            margin-top: 40px;
+            padding-top: 12px;
+            border-top: 1px solid #ddd;
+        }
+
+        /* ── 印刷ボタン（画面のみ） ── */
+        .print-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #0d6efd;
+            color: #fff;
+            border: none;
+            padding: 14px 28px;
+            font-size: 14pt;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            z-index: 9999;
+            transition: background 0.2s;
+        }
+        .print-btn:hover { background: #0b5ed7; }
+
+        /* ── 印刷時の調整 ── */
+        @media print {
+            .print-btn { display: none !important; }
+            body { font-size: 10pt; }
+            .page-wrapper { padding: 0; max-width: none; }
+            .cover { padding: 80px 0 50px; }
+            h2 { margin-top: 20px; }
+            .workflow { background: #f0f4ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            th { background: #e8f0fe !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            tr:nth-child(even) td { background: #f8f9fa !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .tip { background: #e8f5e9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .warning { background: #fff3e0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .workflow-step .step-num { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+
+<button class="print-btn" onclick="window.print()">印刷する</button>
+
+<div class="page-wrapper">
+
+    <!-- ========== 表紙 ========== -->
+    <div class="cover">
+        <img src="../wts/icons/icon-192x192.png" alt="スマルト" class="cover-logo">
+        <h1>スマルト</h1>
+        <p class="subtitle">ドライバー向け使い方ガイド</p>
+        <p class="meta">福祉輸送管理システム 操作マニュアル</p>
+        <p class="company">株式会社Smiley</p>
+        <p class="meta" style="margin-top: 60px;">2026年3月</p>
+    </div>
+
+    <!-- ========== 目次 ========== -->
+    <div class="toc">
+        <h2>目次</h2>
+        <ol>
+            <li>はじめに（アプリのインストール）</li>
+            <li>ログイン</li>
+            <li>ダッシュボード（ホーム画面）</li>
+            <li>1日の業務フロー</li>
+            <li>日常点検</li>
+            <li>乗務前点呼</li>
+            <li>出庫処理</li>
+            <li>乗車記録</li>
+            <li>入庫処理</li>
+            <li>入庫記録一覧</li>
+            <li>乗務後点呼</li>
+            <li>売上金確認・現金カウント</li>
+            <li>よくある質問（FAQ）</li>
+        </ol>
+    </div>
+
+    <!-- ========== 1. はじめに ========== -->
+    <section class="page-break">
+        <h2>1. はじめに（アプリのインストール）</h2>
+        <p>スマルトはスマートフォンやタブレットのホーム画面に追加して、アプリのように使えます。</p>
+
+        <h3>インストール手順</h3>
+        <ol>
+            <li>スマートフォンのブラウザでスマルトのURLにアクセスする</li>
+            <li>ログイン画面の上部に<strong>「このアプリをホーム画面に追加してより快適に利用できます」</strong>というバナーが表示される</li>
+            <li>青い<strong>「インストール」</strong>ボタンをタップ</li>
+            <li>ブラウザの確認ダイアログで<strong>「インストール」</strong>を選択</li>
+            <li>ホーム画面に<strong>「スマルト v3.1」</strong>のアイコンが追加される</li>
+        </ol>
+
+        <div class="tip">ホーム画面から起動すると、ブラウザのアドレスバーが表示されず、アプリのように全画面で操作できます。</div>
+    </section>
+
+    <!-- ========== 2. ログイン ========== -->
+    <section>
+        <h2>2. ログイン</h2>
+        <ol>
+            <li>アプリを開く（またはブラウザでURLにアクセス）</li>
+            <li><strong>ログインID</strong> を入力</li>
+            <li><strong>パスワード</strong> を入力</li>
+            <li><strong>「ログイン」</strong>ボタンをタップ</li>
+        </ol>
+
+        <div class="warning">
+            <ul style="margin: 0; padding-left: 18px;">
+                <li>パスワードを<strong>5回</strong>間違えると、<strong>15分間</strong>ログインできなくなります</li>
+                <li>一定時間操作しないと自動でログアウトされます。再度ログインしてください</li>
+                <li>ログインできない場合は管理者に連絡してください</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- ========== 3. ダッシュボード ========== -->
+    <section>
+        <h2>3. ダッシュボード（ホーム画面）</h2>
+        <p>ログイン後に表示されるホーム画面です。</p>
+
+        <h3>画面の見方</h3>
+        <table>
+            <thead>
+                <tr><th>エリア</th><th>内容</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><strong>上部バー</strong></td><td>本日の売上・月間売上・乗車数などの実績</td></tr>
+                <tr><td><strong>アラート</strong></td><td>未完了の点検や点呼など、対応が必要な項目（赤・オレンジで表示）</td></tr>
+                <tr><td><strong>始業</strong></td><td>日常点検・乗務前点呼・出庫処理へのショートカット</td></tr>
+                <tr><td><strong>運行</strong></td><td>乗車記録・予約カレンダーへのショートカット</td></tr>
+                <tr><td><strong>終業</strong></td><td>入庫処理・乗務後点呼・売上金確認へのショートカット</td></tr>
+            </tbody>
+        </table>
+
+        <div class="tip">アラートが表示されている場合は、先にそちらを対応してください。</div>
+    </section>
+
+    <!-- ========== 4. 業務フロー ========== -->
+    <section class="page-break">
+        <h2>4. 1日の業務フロー</h2>
+        <p>毎日の業務は、以下の順番で進めます。</p>
+
+        <div class="workflow">
+            <div class="workflow-phase">朝（始業）</div>
+            <div class="workflow-step">
+                <span class="step-num">1</span>
+                <span><span class="step-label">日常点検</span><span class="step-desc">... 車両の状態を17項目チェック</span></span>
+            </div>
+            <div class="workflow-connector"></div>
+            <div class="workflow-step">
+                <span class="step-num">2</span>
+                <span><span class="step-label">乗務前点呼</span><span class="step-desc">... 健康状態・持ち物を16項目確認</span></span>
+            </div>
+            <div class="workflow-connector"></div>
+            <div class="workflow-step">
+                <span class="step-num">3</span>
+                <span><span class="step-label">出庫処理</span><span class="step-desc">... 出発時刻・メーター記録</span></span>
+            </div>
+
+            <div class="workflow-phase">日中（運行）</div>
+            <div class="workflow-step">
+                <span class="step-num">4</span>
+                <span><span class="step-label">乗車記録</span><span class="step-desc">... お客様ごとに乗降を記録</span></span>
+            </div>
+            <div class="workflow-repeat">乗車のたびに繰り返す</div>
+
+            <div class="workflow-phase">夕方（終業）</div>
+            <div class="workflow-step">
+                <span class="step-num">5</span>
+                <span><span class="step-label">入庫処理</span><span class="step-desc">... 帰着時刻・メーター・経費記録</span></span>
+            </div>
+            <div class="workflow-connector"></div>
+            <div class="workflow-step">
+                <span class="step-num">6</span>
+                <span><span class="step-label">入庫記録一覧</span><span class="step-desc">... 過去の入庫記録を確認・修正</span></span>
+            </div>
+            <div class="workflow-connector"></div>
+            <div class="workflow-step">
+                <span class="step-num">7</span>
+                <span><span class="step-label">乗務後点呼</span><span class="step-desc">... 業務終了の12項目確認</span></span>
+            </div>
+            <div class="workflow-connector"></div>
+            <div class="workflow-step">
+                <span class="step-num">8</span>
+                <span><span class="step-label">売上金確認</span><span class="step-desc">... 現金を数えて差異チェック</span></span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== 5. 日常点検 ========== -->
+    <section class="page-break">
+        <h2>5. 日常点検</h2>
+        <p>車両の安全状態を確認する17項目の点検です。</p>
+
+        <h3>操作手順</h3>
+        <ol>
+            <li>ダッシュボードから<strong>「日常点検」</strong>をタップ</li>
+            <li><strong>点検者</strong>（自分）と<strong>車両</strong>を選択</li>
+            <li>各点検項目を確認し、結果を選択する</li>
+        </ol>
+
+        <h3>点検項目一覧</h3>
+
+        <h4>車内での確認（6項目）</h4>
+        <table>
+            <thead><tr><th>#</th><th>項目</th><th>内容</th></tr></thead>
+            <tbody>
+                <tr><td>1</td><td>フットブレーキの踏み代・効き</td><td>ブレーキペダルの遊びと制動力</td></tr>
+                <tr><td>2</td><td>パーキングブレーキの引き代</td><td>サイドブレーキの引きしろ</td></tr>
+                <tr><td>3</td><td>エンジンのかかり具合・異音</td><td>エンジン始動時の状態</td></tr>
+                <tr><td>4</td><td>エンジンの低速・加速</td><td>アイドリングと加速の状態</td></tr>
+                <tr><td>5</td><td>ワイパーのふき取り能力</td><td>ワイパーの拭き取り</td></tr>
+                <tr><td>6</td><td>ウインドウォッシャー液の噴射状態</td><td>ウォッシャー液の出具合</td></tr>
+            </tbody>
+        </table>
+
+        <h4>エンジンルーム（6項目）</h4>
+        <table>
+            <thead><tr><th>#</th><th>項目</th><th>内容</th></tr></thead>
+            <tbody>
+                <tr><td>7</td><td>ブレーキ液量</td><td>リザーブタンクの液面</td></tr>
+                <tr><td>8</td><td>冷却水量</td><td>ラジエーター冷却水の量</td></tr>
+                <tr><td>9</td><td>エンジンオイル量</td><td>オイルゲージでの確認</td></tr>
+                <tr><td>10</td><td>バッテリー液量</td><td>バッテリーの液面</td></tr>
+                <tr><td>11</td><td>ウインドウォッシャー液量</td><td>ウォッシャー液の残量</td></tr>
+                <tr><td>12</td><td>ファンベルトの張り・損傷</td><td>ベルトの緩み・ひび割れ</td></tr>
+            </tbody>
+        </table>
+
+        <h4>灯火・タイヤ（5項目）</h4>
+        <table>
+            <thead><tr><th>#</th><th>項目</th><th>内容</th></tr></thead>
+            <tbody>
+                <tr><td>13</td><td>灯火類の点灯・点滅</td><td>ヘッドライト・ウインカー等</td></tr>
+                <tr><td>14</td><td>レンズの損傷・汚れ</td><td>ランプレンズの状態</td></tr>
+                <tr><td>15</td><td>タイヤの空気圧</td><td>目視・触感での確認</td></tr>
+                <tr><td>16</td><td>タイヤの亀裂・損傷</td><td>ひび割れ・キズの有無</td></tr>
+                <tr><td>17</td><td>タイヤ溝の深さ</td><td>残溝の確認</td></tr>
+            </tbody>
+        </table>
+
+        <h3>結果の入力方法</h3>
+        <p>各項目について、以下のいずれかをタップします。</p>
+        <ul>
+            <li><span class="badge badge-ok">可</span> 問題なし</li>
+            <li><span class="badge badge-ng">否</span> 不良あり</li>
+            <li><span class="badge badge-skip">省略</span> 該当しない場合（必須項目は省略不可）</li>
+        </ul>
+
+        <div class="tip">全項目に問題がなければ、<strong>「全て可」</strong>ボタンで一括入力できます。</div>
+
+        <h3>保存</h3>
+        <ul>
+            <li>すべての必須項目を入力したら<strong>「登録する」</strong>をタップ</li>
+            <li><strong>「否」</strong>を選んだ項目がある場合は、不良内容を入力してください</li>
+            <li>入力途中で中断しても、30秒ごとに自動で下書き保存されます</li>
+        </ul>
+    </section>
+
+    <!-- ========== 6. 乗務前点呼 ========== -->
+    <section class="page-break">
+        <h2>6. 乗務前点呼</h2>
+        <p>出発前に、運転者の状態と持ち物を確認する点呼です。</p>
+
+        <h3>操作手順</h3>
+        <ol>
+            <li>ダッシュボードから<strong>「乗務前点呼」</strong>をタップ</li>
+            <li><strong>運転者</strong>（自分）を選択</li>
+            <li><strong>点呼執行者</strong>（立会人）を選択</li>
+            <li>16項目のチェックボックスを確認してチェック</li>
+        </ol>
+
+        <h3>確認項目（16項目）</h3>
+        <table>
+            <thead><tr><th>#</th><th>項目</th></tr></thead>
+            <tbody>
+                <tr><td>1</td><td>健康状態</td></tr>
+                <tr><td>2</td><td>服装</td></tr>
+                <tr><td>3</td><td>履物</td></tr>
+                <tr><td>4</td><td>運行前点検</td></tr>
+                <tr><td>5</td><td>免許証</td></tr>
+                <tr><td>6</td><td>車検証</td></tr>
+                <tr><td>7</td><td>保険証</td></tr>
+                <tr><td>8</td><td>応急工具</td></tr>
+                <tr><td>9</td><td>地図</td></tr>
+                <tr><td>10</td><td>タクシーカード</td></tr>
+                <tr><td>11</td><td>非常信号用具</td></tr>
+                <tr><td>12</td><td>釣銭</td></tr>
+                <tr><td>13</td><td>乗務員証</td></tr>
+                <tr><td>14</td><td>運行記録用用紙</td></tr>
+                <tr><td>15</td><td>領収書</td></tr>
+                <tr><td>16</td><td>停止表示機</td></tr>
+            </tbody>
+        </table>
+
+        <h3>アルコール検査</h3>
+        <p><strong>アルコール値</strong>を入力してください（通常 0.000）</p>
+
+        <h3>保存</h3>
+        <p>すべて確認したら<strong>「登録する」</strong>をタップ</p>
+    </section>
+
+    <!-- ========== 7. 出庫処理 ========== -->
+    <section class="page-break">
+        <h2>7. 出庫処理</h2>
+        <p>営業所を出発する際の記録です。</p>
+
+        <h3>操作手順</h3>
+        <ol>
+            <li>ダッシュボードから<strong>「出庫処理」</strong>をタップ</li>
+            <li>以下の項目を入力する</li>
+        </ol>
+
+        <table>
+            <thead><tr><th>項目</th><th>入力内容</th><th>備考</th></tr></thead>
+            <tbody>
+                <tr><td>運転者</td><td>自分を選択</td><td></td></tr>
+                <tr><td>車両</td><td>使用する車両を選択</td><td></td></tr>
+                <tr><td>出庫日</td><td>本日の日付</td><td>自動入力</td></tr>
+                <tr><td>出庫時刻</td><td>出発する時刻</td><td>現在時刻が自動入力</td></tr>
+                <tr><td>天候</td><td>晴 / 曇 / 雨 / 雪 / 霧</td><td>いずれか選択</td></tr>
+                <tr><td>出庫メーター</td><td>車両のオドメーター値（km）</td><td>目視で確認して入力</td></tr>
+            </tbody>
+        </table>
+
+        <ol start="3">
+            <li><strong>「登録する」</strong>をタップ</li>
+        </ol>
+
+        <div class="tip">車両を選択すると、前回の入庫メーター値が表示されます。オドメーターと照らし合わせて確認してください。</div>
+    </section>
+
+    <!-- ========== 8. 乗車記録 ========== -->
+    <section class="page-break">
+        <h2>8. 乗車記録</h2>
+        <p>お客様を乗せるたびに記録します。<strong>1日の中で最も使う画面</strong>です。</p>
+
+        <h3>新しい乗車記録の追加</h3>
+        <ol>
+            <li>ダッシュボードから<strong>「乗車記録」</strong>をタップ</li>
+            <li><strong>「乗車記録を登録する」</strong>ボタンをタップ（スマホの場合は右下の<strong>「+」</strong>ボタン）</li>
+            <li>以下の項目を入力する</li>
+        </ol>
+
+        <h3>入力項目</h3>
+        <table>
+            <thead><tr><th>項目</th><th>入力内容</th><th>必須</th></tr></thead>
+            <tbody>
+                <tr><td>運転者</td><td>自分（自動選択）</td><td><span class="required">○</span></td></tr>
+                <tr><td>車両</td><td>使用中の車両（自動選択）</td><td><span class="required">○</span></td></tr>
+                <tr><td>乗車日</td><td>本日の日付（自動入力）</td><td><span class="required">○</span></td></tr>
+                <tr><td>乗車時刻</td><td>お客様が乗車した時刻</td><td><span class="required">○</span></td></tr>
+                <tr><td>降車時刻</td><td>お客様が降車した時刻</td><td></td></tr>
+                <tr><td>人数</td><td>お客様の人数（1〜20人）</td><td><span class="required">○</span></td></tr>
+                <tr><td>乗車地</td><td>乗せた場所</td><td><span class="required">○</span></td></tr>
+                <tr><td>降車地</td><td>降ろした場所</td><td><span class="required">○</span></td></tr>
+                <tr><td>経由地</td><td>途中の経由地（あれば）</td><td></td></tr>
+                <tr><td>走行距離</td><td>メーターの距離（km）</td><td></td></tr>
+                <tr><td>運賃</td><td>メーター運賃（円）</td><td><span class="required">○</span></td></tr>
+                <tr><td>追加料金</td><td>迎車料・待機料など（円）</td><td></td></tr>
+                <tr><td>利用券額</td><td>福祉利用券の金額（円）</td><td></td></tr>
+                <tr><td>障害者割引</td><td>適用する場合チェック</td><td></td></tr>
+                <tr><td>輸送分類</td><td>目的を選択（下表参照）</td><td><span class="required">○</span></td></tr>
+                <tr><td>支払方法</td><td>現金 / カード / その他</td><td><span class="required">○</span></td></tr>
+                <tr><td>備考</td><td>メモ（あれば）</td><td></td></tr>
+            </tbody>
+        </table>
+
+        <h3>輸送分類の選び方</h3>
+        <table>
+            <thead><tr><th>分類</th><th>使う場面</th></tr></thead>
+            <tbody>
+                <tr><td>通院</td><td>病院への通院</td></tr>
+                <tr><td>外出等</td><td>買い物・用事など</td></tr>
+                <tr><td>入院</td><td>病院への入院</td></tr>
+                <tr><td>退院</td><td>病院からの退院</td></tr>
+                <tr><td>転院</td><td>病院間の移動</td></tr>
+                <tr><td>施設入所</td><td>介護施設への入所</td></tr>
+                <tr><td>その他</td><td>上記以外</td></tr>
+            </tbody>
+        </table>
+
+        <h3>乗車地・降車地の入力</h3>
+        <ul>
+            <li>文字を入力すると、<strong>よく使う場所の候補</strong>が自動表示されます</li>
+            <li>候補をタップすると入力が完了します</li>
+            <li>新しい場所は直接入力してください（次回から候補に表示されます）</li>
+        </ul>
+
+        <h3>復路（帰りの記録）の作成</h3>
+        <p>お客様を往復で送迎する場合、帰りの記録を簡単に作成できます。</p>
+        <ol>
+            <li>登録済みの往路（行き）の記録にある<strong>「復路作成」</strong>ボタンをタップ</li>
+            <li>乗車地と降車地が<strong>自動で入れ替わり</strong>、以下が引き継がれます
+                <ul>
+                    <li>運転者・車両・日付</li>
+                    <li>人数・運賃・追加料金</li>
+                    <li>輸送分類・支払方法</li>
+                    <li>障害者割引</li>
+                </ul>
+            </li>
+            <li>乗車時刻は現在時刻に自動設定</li>
+            <li>内容を確認して<strong>保存</strong></li>
+        </ol>
+
+        <div class="tip">復路の記録には緑色の<strong>「復路」</strong>バッジが表示されます。</div>
+
+        <h3>保存</h3>
+        <ul>
+            <li>入力が完了したら<strong>「登録する」</strong>をタップ</li>
+            <li>合計金額（運賃 + 追加料金）は自動計算されます</li>
+        </ul>
+    </section>
+
+    <!-- ========== 9. 入庫処理 ========== -->
+    <section class="page-break">
+        <h2>9. 入庫処理</h2>
+        <p>1日の業務を終えて営業所に戻った際の記録です。</p>
+
+        <h3>操作手順</h3>
+        <ol>
+            <li>ダッシュボードから<strong>「入庫処理」</strong>をタップ</li>
+            <li><strong>未入庫一覧</strong>から自分の車両をタップすると、運転者・車両・出庫メーターが自動入力される</li>
+            <li>以下の項目を入力する</li>
+        </ol>
+
+        <table>
+            <thead><tr><th>項目</th><th>入力内容</th><th>必須</th></tr></thead>
+            <tbody>
+                <tr><td>入庫日</td><td>本日の日付（自動入力）</td><td><span class="required">○</span></td></tr>
+                <tr><td>入庫時刻</td><td>帰着した時刻（自動入力）</td><td><span class="required">○</span></td></tr>
+                <tr><td>入庫メーター</td><td>車両のオドメーター値（km）</td><td><span class="required">○</span></td></tr>
+                <tr><td>燃料代</td><td>給油した場合の金額（円）</td><td></td></tr>
+                <tr><td>高速代</td><td>高速道路を使った場合の金額（円）</td><td></td></tr>
+                <tr><td>その他費用</td><td>その他の経費（円）</td><td></td></tr>
+                <tr><td>休憩場所</td><td>休憩した場所</td><td></td></tr>
+                <tr><td>休憩開始</td><td>休憩の開始時刻</td><td></td></tr>
+                <tr><td>休憩終了</td><td>休憩の終了時刻</td><td></td></tr>
+                <tr><td>備考・特記事項</td><td>連絡事項など</td><td></td></tr>
+            </tbody>
+        </table>
+
+        <ol start="4">
+            <li><strong>「登録する」</strong>をタップ</li>
+        </ol>
+
+        <div class="tip">走行距離（入庫メーター − 出庫メーター）は自動計算されます。500kmを超える場合は確認メッセージが表示されます。</div>
+    </section>
+
+    <!-- ========== 10. 入庫記録一覧 ========== -->
+    <section class="page-break">
+        <h2>10. 入庫記録一覧</h2>
+        <p>過去の入庫記録を確認・修正するための画面です。</p>
+
+        <h3>操作手順</h3>
+        <ol>
+            <li>メニューから<strong>「入庫記録一覧」</strong>をタップ</li>
+            <li><strong>日付</strong>を選択して検索（初期値は当日）</li>
+            <li>車両で絞り込むことも可能</li>
+        </ol>
+
+        <h3>表示される情報</h3>
+        <p>各レコードはカード形式で表示されます。</p>
+        <table>
+            <thead><tr><th>項目</th><th>内容</th></tr></thead>
+            <tbody>
+                <tr><td>入庫時刻</td><td>帰着した時刻</td></tr>
+                <tr><td>運転者・車両</td><td>担当ドライバーと車両番号</td></tr>
+                <tr><td>出庫 / 入庫メーター</td><td>出発時と帰着時のオドメーター値</td></tr>
+                <tr><td>走行距離</td><td>自動計算された距離（赤字で強調）</td></tr>
+                <tr><td>燃料代・高速代・その他費用</td><td>当日の経費内訳</td></tr>
+                <tr><td>備考</td><td>特記事項</td></tr>
+            </tbody>
+        </table>
+
+        <h3>日次集計</h3>
+        <p>画面右側に当日の集計が表示されます。</p>
+        <ul>
+            <li><strong>入庫回数</strong> --- その日に何回入庫したか</li>
+            <li><strong>総走行距離</strong> --- 当日の合計距離（km）</li>
+            <li><strong>総費用</strong> --- 燃料代・高速代などの合計（円）</li>
+        </ul>
+
+        <h3>記録の修正</h3>
+        <p>入力ミスに気づいた場合、記録を修正できます。</p>
+        <ol>
+            <li>修正したいレコードの<strong>「修正」</strong>ボタンをタップ</li>
+            <li>修正画面が開く</li>
+            <li>修正できる項目：入庫日・入庫時刻・入庫メーター・燃料代・高速代・その他費用・備考</li>
+            <li><strong>修正理由</strong>を入力（必須）</li>
+            <li><strong>「保存」</strong>をタップ</li>
+        </ol>
+
+        <div class="tip">修正された記録には黄色の<strong>「修正済み」</strong>バッジが表示されます。修正理由と修正者名も記録されます。</div>
+
+        <div class="warning">
+            <ul style="margin: 0; padding-left: 18px;">
+                <li>一般ドライバーは<strong>自分の記録のみ</strong>表示されます</li>
+                <li>入庫メーターが出庫メーターより小さい場合は警告が表示されます</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- ========== 11. 乗務後点呼 ========== -->
+    <section class="page-break">
+        <h2>11. 乗務後点呼</h2>
+        <p>業務終了後の最終確認です。</p>
+
+        <h3>操作手順</h3>
+        <ol>
+            <li>ダッシュボードから<strong>「乗務後点呼」</strong>をタップ</li>
+            <li><strong>運転者</strong>（自分）を選択</li>
+            <li><strong>点呼執行者</strong>（立会人）を選択</li>
+            <li>12項目のチェックボックスを確認してチェック</li>
+        </ol>
+
+        <h3>確認項目（12項目）</h3>
+        <table>
+            <thead><tr><th>#</th><th>項目</th></tr></thead>
+            <tbody>
+                <tr><td>1</td><td>乗務記録の記載は完了しているか</td></tr>
+                <tr><td>2</td><td>車両に異常・損傷はないか</td></tr>
+                <tr><td>3</td><td>健康状態に異常はないか</td></tr>
+                <tr><td>4</td><td>疲労・睡眠不足はないか</td></tr>
+                <tr><td>5</td><td>酒気・薬物の影響はないか</td></tr>
+                <tr><td>6</td><td>事故・違反の発生はないか</td></tr>
+                <tr><td>7</td><td>業務用品は適切に返却されているか</td></tr>
+                <tr><td>8</td><td>業務報告は完了しているか</td></tr>
+                <tr><td>9</td><td>車内の忘れ物はないか</td></tr>
+                <tr><td>10</td><td>事故・違反の最終確認</td></tr>
+                <tr><td>11</td><td>予定路線での運行は適切だったか</td></tr>
+                <tr><td>12</td><td>乗客に関する特記事項はないか</td></tr>
+            </tbody>
+        </table>
+
+        <h3>アルコール検査</h3>
+        <p><strong>アルコール値</strong>を入力してください（通常 0.000）</p>
+
+        <h3>保存</h3>
+        <p>すべて確認したら<strong>「登録する」</strong>をタップ</p>
+    </section>
+
+    <!-- ========== 12. 売上金確認 ========== -->
+    <section class="page-break">
+        <h2>12. 売上金確認・現金カウント</h2>
+        <p>1日の売上金を確認し、現金を数えて差異がないかチェックします。</p>
+
+        <h3>操作手順</h3>
+        <ol>
+            <li>ダッシュボードから<strong>「売上金確認」</strong>をタップ</li>
+            <li>本日の売上サマリー（乗車回数・売上合計・現金/カード内訳）を確認</li>
+            <li>手元の現金を金種ごとに数えて入力する</li>
+        </ol>
+
+        <h3>現金カウント入力</h3>
+        <p>金種ごとに枚数を入力します。<strong>+</strong> / <strong>-</strong> ボタンまたは直接数値入力ができます。</p>
+
+        <table>
+            <thead><tr><th>金種</th><th>つり銭基本在庫</th></tr></thead>
+            <tbody>
+                <tr><td>1万円札</td><td>0枚</td></tr>
+                <tr><td>5千円札</td><td>1枚</td></tr>
+                <tr><td>千円札</td><td>10枚</td></tr>
+                <tr><td>500円玉</td><td>3枚</td></tr>
+                <tr><td>100円玉</td><td>11枚</td></tr>
+                <tr><td>50円玉</td><td>5枚</td></tr>
+                <tr><td>10円玉</td><td>15枚</td></tr>
+            </tbody>
+        </table>
+
+        <div class="tip">つり銭基本在庫は合計 <strong>18,000円</strong> です。この金額は常時手元に保持します。</div>
+
+        <h3>計算の仕組み</h3>
+        <table>
+            <thead><tr><th>計算</th><th>内容</th></tr></thead>
+            <tbody>
+                <tr><td><strong>カウント合計</strong></td><td>各金種の枚数 × 金額 の合計</td></tr>
+                <tr><td><strong>入金額</strong></td><td>カウント合計 − 18,000円（つり銭基本在庫）</td></tr>
+                <tr><td><strong>差異</strong></td><td>入金額 − 現金売上（乗車記録から自動集計）</td></tr>
+            </tbody>
+        </table>
+
+        <h3>差異の見方</h3>
+        <table>
+            <thead><tr><th>表示</th><th>意味</th></tr></thead>
+            <tbody>
+                <tr><td><span class="badge badge-blue">0</span></td><td>ぴったり一致</td></tr>
+                <tr><td><span class="badge badge-green">+</span></td><td>現金が多い（おつりの渡し忘れ等）</td></tr>
+                <tr><td><span class="badge badge-red">-</span></td><td>現金が足りない（おつりの渡し過ぎ等）</td></tr>
+            </tbody>
+        </table>
+
+        <ul>
+            <li>差異がある場合は<strong>メモ欄</strong>に理由を記入してください</li>
+            <li><strong>「現金カウント保存」</strong>をタップして完了</li>
+        </ul>
+    </section>
+
+    <!-- ========== 13. FAQ ========== -->
+    <section class="page-break">
+        <h2>13. よくある質問（FAQ）</h2>
+
+        <div class="faq-item">
+            <div class="faq-q">Q. 入力を間違えた場合は？</div>
+            <div class="faq-a">
+                <p><strong>当日の記録</strong>: 各画面の<strong>「編集」</strong>ボタンから修正できます。</p>
+                <p><strong>過去の記録</strong>: 管理者に連絡してください。管理者のみが修正理由を入力して編集できます。</p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q">Q. 途中で画面を閉じてしまった場合は？</div>
+            <div class="faq-a">
+                <p>日常点検は30秒ごとに自動で下書き保存されます。再度開くと<strong>「下書きデータがあります」</strong>と表示されるので、<strong>「復元」</strong>をタップしてください。</p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q">Q. ネットがつながらない場所では？</div>
+            <div class="faq-a">
+                <p>スマルトはオフラインでも一部の機能が使えます。ネットワークに接続された際にデータが自動で同期されます。</p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q">Q. セッションが切れてログイン画面に戻った場合は？</div>
+            <div class="faq-a">
+                <p>一定時間操作しないと自動ログアウトされます。再度ログインしてください。入力中のデータは下書き保存されている場合があります。</p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q">Q. アプリの動作がおかしい場合は？</div>
+            <div class="faq-a">
+                <ol>
+                    <li>アプリを閉じて再度開く</li>
+                    <li>それでも直らない場合はブラウザのキャッシュをクリアする</li>
+                    <li>改善しない場合は管理者に連絡してください</li>
+                </ol>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== フッター ========== -->
+    <div class="page-footer">
+        <p>スマルト ドライバー向け使い方ガイド | 株式会社Smiley | 2026年3月版</p>
+        <p>困ったときは管理者に連絡してください</p>
+    </div>
+
+</div><!-- /.page-wrapper -->
+
+</body>
+</html>

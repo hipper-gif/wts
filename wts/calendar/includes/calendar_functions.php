@@ -412,16 +412,17 @@ function convertReservationToRideRecord($reservation_id) {
             'is_return_trip' => $reservation['is_return_trip'],
             'original_ride_id' => $reservation['parent_reservation_id'],
             'remarks' => $reservation['special_notes'],
+            'disability_discount' => intval($reservation['disability_card'] ?? 0),
             'is_sample_data' => 0
         ];
-        
+
         $sql = "
-            INSERT INTO ride_records 
-            (ride_date, ride_time, passenger_count, boarding_location, alighting_location, 
-             fare, charge, total_amount, payment_method, driver_id, vehicle_id, 
-             transportation_type, is_return_trip, original_ride_id, remarks, is_sample_data)
-            VALUES 
-            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            INSERT INTO ride_records
+            (ride_date, ride_time, passenger_count, boarding_location, alighting_location,
+             fare, charge, total_amount, payment_method, driver_id, vehicle_id,
+             transportation_type, is_return_trip, original_ride_id, remarks, disability_discount, is_sample_data)
+            VALUES
+            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         
         $params = array_values($ride_data);
         $stmt = $pdo->prepare($sql);
@@ -498,38 +499,37 @@ function sendSuccessResponse($data = [], $message = '') {
     sendJsonResponse($response);
 }
 /**
- * 予約データ詳細取得
+ * カレンダー統一監査ログ記録
+ *
+ * 全APIファイルで共通のログ記録関数
+ * calendar_audit_logs テーブルに操作履歴を書き込む
  */
-function getReservationDetails($reservation_id) {
+function logCalendarAudit($user_id, $action, $target_type, $target_id, $old_data = null, $new_data = null) {
     global $pdo;
 
-    $sql = "
-        SELECT
-            r.*,
-            u.full_name as driver_name,
-            u.phone as driver_phone,
-            v.vehicle_number,
-            v.model as vehicle_model,
-            v.capacity as vehicle_capacity,
-            pc.company_name as partner_company,
-            pc.display_color as company_color,
-            pr.client_name as parent_client_name,
-            pr.reservation_date as parent_date,
-            pr.reservation_time as parent_time,
-            rr.id as ride_record_id,
-            rr.total_amount as ride_total_amount
-        FROM reservations r
-        LEFT JOIN users u ON r.driver_id = u.id
-        LEFT JOIN vehicles v ON r.vehicle_id = v.id
-        LEFT JOIN partner_companies pc ON r.created_by = pc.id
-        LEFT JOIN reservations pr ON r.parent_reservation_id = pr.id
-        LEFT JOIN ride_records rr ON r.ride_record_id = rr.id
-        WHERE r.id = ?
-    ";
+    try {
+        $user_type = 'user';
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$reservation_id]);
+        $sql = "
+            INSERT INTO calendar_audit_logs
+            (user_id, user_type, action, target_type, target_id, old_data, new_data, ip_address, user_agent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-    return $stmt->fetch();
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            $user_id,
+            $user_type,
+            $action,
+            $target_type,
+            $target_id,
+            $old_data ? (is_string($old_data) ? $old_data : json_encode($old_data, JSON_UNESCAPED_UNICODE)) : null,
+            $new_data ? (is_string($new_data) ? $new_data : json_encode($new_data, JSON_UNESCAPED_UNICODE)) : null,
+            $_SERVER['REMOTE_ADDR'] ?? '',
+            $_SERVER['HTTP_USER_AGENT'] ?? ''
+        ]);
+
+    } catch (Exception $e) {
+        error_log("カレンダーログ記録エラー: " . $e->getMessage());
+    }
 }
 ?>

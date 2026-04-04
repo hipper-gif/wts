@@ -4,13 +4,6 @@ require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-/**
- * 出庫記録の監査ログ
- */
-function logDepartureAudit($pdo, $record_id, $action, $user_id, $changes = [], $reason = null) {
-    logAudit($pdo, $record_id, $action, $user_id, 'departure', $changes, $reason);
-}
-
 function canEditDeparture($record, $user_role) {
     return canEditByDate($record, 'departure_date', $user_role);
 }
@@ -73,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $pdo->beginTransaction();
                 $stmt = $pdo->prepare("DELETE FROM departure_records WHERE id = ?");
                 $stmt->execute([$_POST['record_id']]);
-                logDepartureAudit($pdo, $del_target['id'], 'delete', $user_id, [], $_POST['delete_reason'] ?? '削除');
+                logAudit($pdo, $del_target['id'], 'delete', $user_id, 'departure', [], $_POST['delete_reason'] ?? '削除');
                 $pdo->commit();
                 $success_message = '出庫記録を削除しました。';
                 $edit_record = null;
@@ -99,6 +92,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         $departure_mileage = intval($_POST['departure_mileage']);
         $edit_id = isset($_POST['edit_id']) ? intval($_POST['edit_id']) : null;
 
+        if (empty($driver_id) || empty($vehicle_id) || empty($departure_date)) {
+            throw new Exception('運転者、車両、出発日は必須です。');
+        }
+
         if ($edit_id) {
             // 修正処理
             $pdo->beginTransaction();
@@ -113,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $update_vehicle_stmt = $pdo->prepare($update_vehicle_sql);
             $update_vehicle_stmt->execute([$departure_mileage, $vehicle_id, $departure_mileage]);
 
-            logDepartureAudit($pdo, $_POST['edit_id'], 'edit', $user_id, [], $_POST['edit_reason'] ?? null);
+            logAudit($pdo, $_POST['edit_id'], 'edit', $user_id, 'departure', [], $_POST['edit_reason'] ?? null);
             $pdo->commit();
 
             $success_message = '出庫記録を修正しました。';
@@ -159,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $update_stmt->execute([$departure_mileage, $vehicle_id, $departure_mileage]);
 
             $new_id = $pdo->lastInsertId();
-            logDepartureAudit($pdo, $new_id, 'create', $user_id);
+            logAudit($pdo, $new_id, 'create', $user_id, 'departure');
             $pdo->commit();
 
             $success_message = '出庫処理が完了しました。';

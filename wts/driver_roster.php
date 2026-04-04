@@ -10,19 +10,10 @@ require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
 $pdo = getDBConnection();
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'ユーザー';
-$user_role = $_SESSION['permission_level'] ?? $_SESSION['user_role'] ?? 'User';
-
-// 権限チェック（Admin または Manager）
-$has_permission = false;
-if (isset($_SESSION['permission_level']) && $_SESSION['permission_level'] === 'Admin') {
-    $has_permission = true;
-} elseif (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1) {
-    $has_permission = true;
-} elseif (isset($_SESSION['is_manager']) && $_SESSION['is_manager'] == 1) {
-    $has_permission = true;
-}
+// $user_id, $user_name, $user_role は session_check.php で設定済み
+$is_admin = ($user_role === 'Admin');
+$is_manager = !empty($_SESSION['is_manager']);
+$has_permission = $is_admin || $is_manager;
 
 if (!$has_permission) {
     header('Location: dashboard.php?error=permission_denied');
@@ -126,6 +117,7 @@ if ($status_filter === 'expired') {
 $sql = "SELECT u.id, u.name, u.phone, u.email,
                u.date_of_birth, u.hire_date, u.address, u.emergency_contact,
                u.driver_license_number, u.driver_license_type, u.driver_license_expiry,
+               u.operator_card_number,
                u.care_qualification, u.care_qualification_date,
                u.health_check_date, u.health_check_next,
                u.aptitude_test_date, u.aptitude_test_next,
@@ -142,12 +134,8 @@ $page_config = getPageConfiguration('driver_roster');
 
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
-    ],
+    'additional_css' => [],
     'additional_js' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
         'js/ui-interactions.js'
     ],
     'breadcrumb' => [
@@ -517,6 +505,7 @@ function showDetail(driver) {
     html += '<div class="detail-row"><span class="detail-label">免許証番号</span><span class="detail-value">' + esc(driver.driver_license_number) + '</span></div>';
     html += '<div class="detail-row"><span class="detail-label">免許種別</span><span class="detail-value">' + esc(driver.driver_license_type) + '</span></div>';
     html += '<div class="detail-row"><span class="detail-label">有効期限</span><span class="detail-value">' + expiryHtml(driver.driver_license_expiry) + '</span></div>';
+    html += '<div class="detail-row"><span class="detail-label">乗務員証番号</span><span class="detail-value">' + esc(driver.operator_card_number) + '</span></div>';
     html += '</div>';
 
     // 介護資格

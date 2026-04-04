@@ -16,6 +16,7 @@
  */
 
 require_once 'config/database.php';
+require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
@@ -30,15 +31,7 @@ $error_message = '';
 
 // --- 監査ログ関数 ---
 function logUserManagementAudit($pdo, $user_id, $user_name, $action, $details = '') {
-    try {
-        $stmt = $pdo->prepare("
-            INSERT INTO inspection_audit_logs (user_id, user_name, action, details, ip_address, created_at)
-            VALUES (?, ?, ?, ?, ?, NOW())
-        ");
-        $stmt->execute([$user_id, $user_name, '[ユーザー管理] ' . $action, $details, $_SERVER['REMOTE_ADDR'] ?? '']);
-    } catch (PDOException $e) {
-        // ログ記録失敗は握り潰す
-    }
+    logAudit($pdo, 0, '[ユーザー管理] ' . $action, $user_id, 'user_management', [], $details);
 }
 
 // フォーム送信処理
@@ -60,16 +53,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $is_driver = isset($_POST['is_driver']) ? 1 : 0;
             $is_caller = isset($_POST['is_caller']) ? 1 : 0;
             $is_inspector = isset($_POST['is_inspector']) ? 1 : 0;
-            $is_admin = isset($_POST['is_admin']) ? 1 : 0;
+            $is_admin = ($permission_level === 'Admin') ? 1 : 0;
             $is_manager = isset($_POST['is_manager']) ? 1 : 0;
             $is_mechanic = isset($_POST['is_mechanic']) ? 1 : 0;
-            
+
             // バリデーション
             if (empty($name) || empty($login_id) || empty($password)) {
                 throw new Exception('名前、ログインID、パスワードは必須です。');
             }
-            
-            if (!$is_driver && !$is_caller && !$is_inspector && !$is_admin && !$is_manager && !$is_mechanic) {
+
+            if (!$is_driver && !$is_caller && !$is_inspector && !$is_manager && !$is_mechanic) {
                 throw new Exception('少なくとも1つの職務を選択してください。');
             }
             
@@ -121,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $is_driver = isset($_POST['is_driver']) ? 1 : 0;
             $is_caller = isset($_POST['is_caller']) ? 1 : 0;
             $is_inspector = isset($_POST['is_inspector']) ? 1 : 0;
-            $is_admin = isset($_POST['is_admin']) ? 1 : 0;
+            $is_admin = ($permission_level === 'Admin') ? 1 : 0;
             $is_manager = isset($_POST['is_manager']) ? 1 : 0;
             $is_mechanic = isset($_POST['is_mechanic']) ? 1 : 0;
 
@@ -133,6 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $driver_license_number = trim($_POST['driver_license_number'] ?? '') ?: null;
             $driver_license_type = trim($_POST['driver_license_type'] ?? '') ?: null;
             $driver_license_expiry = trim($_POST['driver_license_expiry'] ?? '') ?: null;
+            $operator_card_number = trim($_POST['operator_card_number'] ?? '') ?: null;
             $care_qualification = trim($_POST['care_qualification'] ?? '') ?: null;
             $care_qualification_date = trim($_POST['care_qualification_date'] ?? '') ?: null;
             $health_check_date = trim($_POST['health_check_date'] ?? '') ?: null;
@@ -146,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('名前とログインIDは必須です。');
             }
 
-            if (!$is_driver && !$is_caller && !$is_inspector && !$is_admin && !$is_manager && !$is_mechanic) {
+            if (!$is_driver && !$is_caller && !$is_inspector && !$is_manager && !$is_mechanic) {
                 throw new Exception('少なくとも1つの職務を選択してください。');
             }
 
@@ -168,6 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         phone = ?, email = ?, is_active = ?,
                         date_of_birth = ?, hire_date = ?, address = ?, emergency_contact = ?,
                         driver_license_number = ?, driver_license_type = ?, driver_license_expiry = ?,
+                        operator_card_number = ?,
                         care_qualification = ?, care_qualification_date = ?,
                         health_check_date = ?, health_check_next = ?,
                         aptitude_test_date = ?, aptitude_test_next = ?,
@@ -180,6 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $phone, $email, $is_active,
                     $date_of_birth, $hire_date, $address, $emergency_contact,
                     $driver_license_number, $driver_license_type, $driver_license_expiry,
+                    $operator_card_number,
                     $care_qualification, $care_qualification_date,
                     $health_check_date, $health_check_next,
                     $aptitude_test_date, $aptitude_test_next,
@@ -253,6 +249,7 @@ try {
                phone, email, is_active, created_at, last_login_at,
                date_of_birth, hire_date, address, emergency_contact,
                driver_license_number, driver_license_type, driver_license_expiry,
+               operator_card_number,
                care_qualification, care_qualification_date,
                health_check_date, health_check_next,
                aptitude_test_date, aptitude_test_next,
@@ -273,7 +270,6 @@ function getUserPermissions($user) {
     if (!empty($user['is_driver'])) $permissions[] = '運転者';
     if (!empty($user['is_caller'])) $permissions[] = '点呼者';
     if (!empty($user['is_inspector'])) $permissions[] = '点検者';
-    if (!empty($user['is_admin'])) $permissions[] = 'システム管理';
     if (!empty($user['is_manager'])) $permissions[] = '管理者';
     if (!empty($user['is_mechanic'])) $permissions[] = '整備者';
     return empty($permissions) ? '権限なし' : implode(' + ', $permissions);
@@ -299,12 +295,8 @@ $page_config = getPageConfiguration('user_management');
 // ページオプション
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
-    ],
+    'additional_css' => [],
     'additional_js' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
         'js/ui-interactions.js'
     ],
     'breadcrumb' => [
@@ -697,9 +689,6 @@ echo $page_data['page_header'];
                                     <?php if ($user['is_inspector']): ?>
                                         <span class="role-badge inspector">点検者</span>
                                     <?php endif; ?>
-                                    <?php if ($user['is_admin']): ?>
-                                        <span class="role-badge admin">システム管理</span>
-                                    <?php endif; ?>
                                     <?php if ($user['is_manager']): ?>
                                         <span class="role-badge manager">管理者</span>
                                     <?php endif; ?>
@@ -851,13 +840,6 @@ echo $page_data['page_header'];
                                 </label>
                             </div>
                             <div class="role-item">
-                                <input class="form-check-input" type="checkbox" id="modalIsAdmin" name="is_admin">
-                                <label class="form-check-label" for="modalIsAdmin">
-                                    <span class="role-badge admin">システム管理</span>
-                                    <small class="role-description">システム全体の管理権限</small>
-                                </label>
-                            </div>
-                            <div class="role-item">
                                 <input class="form-check-input" type="checkbox" id="modalIsManager" name="is_manager">
                                 <label class="form-check-label" for="modalIsManager">
                                     <span class="role-badge manager">管理者</span>
@@ -929,6 +911,16 @@ echo $page_data['page_header'];
                             </div>
                         </div>
 
+                        <!-- 乗務員証番号 -->
+                        <div class="row">
+                            <div class="col-lg-4">
+                                <div class="mb-3">
+                                    <label for="modalOperatorCardNumber" class="form-label">乗務員証番号</label>
+                                    <input type="text" class="form-control" id="modalOperatorCardNumber" name="operator_card_number" placeholder="乗務員証の番号">
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- 介護資格 -->
                         <h6 class="fw-bold text-secondary mb-2 mt-3"><i class="fas fa-hands-helping me-2"></i>介護資格</h6>
                         <div class="row">
@@ -985,7 +977,7 @@ echo $page_data['page_header'];
 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="submit" class="btn btn-success">
+                    <button type="submit" class="btn btn-success" data-loading-text="保存中...">
                         <i class="fas fa-save me-2"></i>保存
                     </button>
                 </div>
@@ -1018,7 +1010,7 @@ echo $page_data['page_header'];
                 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="submit" class="btn btn-warning">
+                    <button type="submit" class="btn btn-warning" data-loading-text="保存中...">
                         <i class="fas fa-key me-2"></i>パスワード変更
                     </button>
                 </div>
@@ -1155,7 +1147,6 @@ function editUser(user) {
     document.getElementById('modalIsDriver').checked = user.is_driver == 1;
     document.getElementById('modalIsCaller').checked = user.is_caller == 1;
     document.getElementById('modalIsInspector').checked = user.is_inspector == 1;
-    document.getElementById('modalIsAdmin').checked = user.is_admin == 1;
     document.getElementById('modalIsManager').checked = user.is_manager == 1;
     document.getElementById('modalIsMechanic').checked = user.is_mechanic == 1;
     
@@ -1172,6 +1163,7 @@ function editUser(user) {
     document.getElementById('modalLicenseNumber').value = user.driver_license_number || '';
     document.getElementById('modalLicenseType').value = user.driver_license_type || '';
     document.getElementById('modalLicenseExpiry').value = user.driver_license_expiry || '';
+    document.getElementById('modalOperatorCardNumber').value = user.operator_card_number || '';
     document.getElementById('modalCareQualification').value = user.care_qualification || '';
     document.getElementById('modalCareQualificationDate').value = user.care_qualification_date || '';
     document.getElementById('modalHealthCheckDate').value = user.health_check_date || '';
@@ -1319,7 +1311,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const userForm = document.getElementById('userForm');
     if (userForm) {
         userForm.addEventListener('submit', function(e) {
-            const checkboxes = ['modalIsDriver', 'modalIsCaller', 'modalIsInspector', 'modalIsAdmin', 'modalIsManager', 'modalIsMechanic'];
+            const checkboxes = ['modalIsDriver', 'modalIsCaller', 'modalIsInspector', 'modalIsManager', 'modalIsMechanic'];
             const isAnyChecked = checkboxes.some(id => {
                 const element = document.getElementById(id);
                 return element && element.checked;

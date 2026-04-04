@@ -59,16 +59,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['user_name'] = $user['name'];
                 $_SESSION['login_id'] = $login_id;
                 
-                // 権限レベル設定
-                $_SESSION['user_permission_level'] = $user['permission_level'] ?? 'User';
+                // 権限レベル設定（user_roleが正規変数、is_adminはpermission_levelから派生）
                 $_SESSION['user_role'] = $user['permission_level'] ?? 'User';
-                $_SESSION['is_admin_user'] = ($user['permission_level'] === 'Admin');
-                
+                $_SESSION['is_admin'] = ($user['permission_level'] === 'Admin') ? 1 : 0;
+
                 // 職務フラグをセッションに保存（最適化後の構造に対応）
                 $_SESSION['is_driver'] = (bool)($user['is_driver'] ?? false);
                 $_SESSION['is_caller'] = (bool)($user['is_caller'] ?? false);
                 $_SESSION['is_manager'] = (bool)($user['is_manager'] ?? false);
-                $_SESSION['is_admin'] = (bool)($user['is_admin'] ?? false);
                 $_SESSION['is_mechanic'] = (bool)($user['is_mechanic'] ?? false);
                 $_SESSION['is_inspector'] = (bool)($user['is_inspector'] ?? false);
                 
@@ -290,7 +288,7 @@ try {
         
         // Service Worker 登録
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
+            navigator.serviceWorker.register('/Smiley/taxi/wts/sw.js')
                 .then(registration => {
                     console.log('Service Worker 登録成功:', registration.scope);
                 })

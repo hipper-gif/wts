@@ -69,7 +69,7 @@ $target_drivers = [];
 if ($driver_id_param === 'all') {
     // 当日に出庫記録があるドライバーを取得
     $stmt = $pdo->prepare("
-        SELECT DISTINCT u.id, u.name, u.driver_license_number, u.driver_license_type
+        SELECT DISTINCT u.id, u.name, u.driver_license_number, u.driver_license_type, u.operator_card_number
         FROM users u
         INNER JOIN departure_records dr ON u.id = dr.driver_id AND dr.departure_date = ?
         WHERE u.is_driver = 1 AND u.is_active = 1
@@ -81,7 +81,7 @@ if ($driver_id_param === 'all') {
     // 出庫記録がない場合は乗車記録があるドライバーも含める
     if (empty($target_drivers)) {
         $stmt = $pdo->prepare("
-            SELECT DISTINCT u.id, u.name, u.driver_license_number, u.driver_license_type
+            SELECT DISTINCT u.id, u.name, u.driver_license_number, u.driver_license_type, u.operator_card_number
             FROM users u
             INNER JOIN ride_records rr ON u.id = rr.driver_id AND rr.ride_date = ?
             WHERE u.is_driver = 1 AND u.is_active = 1
@@ -92,7 +92,7 @@ if ($driver_id_param === 'all') {
     }
 } else {
     $driver_id_int = intval($driver_id_param);
-    $stmt = $pdo->prepare("SELECT id, name, driver_license_number, driver_license_type FROM users WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, name, driver_license_number, driver_license_type, operator_card_number FROM users WHERE id = ?");
     $stmt->execute([$driver_id_int]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($row) {
@@ -165,9 +165,15 @@ foreach ($target_drivers as $driver) {
     $total_rides = count($report['rides']);
     $total_fare = 0;
     $total_passengers = 0;
+    $total_ride_distance = 0;
+    $has_ride_distance = false;
     foreach ($report['rides'] as $ride) {
         $total_fare += intval($ride['total_fare'] ?? ($ride['fare'] + ($ride['charge'] ?? 0)));
         $total_passengers += intval($ride['passenger_count'] ?? 0);
+        if (!empty($ride['ride_distance'])) {
+            $total_ride_distance += floatval($ride['ride_distance']);
+            $has_ride_distance = true;
+        }
     }
 
     // 出庫・入庫メーター
@@ -215,10 +221,18 @@ foreach ($target_drivers as $driver) {
         }
     }
 
+    // 回送距離の計算（走行距離 - 実車距離）
+    $dead_run_distance = null;
+    if ($has_ride_distance && $total_distance !== null) {
+        $dead_run_distance = $total_distance - $total_ride_distance;
+    }
+
     $report['summary'] = [
         'total_rides' => $total_rides,
         'total_passengers' => $total_passengers,
         'total_fare' => $total_fare,
+        'total_ride_distance' => $has_ride_distance ? $total_ride_distance : null,
+        'dead_run_distance' => $dead_run_distance,
         'departure_mileage' => $departure_mileage,
         'arrival_mileage' => $arrival_mileage,
         'total_distance' => $total_distance,
@@ -542,6 +556,11 @@ $date_display .= '（' . $day_of_week . '）';
             <td class="value"><?= htmlspecialchars($d['driver_license_type'] ?? '') ?></td>
         </tr>
         <tr>
+            <td class="label">乗務員証:</td>
+            <td class="value"><?= htmlspecialchars($d['operator_card_number'] ?? '') ?></td>
+            <td colspan="4"></td>
+        </tr>
+        <tr>
             <td class="label">車両番号:</td>
             <td class="value"><?= htmlspecialchars($v['vehicle_number'] ?? '') ?></td>
             <td class="label" style="padding-left:16px;">車両名:</td>
@@ -562,7 +581,8 @@ $date_display .= '（' . $day_of_week . '）';
             <td class="value"><?= $s['arrival_mileage'] !== null ? number_format($s['arrival_mileage']) . ' km' : '' ?></td>
             <td class="label" style="padding-left:16px;">走行距離:</td>
             <td class="value"><?= $s['total_distance'] !== null ? number_format($s['total_distance']) . ' km' : '' ?></td>
-            <td colspan="2"></td>
+            <td class="label" style="padding-left:16px;">実車:</td>
+            <td class="value"><?= $s['total_ride_distance'] !== null ? number_format($s['total_ride_distance'], 1) . ' km' : '' ?><?= $s['dead_run_distance'] !== null ? ' / 回送: ' . number_format($s['dead_run_distance'], 1) . ' km' : '' ?></td>
         </tr>
     </table>
 
@@ -570,24 +590,26 @@ $date_display .= '（' . $day_of_week . '）';
     <table class="records-table">
         <thead>
             <tr>
-                <th style="width:30px;">No.</th>
-                <th style="width:50px;">時刻</th>
+                <th style="width:25px;">No.</th>
+                <th style="width:40px;">乗車</th>
+                <th style="width:40px;">降車</th>
                 <th>乗車地</th>
                 <th>降車地</th>
-                <th style="width:40px;">人数</th>
-                <th style="width:55px;">輸送分類</th>
-                <th style="width:60px;">運賃</th>
-                <th style="width:60px;">迎車料</th>
-                <th style="width:65px;">合計金額</th>
-                <th style="width:50px;">支払</th>
-                <th style="width:35px;">往復</th>
+                <th style="width:35px;">km</th>
+                <th style="width:30px;">人数</th>
+                <th style="width:50px;">分類</th>
+                <th style="width:55px;">運賃</th>
+                <th style="width:55px;">迎車料</th>
+                <th style="width:55px;">合計</th>
+                <th style="width:40px;">支払</th>
+                <th style="width:25px;">往復</th>
                 <th>備考</th>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($report['rides'])): ?>
             <tr>
-                <td colspan="12" style="padding:12px; color:#999;">運行記録なし</td>
+                <td colspan="14" style="padding:12px; color:#999;">運行記録なし</td>
             </tr>
             <?php else: ?>
             <?php foreach ($report['rides'] as $i => $ride):
@@ -596,16 +618,18 @@ $date_display .= '（' . $day_of_week . '）';
             <tr>
                 <td><?= $i + 1 ?></td>
                 <td><?= $ride['ride_time'] ? substr($ride['ride_time'], 0, 5) : '' ?></td>
+                <td><?= !empty($ride['dropoff_time']) ? substr($ride['dropoff_time'], 0, 5) : '' ?></td>
                 <td class="text-left"><?= htmlspecialchars($ride['pickup_location'] ?? '') ?></td>
                 <td class="text-left"><?= htmlspecialchars($ride['dropoff_location'] ?? '') ?></td>
+                <td class="text-right"><?= !empty($ride['ride_distance']) ? number_format(floatval($ride['ride_distance']), 1) : '' ?></td>
                 <td><?= intval($ride['passenger_count']) ?></td>
                 <td><?= htmlspecialchars($ride['transportation_type'] ?? '') ?></td>
                 <td class="text-right">&yen;<?= number_format(intval($ride['fare'])) ?></td>
                 <td class="text-right">&yen;<?= number_format(intval($ride['charge'] ?? 0)) ?></td>
                 <td class="text-right">&yen;<?= number_format($ride_total) ?></td>
-                <td><?= htmlspecialchars($ride['payment_method'] ?? '') ?></td>
+                <td><?= htmlspecialchars($ride['payment_method'] ?? '') ?><?= ($ride['disability_discount'] ?? 0) ? ' 障' : '' ?></td>
                 <td><?= ($ride['is_return_trip'] ?? 0) ? '復' : '往' ?></td>
-                <td class="text-left"><?= htmlspecialchars($ride['notes'] ?? '') ?></td>
+                <td class="text-left"><?= htmlspecialchars($ride['notes'] ?? '') ?><?= intval($ride['ticket_amount'] ?? 0) > 0 ? ' 券¥' . number_format($ride['ticket_amount']) : '' ?></td>
             </tr>
             <?php endforeach; ?>
             <?php endif; ?>
@@ -618,14 +642,16 @@ $date_display .= '（' . $day_of_week . '）';
             ?>
             <tr class="empty-row">
                 <td><?= $j + 1 ?></td>
-                <td></td><td></td><td></td><td></td><td></td>
                 <td></td><td></td><td></td><td></td><td></td><td></td>
+                <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
             </tr>
             <?php endfor; ?>
 
             <!-- 合計行 -->
             <tr class="summary-row">
-                <td colspan="4" style="text-align:right;">合計</td>
+                <td colspan="3" style="text-align:right;">合計</td>
+                <td colspan="2"></td>
+                <td class="text-right"><?= $s['total_ride_distance'] !== null ? number_format($s['total_ride_distance'], 1) : '' ?></td>
                 <td><?= $s['total_passengers'] ?></td>
                 <td><?= $s['total_rides'] ?>件</td>
                 <td colspan="2"></td>

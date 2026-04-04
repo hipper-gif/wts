@@ -46,10 +46,10 @@ try {
     
     $reservation_id = intval($input['reservation_id']);
     $user_id = $_SESSION['user_id'];
-    $user_role = $_SESSION['user_role'] ?? 'User';
+    $is_manager = $_SESSION['is_manager'] ?? false;
 
     // 権限チェック（管理者のみ変換可能）
-    if ($user_role !== 'admin' && $user_role !== 'manager') {
+    if ($user_role !== 'Admin' && !$is_manager) {
         sendErrorResponse('乗車記録変換権限がありません', 403);
     }
     
@@ -120,41 +120,17 @@ try {
 }
 
 /**
- * 変換ログ記録
+ * 変換ログ記録（統一関数のラッパー）
  */
 function logConversionAction($user_id, $reservation_id, $ride_record_id, $reservation_data, $ride_record_data) {
-    global $pdo;
-    
-    try {
-        $user_type = ($_SESSION['user_role'] ?? '') === 'Admin' ? 'admin' : 'user';
-        
-        $log_data = [
-            'conversion_type' => 'reservation_to_ride',
-            'reservation_id' => $reservation_id,
-            'ride_record_id' => $ride_record_id,
-            'reservation_data' => $reservation_data,
-            'ride_record_data' => $ride_record_data
-        ];
-        
-        $sql = "
-            INSERT INTO calendar_audit_logs 
-            (user_id, user_type, action, target_type, target_id, new_data, ip_address, user_agent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-        
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            $user_id,
-            $user_type,
-            'convert',
-            'reservation',
-            $reservation_id,
-            json_encode($log_data, JSON_UNESCAPED_UNICODE),
-            $_SERVER['REMOTE_ADDR'] ?? '',
-            $_SERVER['HTTP_USER_AGENT'] ?? ''
-        ]);
-        
-    } catch (Exception $e) {
-        error_log("変換ログ記録エラー: " . $e->getMessage());
-    }
+    $log_data = [
+        'conversion_type' => 'reservation_to_ride',
+        'reservation_id' => $reservation_id,
+        'ride_record_id' => $ride_record_id,
+        'reservation_data' => $reservation_data,
+        'ride_record_data' => $ride_record_data
+    ];
+
+    logCalendarAudit($user_id, 'convert', 'reservation', $reservation_id, null, $log_data);
 }
 ?>

@@ -10,60 +10,14 @@ require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
 $pdo = getDBConnection();
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'ユーザー';
-$user_role = $_SESSION['permission_level'] ?? $_SESSION['user_role'] ?? 'User';
-
-// 権限チェック（Admin または Manager）
-$has_permission = false;
-if (isset($_SESSION['permission_level']) && $_SESSION['permission_level'] === 'Admin') {
-    $has_permission = true;
-} elseif (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1) {
-    $has_permission = true;
-} elseif (isset($_SESSION['is_manager']) && $_SESSION['is_manager'] == 1) {
-    $has_permission = true;
-}
+// $user_id, $user_name, $user_role は session_check.php で設定済み
+$is_admin = ($user_role === 'Admin');
+$is_manager = !empty($_SESSION['is_manager']);
+$has_permission = $is_admin || $is_manager;
 
 if (!$has_permission) {
     header('Location: dashboard.php?error=permission_denied');
     exit;
-}
-
-// テーブル作成（存在しない場合）
-try {
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS complaint_records (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            complaint_date DATE NOT NULL,
-            complaint_time TIME,
-            complainant_name VARCHAR(100) NOT NULL COMMENT '苦情申立者名',
-            complainant_phone VARCHAR(20) COMMENT '連絡先',
-            complaint_type ENUM('運転マナー', '接客態度', '遅刻・時間', '車両状態', '料金', 'その他') NOT NULL,
-            severity ENUM('軽度', '中程度', '重度') DEFAULT '中程度',
-            related_date DATE NULL COMMENT '事象発生日',
-            driver_id INT NULL,
-            vehicle_id INT NULL,
-            description TEXT NOT NULL COMMENT '苦情内容',
-            response TEXT COMMENT '対応内容',
-            response_status ENUM('未対応', '対応中', '対応完了', '保留') DEFAULT '未対応',
-            response_date DATE NULL COMMENT '対応完了日',
-            handled_by INT NULL COMMENT '対応者',
-            prevention_measures TEXT COMMENT '再発防止策',
-            notes TEXT,
-            created_by INT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_date (complaint_date),
-            INDEX idx_status (response_status),
-            INDEX idx_driver (driver_id),
-            FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE SET NULL,
-            FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
-            FOREIGN KEY (handled_by) REFERENCES users(id) ON DELETE SET NULL,
-            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-        )
-    ");
-} catch (PDOException $e) {
-    error_log("Complaint records table creation error: " . $e->getMessage());
 }
 
 // フィルター
@@ -143,6 +97,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     break;
 
                 case 'delete':
+                    if (!$is_admin) {
+                        throw new Exception('削除権限がありません。');
+                    }
                     $stmt = $pdo->prepare("DELETE FROM complaint_records WHERE id = ?");
                     $stmt->execute([$_POST['complaint_id']]);
                     $message = "苦情記録を削除しました。";
@@ -337,42 +294,12 @@ $page_data = renderCompletePage(
         border-bottom: 2px solid #e9ecef;
     }
 
-    /* トースト（中央表示） */
-    .toast-center {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 9999;
-        min-width: 300px;
-        text-align: center;
-        padding: 1.5rem 2rem;
-        border-radius: 12px;
-        font-size: 1.1rem;
-        font-weight: 600;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-        opacity: 0;
-        transition: opacity 0.3s;
-        pointer-events: none;
-    }
-    .toast-center.show {
-        opacity: 1;
-    }
-    .toast-center.toast-success {
-        background: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-    }
-    .toast-center.toast-error {
-        background: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-    }
 </style>
 </head>
 <body>
     <?= $page_data['system_header'] ?>
     <?= $page_data['page_header'] ?>
+    <main class="main-content" id="main-content" tabindex="-1">
 
     <div class="container mt-4">
 
@@ -676,7 +603,7 @@ $page_data = renderCompletePage(
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                        <button type="submit" class="btn btn-primary" id="submitBtn">
+                        <button type="submit" class="btn btn-primary" id="submitBtn" data-loading-text="保存中...">
                             <span id="submitBtnText"><i class="fas fa-save me-1"></i>保存</span>
                             <span id="submitBtnLoading" style="display:none;"><i class="fas fa-spinner fa-spin me-1"></i>保存中...</span>
                         </button>
@@ -685,9 +612,6 @@ $page_data = renderCompletePage(
             </div>
         </div>
     </div>
-
-    <!-- 中央トースト -->
-    <div id="toastCenter" class="toast-center"></div>
 
     <!-- 削除用フォーム -->
     <form id="deleteForm" method="POST" style="display:none;">
@@ -760,28 +684,30 @@ $page_data = renderCompletePage(
         return true; // フォーム送信を続行
     }
 
-    // 中央トースト表示
-    function showCenterToast(message, type) {
-        const toast = document.getElementById('toastCenter');
-        toast.className = 'toast-center toast-' + type;
+    // 中央表示版showToast
+    function showToast(message, type) {
+        var existing = document.getElementById('centralToast');
+        if (existing) existing.remove();
+        var colors = { success: '#198754', warning: '#ffc107', error: '#dc3545', danger: '#dc3545', info: '#0d6efd' };
+        var toast = document.createElement('div');
+        toast.id = 'centralToast';
+        toast.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;min-width:300px;text-align:center;padding:1.5rem 2rem;border-radius:12px;font-size:1.1rem;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,0.2);color:white;background:' + (colors[type] || colors.info);
         toast.textContent = message;
-        toast.classList.add('show');
-        setTimeout(function() {
-            toast.classList.remove('show');
-        }, 3000);
+        document.body.appendChild(toast);
+        setTimeout(function() { toast.style.transition = 'opacity 0.5s'; toast.style.opacity = '0'; setTimeout(function() { toast.remove(); }, 500); }, 3000);
     }
 
-    // ページ読み込み時にメッセージがある場合はトースト表示
     <?php if ($message): ?>
     document.addEventListener('DOMContentLoaded', function() {
-        showCenterToast('<?= addslashes($message) ?>', 'success');
+        showToast('<?= addslashes($message) ?>', 'success');
     });
     <?php endif; ?>
     <?php if ($error): ?>
     document.addEventListener('DOMContentLoaded', function() {
-        showCenterToast('<?= addslashes($error) ?>', 'error');
+        showToast('<?= addslashes($error) ?>', 'danger');
     });
     <?php endif; ?>
     </script>
+    </main>
 
 <?php echo $page_data['html_footer']; ?>

@@ -1,4 +1,8 @@
 <?php
+// TODO: このファイルは未実装の関数に依存しています。cash_management.php のタブUIから使用されますが、
+// getDailySales(), getDailyTotal(), getCashConfirmation(), formatAmount(), getDifferenceClass(),
+// getPaymentIcon() 等の関数が未定義のため、現在は動作しません。
+
 // 日次データ取得
 $daily_sales = getDailySales($pdo, $selected_date);
 $daily_total = getDailyTotal($pdo, $selected_date);

@@ -10,7 +10,7 @@ require_once 'includes/session_check.php';
 $pdo = getDBConnection();
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'];
-$user_role = $_SESSION['user_role'] ?? 'User';
+// $user_role は session_check.php で設定済み
 
 // ユーザー情報取得（is_driver含む）
 $stmt = $pdo->prepare("SELECT id, name, permission_level, is_driver FROM users WHERE id = ?");
@@ -29,16 +29,23 @@ if (!$current_user->is_driver && $current_user->permission_level !== 'Admin') {
     exit;
 }
 
-// 今日の売上データ取得
+// 今日の売上データ取得（dashboard.php の calculateRevenue と同じロジック）
 $today_stmt = $pdo->prepare("
     SELECT
         COUNT(*) as trip_count,
-        COALESCE(SUM(total_fare), 0) as total_sales,
+        COALESCE(SUM(
+            CASE
+                WHEN total_fare IS NOT NULL AND total_fare > 0 THEN total_fare
+                WHEN (fare IS NOT NULL OR charge IS NOT NULL) THEN (COALESCE(fare, 0) + COALESCE(charge, 0))
+                ELSE 0
+            END
+        ), 0) as total_sales,
         COALESCE(SUM(cash_amount), 0) as cash_sales,
         COALESCE(SUM(card_amount), 0) as card_sales
     FROM ride_records
     WHERE ride_date = CURDATE()
     AND driver_id = ?
+    AND COALESCE(is_sample_data, 0) = 0
 ");
 $today_stmt->execute([$current_user->id]);
 $today_sales = $today_stmt->fetch(PDO::FETCH_OBJ);
@@ -87,7 +94,6 @@ $page_config = getPageConfiguration('driver_cash_count');
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [
-        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
         'css/ui-unified-v3.css'
     ],
     'breadcrumb' => [

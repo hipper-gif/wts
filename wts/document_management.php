@@ -6,8 +6,7 @@ require_once 'includes/session_check.php';
 
 $pdo = getDBConnection();
 $user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'ユーザー';
-$user_role = $_SESSION['permission_level'] ?? $_SESSION['user_role'] ?? 'User';
+// $user_role は session_check.php で設定済み
 $is_admin = ($user_role === 'Admin');
 
 // 管理者権限チェック
@@ -102,12 +101,9 @@ $page_config = getPageConfiguration('document_management');
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
         'css/document_management.css'
     ],
     'additional_js' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
         'js/ui-interactions.js'
     ],
     'breadcrumb' => [

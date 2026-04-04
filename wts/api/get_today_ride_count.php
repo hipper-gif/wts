@@ -19,10 +19,7 @@ try {
     $today   = date('Y-m-d');
 
     // 管理者は全ドライバーの合計、一般ユーザーは自分の分のみ
-    $user_stmt = $pdo->prepare("SELECT permission_level FROM users WHERE id = ?");
-    $user_stmt->execute([$user_id]);
-    $user = $user_stmt->fetch();
-    $is_admin = ($user && $user['permission_level'] === 'Admin');
+    $is_admin = ($user_role === 'Admin');
 
     if ($is_admin) {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM ride_records WHERE ride_date = ?");

@@ -1,78 +1,15 @@
 <?php
 
-// データベース接続
-require_once 'config/database.php';
+require_once 'functions.php';
+require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-// ログイン確認
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit();
-}
-
-try {
-    $pdo = getDBConnection();
-} catch (Exception $e) {
-    error_log("Database connection error: " . $e->getMessage());
-    header('Location: index.php?error=db');
-    exit;
-}
-
-// ユーザー情報取得
-$stmt = $pdo->prepare("SELECT name, role FROM users WHERE id = ?");
-$stmt->execute([$_SESSION['user_id']]);
-$user = $stmt->fetch();
-
-if (!$user) {
-    session_destroy();
-    header('Location: index.php');
-    exit();
-}
+// $pdo, $user_id, $user_name, $user_role は session_check.php で設定済み
 
 // 権限チェック
-if (!in_array($user['role'], ['管理者', 'システム管理者'])) {
+if ($user_role !== 'Admin') {
     header('Location: dashboard.php');
     exit;
-}
-
-// 事故管理テーブルの確認・作成
-try {
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS accidents (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            accident_date DATE NOT NULL,
-            accident_time TIME,
-            vehicle_id INT NOT NULL,
-            driver_id INT NOT NULL,
-            accident_type ENUM('交通事故', '重大事故', 'その他') NOT NULL,
-            location VARCHAR(255),
-            weather VARCHAR(50),
-            description TEXT,
-            cause_analysis TEXT,
-            deaths INT DEFAULT 0,
-            injuries INT DEFAULT 0,
-            property_damage BOOLEAN DEFAULT FALSE,
-            damage_amount INT DEFAULT 0,
-            police_report BOOLEAN DEFAULT FALSE,
-            police_report_number VARCHAR(100),
-            insurance_claim BOOLEAN DEFAULT FALSE,
-            insurance_number VARCHAR(100),
-            prevention_measures TEXT,
-            status ENUM('発生', '調査中', '処理完了') DEFAULT '発生',
-            created_by INT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_accident_date (accident_date),
-            INDEX idx_vehicle_id (vehicle_id),
-            INDEX idx_driver_id (driver_id),
-            FOREIGN KEY (vehicle_id) REFERENCES vehicles(id),
-            FOREIGN KEY (driver_id) REFERENCES users(id),
-            FOREIGN KEY (created_by) REFERENCES users(id)
-        )
-    ");
-} catch (PDOException $e) {
-    error_log("Accident table creation error: " . $e->getMessage());
-    $error = "事故管理テーブルの作成に失敗しました。管理者にお問い合わせください。";
 }
 
 // 検索・フィルター条件
@@ -165,9 +102,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     break;
                     
                 case 'delete_accident':
+                    if (!$is_admin) {
+                        throw new Exception('削除権限がありません。');
+                    }
                     $stmt = $pdo->prepare("DELETE FROM accidents WHERE id = ?");
                     $stmt->execute([$_POST['accident_id']]);
-                    
+
                     $message = "事故記録を削除しました。";
                     break;
             }
@@ -246,93 +186,84 @@ $vehicles = getVehicles($pdo);
 $drivers = getDrivers($pdo);
 $accidents = getAccidents($pdo, $search_year, $search_type, $search_status);
 $accident_stats = getAccidentStats($pdo, $search_year);
+
+// ページ設定・ヘッダー出力
+$page_config = getPageConfiguration('accident_management');
+
+$page_data = renderCompletePage(
+    $page_config['title'],
+    $user_name,
+    $user_role,
+    'accident_management',
+    $page_config['icon'],
+    $page_config['title'],
+    $page_config['subtitle'],
+    $page_config['category'],
+    [
+        'breadcrumb' => [
+            ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
+            ['text' => 'マスターメニュー', 'url' => 'master_menu.php'],
+            ['text' => $page_config['title'], 'url' => 'accident_management.php']
+        ]
+    ]
+);
+
+echo $page_data['html_head'];
+echo $page_data['system_header'];
+echo $page_data['page_header'];
 ?>
 
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>事故管理 - 福祉輸送管理システム</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
-    <style>
-        .navbar-brand {
-            font-weight: bold;
-        }
-        .stats-card {
-            border-radius: 15px;
-            transition: transform 0.2s;
-        }
-        .stats-card:hover {
-            transform: translateY(-2px);
-        }
-        .traffic-accident {
-            background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 100%);
-            color: #2d3436;
-        }
-        .serious-accident {
-            background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%);
-            color: white;
-        }
-        .other-accident {
-            background: linear-gradient(135deg, #a8e6cf 0%, #7fcdcd 100%);
-            color: #2d3436;
-        }
-        .accident-row {
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .accident-row:hover {
-            background-color: #f8f9fa;
-        }
-        .status-badge {
-            font-size: 0.8rem;
-        }
-        .search-section {
-            background-color: #f8f9fa;
-            border-radius: 10px;
-            padding: 1rem;
-        }
-        .stats-number {
-            font-size: 2rem;
-            font-weight: bold;
-        }
-    </style>
-</head>
+<style>
+    .stats-card {
+        border-radius: 15px;
+        transition: transform 0.2s;
+    }
+    .stats-card:hover {
+        transform: translateY(-2px);
+    }
+    .traffic-accident {
+        background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 100%);
+        color: #2d3436;
+    }
+    .serious-accident {
+        background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%);
+        color: white;
+    }
+    .other-accident {
+        background: linear-gradient(135deg, #a8e6cf 0%, #7fcdcd 100%);
+        color: #2d3436;
+    }
+    .accident-row {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .accident-row:hover {
+        background-color: #f8f9fa;
+    }
+    .status-badge {
+        font-size: 0.8rem;
+    }
+    .search-section {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 1rem;
+    }
+    .stats-number {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+</style>
 
-<body class="bg-light">
-    <!-- ナビゲーション -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-danger">
-        <div class="container">
-            <a class="navbar-brand" href="dashboard.php">
-                <i class="fas fa-exclamation-triangle me-2"></i>事故管理
-            </a>
-            <div class="navbar-nav ms-auto">
-                <span class="navbar-text me-3">
-                    <i class="fas fa-user me-1"></i><?= htmlspecialchars($user['name']) ?>さん
-                </span>
-                <a class="nav-link" href="annual_report.php">
-                    <i class="fas fa-file-alt me-1"></i>陸運局提出
-                </a>
-                <a class="nav-link" href="dashboard.php">
-                    <i class="fas fa-home me-1"></i>ダッシュボード
-                </a>
-                <a class="nav-link" href="logout.php">
-                    <i class="fas fa-sign-out-alt me-1"></i>ログアウト
-                </a>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container mt-4">
+<!-- メインコンテンツ開始 -->
+<main class="main-content" id="main-content" tabindex="-1">
+    <div class="container-fluid py-4">
         <!-- メッセージ表示 -->
         <?php if ($message): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
                 <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($message) ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
+            <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?= addslashes($message) ?>', 'success'); });</script>
         <?php endif; ?>
 
         <?php if ($error): ?>
@@ -340,6 +271,7 @@ $accident_stats = getAccidentStats($pdo, $search_year);
                 <i class="fas fa-exclamation-triangle me-2"></i><?= htmlspecialchars($error) ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
+            <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?= addslashes($error) ?>', 'danger'); });</script>
         <?php endif; ?>
 
         <!-- 検索・フィルター -->
@@ -399,14 +331,16 @@ $accident_stats = getAccidentStats($pdo, $search_year);
             <?php
             $traffic_count = 0;
             $serious_count = 0;
+            $near_miss_count = 0;
             $other_count = 0;
             $total_deaths = 0;
             $total_injuries = 0;
             $total_damage = 0;
-            
+
             foreach ($accident_stats as $stat) {
                 if ($stat['accident_type'] === '交通事故') $traffic_count = $stat['count'];
                 if ($stat['accident_type'] === '重大事故') $serious_count = $stat['count'];
+                if ($stat['accident_type'] === 'ヒヤリハット') $near_miss_count = $stat['count'];
                 if ($stat['accident_type'] === 'その他') $other_count = $stat['count'];
                 $total_deaths += $stat['total_deaths'];
                 $total_injuries += $stat['total_injuries'];
@@ -414,7 +348,7 @@ $accident_stats = getAccidentStats($pdo, $search_year);
             }
             ?>
             
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="card stats-card traffic-accident">
                     <div class="card-body text-center">
                         <div class="stats-number"><?= $traffic_count ?></div>
@@ -423,7 +357,7 @@ $accident_stats = getAccidentStats($pdo, $search_year);
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="card stats-card serious-accident">
                     <div class="card-body text-center">
                         <div class="stats-number"><?= $serious_count ?></div>
@@ -432,11 +366,20 @@ $accident_stats = getAccidentStats($pdo, $search_year);
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
+                <div class="card stats-card" style="border-left:4px solid #ffc107;">
+                    <div class="card-body text-center">
+                        <div class="stats-number"><?= $near_miss_count ?></div>
+                        <div>ヒヤリハット</div>
+                        <small><?= $search_year ?>年</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
                 <div class="card stats-card other-accident">
                     <div class="card-body text-center">
                         <div class="stats-number"><?= $other_count ?></div>
-                        <div>その他事故</div>
+                        <div>その他</div>
                         <small><?= $search_year ?>年</small>
                     </div>
                 </div>
@@ -524,11 +467,16 @@ $accident_stats = getAccidentStats($pdo, $search_year);
                                                 </td>
                                                 <td onclick="event.stopPropagation()">
                                                     <div class="btn-group" role="group">
-                                                        <button class="btn btn-outline-primary btn-sm" 
+                                                        <button class="btn btn-outline-secondary btn-sm"
+                                                                onclick="window.open('templates/accident_report.php?id=<?= $accident['id'] ?>', '_blank')"
+                                                                title="印刷">
+                                                            <i class="fas fa-print"></i>
+                                                        </button>
+                                                        <button class="btn btn-outline-primary btn-sm"
                                                                 onclick="editAccident(<?= $accident['id'] ?>)">
                                                             <i class="fas fa-edit"></i>
                                                         </button>
-                                                        <button class="btn btn-outline-danger btn-sm" 
+                                                        <button class="btn btn-outline-danger btn-sm"
                                                                 onclick="deleteAccident(<?= $accident['id'] ?>)">
                                                             <i class="fas fa-trash"></i>
                                                         </button>
@@ -563,6 +511,7 @@ $accident_stats = getAccidentStats($pdo, $search_year);
             </div>
         </div>
     </div>
+</main>
 
     <!-- 事故記録追加モーダル -->
     <div class="modal fade" id="addAccidentModal" tabindex="-1">
@@ -798,9 +747,8 @@ $accident_stats = getAccidentStats($pdo, $search_year);
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/ui-interactions.js"></script>
-    
+
     <script>
         // 事故データ（PHPから取得）
         const accidents = <?= json_encode($accidents) ?>;
@@ -929,6 +877,7 @@ $accident_stats = getAccidentStats($pdo, $search_year);
                             <select name="accident_type" class="form-select" required>
                                 <option value="交通事故" ${accident.accident_type === '交通事故' ? 'selected' : ''}>交通事故</option>
                                 <option value="重大事故" ${accident.accident_type === '重大事故' ? 'selected' : ''}>重大事故</option>
+                                <option value="ヒヤリハット" ${accident.accident_type === 'ヒヤリハット' ? 'selected' : ''}>ヒヤリハット</option>
                                 <option value="その他" ${accident.accident_type === 'その他' ? 'selected' : ''}>その他</option>
                             </select>
                         </div>
@@ -1066,6 +1015,19 @@ $accident_stats = getAccidentStats($pdo, $search_year);
             });
         }
         
+        // 中央表示版showToast
+        function showToast(message, type) {
+            var existing = document.getElementById('centralToast');
+            if (existing) existing.remove();
+            var colors = { success: '#198754', warning: '#ffc107', error: '#dc3545', danger: '#dc3545', info: '#0d6efd' };
+            var toast = document.createElement('div');
+            toast.id = 'centralToast';
+            toast.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;min-width:300px;text-align:center;padding:1.5rem 2rem;border-radius:12px;font-size:1.1rem;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,0.2);color:white;background:' + (colors[type] || colors.info);
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(function() { toast.style.transition = 'opacity 0.5s'; toast.style.opacity = '0'; setTimeout(function() { toast.remove(); }, 500); }, 3000);
+        }
+
         // フォーム送信確認
         document.getElementById('addAccidentForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -1078,5 +1040,5 @@ $accident_stats = getAccidentStats($pdo, $search_year);
             });
         });
     </script>
-</body>
-</html>
+
+<?= $page_data['html_footer'] ?>

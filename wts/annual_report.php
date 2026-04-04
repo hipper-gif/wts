@@ -2,6 +2,7 @@
 
 // データベース接続
 require_once 'config/database.php';
+require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
@@ -13,139 +14,7 @@ if ($user_role !== 'Admin') {
 
 // --- 監査ログ関数 ---
 function logAnnualReportAudit($pdo, $user_id, $user_name, $action, $details = '') {
-    try {
-        $stmt = $pdo->prepare("
-            INSERT INTO inspection_audit_logs (user_id, user_name, action, details, ip_address, created_at)
-            VALUES (?, ?, ?, ?, ?, NOW())
-        ");
-        $stmt->execute([$user_id, $user_name, '[年次報告] ' . $action, $details, $_SERVER['REMOTE_ADDR'] ?? '']);
-    } catch (PDOException $e) {
-        // ログ記録失敗は握り潰す
-    }
-}
-
-// 必要テーブルの確認・作成
-try {
-    // 事業者情報テーブル
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS company_info (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            company_name VARCHAR(200) NOT NULL DEFAULT '近畿介護タクシー株式会社',
-            address VARCHAR(300) DEFAULT '大阪市中央区天満橋1-7-10',
-            phone VARCHAR(20) DEFAULT '06-6949-6446',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )
-    ");
-
-    // 不足カラムを SHOW COLUMNS で確認して追加
-    $existing_columns_stmt = $pdo->query("SHOW COLUMNS FROM company_info");
-    $existing_columns = array_column($existing_columns_stmt->fetchAll(PDO::FETCH_ASSOC), 'Field');
-
-    $columns_to_add = [
-        'company_kana'        => "ALTER TABLE company_info ADD COLUMN company_kana VARCHAR(200) DEFAULT '' AFTER company_name",
-        'representative_name' => "ALTER TABLE company_info ADD COLUMN representative_name VARCHAR(100) DEFAULT '' AFTER company_kana",
-        'postal_code'         => "ALTER TABLE company_info ADD COLUMN postal_code VARCHAR(10) DEFAULT '' AFTER representative_name",
-        'address'             => "ALTER TABLE company_info ADD COLUMN address VARCHAR(300) DEFAULT '大阪市中央区天満橋1-7-10' AFTER postal_code",
-        'phone'               => "ALTER TABLE company_info ADD COLUMN phone VARCHAR(20) DEFAULT '06-6949-6446' AFTER address",
-        'license_number'      => "ALTER TABLE company_info ADD COLUMN license_number VARCHAR(50) DEFAULT '' AFTER phone",
-        'business_type'       => "ALTER TABLE company_info ADD COLUMN business_type VARCHAR(100) DEFAULT '一般乗用旅客自動車運送事業（福祉）' AFTER license_number",
-    ];
-
-    foreach ($columns_to_add as $col => $sql) {
-        if (!in_array($col, $existing_columns)) {
-            $pdo->exec($sql);
-        }
-    }
-
-    // id=1 のレコードを確実に保証（INSERT IGNORE で重複は無視）
-    $pdo->exec("
-        INSERT IGNORE INTO company_info (id, company_name, address, phone)
-        VALUES (1, '近畿介護タクシー株式会社', '大阪市中央区天満橋1-7-10', '06-6949-6446')
-    ");
-
-    // 年度マスタの確認・作成
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS fiscal_years (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            fiscal_year INT NOT NULL UNIQUE,
-            start_date DATE NOT NULL,
-            end_date DATE NOT NULL,
-            is_active BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_fiscal_year (fiscal_year)
-        )
-    ");
-
-    // 陸運局提出記録テーブル
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS annual_reports (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            fiscal_year INT NOT NULL,
-            report_type VARCHAR(50) NOT NULL,
-            submission_date DATE,
-            submitted_by INT,
-            status ENUM('未作成', '作成中', '確認中', '提出済み') DEFAULT '未作成',
-            memo TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_year_type (fiscal_year, report_type),
-            FOREIGN KEY (submitted_by) REFERENCES users(id)
-        )
-    ");
-
-    // 事故管理テーブル
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS accidents (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            accident_date DATE NOT NULL,
-            vehicle_id INT NOT NULL,
-            driver_id INT NOT NULL,
-            accident_type ENUM('交通事故', '重大事故', 'その他') NOT NULL,
-            location VARCHAR(255),
-            description TEXT,
-            deaths INT DEFAULT 0,
-            injuries INT DEFAULT 0,
-            property_damage BOOLEAN DEFAULT FALSE,
-            police_report BOOLEAN DEFAULT FALSE,
-            insurance_claim BOOLEAN DEFAULT FALSE,
-            prevention_measures TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_accident_date (accident_date)
-        )
-    ");
-
-} catch (PDOException $e) {
-    error_log("Table creation error: " . $e->getMessage());
-    $error = "テーブル作成エラーが発生しました。管理者にお問い合わせください。";
-}
-
-// 不足カラムの追加（テーブル作成とは別にエラーハンドリング）
-function ensureColumnExists($pdo, $table, $column, $definition) {
-    $stmt = $pdo->prepare("SHOW COLUMNS FROM `{$table}` LIKE ?");
-    $stmt->execute([$column]);
-    if ($stmt->rowCount() === 0) {
-        $pdo->exec("ALTER TABLE `{$table}` ADD COLUMN `{$column}` {$definition}");
-    }
-}
-
-try {
-    // company_info テーブルの不足カラム
-    ensureColumnExists($pdo, 'company_info', 'company_kana', "VARCHAR(200) DEFAULT ''");
-    ensureColumnExists($pdo, 'company_info', 'representative_name', "VARCHAR(100) DEFAULT ''");
-    ensureColumnExists($pdo, 'company_info', 'postal_code', "VARCHAR(10) DEFAULT ''");
-    ensureColumnExists($pdo, 'company_info', 'license_number', "VARCHAR(50) DEFAULT ''");
-    ensureColumnExists($pdo, 'company_info', 'business_type', "VARCHAR(100) DEFAULT ''");
-
-    // vehicles テーブルに vehicle_type がなければ追加
-    ensureColumnExists($pdo, 'vehicles', 'vehicle_type', "VARCHAR(20) DEFAULT 'welfare'");
-
-    // ride_records / arrival_records に is_sample_data がなければ追加
-    ensureColumnExists($pdo, 'ride_records', 'is_sample_data', "BOOLEAN DEFAULT FALSE");
-    ensureColumnExists($pdo, 'arrival_records', 'is_sample_data', "BOOLEAN DEFAULT FALSE");
-} catch (PDOException $e) {
-    error_log("カラム追加エラー: " . $e->getMessage());
+    logAudit($pdo, 0, '[年次報告] ' . $action, $user_id, 'annual_report', [], $details);
 }
 
 // 現在の年度取得
@@ -359,7 +228,8 @@ function getTransportResults($pdo, $year) {
             SELECT
                 COUNT(*) as ride_count,
                 SUM(rr.passenger_count) as total_passengers,
-                SUM(rr.fare + COALESCE(rr.charge, 0)) as total_revenue
+                SUM(rr.fare + COALESCE(rr.charge, 0)) as total_revenue,
+                COALESCE(SUM(rr.ride_distance), 0) as total_ride_distance
             FROM ride_records rr
             JOIN vehicles v ON rr.vehicle_id = v.id
             WHERE rr.ride_date BETWEEN ? AND ?
@@ -388,10 +258,16 @@ function getTransportResults($pdo, $year) {
         $stmt->execute([$start_date, $end_date]);
         $transport_categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // 実車キロ・回送キロ
+        $total_ride_distance = floatval($transport_data['total_ride_distance'] ?? 0);
+        $dead_run_distance = max(0, floatval($total_distance) - $total_ride_distance);
+
         return [
             'start_date' => $start_date,
             'end_date' => $end_date,
             'total_distance' => $total_distance,
+            'total_ride_distance' => $total_ride_distance,
+            'dead_run_distance' => $dead_run_distance,
             'ride_count' => $transport_data['ride_count'] ?? 0,
             'total_passengers' => $transport_data['total_passengers'] ?? 0,
             'total_revenue' => $transport_data['total_revenue'] ?? 0,

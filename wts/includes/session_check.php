@@ -97,6 +97,7 @@ $current_user = getCurrentUser();
 $user_id = $current_user->id;
 $user_name = $current_user->name;
 $user_role = $current_user->permission_level; // permission_levelをuser_roleとして使用
+$is_admin = ($user_role === 'Admin'); // 各ページでの判定を省略するためグローバルに設定
 
 /**
  * CSRFトークンを検証

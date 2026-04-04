@@ -8,27 +8,11 @@ require_once 'config/database.php';
 require_once 'functions.php';
 require_once 'includes/session_check.php';
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
-}
-
 $pdo = getDBConnection();
 
-// 権限チェック（Admin または Manager）
-$stmt = $pdo->prepare("SELECT id, name, permission_level, is_manager FROM users WHERE id = ?");
-$stmt->execute([$_SESSION['user_id']]);
-$current_user_data = $stmt->fetch();
-
-if (!$current_user_data) {
-    session_destroy();
-    header('Location: index.php');
-    exit;
-}
-
-$is_admin = ($current_user_data['permission_level'] === 'Admin');
-$is_manager = !empty($current_user_data['is_manager']);
+// 権限チェック（$user_role は session_check.php で設定済み）
+$is_admin = ($user_role === 'Admin');
+$is_manager = !empty($_SESSION['is_manager']);
 
 if (!$is_admin && !$is_manager) {
     header('Location: dashboard.php');
@@ -38,34 +22,6 @@ if (!$is_admin && !$is_manager) {
 // 統一ヘッダーシステム
 require_once 'includes/unified-header.php';
 $page_config = getPageConfiguration('supervision_records');
-
-// テーブル作成
-try {
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS supervision_records (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            supervision_date DATE NOT NULL,
-            supervision_type ENUM('初任教育', '適齢教育', '安全運転指導', '接遇マナー', '車椅子操作', '応急救護', 'その他') NOT NULL,
-            driver_id INT NOT NULL,
-            supervisor_id INT NOT NULL,
-            duration_minutes INT DEFAULT 60 COMMENT '指導時間（分）',
-            subject VARCHAR(255) NOT NULL COMMENT '指導テーマ',
-            content TEXT NOT NULL COMMENT '指導内容',
-            result ENUM('良好', '概ね良好', '要改善', '要再指導') DEFAULT '良好',
-            follow_up_date DATE NULL COMMENT 'フォローアップ予定日',
-            notes TEXT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_date (supervision_date),
-            INDEX idx_driver (driver_id),
-            INDEX idx_type (supervision_type),
-            FOREIGN KEY (driver_id) REFERENCES users(id),
-            FOREIGN KEY (supervisor_id) REFERENCES users(id)
-        )
-    ");
-} catch (PDOException $e) {
-    error_log("Supervision records table creation error: " . $e->getMessage());
-}
 
 // フィルター条件
 $filter_month = $_GET['month'] ?? date('Y-m');
@@ -129,6 +85,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
 
             case 'delete':
+                if (!$is_admin) {
+                    throw new Exception('削除権限がありません。');
+                }
                 $stmt = $pdo->prepare("DELETE FROM supervision_records WHERE id = ?");
                 $stmt->execute([(int)$_POST['record_id']]);
                 $success_message = '指導監督記録を削除しました。';
@@ -274,6 +233,7 @@ $page_data = renderCompletePage(
 <body>
     <?= $page_data['system_header'] ?>
     <?= $page_data['page_header'] ?>
+    <main class="main-content" id="main-content" tabindex="-1">
 
     <div class="container mt-4">
 
@@ -794,4 +754,5 @@ $page_data = renderCompletePage(
     }
     </script>
 
+    </main>
 <?php echo $page_data['html_footer']; ?>

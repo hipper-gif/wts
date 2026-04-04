@@ -402,14 +402,3 @@ window.saveCashCount = function() {
     }
 };
 
-// PWA用のService Worker登録
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-            })
-            .catch(registrationError => {
-                // エラーを無視
-            });
-    });
-}

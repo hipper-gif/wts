@@ -1,39 +1,8 @@
 <?php
 require_once 'config/database.php';
+require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
-
-// --- 監査ログ関数 ---
-function logCashAudit($pdo, $user_id, $user_name, $action, $details = '') {
-    try {
-        $stmt = $pdo->prepare("
-            INSERT INTO inspection_audit_logs (user_id, user_name, action, details, ip_address, created_at)
-            VALUES (?, ?, ?, ?, ?, NOW())
-        ");
-        $stmt->execute([$user_id, $user_name, '[売上金] ' . $action, $details, $_SERVER['REMOTE_ADDR'] ?? '']);
-    } catch (PDOException $e) {
-        // ログ記録失敗は握り潰す
-    }
-}
-
-// --- テーブル自動作成（cash_collections が存在しなければ作成） ---
-try {
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS cash_collections (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            driver_id INT NOT NULL,
-            collection_date DATE NOT NULL,
-            is_collected TINYINT(1) NOT NULL DEFAULT 1,
-            collected_by INT NULL,
-            memo TEXT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY uk_driver_date (driver_id, collection_date)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-    ");
-} catch (PDOException $e) {
-    // テーブルが既に存在する場合は無視
-}
 
 // --- AJAX POST ハンドラ（集金チェックのトグル） ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -83,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $insert_stmt->execute([$driver_id, $collection_date, $user_id]);
                 $action = '集金済みに登録';
             }
-            logCashAudit($pdo, $user_id, $user_name, $action, "driver_id={$driver_id}, date={$collection_date}");
+            logAudit($pdo, $driver_id, '[売上金] ' . $action, $user_id, 'cash', [], "driver_id={$driver_id}, date={$collection_date}");
             $pdo->commit();
         } catch (Exception $e) {
             $pdo->rollBack();
@@ -107,16 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // --- データ取得関数 ---
-
-function getDriverList($pdo) {
-    $stmt = $pdo->prepare("
-        SELECT id, name FROM users
-        WHERE is_driver = 1 AND is_active = 1
-        ORDER BY name
-    ");
-    $stmt->execute();
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
+// getDriverList() は functions.php で定義済み
 
 function getRevenueByDateRange($pdo, $start_date, $end_date, $driver_id = null) {
     $sql = "SELECT
@@ -305,9 +265,11 @@ $page_config = getPageConfiguration('cash_management');
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [
-        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
         'css/ui-unified-v3.css',
         'css/workflow-stepper.css'
+    ],
+    'additional_js' => [
+        'js/ui-interactions.js'
     ],
     'workflow_stepper' => renderWorkflowStepper(
         'cash',
@@ -509,6 +471,7 @@ echo $page_data['html_head'];
 
 <?php echo $page_data['system_header']; ?>
 <?php echo $page_data['page_header']; ?>
+<main class="main-content" id="main-content" tabindex="-1">
 
 <div class="container-fluid mt-4">
     <!-- フィルター -->
@@ -1164,6 +1127,7 @@ function updateSingleDriverStatus() {
     }
 }
 </script>
+</main>
 
 <?php echo $page_data['html_footer'] ?? ''; ?>
 </body>

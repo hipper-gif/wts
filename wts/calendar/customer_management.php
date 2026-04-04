@@ -17,10 +17,7 @@ require_once '../includes/unified-header.php';
 // データベース接続
 $pdo = getDBConnection();
 
-// ユーザー情報取得
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'];
-$user_role = $_SESSION['user_role'] ?? 'User';
+// $user_id, $user_name, $user_role は session_check.php で設定済み
 
 // CSRFトークン生成
 if (empty($_SESSION['csrf_token'])) {
@@ -29,13 +26,7 @@ if (empty($_SESSION['csrf_token'])) {
 $csrf_token = $_SESSION['csrf_token'];
 
 // ページ設定
-$page_config = [
-    'title' => '顧客マスタ管理',
-    'subtitle' => '顧客情報の登録・編集・検索',
-    'description' => '顧客マスタ管理',
-    'icon' => 'users',
-    'category' => '予約管理'
-];
+$page_config = getPageConfiguration('customer_management');
 
 $page_options = [
     'description' => $page_config['description'],

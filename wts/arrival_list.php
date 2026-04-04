@@ -1,15 +1,8 @@
 <?php
-ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_samesite', 'Lax');
-ini_set('session.use_strict_mode', 1);
-if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
-    ini_set('session.cookie_secure', 1);
-}
-session_start();
-
 // データベース接続
 require_once 'config/database.php';
 require_once 'functions.php';
+require_once 'includes/session_check.php';
 require_once 'includes/unified-header.php';
 
 try {
@@ -20,25 +13,15 @@ try {
     exit;
 }
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit();
-}
+// $user_id, $user_name, $user_role は session_check.php で設定済み
+$user_permission = $user_role; // 既存コードとの互換性
 
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'];
-
-// ユーザー情報を取得
-$user_info_sql = "SELECT permission_level, is_driver FROM users WHERE id = ?";
+// ユーザー情報を取得（is_driver判定用）
+$user_info_sql = "SELECT is_driver FROM users WHERE id = ?";
 $user_info_stmt = $pdo->prepare($user_info_sql);
 $user_info_stmt->execute([$user_id]);
 $user_info = $user_info_stmt->fetch(PDO::FETCH_ASSOC);
-$user_permission = $user_info['permission_level'] ?: 'User';
 $user_is_driver = ($user_info['is_driver'] == 1);
-
-// ユーザー権限表示用
-$user_role = ($user_permission === 'Admin') ? '管理者' : '一般ユーザー';
 
 // 今日の日付
 $today = date('Y-m-d');

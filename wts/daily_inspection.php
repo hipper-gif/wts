@@ -4,14 +4,6 @@ require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-/**
- * 監査ログ記録関数
- * 点検記録の作成・更新・削除時に変更履歴を記録する
- */
-function logInspectionAudit($pdo, $inspection_id, $action, $user_id, $changes = [], $reason = null) {
-    logAudit($pdo, $inspection_id, $action, $user_id, 'inspection', $changes, $reason);
-}
-
 function canEditInspection($inspection, $user_role) {
     return canEditByDate($inspection, 'inspection_date', $user_role);
 }
@@ -102,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                 // 監査ログに削除データを記録
                 $delete_reason = $_POST['edit_reason'] ?? '管理者による削除';
-                logInspectionAudit($pdo, $delete_target['id'], 'delete', $user_id, [], $delete_reason);
+                logAudit($pdo, $delete_target['id'], 'delete', $user_id, 'inspection', [], $delete_reason);
 
                 $pdo->commit();
                 $success_message = '日常点検記録を削除しました。';
@@ -247,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                     }
 
                     if (!empty($changes)) {
-                        logInspectionAudit($pdo, $old_record['id'], 'edit', $user_id, $changes, $edit_reason);
+                        logAudit($pdo, $old_record['id'], 'edit', $user_id, 'inspection', $changes, $edit_reason);
                     }
 
                     $pdo->commit();
@@ -283,7 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 $new_inspection_id = $pdo->lastInsertId();
 
                 // 新規作成の監査ログ
-                logInspectionAudit($pdo, $new_inspection_id, 'create', $user_id);
+                logAudit($pdo, $new_inspection_id, 'create', $user_id, 'inspection');
 
                 $pdo->commit();
                 $success_message = '日常点検記録を登録しました。';
@@ -402,7 +394,8 @@ $page_config = getPageConfiguration('daily_inspection');
         ['url' => 'pre_duty_call.php', 'label' => '乗務前点呼']
     )) ?>
     
-    <div class="container mt-4" id="main-content" tabindex="-1">
+    <main class="main-content" id="main-content" tabindex="-1">
+    <div class="container mt-4">
         <div id="printHeader">
             <h2 style="text-align:center; margin-bottom:2px; font-size:18pt;">日常点検記録表</h2>
             <p style="text-align:center; margin:0; font-size:10pt; color:#666;">道路運送車両法第47条の2に基づく日常点検</p>
@@ -1051,6 +1044,7 @@ $page_config = getPageConfiguration('daily_inspection');
     window.showToast = showToast;
     </script>
 
+    </main>
     <?= renderCompleteHTMLFooter() ?>
 
     <script>

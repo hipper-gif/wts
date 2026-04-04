@@ -4,11 +4,6 @@ require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-// 監査ログ記録関数
-function logPostDutyAudit($pdo, $record_id, $action, $user_id, $changes = [], $reason = null) {
-    logAudit($pdo, $record_id, $action, $user_id, 'post_duty_call', $changes, $reason);
-}
-
 function canEditPostDutyCall($record, $user_role) {
     return canEditByDate($record, 'call_date', $user_role);
 }
@@ -25,8 +20,8 @@ try {
     // 運転者取得（is_driverフラグのみ）
     $drivers = getActiveDrivers($pdo);
 
-    // 点呼者取得（permission_levelがAdminまたはis_callerフラグ）
-    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE (permission_level = 'Admin' OR is_caller = 1) AND is_active = 1 ORDER BY name");
+    // 点呼者取得（is_callerフラグのみ）
+    $stmt = $pdo->prepare("SELECT id, name FROM users WHERE is_caller = 1 AND is_active = 1 ORDER BY name");
     $stmt->execute();
     $callers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -98,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $pdo->beginTransaction();
                 $stmt = $pdo->prepare("DELETE FROM post_duty_calls WHERE driver_id = ? AND call_date = ?");
                 $stmt->execute([$delete_driver_id, $delete_call_date]);
-                logPostDutyAudit($pdo, $delete_record['id'], 'delete', $user_id, [], $delete_reason);
+                logAudit($pdo, $delete_record['id'], 'delete', $user_id, 'post_duty_call', [], $delete_reason);
                 $pdo->commit();
 
                 $success_message = '乗務後点呼記録を削除しました。';
@@ -208,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $params[] = $existing['call_date'];
 
             $stmt->execute($params);
-            logPostDutyAudit($pdo, $existing['id'], 'edit', $user_id, [], $edit_reason ?? null);
+            logAudit($pdo, $existing['id'], 'edit', $user_id, 'post_duty_call', [], $edit_reason ?? null);
             $pdo->commit();
             $success_message = '乗務後点呼記録を更新しました。';
         } else {
@@ -238,7 +233,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
             $stmt->execute($params);
             $new_id = $pdo->lastInsertId();
-            logPostDutyAudit($pdo, $new_id, 'create', $user_id);
+            logAudit($pdo, $new_id, 'create', $user_id, 'post_duty_call');
             $pdo->commit();
             $success_message = '乗務後点呼記録を登録しました。';
         }

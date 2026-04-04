@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // 管理者チェック
-if (($_SESSION['user_role'] ?? $_SESSION['user_permission_level'] ?? '') !== 'Admin') {
+if ($user_role !== 'Admin') {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => '管理者権限が必要です']);
     exit;

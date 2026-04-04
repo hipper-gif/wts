@@ -13,7 +13,7 @@ if (!isset($_SESSION['user_id'])) {
     sendErrorResponse('認証が必要です', 401);
 }
 
-if (($_SESSION['user_role'] ?? '') !== 'Admin') {
+if ($user_role !== 'Admin') {
     sendErrorResponse('管理者権限が必要です', 403);
 }
 

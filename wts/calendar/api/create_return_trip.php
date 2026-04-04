@@ -65,7 +65,12 @@ try {
     if (!$parent_reservation) {
         sendErrorResponse('親予約が見つかりません');
     }
-    
+
+    // 権限チェック: 管理者以外は自分が作成した予約の復路のみ作成可能
+    if ($user_role !== 'Admin' && $parent_reservation['created_by'] != $_SESSION['user_id']) {
+        sendErrorResponse('この予約の復路を作成する権限がありません', 403);
+    }
+
     // 復路作成可能性チェック
     if ($parent_reservation['is_return_trip']) {
         sendErrorResponse('復路から復路は作成できません');
@@ -161,40 +166,16 @@ try {
 }
 
 /**
- * 復路作成ログ記録
+ * 復路作成ログ記録（統一関数のラッパー）
  */
 function logReturnTripAction($user_id, $parent_id, $return_id, $return_data) {
-    global $pdo;
-    
-    try {
-        $user_type = ($_SESSION['user_role'] ?? '') === 'Admin' ? 'admin' : 'user';
-        
-        $log_data = [
-            'parent_reservation_id' => $parent_id,
-            'return_reservation_id' => $return_id,
-            'action' => 'create_return_trip',
-            'return_data' => $return_data
-        ];
-        
-        $sql = "
-            INSERT INTO calendar_audit_logs 
-            (user_id, user_type, action, target_type, target_id, new_data, ip_address, user_agent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-        
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            $user_id,
-            $user_type,
-            'create',
-            'reservation',
-            $return_id,
-            json_encode($log_data, JSON_UNESCAPED_UNICODE),
-            $_SERVER['REMOTE_ADDR'] ?? '',
-            $_SERVER['HTTP_USER_AGENT'] ?? ''
-        ]);
-        
-    } catch (Exception $e) {
-        error_log("復路作成ログ記録エラー: " . $e->getMessage());
-    }
+    $log_data = [
+        'parent_reservation_id' => $parent_id,
+        'return_reservation_id' => $return_id,
+        'action' => 'create_return_trip',
+        'return_data' => $return_data
+    ];
+
+    logCalendarAudit($user_id, 'create', 'reservation', $return_id, null, $log_data);
 }
 ?>

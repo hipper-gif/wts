@@ -3,23 +3,10 @@ require_once 'config/database.php';
 require_once 'functions.php';
 require_once 'includes/session_check.php';
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
-}
-
-// 管理者権限チェック - 柔軟な権限確認
-$has_admin_permission = false;
-if (isset($_SESSION['permission_level']) && $_SESSION['permission_level'] === 'Admin') {
-    $has_admin_permission = true;
-} elseif (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin') {
-    $has_admin_permission = true;
-} elseif (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1) {
-    $has_admin_permission = true;
-} elseif (isset($_SESSION['is_manager']) && $_SESSION['is_manager'] == 1) {
-    $has_admin_permission = true;
-}
+// 管理者権限チェック（$user_role は session_check.php で設定済み）
+$is_admin = ($user_role === 'Admin');
+$is_manager = !empty($_SESSION['is_manager']);
+$has_admin_permission = $is_admin || $is_manager;
 
 if (!$has_admin_permission) {
     header('Location: dashboard.php?error=permission_denied');
@@ -27,18 +14,10 @@ if (!$has_admin_permission) {
 }
 
 $pdo = getDBConnection();
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'ユーザー';
-$user_role = $_SESSION['permission_level'] ?? $_SESSION['user_role'] ?? 'User';
 
 // 統一ヘッダーシステム
 require_once 'includes/unified-header.php';
 $page_config = getPageConfiguration('vehicle_management');
-
-// 監査ログ関数
-function logVehicleAudit($pdo, $vehicle_id, $action, $user_id, $changes = [], $reason = null) {
-    logAudit($pdo, $vehicle_id, $action, $user_id, 'vehicle', $changes, $reason);
-}
 
 $success_message = '';
 $error_message = '';
@@ -90,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 $new_id = $pdo->lastInsertId();
 
-                logVehicleAudit($pdo, $new_id, 'create', $user_id);
+                logAudit($pdo, $new_id, 'create', $user_id, 'vehicle');
 
                 $pdo->commit();
                 $success_message = "車両「{$vehicle_number}」を追加しました。";
@@ -161,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $status, $is_active, $vehicle_id
                 ]);
 
-                logVehicleAudit($pdo, $vehicle_id, 'edit', $user_id, $changes);
+                logAudit($pdo, $vehicle_id, 'edit', $user_id, 'vehicle', $changes);
 
                 $pdo->commit();
                 $success_message = "車両「{$vehicle_number}」を更新しました。";
@@ -193,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("UPDATE vehicles SET is_active = 0, updated_at = NOW() WHERE id = ?");
                 $stmt->execute([$vehicle_id]);
 
-                logVehicleAudit($pdo, $vehicle_id, 'delete', $user_id, [], '論理削除');
+                logAudit($pdo, $vehicle_id, 'delete', $user_id, 'vehicle', [], '論理削除');
 
                 $pdo->commit();
                 $success_message = "車両「{$del_vehicle_number}」を削除しました。";
@@ -226,7 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$next_inspection_date, $vehicle_id]);
 
                 $changes = [['field' => 'next_inspection_date', 'old' => $existing['next_inspection_date'] ?? '', 'new' => $next_inspection_date]];
-                logVehicleAudit($pdo, $vehicle_id, 'edit', $user_id, $changes, '点検期限更新');
+                logAudit($pdo, $vehicle_id, 'edit', $user_id, 'vehicle', $changes, '点検期限更新');
 
                 $pdo->commit();
                 $success_message = "「{$existing['vehicle_number']}」の点検期限を更新しました。";
@@ -289,12 +268,8 @@ $vehicle_types = [
 // ページオプション設定
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
-    ],
+    'additional_css' => [],
     'additional_js' => [
-        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
         'js/ui-interactions.js'
     ],
     'breadcrumb' => [
@@ -330,16 +305,6 @@ echo $page_data['page_header'];
 
     <?php if ($error_message): ?>
         <?= renderAlert('danger', 'エラー', $error_message) ?>
-    <?php endif; ?>
-
-    <?php if ($success_message): ?>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        if (typeof showToast === 'function') {
-            showToast('<?= addslashes($success_message) ?>', 'success');
-        }
-    });
-    </script>
     <?php endif; ?>
 
     <!-- 統計情報ダッシュボード -->
@@ -648,7 +613,7 @@ echo $page_data['page_header'];
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="fas fa-times me-1"></i>キャンセル
                     </button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" data-loading-text="保存中...">
                         <i class="fas fa-save me-1"></i>保存
                     </button>
                 </div>
@@ -690,7 +655,7 @@ echo $page_data['page_header'];
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="fas fa-times me-1"></i>キャンセル
                     </button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" data-loading-text="保存中...">
                         <i class="fas fa-calendar-check me-1"></i>更新
                     </button>
                 </div>
@@ -755,20 +720,6 @@ function deleteVehicle(vehicleId, vehicleNumber) {
         confirmText: '削除する'
     });
 }
-
-// フォーム送信時のローディング状態
-document.addEventListener('DOMContentLoaded', function() {
-    var forms = document.querySelectorAll('#vehicleForm, #inspectionModal form');
-    forms.forEach(function(form) {
-        form.addEventListener('submit', function() {
-            var btn = this.querySelector('button[type="submit"]') || this.querySelector('.btn-primary');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>保存中...';
-            }
-        });
-    });
-});
 
 // 点検日更新モーダル
 function quickUpdateInspection(vehicleId, currentDate) {

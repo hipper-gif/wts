@@ -49,21 +49,19 @@ try {
     // 権限チェック関数
     function canEditArrivalRecord($pdo, $arrival_id, $user_id) {
         // 管理者は全て編集可能
-        $user_stmt = $pdo->prepare("SELECT permission_level FROM users WHERE id = ?");
-        $user_stmt->execute([$user_id]);
-        $user = $user_stmt->fetch();
-        
-        if ($user && $user['permission_level'] === 'Admin') {
+        $is_admin = ($GLOBALS['user_role'] === 'Admin');
+
+        if ($is_admin) {
             return true;
         }
-        
+
         // 一般ユーザーは自分の記録のみ編集可能
         $record_stmt = $pdo->prepare("
-            SELECT driver_id FROM arrival_records 
+            SELECT driver_id FROM arrival_records
             WHERE id = ? AND driver_id = ?
         ");
         $record_stmt->execute([$arrival_id, $user_id]);
-        
+
         return $record_stmt->rowCount() > 0;
     }
     

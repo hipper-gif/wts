@@ -299,7 +299,7 @@ function rateIcon($rate) {
                         </button>
                     </div>
                 </div>
-                <div class="form-text"><i class="fas fa-info-circle me-1"></i>「一括作成」で3種類の帳票が別タブで同時に開きます。各タブで Ctrl+P（PDF保存/印刷）してください。</div>
+                <div class="form-text"><i class="fas fa-info-circle me-1"></i>「一括作成」で3種類の帳票が別タブで同時に開きます。各タブで Ctrl+P（PDF保存/印刷）してください。事故報告書は個別カードから作成できます。</div>
             </div>
         </div>
 
@@ -324,6 +324,13 @@ function rateIcon($rate) {
                     <div class="doc-card-icon"><i class="fas fa-car"></i></div>
                     <h6 class="fw-bold mb-1">日常点検記録</h6>
                     <p class="doc-card-desc mb-0">車両点検（月次）</p>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6 mb-3">
+                <div class="doc-card" onclick="generateSingle('accident_report')">
+                    <div class="doc-card-icon"><i class="fas fa-car-crash"></i></div>
+                    <h6 class="fw-bold mb-1">事故報告書（年間一覧）</h6>
+                    <p class="doc-card-desc mb-0">事故記録（年次）</p>
                 </div>
             </div>
         </div>
@@ -611,6 +618,9 @@ function generateSingle(type) {
         } else {
             window.open('templates/inspection_record.php?month=' + month + '&driver_id=' + driver, '_blank');
         }
+    } else if (type === 'accident_report') {
+        var year = month.split('-')[0];
+        window.open('templates/accident_report.php?year=' + year, '_blank');
     }
 }
 </script>

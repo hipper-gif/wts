@@ -2,23 +2,11 @@
 require_once 'config/database.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
+require_once 'functions.php';
 
 $today = date('Y-m-d');
 $success_message = '';
 $error_message = '';
-
-// --- 監査ログ関数 ---
-function logPeriodicAudit($pdo, $user_id, $user_name, $action, $details = '') {
-    try {
-        $stmt = $pdo->prepare("
-            INSERT INTO inspection_audit_logs (user_id, user_name, action, details, ip_address, created_at)
-            VALUES (?, ?, ?, ?, ?, NOW())
-        ");
-        $stmt->execute([$user_id, $user_name, '[定期点検] ' . $action, $details, $_SERVER['REMOTE_ADDR'] ?? '']);
-    } catch (PDOException $e) {
-        // ログ記録失敗は握り潰す
-    }
-}
 
 // 車両とユーザーの取得
 try {
@@ -139,8 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$next_inspection_date, $mileage, $vehicle_id]);
         
         $pdo->commit();
-        logPeriodicAudit($pdo, $user_id, $user_name, '点検記録登録',
-            "vehicle_id={$vehicle_id}, inspection_date={$inspection_date}, result={$final_result}");
+        logAudit($pdo, $inspection_id, '点検記録登録', $user_id, 'periodic_inspection');
         $success_message = '定期点検記録を登録しました。' .
                           '総合結果: ' . $final_result . ' / ' .
                           '次回点検日: ' . $next_inspection_date;
@@ -181,6 +168,7 @@ echo $page_data['html_head'];
 echo $page_data['system_header'];
 echo $page_data['page_header'];
 ?>
+<main class="main-content" id="main-content" tabindex="-1">
 
 <div class="container-fluid px-4">
     <!-- アラート表示 -->
@@ -818,4 +806,5 @@ document.querySelectorAll('.result-btn').forEach(function(btn) {
 });
 </script>
 
+</main>
 <?php echo $page_data['html_footer'] ?? ''; ?>

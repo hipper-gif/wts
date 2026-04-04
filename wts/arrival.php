@@ -8,11 +8,6 @@ require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-// 監査ログ記録関数
-function logArrivalAudit($pdo, $record_id, $action, $user_id, $changes = [], $reason = null) {
-    logAudit($pdo, $record_id, $action, $user_id, 'arrival', $changes, $reason);
-}
-
 // 共通関数
 function getVehiclesAll($pdo) {
     $stmt = $pdo->query("SELECT id, vehicle_number FROM vehicles ORDER BY vehicle_number");
@@ -138,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$arrival_mileage, $vehicle_id, $arrival_mileage]);
 
             // 監査ログ記録
-            logArrivalAudit($pdo, $new_id, 'create', $user_id);
+            logAudit($pdo, $new_id, 'create', $user_id, 'arrival');
 
             $pdo->commit();
         } catch (Exception $e) {

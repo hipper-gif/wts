@@ -128,7 +128,7 @@ try {
     }
 
     // 乗務員 免許・健診・適性診断 期限チェック（管理者向け）
-    if ($_SESSION['permission_level'] === 'Admin') {
+    if ($user_role === 'Admin') {
         try {
             $driver_alert_configs = [
                 ['column' => 'driver_license_expiry', 'icon' => 'fas fa-id-card',

@@ -3,24 +3,17 @@ require_once 'config/database.php';
 require_once 'functions.php';
 require_once 'includes/session_check.php';
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
-}
-
 $pdo = getDBConnection();
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'ユーザー';
-$user_role = $_SESSION['permission_level'] ?? $_SESSION['user_role'] ?? 'User';
+// $user_id, $user_name, $user_role は session_check.php で設定済み
+$is_admin = ($user_role === 'Admin');
 
 // 統一ヘッダーシステム
 require_once 'includes/unified-header.php';
 $page_config = getPageConfiguration('master_menu');
 
-// 権限チェック
+// ユーザー詳細情報取得（表示用ロール）
 try {
-    $stmt = $pdo->prepare("SELECT name, permission_level, is_driver, is_caller, is_manager FROM users WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT name, is_driver, is_caller, is_manager FROM users WHERE id = ?");
     $stmt->execute([$user_id]);
     $user_data = $stmt->fetch();
 
@@ -29,10 +22,6 @@ try {
         header('Location: index.php');
         exit;
     }
-
-    $user_name = $user_data['name'];
-    $user_permission_level = $user_data['permission_level'];
-    $is_admin = ($user_permission_level === 'Admin');
 
     $user_role_display = '';
     if ($is_admin) {
@@ -63,13 +52,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_admin) {
             try {
                 $pdo->beginTransaction();
 
-                // system_settingsテーブルがなければ作成
-                $pdo->exec("CREATE TABLE IF NOT EXISTS system_settings (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    setting_key VARCHAR(100) UNIQUE NOT NULL,
-                    setting_value TEXT,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                )");
                 $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('session_timeout', ?) ON DUPLICATE KEY UPDATE setting_value = ?");
                 $stmt->execute([$timeout, $timeout]);
 
@@ -457,130 +439,6 @@ $page_data = renderCompletePage(
                         <p class="card-description">
                             許可証・保険・車検証等のファイル管理<br>
                             有効期限アラート付き
-                        </p>
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
-
-            <!-- 乗務員台帳 -->
-            <div class="col-lg-4 col-md-6 mb-3">
-                <?php if ($is_admin || (!empty($user_data['is_manager']) && $user_data['is_manager'])): ?>
-                <a href="driver_roster.php" class="text-decoration-none">
-                <div class="master-card">
-                    <div class="position-relative">
-                        <span class="status-badge bg-success text-white">利用可能</span>
-                        <i class="fas fa-id-card master-icon" style="color:#667eea;"></i>
-                        <h6 class="fw-bold">乗務員台帳</h6>
-                        <p class="card-description">
-                            乗務員の資格・免許・健診情報一覧<br>
-                            期限アラート付き台帳管理
-                        </p>
-                    </div>
-                </div>
-                </a>
-                <?php else: ?>
-                <div class="master-card user-only" onclick="showPermissionAlert()">
-                    <div class="position-relative">
-                        <span class="status-badge bg-warning text-dark">要管理者権限</span>
-                        <i class="fas fa-id-card master-icon" style="color:#667eea;"></i>
-                        <h6 class="fw-bold">乗務員台帳</h6>
-                        <p class="card-description">
-                            乗務員の資格・免許・健診情報一覧<br>
-                            期限アラート付き台帳管理
-                        </p>
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
-
-            <!-- 監査対応 -->
-            <div class="col-lg-4 col-md-6 mb-3">
-                <?php if ($is_admin || (!empty($user_data['is_manager']) && $user_data['is_manager'])): ?>
-                <a href="document_generator.php" class="text-decoration-none">
-                <div class="master-card">
-                    <div class="position-relative">
-                        <span class="status-badge bg-success text-white">利用可能</span>
-                        <i class="fas fa-shield-alt master-icon" style="color:#6f42c1;"></i>
-                        <h6 class="fw-bold">監査対応</h6>
-                        <p class="card-description">
-                            コンプライアンス状況確認<br>
-                            監査資料の一括作成・印刷
-                        </p>
-                    </div>
-                </div>
-                </a>
-                <?php else: ?>
-                <div class="master-card user-only" onclick="showPermissionAlert()">
-                    <div class="position-relative">
-                        <span class="status-badge bg-warning text-dark">要管理者権限</span>
-                        <i class="fas fa-shield-alt master-icon" style="color:#6f42c1;"></i>
-                        <h6 class="fw-bold">監査対応</h6>
-                        <p class="card-description">
-                            コンプライアンス状況確認<br>
-                            監査資料の一括作成・印刷
-                        </p>
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
-
-            <!-- 苦情処理記録 -->
-            <div class="col-lg-4 col-md-6 mb-3">
-                <?php if ($is_admin || (!empty($user_data['is_manager']) && $user_data['is_manager'])): ?>
-                <a href="complaint_records.php" class="text-decoration-none">
-                <div class="master-card">
-                    <div class="position-relative">
-                        <span class="status-badge bg-success text-white">利用可能</span>
-                        <i class="fas fa-envelope-open-text master-icon" style="color:#e74c3c;"></i>
-                        <h6 class="fw-bold">苦情処理記録</h6>
-                        <p class="card-description">
-                            顧客苦情の受付・対応管理<br>
-                            苦情処理の進捗・再発防止策
-                        </p>
-                    </div>
-                </div>
-                </a>
-                <?php else: ?>
-                <div class="master-card user-only" onclick="showPermissionAlert()">
-                    <div class="position-relative">
-                        <span class="status-badge bg-warning text-dark">要管理者権限</span>
-                        <i class="fas fa-envelope-open-text master-icon" style="color:#e74c3c;"></i>
-                        <h6 class="fw-bold">苦情処理記録</h6>
-                        <p class="card-description">
-                            顧客苦情の受付・対応管理<br>
-                            苦情処理の進捗・再発防止策
-                        </p>
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
-
-            <!-- 指導監督記録 -->
-            <div class="col-lg-4 col-md-6 mb-3">
-                <?php if ($is_admin || (!empty($user_data['is_manager']) && $user_data['is_manager'])): ?>
-                <a href="supervision_records.php" class="text-decoration-none">
-                <div class="master-card">
-                    <div class="position-relative">
-                        <span class="status-badge bg-success text-white">利用可能</span>
-                        <i class="fas fa-chalkboard-teacher master-icon" style="color:#2ecc71;"></i>
-                        <h6 class="fw-bold">指導監督記録</h6>
-                        <p class="card-description">
-                            乗務員への安全運転指導・教育記録<br>
-                            フォローアップ管理
-                        </p>
-                    </div>
-                </div>
-                </a>
-                <?php else: ?>
-                <div class="master-card user-only" onclick="showPermissionAlert()">
-                    <div class="position-relative">
-                        <span class="status-badge bg-warning text-dark">要管理者権限</span>
-                        <i class="fas fa-chalkboard-teacher master-icon" style="color:#2ecc71;"></i>
-                        <h6 class="fw-bold">指導監督記録</h6>
-                        <p class="card-description">
-                            乗務員への安全運転指導・教育記録<br>
-                            フォローアップ管理
                         </p>
                     </div>
                 </div>

@@ -1,3 +1,7 @@
+<?php
+// TODO: このファイルは未実装の関数に依存しています。cash_management.php のタブUIから使用されますが、
+// getPeriodStatistics(), getMonthlySummary(), formatAmount() 等の関数が未定義のため、現在は動作しません。
+?>
 <!-- レポート期間選択 -->
 <div class="row mb-4">
     <div class="col-md-8">

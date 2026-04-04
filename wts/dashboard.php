@@ -4,20 +4,13 @@ require_once 'functions.php';
 require_once 'includes/session_check.php';
 require_once 'includes/unified-header.php';
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
-}
-
 $pdo = getDBConnection();
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'ユーザー';
-$user_role = $_SESSION['permission_level'] ?? $_SESSION['user_role'] ?? 'User';
+// $user_id, $user_name, $user_role は session_check.php で設定済み
+$is_admin = ($user_role === 'Admin');
 
-// ユーザー詳細情報取得
+// ユーザー詳細情報取得（表示用ロール）
 try {
-    $stmt = $pdo->prepare("SELECT name, permission_level, is_driver, is_caller, is_manager FROM users WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT name, is_driver, is_caller, is_manager FROM users WHERE id = ?");
     $stmt->execute([$user_id]);
     $user_data = $stmt->fetch();
 
@@ -26,10 +19,6 @@ try {
         header('Location: index.php');
         exit;
     }
-
-    $user_name = $user_data['name'];
-    $user_permission_level = $user_data['permission_level'];
-    $is_admin = ($user_permission_level === 'Admin');
 
     $user_role_display = '';
     if ($is_admin) {
@@ -217,71 +206,6 @@ try {
     } catch (Exception $e) {
         // 書類テーブルが存在しない場合等はスキップ
     }
-
-    // 乗務員 免許・健診・適性診断 期限チェック
-    try {
-        $driver_alert_configs = [
-            [
-                'column' => 'driver_license_expiry',
-                'icon_danger' => 'fas fa-id-card',
-                'icon_warning' => 'fas fa-id-card',
-                'title_danger' => '運転免許期限切れ',
-                'title_warning' => '運転免許期限間近',
-                'msg_danger' => '期限切れの運転免許がある乗務員が%d名います。早急に更新してください。',
-                'msg_warning' => '30日以内に期限切れとなる運転免許がある乗務員が%d名います。',
-            ],
-            [
-                'column' => 'health_check_next',
-                'icon_danger' => 'fas fa-heartbeat',
-                'icon_warning' => 'fas fa-heartbeat',
-                'title_danger' => '健康診断期限切れ',
-                'title_warning' => '健康診断期限間近',
-                'msg_danger' => '健康診断の期限が切れている乗務員が%d名います。早急に受診してください。',
-                'msg_warning' => '30日以内に健康診断の期限が切れる乗務員が%d名います。',
-            ],
-            [
-                'column' => 'aptitude_test_next',
-                'icon_danger' => 'fas fa-clipboard-check',
-                'icon_warning' => 'fas fa-clipboard-check',
-                'title_danger' => '適性診断期限切れ',
-                'title_warning' => '適性診断期限間近',
-                'msg_danger' => '適性診断の期限が切れている乗務員が%d名います。早急に受診してください。',
-                'msg_warning' => '30日以内に適性診断の期限が切れる乗務員が%d名います。',
-            ],
-        ];
-
-        foreach ($driver_alert_configs as $cfg) {
-            $col = $cfg['column'];
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE is_active = 1 AND is_driver = 1 AND {$col} IS NOT NULL AND {$col} < CURDATE()");
-            $stmt->execute();
-            $expired = (int)$stmt->fetchColumn();
-
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE is_active = 1 AND is_driver = 1 AND {$col} IS NOT NULL AND {$col} BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)");
-            $stmt->execute();
-            $expiring = (int)$stmt->fetchColumn();
-
-            if ($expired > 0) {
-                $alerts[] = [
-                    'type' => 'danger', 'priority' => 'high',
-                    'icon' => $cfg['icon_danger'],
-                    'title' => $cfg['title_danger'],
-                    'message' => sprintf($cfg['msg_danger'], $expired),
-                    'action' => 'user_management.php'
-                ];
-            }
-            if ($expiring > 0) {
-                $alerts[] = [
-                    'type' => 'warning', 'priority' => 'normal',
-                    'icon' => $cfg['icon_warning'],
-                    'title' => $cfg['title_warning'],
-                    'message' => sprintf($cfg['msg_warning'], $expiring),
-                    'action' => 'user_management.php'
-                ];
-            }
-        }
-    } catch (Exception $e) {
-        // 乗務員台帳カラムが存在しない場合等はスキップ
-    }
 } catch (Exception $e) {
     error_log("ダッシュボード アラート生成エラー: " . $e->getMessage());
 }
@@ -426,7 +350,6 @@ echo $page_data['html_head'];
                             'arrival.php' => '入庫処理へ',
                             'departure.php' => '出庫処理へ',
                             'daily_inspection.php' => '日常点検へ',
-                            'user_management.php' => '乗務員管理へ',
                         ];
                         echo $action_labels[$alert['action']] ?? '対応する';
                     ?></a>
@@ -636,10 +559,6 @@ class DashboardManager {
 if (window.matchMedia('(display-mode: standalone)').matches) {
     document.body.classList.add('pwa-mode');
 }
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-}
-
 document.addEventListener('DOMContentLoaded', () => new DashboardManager());
 </script>
 

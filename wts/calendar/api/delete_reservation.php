@@ -52,7 +52,7 @@ try {
     }
 
     // 権限チェック: 管理者以外は自分が作成した予約のみ削除可能
-    if ($_SESSION['user_role'] !== 'admin' && $old_data['created_by'] != $_SESSION['user_id']) {
+    if ($user_role !== 'Admin' && $old_data['created_by'] != $_SESSION['user_id']) {
         sendErrorResponse('この予約を削除する権限がありません', 403);
     }
 
@@ -98,34 +98,9 @@ try {
 }
 
 /**
- * カレンダー操作ログ記録
+ * カレンダー操作ログ記録（統一関数のラッパー）
  */
 function logCalendarAction($user_id, $action, $target_type, $target_id, $old_data = null, $new_data = null) {
-    global $pdo;
-
-    try {
-        $user_type = 'user';
-
-        $sql = "
-            INSERT INTO calendar_audit_logs
-            (user_id, user_type, action, target_type, target_id, old_data, new_data, ip_address, user_agent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            $user_id,
-            $user_type,
-            $action,
-            $target_type,
-            $target_id,
-            $old_data ? json_encode($old_data, JSON_UNESCAPED_UNICODE) : null,
-            $new_data ? json_encode($new_data, JSON_UNESCAPED_UNICODE) : null,
-            $_SERVER['REMOTE_ADDR'] ?? '',
-            $_SERVER['HTTP_USER_AGENT'] ?? ''
-        ]);
-
-    } catch (Exception $e) {
-        error_log("カレンダーログ記録エラー: " . $e->getMessage());
-    }
+    logCalendarAudit($user_id, $action, $target_type, $target_id, $old_data, $new_data);
 }
 ?>

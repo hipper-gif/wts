@@ -4,13 +4,6 @@ require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
-/**
- * 点呼記録の監査ログ
- */
-function logCallAudit($pdo, $call_id, $action, $user_id, $changes = [], $reason = null) {
-    logAudit($pdo, $call_id, $action, $user_id, 'pre_duty_call', $changes, $reason);
-}
-
 function canEditCall($call, $user_role) {
     return canEditByDate($call, 'call_date', $user_role);
 }
@@ -100,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $delete_reason = $_POST['delete_reason'] ?? '削除';
                     $stmt = $pdo->prepare("DELETE FROM pre_duty_calls WHERE driver_id = ? AND call_date = ?");
                     $stmt->execute([$_POST['driver_id'], $_POST['call_date'] ?? $today]);
-                    logCallAudit($pdo, $delete_target['id'], 'delete', $user_id, [], $delete_reason);
+                    logAudit($pdo, $delete_target['id'], 'delete', $user_id, 'pre_duty_call', [], $delete_reason);
                     $pdo->commit();
                     $success_message = '乗務前点呼記録を削除しました。';
                     $existing_call = null;
@@ -121,6 +114,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     $driver_id = $_POST['driver_id'];
     $call_time = $_POST['call_time'];
 
+    if (empty($driver_id) || empty($call_time)) {
+        $error_message = '運転者、点呼時刻は必須です。';
+    }
+
+    if (empty($error_message)) {
     // 使用予定車両を取得（前回使用車両から推定）
     $stmt = $pdo->prepare("
         SELECT v.id 
@@ -196,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 $params[] = $today;
 
                 $stmt->execute($params);
-                logCallAudit($pdo, $existing['id'], 'edit', $user_id, [], $_POST['edit_reason'] ?? null);
+                logAudit($pdo, $existing['id'], 'edit', $user_id, 'pre_duty_call', [], $_POST['edit_reason'] ?? null);
                 $pdo->commit();
                 $success_message = '乗務前点呼記録を更新しました。';
             } else {
@@ -226,7 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
                 $stmt->execute($params);
                 $new_call_id = $pdo->lastInsertId();
-                logCallAudit($pdo, $new_call_id, 'create', $user_id);
+                logAudit($pdo, $new_call_id, 'create', $user_id, 'pre_duty_call');
                 $pdo->commit();
                 $success_message = '乗務前点呼記録を登録しました。';
             }
@@ -243,6 +241,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             error_log("Pre duty call error: " . $e->getMessage());
         }
     }
+    } // empty($error_message)
 }
 
 // ページ設定

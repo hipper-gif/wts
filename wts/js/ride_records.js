@@ -31,9 +31,13 @@ function showAddModal() {
     // デフォルト値設定
     document.getElementById('modalRideDate').value = todayDate;
     document.getElementById('modalRideTime').value = getCurrentTime();
+    document.getElementById('modalDropoffTime').value = '';
     document.getElementById('modalPassengerCount').value = '1';
     document.getElementById('modalCharge').value = '0';
     document.getElementById('modalPaymentMethod').value = '現金';
+    document.getElementById('modalRideDistance').value = '';
+    document.getElementById('modalDisabilityDiscount').checked = false;
+    document.getElementById('modalTicketAmount').value = '0';
 
     // デフォルト運転者・車両選択
     if (defaultDriverId) {
@@ -80,6 +84,12 @@ function editRecord(record) {
     document.getElementById('modalTransportationType').value = record.transportation_type;
     document.getElementById('modalPaymentMethod').value = record.payment_method;
     document.getElementById('modalNotes').value = record.notes || '';
+
+    // 新規フィールド
+    document.getElementById('modalDropoffTime').value = record.dropoff_time ? record.dropoff_time.substring(0, 5) : '';
+    document.getElementById('modalRideDistance').value = record.ride_distance || '';
+    document.getElementById('modalDisabilityDiscount').checked = (record.disability_discount == 1);
+    document.getElementById('modalTicketAmount').value = record.ticket_amount || 0;
 
     // 経由地を復元
     clearWaypoints();
@@ -149,6 +159,12 @@ function createReturnTrip(record) {
     document.getElementById('modalTransportationType').value = record.transportation_type;
     document.getElementById('modalPaymentMethod').value = record.payment_method;
     document.getElementById('modalNotes').value = '';
+
+    // 新規フィールド（復路は距離・時刻クリア、割引は往路を引き継ぐ）
+    document.getElementById('modalDropoffTime').value = '';
+    document.getElementById('modalRideDistance').value = '';
+    document.getElementById('modalDisabilityDiscount').checked = (record.disability_discount == 1);
+    document.getElementById('modalTicketAmount').value = record.ticket_amount || 0;
 
     // 人数ボタン設定
     updatePassengerButtons(record.passenger_count);

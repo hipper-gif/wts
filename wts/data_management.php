@@ -12,21 +12,8 @@ try {
     exit;
 }
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit();
-}
-
-// 管理者権限チェック（厳格）
-$is_admin = false;
-if (isset($_SESSION['user_permission_level']) && $_SESSION['user_permission_level'] === 'Admin') {
-    $is_admin = true;
-} elseif (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1) {
-    $is_admin = true;
-} elseif (isset($_SESSION['is_admin_user']) && $_SESSION['is_admin_user']) {
-    $is_admin = true;
-}
+// 管理者権限チェック（$user_role は session_check.php で設定済み）
+$is_admin = ($user_role === 'Admin');
 if (!$is_admin) {
     header('Location: dashboard.php?error=permission_denied');
     exit();

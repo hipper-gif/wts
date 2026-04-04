@@ -1,4 +1,8 @@
 <?php
+// TODO: このファイルは未実装の関数に依存しています。cash_management.php のタブUIから使用されますが、
+// getMonthlySummary(), getMonthlyComparison(), formatAmount(), getCashConfirmation() 等の関数が
+// 未定義のため、現在は動作しません。
+
 // 月次データ取得
 $monthly_summary = getMonthlySummary($pdo, $selected_month);
 $monthly_comparison = getMonthlyComparison($pdo, 6);

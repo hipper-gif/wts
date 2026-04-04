@@ -18,10 +18,7 @@ require_once '../includes/unified-header.php';
 // データベース接続
 $pdo = getDBConnection();
 
-// ユーザー情報取得
-$user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['user_name'];
-$user_role = $_SESSION['user_role'] ?? 'User';
+// $user_id, $user_name, $user_role は session_check.php で設定済み
 
 // カレンダー設定取得
 $view_mode = $_GET['view'] ?? 'month';
@@ -35,32 +32,15 @@ $drivers = getActiveDrivers($pdo);
 // 車両一覧取得
 $vehicles = getActiveVehicles($pdo, 'with_model');
 
-// カスタマイズ選択肢取得（テーブル未作成の場合は自動作成）
+// カスタマイズ選択肢取得
 $field_options = [];
 try {
-    $pdo->query("SELECT 1 FROM reservation_field_options LIMIT 1");
     $stmt = $pdo->query("SELECT field_name, option_value, option_label FROM reservation_field_options WHERE is_active = 1 ORDER BY field_name, sort_order, id");
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $field_options[$row['field_name']][] = ['value' => $row['option_value'], 'label' => $row['option_label']];
     }
 } catch (Exception $e) {
-    // テーブル未作成 → 自動作成
-    try {
-        $pdo->exec("CREATE TABLE IF NOT EXISTS reservation_field_options (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            field_name VARCHAR(50) NOT NULL,
-            option_value VARCHAR(100) NOT NULL,
-            option_label VARCHAR(100) NOT NULL,
-            sort_order INT NOT NULL DEFAULT 0,
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_field_option (field_name, option_value),
-            INDEX idx_field_active (field_name, is_active, sort_order)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
-    } catch (Exception $e2) {
-        // 作成失敗時はデフォルト値を使用
-    }
+    // テーブル未作成の場合はデフォルト値を使用
 }
 
 // ページ設定
@@ -613,9 +593,6 @@ window.calendarConfig = {
 
 <!-- 顧客マスター連携JS -->
 <script src="<?= $cache_bust('js/customer_master.js') ?>"></script>
-<!-- クイック予約JS -->
-<script src="<?= $cache_bust('js/quick_booking.js') ?>"></script>
-
 <!-- クイック予約FAB -->
 <div id="quickBookingFAB"></div>
 <script>

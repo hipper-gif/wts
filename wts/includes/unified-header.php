@@ -283,35 +283,26 @@ function getPageConfiguration($page_type) {
             'frequency' => '随時',
             'priority' => 'high'
         ],
-        
+        'customer_management' => [
+            'category' => 'management',
+            'icon' => 'users',
+            'title' => '顧客マスタ管理',
+            'subtitle' => '顧客情報の登録・編集・検索',
+            'description' => '顧客情報の管理',
+            'frequency' => '随時',
+            'priority' => 'normal'
+        ],
+        'calendar_settings' => [
+            'category' => 'management',
+            'icon' => 'sliders-h',
+            'title' => '予約項目カスタマイズ',
+            'subtitle' => '予約フォームの項目設定',
+            'description' => '予約フォームのカスタマイズ設定',
+            'frequency' => '随時',
+            'priority' => 'normal'
+        ],
+
         // 🛠️ 診断・管理ツール（5ページ）
-        'audit_data_manager' => [
-            'category' => 'diagnostic',
-            'icon' => 'clipboard-list',
-            'title' => '監査データ管理',
-            'subtitle' => '監査対応データの整理',
-            'description' => '監査準備のためのデータ管理',
-            'frequency' => '監査時',
-            'priority' => 'high'
-        ],
-        'emergency_audit_export' => [
-            'category' => 'diagnostic',
-            'icon' => 'file-export',
-            'title' => '緊急監査エクスポート',
-            'subtitle' => '即座の監査対応',
-            'description' => '緊急監査対応のためのデータエクスポート',
-            'frequency' => '緊急時',
-            'priority' => 'critical'
-        ],
-        'emergency_audit_kit' => [
-            'category' => 'diagnostic',
-            'icon' => 'first-aid',
-            'title' => '緊急監査キット',
-            'subtitle' => '監査対応支援ツール',
-            'description' => '監査対応の総合支援ツール',
-            'frequency' => '監査時',
-            'priority' => 'high'
-        ],
         'data_management' => [
             'category' => 'diagnostic',
             'icon' => 'database',
@@ -321,12 +312,13 @@ function getPageConfiguration($page_type) {
             'frequency' => '随時',
             'priority' => 'normal'
         ],
-        'manual_data_manager' => [
-            'category' => 'diagnostic',
-            'icon' => 'edit',
-            'title' => '手動データ管理',
-            'subtitle' => 'データの手動入力・修正',
-            'description' => '手動でのデータ入力・修正機能',
+        // ❓ ヘルプ
+        'help' => [
+            'category' => 'foundation',
+            'icon' => 'question-circle',
+            'title' => '使い方ガイド',
+            'subtitle' => 'スマルトの操作方法',
+            'description' => 'ドライバー向けの操作ガイド・FAQ',
             'frequency' => '随時',
             'priority' => 'normal'
         ]
@@ -405,7 +397,7 @@ function renderCompleteHTMLHead($page_title, $options = []) {
     
     <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="192x192" href="/Smiley/taxi/wts/icons/icon-192x192.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/Smiley/taxi/wts/icons/icon-32x32.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/Smiley/taxi/wts/icons/favicon-32x32.png">
 
     <!-- Skip Link CSS -->
     <style>
@@ -475,7 +467,11 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
                                 <div class="user-role">' . $role_display . '</div>
                             </div>
                         </div>
-                        
+
+                        <a href="' . $header_base_path . 'help.php" class="help-link" title="使い方ガイド" aria-label="使い方ガイド" style="color: #6c757d; text-decoration: none; font-size: 1.1rem;">
+                            <i class="fas fa-question-circle"></i>
+                        </a>
+
                         <a href="' . $header_base_path . 'logout.php" class="logout-btn" title="ログアウト" aria-label="ログアウト">
                             <i class="fas fa-sign-out-alt"></i>
                             <span class="d-none d-sm-inline">ログアウト</span>
@@ -512,9 +508,9 @@ function renderPageHeader($icon, $title, $subtitle = '', $category = 'other', $b
         $subtitle_html = '<span class="page-subtitle">' . $subtitle_safe . '</span>';
     }
     
-    // パンくずリスト
+    // パンくずリスト（現在は非表示）
     $breadcrumb_html = '';
-    if (!empty($breadcrumb)) {
+    if (false && !empty($breadcrumb)) {
         $breadcrumb_html = '<nav aria-label="パンくず" class="breadcrumb-nav">
             <ol class="breadcrumb mb-0">';
         
@@ -857,6 +853,11 @@ function renderCompleteHTMLFooter($additional_js = []) {
     document.addEventListener("DOMContentLoaded", function() {
         console.log("✅ 統一ヘッダーシステム v3.1.1 初期化完了");
     });
+    // Service Worker 登録（一元管理）
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("/Smiley/taxi/wts/sw.js")
+            .catch(function(err) { console.log("SW registration failed:", err); });
+    }
     </script>
 </body>
 </html>';
