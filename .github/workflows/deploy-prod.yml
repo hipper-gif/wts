@@ -2,6 +2,14 @@ name: 🔥 本番環境デプロイ（手動のみ）
 on:
   workflow_dispatch:
     inputs:
+      tenant:
+        description: 'デプロイ先テナント'
+        required: true
+        default: 'kinki'
+        type: choice
+        options:
+        - 'kinki'
+        - 'all'
       confirmation:
         description: '本番デプロイを実行しますか？'
         required: true
@@ -15,9 +23,22 @@ on:
         required: false
         default: ''
 
+# === テナント設定 ===
+# 新テナント追加時: inputs.tenant.options に追加 + env の TENANTS_JSON に追加
+env:
+  TENANTS_JSON: |
+    {
+      "kinki": {
+        "name": "スマルト",
+        "server_dir": "/tw1nkle.com/public_html/Smiley/taxi/wts/",
+        "ssh_base_path": "twinklemark.xsrv.jp/public_html/Smiley/taxi",
+        "url": "https://tw1nkle.com/Smiley/taxi/wts/"
+      }
+    }
+
 jobs:
-  validate-and-deploy:
-    name: 検証＆本番環境デプロイ
+  validate:
+    name: 検証
     runs-on: ubuntu-latest
 
     steps:
@@ -71,29 +92,75 @@ jobs:
 
         echo "✅ セキュリティチェック完了"
 
-    - name: 📦 デプロイ前バックアップ（SSH経由）
+  deploy:
+    name: デプロイ (${{ github.event.inputs.tenant }})
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+    - name: 📂 ファイル取得
+      uses: actions/checkout@v4
+
+    - name: 🏢 デプロイ対象テナント一覧を生成
+      id: tenants
+      run: |
+        TENANT_INPUT="${{ github.event.inputs.tenant }}"
+        if [ "$TENANT_INPUT" = "all" ]; then
+          # TENANTS_JSON から全テナントIDを取得
+          TENANT_LIST=$(echo '${{ env.TENANTS_JSON }}' | jq -r 'keys[]' | tr '\n' ' ')
+        else
+          TENANT_LIST="$TENANT_INPUT"
+        fi
+        echo "tenant_list=$TENANT_LIST" >> "$GITHUB_OUTPUT"
+        echo "📋 デプロイ対象: $TENANT_LIST"
+
+    - name: 📦 バックアップ＆🔥 デプロイ
       env:
         SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       run: |
-        mkdir -p ~/.ssh
-        echo "$SSH_KEY" > ~/.ssh/deploy_key
-        chmod 600 ~/.ssh/deploy_key
-        BACKUP_NAME="pre-deploy_$(date +%Y%m%d_%H%M%S)"
-        ssh -p 10022 -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-          twinklemark@sv16114.xserver.jp \
-          "cd ~/twinklemark.xsrv.jp/public_html/Smiley/taxi && \
-           tar czf ~/backups/wts_${BACKUP_NAME}.tar.gz \
-             --exclude='wts/.env' \
-             --exclude='wts/sql' \
-             wts/ && \
-           echo 'Backup created: wts_${BACKUP_NAME}.tar.gz' && \
-           ls -lh ~/backups/wts_${BACKUP_NAME}.tar.gz && \
-           ls ~/backups/wts_*.tar.gz | head -n -5 | xargs -r rm -f && \
-           echo 'Old backups cleaned (keeping last 5)'"
-        rm -f ~/.ssh/deploy_key
-        echo "✅ プリデプロイバックアップ完了"
+        TENANT_LIST="${{ steps.tenants.outputs.tenant_list }}"
 
-    - name: 🔥 本番環境にデプロイ
+        for TENANT_ID in $TENANT_LIST; do
+          echo "============================================"
+          echo "🏢 テナント: $TENANT_ID"
+          echo "============================================"
+
+          # テナント設定を取得
+          SERVER_DIR=$(echo '${{ env.TENANTS_JSON }}' | jq -r ".\"${TENANT_ID}\".server_dir")
+          SSH_BASE_PATH=$(echo '${{ env.TENANTS_JSON }}' | jq -r ".\"${TENANT_ID}\".ssh_base_path")
+          TENANT_NAME=$(echo '${{ env.TENANTS_JSON }}' | jq -r ".\"${TENANT_ID}\".name")
+
+          if [ "$SERVER_DIR" = "null" ]; then
+            echo "❌ テナント ${TENANT_ID} の設定が見つかりません"
+            exit 1
+          fi
+
+          echo "📍 テナント名: $TENANT_NAME"
+          echo "📁 server-dir: $SERVER_DIR"
+
+          # --- バックアップ（SSH経由） ---
+          echo "📦 バックアップ開始..."
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          BACKUP_NAME="pre-deploy_${TENANT_ID}_$(date +%Y%m%d_%H%M%S)"
+          ssh -p 10022 -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            twinklemark@sv16114.xserver.jp \
+            "cd ~/${SSH_BASE_PATH} && \
+             tar czf ~/backups/wts_${BACKUP_NAME}.tar.gz \
+               --exclude='wts/.env' \
+               --exclude='wts/sql' \
+               wts/ && \
+             echo 'Backup created: wts_${BACKUP_NAME}.tar.gz' && \
+             ls -lh ~/backups/wts_${BACKUP_NAME}.tar.gz && \
+             ls ~/backups/wts_*${TENANT_ID}*.tar.gz 2>/dev/null | head -n -5 | xargs -r rm -f && \
+             echo 'Old backups cleaned (keeping last 5)'"
+          rm -f ~/.ssh/deploy_key
+          echo "✅ バックアップ完了: $TENANT_ID"
+        done
+
+    - name: 🔥 kinki にデプロイ
+      if: github.event.inputs.tenant == 'kinki' || github.event.inputs.tenant == 'all'
       uses: SamKirkland/FTP-Deploy-Action@4.3.3
       with:
         server: ${{ secrets.FTP_SERVER }}
@@ -114,10 +181,33 @@ jobs:
         dry-run: false
         log-level: verbose
 
+    # === 新テナント追加時はここにFTPデプロイステップを追加 ===
+    # - name: 🔥 <テナントID> にデプロイ
+    #   if: github.event.inputs.tenant == '<テナントID>' || github.event.inputs.tenant == 'all'
+    #   uses: SamKirkland/FTP-Deploy-Action@4.3.3
+    #   with:
+    #     server: ${{ secrets.FTP_SERVER }}
+    #     username: ${{ secrets.FTP_USERNAME }}
+    #     password: ${{ secrets.FTP_PASSWORD }}
+    #     local-dir: ./wts/
+    #     server-dir: <テナントのserver-dir>
+    #     exclude: |
+    #       **/.git*
+    #       **/.gitignore
+    #       **/README.md
+    #       **/.github/**
+    #       **/node_modules/**
+    #       **/.env
+    #       **/.env.example
+    #       **/sql/**
+    #       **/uploads/documents/**
+    #     dry-run: false
+    #     log-level: verbose
+
     - name: ✅ 本番デプロイ完了通知
       run: |
         echo "🎉 本番環境デプロイ完了！"
-        echo "🌐 URL: https://tw1nkle.com/Smiley/taxi/wts/"
+        echo "🏢 テナント: ${{ github.event.inputs.tenant }}"
         echo "📝 デプロイ理由: ${{ github.event.inputs.message }}"
         echo "👤 実行者: ${{ github.actor }}"
         echo "📅 日時: $(date '+%Y-%m-%d %H:%M:%S UTC')"

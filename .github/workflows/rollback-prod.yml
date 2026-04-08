@@ -2,6 +2,13 @@ name: ⏪ 本番ロールバック（手動）
 on:
   workflow_dispatch:
     inputs:
+      tenant:
+        description: 'ロールバック対象テナント'
+        required: true
+        default: 'kinki'
+        type: choice
+        options:
+        - 'kinki'
       rollback_type:
         description: 'ロールバック方法'
         required: true
@@ -26,9 +33,21 @@ on:
         - 'no'
         - 'yes'
 
+# === テナント設定（deploy-prod.yml と同じ定義を維持すること） ===
+env:
+  TENANTS_JSON: |
+    {
+      "kinki": {
+        "name": "スマルト",
+        "server_dir": "/tw1nkle.com/public_html/Smiley/taxi/wts/",
+        "ssh_base_path": "twinklemark.xsrv.jp/public_html/Smiley/taxi",
+        "url": "https://tw1nkle.com/Smiley/taxi/wts/"
+      }
+    }
+
 jobs:
   rollback:
-    name: 本番環境ロールバック
+    name: 本番環境ロールバック (${{ github.event.inputs.tenant }})
     runs-on: ubuntu-latest
 
     steps:
@@ -37,6 +56,26 @@ jobs:
       run: |
         echo "ロールバックがキャンセルされました"
         exit 1
+
+    - name: 🏢 テナント設定を取得
+      id: tenant
+      run: |
+        TENANT_ID="${{ github.event.inputs.tenant }}"
+        SERVER_DIR=$(echo '${{ env.TENANTS_JSON }}' | jq -r ".\"${TENANT_ID}\".server_dir")
+        SSH_BASE_PATH=$(echo '${{ env.TENANTS_JSON }}' | jq -r ".\"${TENANT_ID}\".ssh_base_path")
+        TENANT_NAME=$(echo '${{ env.TENANTS_JSON }}' | jq -r ".\"${TENANT_ID}\".name")
+
+        if [ "$SERVER_DIR" = "null" ]; then
+          echo "❌ テナント ${TENANT_ID} の設定が見つかりません"
+          exit 1
+        fi
+
+        echo "server_dir=$SERVER_DIR" >> "$GITHUB_OUTPUT"
+        echo "ssh_base_path=$SSH_BASE_PATH" >> "$GITHUB_OUTPUT"
+        echo "tenant_name=$TENANT_NAME" >> "$GITHUB_OUTPUT"
+        echo "📍 テナント: $TENANT_NAME ($TENANT_ID)"
+        echo "📁 server-dir: $SERVER_DIR"
+        echo "📁 ssh-path: $SSH_BASE_PATH"
 
     # ---- バックアップからのロールバック ----
     - name: 📦 バックアップからロールバック
@@ -49,16 +88,23 @@ jobs:
         chmod 600 ~/.ssh/deploy_key
 
         BACKUP="${{ github.event.inputs.backup_name }}"
+        SSH_BASE_PATH="${{ steps.tenant.outputs.ssh_base_path }}"
+        TENANT_ID="${{ github.event.inputs.tenant }}"
 
         ssh -p 10022 -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-          twinklemark@sv16114.xserver.jp bash -s "$BACKUP" << 'REMOTE_SCRIPT'
+          twinklemark@sv16114.xserver.jp bash -s "$BACKUP" "$SSH_BASE_PATH" "$TENANT_ID" << 'REMOTE_SCRIPT'
           BACKUP_NAME="$1"
-          DEPLOY_DIR="$HOME/twinklemark.xsrv.jp/public_html/Smiley/taxi"
+          DEPLOY_DIR="$HOME/$2"
+          TENANT_ID="$3"
           BACKUP_DIR="$HOME/backups"
 
           # バックアップ指定がなければ最新を使う
           if [ -z "$BACKUP_NAME" ]; then
-            BACKUP_NAME=$(ls -t "$BACKUP_DIR"/wts_pre-deploy_*.tar.gz 2>/dev/null | head -1)
+            BACKUP_NAME=$(ls -t "$BACKUP_DIR"/wts_pre-deploy_${TENANT_ID}_*.tar.gz 2>/dev/null | head -1)
+            # フォールバック: 旧形式のバックアップ名も検索
+            if [ -z "$BACKUP_NAME" ]; then
+              BACKUP_NAME=$(ls -t "$BACKUP_DIR"/wts_pre-deploy_*.tar.gz 2>/dev/null | head -1)
+            fi
             if [ -z "$BACKUP_NAME" ]; then
               echo "バックアップが見つかりません"
               exit 1
@@ -70,7 +116,7 @@ jobs:
           echo "ロールバック元: $BACKUP_NAME"
 
           # 現在のファイルを退避
-          SAFETY_BACKUP="$BACKUP_DIR/wts_pre-rollback_$(date +%Y%m%d_%H%M%S).tar.gz"
+          SAFETY_BACKUP="$BACKUP_DIR/wts_pre-rollback_${TENANT_ID}_$(date +%Y%m%d_%H%M%S).tar.gz"
           cd "$DEPLOY_DIR"
           tar czf "$SAFETY_BACKUP" --exclude='wts/.env' wts/
           echo "安全バックアップ作成: $SAFETY_BACKUP"
@@ -94,8 +140,8 @@ jobs:
       with:
         ref: ${{ github.event.inputs.commit_sha }}
 
-    - name: 🔁 コミットから再デプロイ
-      if: github.event.inputs.rollback_type == 'commit'
+    - name: 🔁 コミットから再デプロイ (kinki)
+      if: github.event.inputs.rollback_type == 'commit' && github.event.inputs.tenant == 'kinki'
       uses: SamKirkland/FTP-Deploy-Action@4.3.3
       with:
         server: ${{ secrets.FTP_SERVER }}
@@ -112,11 +158,15 @@ jobs:
           **/.env
           **/.env.example
           **/sql/**
+          **/uploads/documents/**
         dry-run: false
+
+    # === 新テナント追加時はここにコミットロールバック用FTPステップを追加 ===
 
     - name: ロールバック完了通知
       run: |
         echo "ロールバック完了"
+        echo "🏢 テナント: ${{ github.event.inputs.tenant }}"
         echo "方法: ${{ github.event.inputs.rollback_type }}"
         echo "実行者: ${{ github.actor }}"
         echo "日時: $(date '+%Y-%m-%d %H:%M:%S UTC')"
