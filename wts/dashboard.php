@@ -270,7 +270,7 @@ echo $page_data['html_head'];
 <!-- ダッシュボード専用ヘッダー -->
 <div class="dashboard-mini-header">
     <div class="d-flex align-items-center">
-        <i class="fas fa-taxi text-primary me-2"></i>
+        <img src="icons/smaruto-header@2x.png" alt="スマルト" style="height:28px;width:28px;vertical-align:middle;" class="me-2">
         <strong class="dashboard-title"><?= htmlspecialchars($system_name) ?></strong>
         <span class="text-muted ms-2 d-none d-md-inline dashboard-user-info"><?= htmlspecialchars($user_name) ?> (<?= htmlspecialchars($user_role_display) ?>)</span>
     </div>
