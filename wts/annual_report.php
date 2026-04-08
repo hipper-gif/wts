@@ -40,12 +40,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             UPDATE company_info SET
                             company_name = ?, representative_name = ?,
                             postal_code = ?, address = ?, phone = ?,
+                            fax = ?, manager_name = ?, manager_email = ?,
                             license_number = ?, business_type = ?
                             WHERE id = ?
                         ");
                         $stmt->execute([
                             $_POST['company_name'], $_POST['representative_name'],
                             $_POST['postal_code'], $_POST['address'], $_POST['phone'],
+                            $_POST['fax'] ?? '', $_POST['manager_name'] ?? '', $_POST['manager_email'] ?? '',
                             $_POST['license_number'], $_POST['business_type'],
                             $target_id
                         ]);
@@ -148,10 +150,13 @@ function getCompanyInfo($pdo) {
     
     if (!$result) {
         return [
-            'company_name' => '近畿介護タクシー株式会社',
-            'representative_name' => '代表取締役　田中　太郎',
-            'address' => '大阪市中央区天満橋1-7-10',
-            'phone' => '06-6949-6446',
+            'company_name' => '',
+            'representative_name' => '',
+            'address' => '',
+            'phone' => '',
+            'fax' => '',
+            'manager_name' => '',
+            'manager_email' => '',
             'postal_code' => '',
             'license_number' => '',
             'business_type' => '一般乗用旅客自動車運送事業（福祉）'
@@ -362,134 +367,292 @@ function getAnnualReports($pdo, $year = null) {
     }
 }
 
-// PDF出力関数（HTML形式で出力し、ブラウザの印刷機能でPDF保存）
+// PDF出力関数 — 近畿運輸局 第4号様式 第3表（福祉限定）の正式フォーマットに準拠
 function generateForm4PDF($company, $business, $transport, $accident, $year) {
     header('Content-Type: text/html; charset=UTF-8');
     header('Cache-Control: private, max-age=0, must-revalidate');
 
-    $fiscal_start = ($year - 1) . '年4月1日';
-    $fiscal_end = $year . '年3月31日';
-    $report_date = date('Y年m月d日');
+    $prev_year = $year - 1;
+    $revenue_sen = floor(($transport['total_revenue'] ?? 0) / 1000); // 千円単位
 
-    $categories_html = '';
-    if (!empty($transport['transport_categories'])) {
-        $categories_html .= '<h3>輸送種別詳細</h3>';
-        $categories_html .= '<table><thead><tr><th>輸送種別</th><th>運送回数</th><th>輸送人員</th><th>営業収入</th></tr></thead><tbody>';
-        foreach ($transport['transport_categories'] as $cat) {
-            $categories_html .= '<tr>';
-            $categories_html .= '<td>' . htmlspecialchars($cat['transportation_type']) . '</td>';
-            $categories_html .= '<td class="num">' . number_format($cat['count']) . '回</td>';
-            $categories_html .= '<td class="num">' . number_format($cat['passengers']) . '人</td>';
-            $categories_html .= '<td class="num">&yen;' . number_format($cat['revenue']) . '</td>';
-            $categories_html .= '</tr>';
-        }
-        $categories_html .= '</tbody></table>';
-    }
+    // 値のフォーマット（0の場合も表示）
+    $f = function($v) { return number_format(intval($v)); };
 
     echo '<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>第4号様式（輸送実績報告書）' . htmlspecialchars($year) . '年度</title>
+<title>第4号様式 第3表（限定）輸送実績報告書 ' . htmlspecialchars($year) . '年度</title>
 <style>
-@page { size: A4; margin: 15mm; }
-body { font-family: "Yu Gothic", "YuGothic", "Hiragino Sans", "Meiryo", sans-serif; margin: 0; padding: 20px; font-size: 12pt; color: #000; }
-.print-controls { text-align: center; margin-bottom: 20px; padding: 15px; background: #f0f0f0; border-radius: 8px; }
-.print-controls button { padding: 10px 30px; font-size: 14pt; cursor: pointer; margin: 0 5px; border-radius: 4px; border: 1px solid #ccc; }
-.print-controls .btn-print { background: #2196F3; color: #fff; border-color: #1976D2; }
-.print-controls .btn-close-page { background: #757575; color: #fff; border-color: #616161; }
-@media print { .print-controls { display: none !important; } }
-.report { max-width: 210mm; margin: 0 auto; }
-.report-title { text-align: center; font-size: 16pt; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 5px; }
-.report-subtitle { text-align: center; font-size: 10pt; color: #555; margin-bottom: 20px; }
-.section { margin-bottom: 15px; }
-h3 { font-size: 12pt; border-left: 4px solid #333; padding-left: 8px; margin: 15px 0 8px; }
-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-th, td { border: 1px solid #333; padding: 6px 10px; font-size: 11pt; }
-th { background: #f5f5f5; text-align: center; font-weight: bold; }
-td.num { text-align: right; }
-td.label { background: #fafafa; width: 50%; }
-.company-info { margin-bottom: 15px; }
-.company-info td.label { width: 120px; }
-.notes { font-size: 9pt; color: #444; margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
-.notes h3 { font-size: 10pt; margin-top: 0; }
-.notes ol { margin: 5px 0; padding-left: 20px; }
-.notes li { margin-bottom: 3px; }
-.footer-line { text-align: center; margin-top: 25px; padding-top: 10px; border-top: 1px solid #999; font-size: 9pt; color: #666; }
+/* === 印刷設定: A4縦 === */
+@page { size: A4 portrait; margin: 12mm 15mm 10mm 15mm; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: "Yu Gothic", "YuGothic", "Meiryo", "Hiragino Kaku Gothic ProN", sans-serif;
+    font-size: 10.5pt;
+    color: #000;
+    background: #fff;
+    line-height: 1.4;
+}
+
+/* === 画面プレビュー === */
+.page-wrapper {
+    width: 210mm; min-height: 297mm;
+    margin: 10mm auto; padding: 12mm 15mm 10mm 15mm;
+    background: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.15);
+}
+.print-controls {
+    text-align: center; margin: 0 auto 10px; padding: 12px;
+    background: #f5f5f5; border-radius: 6px; max-width: 210mm;
+}
+.print-controls button {
+    padding: 8px 24px; font-size: 12pt; cursor: pointer;
+    margin: 0 4px; border-radius: 4px; border: 1px solid #ccc;
+}
+.print-controls .btn-print { background: #1976D2; color: #fff; border-color: #1565C0; }
+.print-controls .btn-close { background: #757575; color: #fff; border-color: #616161; }
+@media print {
+    .print-controls { display: none !important; }
+    .page-wrapper { margin: 0; padding: 0; box-shadow: none; min-height: auto; }
+    body { background: #fff; }
+}
+
+/* === 様式ヘッダー === */
+.form-header { font-size: 8pt; color: #333; margin-bottom: 6mm; }
+.form-number { display: flex; justify-content: space-between; }
+.form-number-left { }
+.form-number-right { display: flex; align-items: center; gap: 2mm; }
+.form-number-right .bango-box {
+    display: inline-block; border: 1px solid #000; padding: 1px 8px;
+    min-width: 60mm; text-align: center; font-size: 9pt;
+}
+.form-number-right .gentei { border: 1px solid #000; padding: 1px 6px; font-size: 9pt; }
+
+.shikyu-line { font-size: 10pt; margin: 4mm 0; }
+.shikyu-line .shikyu-name {
+    border-bottom: 1px solid #000; display: inline-block;
+    min-width: 30mm; text-align: center; padding: 0 2mm;
+}
+
+/* === タイトル === */
+.report-title {
+    text-align: center; font-size: 12pt; font-weight: bold;
+    margin: 4mm 0 5mm; letter-spacing: 0.15em;
+}
+
+/* === 宛先・事業者情報 === */
+.ate-line { font-size: 10pt; margin: 2mm 0 4mm; text-indent: 12em; }
+.company-block { margin-left: 48%; margin-bottom: 4mm; }
+.company-block table { border-collapse: collapse; }
+.company-block td { padding: 1px 4px; font-size: 9.5pt; vertical-align: top; }
+.company-block td.lbl { white-space: nowrap; padding-right: 6px; }
+.company-block td.val { border-bottom: 1px dotted #666; min-width: 50mm; }
+
+/* === データテーブル === */
+.data-table {
+    width: 100%; border-collapse: collapse; margin-bottom: 0;
+    border: 1.5pt solid #000;
+}
+.data-table th, .data-table td {
+    border: 0.5pt solid #000; padding: 3px 6px;
+    font-size: 9.5pt; vertical-align: middle;
+}
+.data-table .section-title {
+    text-align: left; font-weight: bold; font-size: 9.5pt;
+    background: none; border-bottom: 1.5pt solid #000;
+    padding: 4px 6px;
+}
+.data-table .col-header {
+    text-align: center; font-weight: normal; font-size: 9pt;
+    background: none; height: 22px;
+}
+.data-table .item-label {
+    text-align: left; font-size: 9.5pt; background: none;
+    padding-left: 8px;
+}
+.data-table .item-value {
+    text-align: right; font-size: 10pt; background: none;
+    padding-right: 8px;
+}
+.data-table .employee-paren {
+    text-align: right; font-size: 9pt; padding-right: 4px;
+}
+
+/* === 備考 === */
+.biko {
+    border: 1.5pt solid #000; border-top: none;
+    padding: 4px 8px; font-size: 8pt; line-height: 1.5;
+}
+.biko .biko-title { font-weight: bold; font-size: 8.5pt; margin-bottom: 2px; }
+.biko ol { margin: 0; padding-left: 16px; }
+.biko li { margin-bottom: 1px; }
 </style>
 </head>
 <body>
+
 <div class="print-controls">
     <button class="btn-print" onclick="window.print()"><b>PDF保存 / 印刷</b></button>
-    <button class="btn-close-page" onclick="window.close()">閉じる</button>
+    <button class="btn-close" onclick="window.close()">閉じる</button>
 </div>
-<div class="report">
-    <div class="report-title">一般乗用旅客自動車運送事業実績報告書（第４号様式）</div>
-    <div class="report-subtitle">報告年度：' . htmlspecialchars($year) . '年度（' . $fiscal_start . ' ～ ' . $fiscal_end . '）　作成日：' . $report_date . '</div>
 
-    <h3>事業者情報</h3>
-    <table class="company-info">
-        <tr><td class="label">事業者名</td><td>' . htmlspecialchars($company['company_name']) . '</td></tr>
-        <tr><td class="label">代表者名</td><td>' . htmlspecialchars($company['representative_name']) . '</td></tr>
-        <tr><td class="label">住所</td><td>' . htmlspecialchars(($company['postal_code'] ? '〒' . $company['postal_code'] . ' ' : '') . $company['address']) . '</td></tr>
-        <tr><td class="label">電話番号</td><td>' . htmlspecialchars($company['phone']) . '</td></tr>
-        <tr><td class="label">事業種別</td><td>' . htmlspecialchars($company['business_type']) . '</td></tr>
-        <tr><td class="label">許可番号</td><td>' . htmlspecialchars($company['license_number'] ?: '―') . '</td></tr>
-    </table>
+<div class="page-wrapper">
 
-    <h3>事業概況（' . htmlspecialchars($year) . '年3月31日現在）</h3>
-    <table>
-        <tr><td class="label">事業用自動車数（台）</td><td class="num">' . number_format($business['vehicle_count']) . '</td></tr>
-        <tr><td class="label">従業員数（人）</td><td class="num">' . number_format($business['employee_count']) . '</td></tr>
-        <tr><td class="label">　うち運転者数（人）</td><td class="num">' . number_format($business['driver_count']) . '</td></tr>
-    </table>
-
-    <h3>輸送実績（' . $fiscal_start . ' ～ ' . $fiscal_end . '）</h3>
-    <table>
-        <tr><td class="label">走行キロ（キロメートル）</td><td class="num">' . number_format($transport['total_distance']) . '</td></tr>
-        <tr><td class="label">運送回数（回）</td><td class="num">' . number_format($transport['ride_count']) . '</td></tr>
-        <tr><td class="label">輸送人員（人）</td><td class="num">' . number_format($transport['total_passengers']) . '</td></tr>
-        <tr><td class="label">営業収入（千円）</td><td class="num">' . number_format(floor($transport['total_revenue'] / 1000)) . '</td></tr>
-    </table>
-
-    <h3>事故件数（' . $fiscal_start . ' ～ ' . $fiscal_end . '）</h3>
-    <table>
-        <tr><td class="label">交通事故件数（件）</td><td class="num">' . number_format($accident['traffic_accidents']) . '</td></tr>
-        <tr><td class="label">重大事故件数（件）</td><td class="num">' . number_format($accident['serious_accidents']) . '</td></tr>
-        <tr><td class="label">死者数（人）</td><td class="num">' . number_format($accident['total_deaths']) . '</td></tr>
-        <tr><td class="label">負傷者数（人）</td><td class="num">' . number_format($accident['total_injuries']) . '</td></tr>
-    </table>
-
-    ' . $categories_html . '
-
-    <div class="notes">
-        <h3>備考</h3>
-        <ol>
-            <li>営業実績については、当事業年度の月毎の記録に基づいて記載</li>
-            <li>運転者数は運転業務に従事した者の数を記載</li>
-            <li>住所記載について、運輸支局等の認可に基づく</li>
-            <li>交通事故については、運輸支局等への報告に基づく</li>
-            <li>重大事故については、自動車事故報告規則の事故を記載</li>
-        </ol>
+<!-- ヘッダー: 様式番号 -->
+<div class="form-header">
+    <div class="form-number">
+        <div class="form-number-left">第４号様式　（第２条関係）　（日本工業規格Ａ列４番）　第３表</div>
+        <div class="form-number-right">
+            事業者番号 <span class="bango-box">&nbsp;</span>
+            <span class="gentei">限定</span>
+        </div>
     </div>
-
-    <div class="footer-line">以上 ― ' . htmlspecialchars($company['company_name']) . '</div>
 </div>
+
+<!-- 運輸支局 -->
+<div class="shikyu-line">
+    <span class="shikyu-name">大阪</span>運輸支局
+</div>
+
+<!-- タイトル -->
+<div class="report-title">
+    一般乗用旅客自動車運送事業 （限定） 輸送実績報告書 （<?= htmlspecialchars($year) ?>年度）
+</div>
+
+<!-- 宛先 -->
+<div class="ate-line">国土交通大臣　あて</div>
+
+<!-- 事業者情報 -->
+<div class="company-block">
+    <table>
+        <tr><td class="lbl">住　　　所</td><td class="val"><?= htmlspecialchars(($company['postal_code'] ? '〒' . $company['postal_code'] . '　' : '') . $company['address']) ?></td></tr>
+        <tr><td class="lbl">事業者名</td><td class="val"><?= htmlspecialchars($company['company_name']) ?></td></tr>
+        <tr><td class="lbl">代表者名</td><td class="val"><?= htmlspecialchars($company['representative_name']) ?>　</td></tr>
+        <tr><td class="lbl">電話番号</td><td class="val"><?= htmlspecialchars($company['phone']) ?></td></tr>
+    </table>
+</div>
+
+<!-- ============ 事業概況 ============ -->
+<table class="data-table">
+    <tr>
+        <td colspan="3" class="section-title">事業概況 （<?= htmlspecialchars($year) ?>年３月３１日現在）</td>
+    </tr>
+    <tr>
+        <td class="col-header" style="width:50%;">&nbsp;</td>
+        <td class="col-header" style="width:25%;">管轄区域内</td>
+        <td class="col-header" style="width:25%;">全国</td>
+    </tr>
+    <tr>
+        <td class="item-label">資本金（基金）の額 （千円）</td>
+        <td class="item-value">&nbsp;</td>
+        <td class="item-value">&nbsp;</td>
+    </tr>
+    <tr>
+        <td class="item-label">兼営事業</td>
+        <td class="item-value">&nbsp;</td>
+        <td class="item-value">&nbsp;</td>
+    </tr>
+    <tr>
+        <td class="item-label">事業用自動車数 （両）</td>
+        <td class="item-value"><?= $f($business['vehicle_count']) ?></td>
+        <td class="item-value"><?= $f($business['vehicle_count']) ?></td>
+    </tr>
+    <tr>
+        <td class="item-label">従業員数</td>
+        <td class="item-value"><?= $f($business['employee_count']) ?><span class="employee-paren">（<?= $f($business['driver_count']) ?>）</span></td>
+        <td class="item-value"><?= $f($business['employee_count']) ?><span class="employee-paren">（<?= $f($business['driver_count']) ?>）</span></td>
+    </tr>
+</table>
+
+<!-- ============ 輸送実績 ============ -->
+<table class="data-table" style="border-top: none;">
+    <tr>
+        <td colspan="3" class="section-title">輸送実績 （前年４月１日から本年３月３１日まで）</td>
+    </tr>
+    <tr>
+        <td class="col-header" style="width:50%;">&nbsp;</td>
+        <td class="col-header" style="width:25%;">管轄区域内</td>
+        <td class="col-header" style="width:25%;">全国</td>
+    </tr>
+    <tr>
+        <td class="item-label">走行キロ （キロメートル）</td>
+        <td class="item-value"><?= $f($transport['total_distance']) ?></td>
+        <td class="item-value"><?= $f($transport['total_distance']) ?></td>
+    </tr>
+    <tr>
+        <td class="item-label">運送回数 （回）</td>
+        <td class="item-value"><?= $f($transport['ride_count']) ?></td>
+        <td class="item-value"><?= $f($transport['ride_count']) ?></td>
+    </tr>
+    <tr>
+        <td class="item-label">輸送人員 （人）</td>
+        <td class="item-value"><?= $f($transport['total_passengers']) ?></td>
+        <td class="item-value"><?= $f($transport['total_passengers']) ?></td>
+    </tr>
+    <tr>
+        <td class="item-label">営業収入 （千円）</td>
+        <td class="item-value"><?= $f($revenue_sen) ?></td>
+        <td class="item-value"><?= $f($revenue_sen) ?></td>
+    </tr>
+</table>
+
+<!-- ============ 事故件数 ============ -->
+<table class="data-table" style="border-top: none;">
+    <tr>
+        <td colspan="3" class="section-title">事故件数 （前年４月１日から本年３月３１日まで）</td>
+    </tr>
+    <tr>
+        <td class="col-header" style="width:50%;">&nbsp;</td>
+        <td class="col-header" style="width:25%;">管轄区域内</td>
+        <td class="col-header" style="width:25%;">全国</td>
+    </tr>
+    <tr>
+        <td class="item-label">交通事故件数</td>
+        <td class="item-value"><?= $f($accident['traffic_accidents']) ?></td>
+        <td class="item-value"><?= $f($accident['traffic_accidents']) ?></td>
+    </tr>
+    <tr>
+        <td class="item-label">重大事故件数</td>
+        <td class="item-value"><?= $f($accident['serious_accidents']) ?></td>
+        <td class="item-value"><?= $f($accident['serious_accidents']) ?></td>
+    </tr>
+    <tr>
+        <td class="item-label">死者数</td>
+        <td class="item-value"><?= $f($accident['total_deaths']) ?></td>
+        <td class="item-value"><?= $f($accident['total_deaths']) ?></td>
+    </tr>
+    <tr>
+        <td class="item-label">負傷者数</td>
+        <td class="item-value"><?= $f($accident['total_injuries']) ?></td>
+        <td class="item-value"><?= $f($accident['total_injuries']) ?></td>
+    </tr>
+</table>
+
+<!-- ============ 備考 ============ -->
+<div class="biko">
+    <span class="biko-title">備　考</span>
+    <ol>
+        <li>兼営事業については、主な兼営事業の名称を記載すること。</li>
+        <li>従業員数は、兼営事業がある場合は主として当該事業に従事している人数及び共通部門に従事している従業員については当該事業分として適正な基準により配分した人数とする。</li>
+        <li>従業員数の欄の（　　）には、運転者数を記載すること。</li>
+        <li>交通事故とは、道路交通法（昭和35年法律第105号）第72条第１項の交通事故をいう。</li>
+        <li>重大事故とは、自動車事故報告規則（昭和26年運輸省令第104号）第２条の事故をいう。</li>
+    </ol>
+</div>
+
+</div><!-- .page-wrapper -->
 </body>
 </html>';
 }
 
-// エクセル出力関数
+// エクセル出力関数 — 第4号様式 第3表（福祉限定）準拠
 function generateForm4Excel($company, $business, $transport, $accident, $year) {
-    $filename = 'transport_report_form4_' . $year . '.xls';
+    $filename = 'gentei_jisseki_' . $year . '.xls';
     header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Cache-Control: no-cache, must-revalidate');
     header('Pragma: no-cache');
 
-    $fiscal_start = ($year - 1) . '年4月1日';
-    $fiscal_end = $year . '年3月31日';
-    $report_date = date('Y年m月d日');
+    $revenue_sen = floor(($transport['total_revenue'] ?? 0) / 1000);
 
     // UTF-8 BOM for Excel compatibility
     echo "\xEF\xBB\xBF";
@@ -497,68 +660,57 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
     echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
     echo '<head><meta charset="UTF-8">';
     echo '<style>
-        td, th { font-family: "Yu Gothic", "Meiryo", sans-serif; font-size: 11pt; }
-        th { background: #d9e1f2; font-weight: bold; text-align: center; }
+        td, th { font-family: "Yu Gothic", "Meiryo", sans-serif; font-size: 10pt; vertical-align: middle; }
         td.num { text-align: right; mso-number-format:"\#\,\#\#0"; }
-        td.label { background: #f2f2f2; }
-        .title { font-size: 14pt; font-weight: bold; text-align: center; }
-        .subtitle { font-size: 10pt; text-align: center; color: #555; }
-        .section-header { font-size: 12pt; font-weight: bold; background: #e2efda; }
+        td.lbl { background: none; }
+        .sec { font-weight: bold; }
+        .hdr { text-align: center; }
     </style></head><body>';
 
     echo '<table border="1" cellpadding="4" cellspacing="0">';
 
-    // タイトル
-    echo '<tr><td colspan="4" class="title">一般乗用旅客自動車運送事業実績報告書（第４号様式）</td></tr>';
-    echo '<tr><td colspan="4" class="subtitle">報告年度：' . htmlspecialchars($year) . '年度（' . $fiscal_start . ' ～ ' . $fiscal_end . '）　作成日：' . $report_date . '</td></tr>';
-    echo '<tr><td colspan="4"></td></tr>';
+    // 様式番号
+    echo '<tr><td colspan="3">第４号様式（第２条関係）（日本工業規格Ａ列４番）第３表</td></tr>';
+    echo '<tr><td colspan="3"></td></tr>';
+
+    // 支局・タイトル
+    echo '<tr><td colspan="3">大阪運輸支局</td></tr>';
+    echo '<tr><td colspan="3"></td></tr>';
+    echo '<tr><td colspan="3" style="text-align:center;font-weight:bold;font-size:12pt;">一般乗用旅客自動車運送事業（限定）輸送実績報告書（' . htmlspecialchars($year) . '年度）</td></tr>';
+    echo '<tr><td colspan="3"></td></tr>';
 
     // 事業者情報
-    echo '<tr><td colspan="4" class="section-header">事業者情報</td></tr>';
-    echo '<tr><td class="label">事業者名</td><td colspan="3">' . htmlspecialchars($company['company_name']) . '</td></tr>';
-    echo '<tr><td class="label">代表者名</td><td colspan="3">' . htmlspecialchars($company['representative_name']) . '</td></tr>';
-    echo '<tr><td class="label">住所</td><td colspan="3">' . htmlspecialchars(($company['postal_code'] ? '〒' . $company['postal_code'] . ' ' : '') . $company['address']) . '</td></tr>';
-    echo '<tr><td class="label">電話番号</td><td colspan="3">' . htmlspecialchars($company['phone']) . '</td></tr>';
-    echo '<tr><td class="label">事業種別</td><td colspan="3">' . htmlspecialchars($company['business_type']) . '</td></tr>';
-    echo '<tr><td class="label">許可番号</td><td colspan="3">' . htmlspecialchars($company['license_number'] ?: '―') . '</td></tr>';
-    echo '<tr><td colspan="4"></td></tr>';
+    echo '<tr><td></td><td>住　　　所</td><td>' . htmlspecialchars(($company['postal_code'] ? '〒' . $company['postal_code'] . ' ' : '') . $company['address']) . '</td></tr>';
+    echo '<tr><td></td><td>事業者名</td><td>' . htmlspecialchars($company['company_name']) . '</td></tr>';
+    echo '<tr><td></td><td>代表者名</td><td>' . htmlspecialchars($company['representative_name']) . '</td></tr>';
+    echo '<tr><td></td><td>電話番号</td><td>' . htmlspecialchars($company['phone']) . '</td></tr>';
+    echo '<tr><td colspan="3"></td></tr>';
 
     // 事業概況
-    echo '<tr><td colspan="4" class="section-header">事業概況（' . htmlspecialchars($year) . '年3月31日現在）</td></tr>';
-    echo '<tr><td class="label" colspan="2">事業用自動車数（台）</td><td class="num" colspan="2">' . $business['vehicle_count'] . '</td></tr>';
-    echo '<tr><td class="label" colspan="2">従業員数（人）</td><td class="num" colspan="2">' . $business['employee_count'] . '</td></tr>';
-    echo '<tr><td class="label" colspan="2">　うち運転者数（人）</td><td class="num" colspan="2">' . $business['driver_count'] . '</td></tr>';
-    echo '<tr><td colspan="4"></td></tr>';
+    echo '<tr><td colspan="3" class="sec">事業概況（' . htmlspecialchars($year) . '年3月31日現在）</td></tr>';
+    echo '<tr><td class="lbl"></td><td class="hdr">管轄区域内</td><td class="hdr">全国</td></tr>';
+    echo '<tr><td class="lbl">資本金（基金）の額（千円）</td><td class="num"></td><td class="num"></td></tr>';
+    echo '<tr><td class="lbl">兼営事業</td><td></td><td></td></tr>';
+    echo '<tr><td class="lbl">事業用自動車数（両）</td><td class="num">' . $business['vehicle_count'] . '</td><td class="num">' . $business['vehicle_count'] . '</td></tr>';
+    echo '<tr><td class="lbl">従業員数（うち運転者数）</td><td class="num">' . $business['employee_count'] . '（' . $business['driver_count'] . '）</td><td class="num">' . $business['employee_count'] . '（' . $business['driver_count'] . '）</td></tr>';
+    echo '<tr><td colspan="3"></td></tr>';
 
     // 輸送実績
-    echo '<tr><td colspan="4" class="section-header">輸送実績（' . $fiscal_start . ' ～ ' . $fiscal_end . '）</td></tr>';
-    echo '<tr><td class="label" colspan="2">走行キロ（キロメートル）</td><td class="num" colspan="2">' . $transport['total_distance'] . '</td></tr>';
-    echo '<tr><td class="label" colspan="2">運送回数（回）</td><td class="num" colspan="2">' . $transport['ride_count'] . '</td></tr>';
-    echo '<tr><td class="label" colspan="2">輸送人員（人）</td><td class="num" colspan="2">' . $transport['total_passengers'] . '</td></tr>';
-    echo '<tr><td class="label" colspan="2">営業収入（千円）</td><td class="num" colspan="2">' . floor($transport['total_revenue'] / 1000) . '</td></tr>';
-    echo '<tr><td colspan="4"></td></tr>';
+    echo '<tr><td colspan="3" class="sec">輸送実績（前年4月1日から本年3月31日まで）</td></tr>';
+    echo '<tr><td class="lbl"></td><td class="hdr">管轄区域内</td><td class="hdr">全国</td></tr>';
+    echo '<tr><td class="lbl">走行キロ（キロメートル）</td><td class="num">' . intval($transport['total_distance']) . '</td><td class="num">' . intval($transport['total_distance']) . '</td></tr>';
+    echo '<tr><td class="lbl">運送回数（回）</td><td class="num">' . intval($transport['ride_count']) . '</td><td class="num">' . intval($transport['ride_count']) . '</td></tr>';
+    echo '<tr><td class="lbl">輸送人員（人）</td><td class="num">' . intval($transport['total_passengers']) . '</td><td class="num">' . intval($transport['total_passengers']) . '</td></tr>';
+    echo '<tr><td class="lbl">営業収入（千円）</td><td class="num">' . $revenue_sen . '</td><td class="num">' . $revenue_sen . '</td></tr>';
+    echo '<tr><td colspan="3"></td></tr>';
 
     // 事故件数
-    echo '<tr><td colspan="4" class="section-header">事故件数（' . $fiscal_start . ' ～ ' . $fiscal_end . '）</td></tr>';
-    echo '<tr><td class="label" colspan="2">交通事故件数（件）</td><td class="num" colspan="2">' . $accident['traffic_accidents'] . '</td></tr>';
-    echo '<tr><td class="label" colspan="2">重大事故件数（件）</td><td class="num" colspan="2">' . $accident['serious_accidents'] . '</td></tr>';
-    echo '<tr><td class="label" colspan="2">死者数（人）</td><td class="num" colspan="2">' . $accident['total_deaths'] . '</td></tr>';
-    echo '<tr><td class="label" colspan="2">負傷者数（人）</td><td class="num" colspan="2">' . $accident['total_injuries'] . '</td></tr>';
-
-    // 輸送種別詳細
-    if (!empty($transport['transport_categories'])) {
-        echo '<tr><td colspan="4"></td></tr>';
-        echo '<tr><td colspan="4" class="section-header">輸送種別詳細</td></tr>';
-        echo '<tr><th>輸送種別</th><th>運送回数</th><th>輸送人員</th><th>営業収入</th></tr>';
-        foreach ($transport['transport_categories'] as $cat) {
-            echo '<tr>';
-            echo '<td>' . htmlspecialchars($cat['transportation_type']) . '</td>';
-            echo '<td class="num">' . $cat['count'] . '</td>';
-            echo '<td class="num">' . $cat['passengers'] . '</td>';
-            echo '<td class="num">' . $cat['revenue'] . '</td>';
-            echo '</tr>';
-        }
-    }
+    echo '<tr><td colspan="3" class="sec">事故件数（前年4月1日から本年3月31日まで）</td></tr>';
+    echo '<tr><td class="lbl"></td><td class="hdr">管轄区域内</td><td class="hdr">全国</td></tr>';
+    echo '<tr><td class="lbl">交通事故件数</td><td class="num">' . $accident['traffic_accidents'] . '</td><td class="num">' . $accident['traffic_accidents'] . '</td></tr>';
+    echo '<tr><td class="lbl">重大事故件数</td><td class="num">' . $accident['serious_accidents'] . '</td><td class="num">' . $accident['serious_accidents'] . '</td></tr>';
+    echo '<tr><td class="lbl">死者数</td><td class="num">' . $accident['total_deaths'] . '</td><td class="num">' . $accident['total_deaths'] . '</td></tr>';
+    echo '<tr><td class="lbl">負傷者数</td><td class="num">' . $accident['total_injuries'] . '</td><td class="num">' . $accident['total_injuries'] . '</td></tr>';
 
     echo '</table></body></html>';
 }
@@ -674,6 +826,18 @@ echo $page_data['page_header'];
                                 <tr>
                                     <td class="fw-bold" style="width: 120px;">電話番号:</td>
                                     <td><?= htmlspecialchars($company_info['phone']) ?></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">FAX:</td>
+                                    <td><?= htmlspecialchars($company_info['fax'] ?? '') ?></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">運行管理者:</td>
+                                    <td><?= htmlspecialchars($company_info['manager_name'] ?? '') ?></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">管理者メール:</td>
+                                    <td><?= htmlspecialchars($company_info['manager_email'] ?? '') ?></td>
                                 </tr>
                                 <tr>
                                     <td class="fw-bold">事業種別:</td>
@@ -894,7 +1058,7 @@ echo $page_data['page_header'];
         <div class="col-12">
             <div class="card border-primary">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-file-pdf me-2"></i>第4号様式（輸送実績報告書）</h5>
+                    <h5 class="mb-0"><i class="fas fa-file-pdf me-2"></i>第4号様式 第3表（福祉限定 輸送実績報告書）</h5>
                     <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#createReportModal">
                         <i class="fas fa-plus me-1"></i>新規作成
                     </button>
@@ -904,8 +1068,8 @@ echo $page_data['page_header'];
                         <div class="col-lg-8">
                             <h6>陸運局提出用書類の作成・管理</h6>
                             <p class="text-muted mb-0">
-                                道路運送法に基づく年次報告書（第4号様式）を作成・管理します。<br>
-                                事業者情報・事業概況・輸送実績・事故件数を記載した正式な報告書をPDF形式で出力できます。
+                                旅客自動車運送事業等報告規則第2条に基づく輸送実績報告書（限定）です。<br>
+                                提出先: 国土交通省近畿運輸局 大阪運輸支局　提出期限: 毎年5月31日
                             </p>
                         </div>
                         <div class="col-lg-4 text-end">
@@ -1090,13 +1254,39 @@ echo $page_data['page_header'];
                             
                             <div class="mb-3">
                                 <label for="phone" class="form-label">電話番号</label>
-                                <input type="text" class="form-control" name="phone" 
+                                <input type="text" class="form-control" name="phone"
                                        value="<?= htmlspecialchars($company_info['phone']) ?>"
-                                       placeholder="06-6949-6446">
+                                       placeholder="06-1234-5678">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="fax" class="form-label">FAX番号</label>
+                                <input type="text" class="form-control" name="fax"
+                                       value="<?= htmlspecialchars($company_info['fax'] ?? '') ?>"
+                                       placeholder="06-1234-5679">
                             </div>
                         </div>
                     </div>
-                    
+
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="mb-3">
+                                <label for="manager_name" class="form-label">運行管理者氏名</label>
+                                <input type="text" class="form-control" name="manager_name"
+                                       value="<?= htmlspecialchars($company_info['manager_name'] ?? '') ?>"
+                                       placeholder="運行管理者の氏名">
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="mb-3">
+                                <label for="manager_email" class="form-label">管理者メールアドレス</label>
+                                <input type="email" class="form-control" name="manager_email"
+                                       value="<?= htmlspecialchars($company_info['manager_email'] ?? '') ?>"
+                                       placeholder="manager@example.co.jp">
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row">
                         <div class="col-lg-6">
                             <div class="mb-3">

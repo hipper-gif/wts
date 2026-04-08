@@ -12,10 +12,14 @@
 # - 管理者ユーザー作成（login_id: admin）
 #
 # 使い方:
-#   bash scripts/provision_tenant.sh <テナントID> <DB名> <ベースパス> <表示名>
+#   bash scripts/provision_tenant.sh <テナントID> <DB名> <ベースパス> <表示名> [company_info.json]
 #
 # 例:
 #   bash scripts/provision_tenant.sh acme twinklemark_wts_acme /wts-tenants/acme "テナントA社"
+#   bash scripts/provision_tenant.sh acme twinklemark_wts_acme /wts-tenants/acme "テナントA社" /tmp/company.json
+#
+# company_info.json が指定された場合、事業者情報をDBに自動登録する。
+# parse_hearing_sheet.py の出力から生成できる。
 #
 # 前提条件:
 #   - XserverでDB（DB名）を管理パネルから事前作成済み
@@ -37,6 +41,7 @@ TENANT_ID="$1"
 DB_NAME="$2"
 BASE_PATH="$3"
 SYSTEM_NAME="$4"
+COMPANY_JSON="${5:-}"
 
 # ---- SSH接続設定（backup_wts.sh と共通）----
 SSH_HOST="sv16114.xserver.jp"
@@ -173,6 +178,44 @@ echo "system_name 設定完了"
 REMOTE_SCRIPT
 
 log "Step 5 完了"
+
+# ---- Step 5.5: 事業者情報登録（company_info.json 指定時）----
+if [ -n "${COMPANY_JSON}" ] && [ -f "${COMPANY_JSON}" ]; then
+    log "Step 5.5: 事業者情報登録（${COMPANY_JSON}）"
+
+    # JSONからPHPで読み取ってDB投入
+    ${SSH_CMD} bash -s <<REMOTE_SCRIPT
+    php -r "
+    \\\$json = json_decode(file_get_contents('php://stdin'), true);
+    if (!\\\$json) { echo 'JSONパースエラー'; exit(1); }
+    \\\$pdo = new PDO('mysql:host=${DB_HOST};dbname=${DB_NAME};charset=utf8mb4', '${DB_USER}', '${DB_PASS}');
+    \\\$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    \\\$stmt = \\\$pdo->prepare('UPDATE company_info SET
+        company_name = ?, representative_name = ?, postal_code = ?,
+        address = ?, phone = ?, fax = ?,
+        manager_name = ?, manager_email = ?, license_number = ?
+        WHERE id = 1');
+    \\\$stmt->execute([
+        \\\$json['company_name'] ?? '',
+        \\\$json['representative'] ?? '',
+        \\\$json['postal_code'] ?? '',
+        \\\$json['address'] ?? '',
+        \\\$json['phone'] ?? '',
+        \\\$json['fax'] ?? '',
+        \\\$json['manager_name'] ?? '',
+        \\\$json['manager_email'] ?? '',
+        \\\$json['license_number'] ?? ''
+    ]);
+    echo '事業者情報登録完了';
+    " < "${COMPANY_JSON}"
+REMOTE_SCRIPT
+
+    log "Step 5.5 完了"
+else
+    if [ -n "${COMPANY_JSON}" ]; then
+        log "警告: 指定されたJSONファイルが見つかりません: ${COMPANY_JSON}"
+    fi
+fi
 
 # ---- Step 6: 管理者ユーザー作成 ----
 log "Step 6: 管理者ユーザー作成"
