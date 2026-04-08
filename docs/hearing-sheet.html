@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スマルト 導入ヒアリングシート</title>
+    <style>
+        /* ============================================================
+           印刷用スタイル
+           ============================================================ */
+        @page {
+            size: A4;
+            margin: 15mm 15mm 18mm 15mm;
+        }
+
+        /* ── 基本設定 ── */
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+            font-size: 10.5pt;
+            line-height: 1.7;
+            color: #1a1a1a;
+            margin: 0;
+            padding: 0;
+            background: #fff;
+        }
+
+        /* ── 画面表示用レイアウト ── */
+        .page-wrapper {
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 15mm 15mm;
+        }
+
+        /* ── ヘッダー ── */
+        .doc-header {
+            text-align: center;
+            padding: 30px 0 20px;
+            border-bottom: 3px solid #0d6efd;
+            margin-bottom: 24px;
+        }
+        .doc-header h1 {
+            font-size: 20pt;
+            font-weight: 700;
+            color: #0d6efd;
+            margin: 0 0 6px;
+            letter-spacing: 0.05em;
+        }
+        .doc-header .subtitle {
+            font-size: 10pt;
+            color: #888;
+            margin: 0;
+        }
+
+        /* ── 記入日・担当 ── */
+        .meta-row {
+            display: flex;
+            justify-content: flex-end;
+            gap: 30px;
+            margin-bottom: 20px;
+            font-size: 10pt;
+        }
+        .meta-row .field {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 4px;
+        }
+        .blank-line {
+            display: inline-block;
+            min-width: 60px;
+            border-bottom: 1px dashed #999;
+            text-align: center;
+            padding: 0 4px;
+        }
+        .blank-line.wide {
+            min-width: 120px;
+        }
+
+        /* ── セクション ── */
+        section {
+            margin-bottom: 26px;
+            page-break-inside: avoid;
+        }
+
+        h2 {
+            font-size: 13pt;
+            font-weight: 700;
+            color: #0d6efd;
+            border-left: 5px solid #0d6efd;
+            padding: 4px 0 4px 12px;
+            margin: 24px 0 12px;
+            page-break-after: avoid;
+        }
+        h2 .badge {
+            font-size: 8.5pt;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 3px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        h2 .badge-required {
+            background: #dc3545;
+            color: #fff;
+        }
+        h2 .badge-optional {
+            background: #6c757d;
+            color: #fff;
+        }
+        h2 .badge-confirm {
+            background: #0d6efd;
+            color: #fff;
+        }
+
+        /* ── テーブル共通 ── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0 12px;
+            font-size: 9.5pt;
+            page-break-inside: avoid;
+        }
+        th, td {
+            border: 1px solid #aaa;
+            padding: 6px 10px;
+            text-align: left;
+            vertical-align: middle;
+        }
+        th {
+            background: #e8f0fe;
+            font-weight: 700;
+            color: #1a1a1a;
+            white-space: nowrap;
+        }
+
+        /* ── 入力テーブル（ラベル＋入力欄） ── */
+        .form-table th {
+            width: 200px;
+            background: #e8f0fe;
+        }
+        .form-table td {
+            border-bottom: 1px dashed #999;
+            border-right: 1px solid #aaa;
+            border-top: 1px solid #aaa;
+            min-height: 28px;
+        }
+
+        /* ── グリッドテーブル（車両・ユーザー） ── */
+        .grid-table th {
+            text-align: center;
+        }
+        .grid-table td {
+            height: 28px;
+        }
+        .grid-table td:first-child {
+            text-align: center;
+            width: 40px;
+            color: #888;
+        }
+
+        /* ── チェックボックス ── */
+        .cb {
+            font-size: 10pt;
+        }
+
+        /* ── 質問リスト ── */
+        .question-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            counter-reset: q-counter;
+        }
+        .question-list li {
+            counter-increment: q-counter;
+            padding: 10px 0;
+            border-bottom: 1px dotted #ccc;
+        }
+        .question-list li:last-child {
+            border-bottom: none;
+        }
+        .question-list li .q-label {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .question-list li .q-label::before {
+            content: counter(q-counter) ". ";
+            color: #0d6efd;
+            font-weight: 700;
+        }
+        .question-list li .q-options {
+            margin: 4px 0 0 16px;
+            font-size: 9.5pt;
+        }
+        .q-input-area {
+            display: block;
+            width: 100%;
+            min-height: 20px;
+            border-bottom: 1px dashed #999;
+            margin-top: 4px;
+        }
+        .q-input-lines {
+            margin-top: 4px;
+        }
+        .q-input-lines .line {
+            display: block;
+            width: 100%;
+            min-height: 22px;
+            border-bottom: 1px dashed #999;
+        }
+
+        /* ── 補足テキスト ── */
+        .note {
+            font-size: 9pt;
+            color: #666;
+            margin: 4px 0 0 4px;
+        }
+
+        /* ── フッター ── */
+        .doc-footer {
+            margin-top: 30px;
+            padding-top: 16px;
+            border-top: 2px solid #0d6efd;
+            text-align: center;
+            font-size: 9.5pt;
+            color: #555;
+        }
+        .doc-footer .thanks {
+            margin-bottom: 8px;
+        }
+        .doc-footer .company {
+            font-weight: 600;
+            color: #333;
+        }
+
+        /* ── 印刷調整 ── */
+        @media print {
+            body { background: #fff; }
+            .page-wrapper { padding: 0; }
+            .doc-header { padding-top: 10px; }
+            section { page-break-inside: avoid; }
+            .no-break { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-wrapper">
+        <!-- ヘッダー -->
+        <div class="doc-header">
+            <h1>スマルト<br>導入ヒアリングシート</h1>
+            <p class="subtitle">Welfare Transport System — Setup Hearing Sheet</p>
+        </div>
+
+        <!-- 記入日・担当 -->
+        <div class="meta-row">
+            <div class="field">
+                記入日: <span class="blank-line">　　</span>年<span class="blank-line">　</span>月<span class="blank-line">　</span>日
+            </div>
+            <div class="field">
+                ヒアリング担当: <span class="blank-line wide">　</span>
+            </div>
+        </div>
+
+        <!-- セクション1: 会社情報 -->
+        <section>
+            <h2>1. 会社情報 <span class="badge badge-required">必須</span></h2>
+            <table class="form-table">
+                <tr><th>会社名（正式名称）</th><td></td></tr>
+                <tr><th>代表者名</th><td></td></tr>
+                <tr><th>郵便番号</th><td></td></tr>
+                <tr><th>住所</th><td></td></tr>
+                <tr><th>電話番号</th><td></td></tr>
+                <tr><th>FAX番号</th><td></td></tr>
+                <tr><th>運行管理者氏名</th><td></td></tr>
+                <tr><th>管理者メールアドレス</th><td></td></tr>
+                <tr><th>事業許可番号</th><td></td></tr>
+            </table>
+            <p class="note">※ 事業許可番号は一般乗用旅客自動車運送事業の許可番号をご記入ください。</p>
+        </section>
+
+        <!-- セクション2: 車両情報 -->
+        <section>
+            <h2>2. 車両情報 <span class="badge badge-required">必須</span></h2>
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>車両番号（ナンバー）</th>
+                        <th>車種名</th>
+                        <th>備考</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>1</td><td></td><td></td><td></td></tr>
+                    <tr><td>2</td><td></td><td></td><td></td></tr>
+                    <tr><td>3</td><td></td><td></td><td></td></tr>
+                    <tr><td>4</td><td></td><td></td><td></td></tr>
+                    <tr><td>5</td><td></td><td></td><td></td></tr>
+                    <tr><td>6</td><td></td><td></td><td></td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- セクション3: ユーザー情報 -->
+        <section>
+            <h2>3. ユーザー情報 <span class="badge badge-required">必須</span></h2>
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>氏名</th>
+                        <th>ログインID（希望）</th>
+                        <th>役割（該当に○）</th>
+                        <th>備考</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>1</td><td></td><td></td><td>運転者 / 点呼者 / 管理者</td><td></td></tr>
+                    <tr><td>2</td><td></td><td></td><td>運転者 / 点呼者 / 管理者</td><td></td></tr>
+                    <tr><td>3</td><td></td><td></td><td>運転者 / 点呼者 / 管理者</td><td></td></tr>
+                    <tr><td>4</td><td></td><td></td><td>運転者 / 点呼者 / 管理者</td><td></td></tr>
+                    <tr><td>5</td><td></td><td></td><td>運転者 / 点呼者 / 管理者</td><td></td></tr>
+                    <tr><td>6</td><td></td><td></td><td>運転者 / 点呼者 / 管理者</td><td></td></tr>
+                    <tr><td>7</td><td></td><td></td><td>運転者 / 点呼者 / 管理者</td><td></td></tr>
+                    <tr><td>8</td><td></td><td></td><td>運転者 / 点呼者 / 管理者</td><td></td></tr>
+                </tbody>
+            </table>
+            <p class="note">※ 1人が複数の役割を兼ねることができます。該当する役割に○をつけてください。</p>
+        </section>
+
+        <!-- セクション4: システム設定 -->
+        <section>
+            <h2>4. システム設定 <span class="badge badge-optional">任意</span></h2>
+            <table class="form-table">
+                <tr>
+                    <th>営業日</th>
+                    <td>
+                        <span class="cb">□月　□火　□水　□木　□金　□土　□日</span>
+                    </td>
+                </tr>
+                <tr>
+                    <th>営業時間</th>
+                    <td>
+                        <span class="blank-line">　　</span> 時 〜 <span class="blank-line">　　</span> 時
+                    </td>
+                </tr>
+                <tr>
+                    <th>テーマカラー</th>
+                    <td>
+                        <span class="cb">□おまかせ　□指定あり</span>（カラーコード: <span class="blank-line">　　　</span>）
+                    </td>
+                </tr>
+            </table>
+            <p class="note">※ テーマカラーは「おまかせ」の場合、スマルト標準色を適用します。</p>
+        </section>
+
+        <!-- セクション5: 現在の業務状況 -->
+        <section>
+            <h2>5. 現在の業務状況 <span class="badge badge-optional">任意</span></h2>
+            <ul class="question-list">
+                <li>
+                    <div class="q-label">現在の日常点検の方法は？</div>
+                    <div class="q-options">
+                        <span class="cb">□紙　□Excel　□その他（</span><span class="blank-line wide">　</span><span class="cb">）</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="q-label">現在の運行記録の方法は？</div>
+                    <div class="q-options">
+                        <span class="cb">□紙　□Excel　□その他（</span><span class="blank-line wide">　</span><span class="cb">）</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="q-label">現在の予約管理の方法は？</div>
+                    <div class="q-options">
+                        <span class="cb">□紙　□Excel　□ホワイトボード　□その他（</span><span class="blank-line wide">　</span><span class="cb">）</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="q-label">既存の帳票フォーマットがあれば添付してください</div>
+                    <div class="q-options">
+                        <span class="cb">□あり　□なし</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="q-label">過去の監査で指摘された事項があれば記入</div>
+                    <div class="q-input-lines">
+                        <span class="line">　</span>
+                        <span class="line">　</span>
+                        <span class="line">　</span>
+                    </div>
+                </li>
+            </ul>
+        </section>
+
+        <!-- セクション6: 利用環境 -->
+        <section>
+            <h2>6. 利用環境 <span class="badge badge-confirm">確認</span></h2>
+            <table class="form-table">
+                <tr>
+                    <th>事務所のインターネット環境</th>
+                    <td>
+                        <span class="cb">□Wi-Fi　□有線LAN　□モバイルルーター　□なし</span>
+                    </td>
+                </tr>
+                <tr>
+                    <th>運転者が使用する端末</th>
+                    <td>
+                        <span class="cb">□スマートフォン　□タブレット　□既存端末あり　□新規購入予定</span>
+                    </td>
+                </tr>
+                <tr>
+                    <th>端末のOS</th>
+                    <td>
+                        <span class="cb">□iPhone　□Android　□両方</span>
+                    </td>
+                </tr>
+                <tr>
+                    <th>ブラウザ</th>
+                    <td>
+                        <span class="cb">□Chrome　□Safari　□その他（</span><span class="blank-line">　　</span><span class="cb">）</span>
+                    </td>
+                </tr>
+            </table>
+        </section>
+
+        <!-- フッター -->
+        <div class="doc-footer">
+            <p class="thanks">ご記入ありがとうございます。内容を確認の上、環境セットアップを進めさせていただきます。</p>
+            <p class="company">株式会社Smiley　担当: 杉原</p>
+        </div>
+    </div>
+</body>
+</html>

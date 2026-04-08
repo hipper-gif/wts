@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スマルト 導入のご案内</title>
+    <style>
+        /* ============================================================
+           印刷用スタイル
+           ============================================================ */
+        @page {
+            size: A4;
+            margin: 18mm 15mm 20mm 15mm;
+        }
+
+        /* ── 基本設定 ── */
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+            font-size: 10.5pt;
+            line-height: 1.7;
+            color: #1a1a1a;
+            margin: 0;
+            padding: 0;
+            background: #fff;
+        }
+
+        /* ── 画面表示用レイアウト ── */
+        .page-wrapper {
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 20mm 15mm;
+        }
+
+        /* ── 表紙 ── */
+        .cover {
+            text-align: center;
+            padding: 60px 0 40px;
+            border-bottom: 3px solid #0d6efd;
+            margin-bottom: 40px;
+            page-break-after: always;
+        }
+        .cover-logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+        }
+        .cover h1 {
+            font-size: 22pt;
+            font-weight: 700;
+            color: #0d6efd;
+            margin: 0 0 8px;
+            letter-spacing: 0.05em;
+        }
+        .cover .subtitle {
+            font-size: 13pt;
+            color: #555;
+            margin: 0 0 40px;
+        }
+        .cover .meta {
+            font-size: 10pt;
+            color: #888;
+        }
+        .cover .company {
+            font-size: 11pt;
+            color: #333;
+            margin-top: 30px;
+            font-weight: 500;
+        }
+
+        /* ── 目次 ── */
+        .toc {
+            page-break-after: always;
+            padding-bottom: 20px;
+        }
+        .toc h2 {
+            font-size: 16pt;
+            color: #0d6efd;
+            border-bottom: 2px solid #0d6efd;
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+        }
+        .toc ol {
+            list-style: none;
+            padding: 0;
+            counter-reset: toc-counter;
+        }
+        .toc ol li {
+            counter-increment: toc-counter;
+            padding: 10px 0;
+            border-bottom: 1px dotted #ccc;
+            font-size: 11pt;
+        }
+        .toc ol li::before {
+            content: counter(toc-counter) ".";
+            font-weight: 700;
+            color: #0d6efd;
+            margin-right: 10px;
+            display: inline-block;
+            width: 24px;
+        }
+
+        /* ── セクション ── */
+        section {
+            page-break-inside: avoid;
+            margin-bottom: 30px;
+        }
+        section.page-break {
+            page-break-before: always;
+        }
+
+        h2 {
+            font-size: 15pt;
+            font-weight: 700;
+            color: #0d6efd;
+            border-left: 5px solid #0d6efd;
+            padding: 6px 0 6px 12px;
+            margin: 30px 0 16px;
+            page-break-after: avoid;
+        }
+        h3 {
+            font-size: 11.5pt;
+            font-weight: 700;
+            color: #333;
+            margin: 20px 0 10px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #dee2e6;
+            page-break-after: avoid;
+        }
+
+        p { margin: 6px 0; }
+
+        /* ── リスト ── */
+        ol, ul { padding-left: 24px; margin: 8px 0; }
+        li { margin: 4px 0; }
+
+        /* ── テーブル ── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0 16px;
+            font-size: 9.5pt;
+            page-break-inside: avoid;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 6px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background: #e8f0fe;
+            font-weight: 700;
+            color: #1a1a1a;
+            white-space: nowrap;
+        }
+        td:first-child {
+            white-space: nowrap;
+        }
+        tr:nth-child(even) td {
+            background: #f8f9fa;
+        }
+
+        /* ── 強調ボックス ── */
+        .tip {
+            background: #e8f5e9;
+            border-left: 4px solid #43a047;
+            padding: 10px 14px;
+            margin: 12px 0;
+            border-radius: 0 4px 4px 0;
+            font-size: 9.5pt;
+        }
+        .tip::before {
+            content: "ポイント";
+            font-weight: 700;
+            color: #2e7d32;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .highlight-box {
+            background: #e3f2fd;
+            border-left: 4px solid #0d6efd;
+            padding: 10px 14px;
+            margin: 12px 0;
+            border-radius: 0 4px 4px 0;
+            font-size: 9.5pt;
+        }
+
+        /* ── 機能カード ── */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 14px 0;
+        }
+        .feature-card {
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px 14px;
+            page-break-inside: avoid;
+        }
+        .feature-card .feature-name {
+            font-weight: 700;
+            color: #0d6efd;
+            font-size: 10.5pt;
+            margin-bottom: 4px;
+        }
+        .feature-card .feature-desc {
+            font-size: 9.5pt;
+            color: #555;
+            margin: 0;
+        }
+
+        /* ── フロー図 ── */
+        .workflow {
+            background: #f0f4ff;
+            border: 1px solid #b3c6ff;
+            border-radius: 6px;
+            padding: 20px 24px;
+            margin: 16px 0;
+            page-break-inside: avoid;
+        }
+        .workflow-step {
+            display: flex;
+            align-items: flex-start;
+            margin: 6px 0;
+        }
+        .workflow-step .step-num {
+            background: #0d6efd;
+            color: #fff;
+            font-weight: 700;
+            font-size: 9pt;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-right: 10px;
+            margin-top: 2px;
+        }
+        .workflow-step .step-label {
+            font-weight: 600;
+            margin-right: 6px;
+        }
+        .workflow-step .step-desc {
+            color: #555;
+        }
+        .workflow-connector {
+            border-left: 2px dashed #90b0ff;
+            height: 12px;
+            margin-left: 10px;
+        }
+        .workflow-repeat {
+            font-size: 9pt;
+            color: #666;
+            padding-left: 36px;
+            font-style: italic;
+            margin: 2px 0 4px;
+        }
+
+        /* ── 導入ステップ ── */
+        .steps {
+            margin: 14px 0;
+        }
+        .step-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 14px;
+            page-break-inside: avoid;
+        }
+        .step-number {
+            background: #0d6efd;
+            color: #fff;
+            font-weight: 700;
+            font-size: 12pt;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-right: 14px;
+            margin-top: 2px;
+        }
+        .step-content {
+            flex: 1;
+        }
+        .step-content .step-title {
+            font-weight: 700;
+            font-size: 10.5pt;
+            color: #1a1a1a;
+            margin-bottom: 2px;
+        }
+        .step-content .step-detail {
+            font-size: 9.5pt;
+            color: #555;
+        }
+        .step-connector {
+            border-left: 2px dashed #90b0ff;
+            height: 8px;
+            margin-left: 15px;
+        }
+
+        /* ── セキュリティリスト ── */
+        .security-list {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+        .security-list li {
+            padding: 8px 12px;
+            border-left: 3px solid #0d6efd;
+            margin-bottom: 6px;
+            background: #f8f9fa;
+            border-radius: 0 4px 4px 0;
+            font-size: 10pt;
+        }
+
+        /* ── お問い合わせ ── */
+        .contact-box {
+            background: #f0f4ff;
+            border: 2px solid #0d6efd;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin: 16px 0;
+            text-align: center;
+            page-break-inside: avoid;
+        }
+        .contact-box .contact-company {
+            font-size: 14pt;
+            font-weight: 700;
+            color: #0d6efd;
+            margin-bottom: 4px;
+        }
+        .contact-box .contact-person {
+            font-size: 11pt;
+            color: #333;
+            margin-bottom: 12px;
+        }
+        .contact-box .contact-info {
+            font-size: 10.5pt;
+            color: #555;
+            line-height: 2;
+        }
+
+        /* ── フッター ── */
+        .page-footer {
+            text-align: center;
+            font-size: 8.5pt;
+            color: #999;
+            margin-top: 40px;
+            padding-top: 12px;
+            border-top: 1px solid #ddd;
+        }
+
+        /* ── 印刷ボタン（画面のみ） ── */
+        .print-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #0d6efd;
+            color: #fff;
+            border: none;
+            padding: 14px 28px;
+            font-size: 14pt;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            z-index: 9999;
+            transition: background 0.2s;
+        }
+        .print-btn:hover { background: #0b5ed7; }
+
+        /* ── 印刷時の調整 ── */
+        @media print {
+            .print-btn { display: none !important; }
+            body { font-size: 10pt; }
+            .page-wrapper { padding: 0; max-width: none; }
+            .cover { padding: 80px 0 50px; }
+            h2 { margin-top: 20px; }
+            .workflow { background: #f0f4ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            th { background: #e8f0fe !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            tr:nth-child(even) td { background: #f8f9fa !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .tip { background: #e8f5e9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .highlight-box { background: #e3f2fd !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .feature-card { border-color: #ccc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .security-list li { background: #f8f9fa !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .contact-box { background: #f0f4ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .workflow-step .step-num { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .step-number { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+
+<button class="print-btn" onclick="window.print()">印刷する</button>
+
+<div class="page-wrapper">
+
+    <!-- ========== 表紙 ========== -->
+    <div class="cover">
+        <img src="../wts/icons/icon-192x192.png" alt="スマルト" class="cover-logo">
+        <h1>スマルト<br>導入のご案内</h1>
+        <p class="subtitle">介護タクシー業務をまるっとデジタル化</p>
+        <p class="company">株式会社Smiley</p>
+    </div>
+
+    <!-- ========== 目次 ========== -->
+    <div class="toc">
+        <h2>目次</h2>
+        <ol>
+            <li>システム概要</li>
+            <li>主な機能</li>
+            <li>1日の業務フロー</li>
+            <li>導入の流れ</li>
+            <li>動作環境</li>
+            <li>セキュリティ</li>
+            <li>お問い合わせ</li>
+        </ol>
+    </div>
+
+    <!-- ========== 1. システム概要 ========== -->
+    <section>
+        <h2>1. システム概要</h2>
+        <p>本システムは、介護タクシー事業者様向けの業務管理システムです。日常点検・点呼・運行記録・売上管理・書類管理・予約カレンダーなど、日々の業務に必要な機能をオールインワンで提供します。</p>
+
+        <div class="feature-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top: 16px;">
+            <div class="feature-card" style="text-align: center;">
+                <div class="feature-name">PWA対応</div>
+                <p class="feature-desc">アプリストア不要。ブラウザから即利用可能</p>
+            </div>
+            <div class="feature-card" style="text-align: center;">
+                <div class="feature-name">マルチデバイス</div>
+                <p class="feature-desc">スマホ・タブレット・PCどれでも使える</p>
+            </div>
+            <div class="feature-card" style="text-align: center;">
+                <div class="feature-name">オフライン対応</div>
+                <p class="feature-desc">電波の弱い場所でも利用可能</p>
+            </div>
+        </div>
+
+        <div class="tip">
+            アプリのインストールは不要です。Google Chromeでアクセスし、「ホーム画面に追加」するだけで、アプリのように使えます。
+        </div>
+    </section>
+
+    <!-- ========== 2. 主な機能 ========== -->
+    <section class="page-break">
+        <h2>2. 主な機能</h2>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-name">日常点検</div>
+                <p class="feature-desc">17項目の車両点検をスマホで実施・記録</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-name">乗務前点呼</div>
+                <p class="feature-desc">16項目の健康・準備状況確認</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-name">出庫・入庫管理</div>
+                <p class="feature-desc">走行距離・燃料の自動記録</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-name">乗車記録</div>
+                <p class="feature-desc">乗客情報・運賃・経路を記録</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-name">乗務後点呼</div>
+                <p class="feature-desc">乗務終了時の確認事項を記録</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-name">売上金確認</div>
+                <p class="feature-desc">金種別の現金カウント・差異チェック</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-name">予約カレンダー</div>
+                <p class="feature-desc">ドラッグ&ドロップで配車管理</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-name">書類管理</div>
+                <p class="feature-desc">許認可証・保険証書等のデジタル管理</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-name">監査対応</div>
+                <p class="feature-desc">法定帳票の自動生成（日報・点呼記録等）</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-name">顧客管理</div>
+                <p class="feature-desc">よく使う行き先・特記事項を記録</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-name">アラート通知</div>
+                <p class="feature-desc">免許更新・車検期限等の期限管理</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== 3. 1日の業務フロー ========== -->
+    <section class="page-break">
+        <h2>3. 1日の業務フロー</h2>
+        <p>システムに沿って進めるだけで、法令で求められる記録がすべて自動的に残ります。</p>
+
+        <div class="workflow">
+            <div class="workflow-step">
+                <span class="step-num">1</span>
+                <span class="step-label">始業</span>
+                <span class="step-desc">--- システムにログイン</span>
+            </div>
+            <div class="workflow-connector"></div>
+            <div class="workflow-step">
+                <span class="step-num">2</span>
+                <span class="step-label">日常点検</span>
+                <span class="step-desc">--- 車両の17項目を確認・記録</span>
+            </div>
+            <div class="workflow-connector"></div>
+            <div class="workflow-step">
+                <span class="step-num">3</span>
+                <span class="step-label">乗務前点呼</span>
+                <span class="step-desc">--- 健康状態・準備状況を確認</span>
+            </div>
+            <div class="workflow-connector"></div>
+            <div class="workflow-step">
+                <span class="step-num">4</span>
+                <span class="step-label">出庫</span>
+                <span class="step-desc">--- 走行距離・燃料を記録して出発</span>
+            </div>
+            <div class="workflow-connector"></div>
+            <div class="workflow-step">
+                <span class="step-num">5</span>
+                <span class="step-label">乗車記録</span>
+                <span class="step-desc">--- 乗客情報・運賃・経路を記録</span>
+            </div>
+            <div class="workflow-repeat">乗車ごとに繰り返し</div>
+            <div class="workflow-connector"></div>
+            <div class="workflow-step">
+                <span class="step-num">6</span>
+                <span class="step-label">入庫</span>
+                <span class="step-desc">--- 帰庫時の走行距離・燃料を記録</span>
+            </div>
+            <div class="workflow-connector"></div>
+            <div class="workflow-step">
+                <span class="step-num">7</span>
+                <span class="step-label">乗務後点呼</span>
+                <span class="step-desc">--- 乗務終了時の確認事項を記録</span>
+            </div>
+            <div class="workflow-connector"></div>
+            <div class="workflow-step">
+                <span class="step-num">8</span>
+                <span class="step-label">売上金確認</span>
+                <span class="step-desc">--- 金種別に現金を集計・差異チェック</span>
+            </div>
+        </div>
+
+        <div class="tip">
+            画面の指示に従って順に操作するだけで、1日の業務記録が完了します。紙の日報・点呼記録簿への記入は不要になります。
+        </div>
+    </section>
+
+    <!-- ========== 4. 導入の流れ ========== -->
+    <section>
+        <h2>4. 導入の流れ</h2>
+        <p>お申し込みから最短1週間で本運用を開始できます。</p>
+
+        <div class="steps">
+            <div class="step-item">
+                <span class="step-number">1</span>
+                <div class="step-content">
+                    <div class="step-title">お問い合わせ・ヒアリング</div>
+                    <div class="step-detail">業務内容・車両数・ユーザー数を確認させていただきます。</div>
+                </div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item">
+                <span class="step-number">2</span>
+                <div class="step-content">
+                    <div class="step-title">環境セットアップ</div>
+                    <div class="step-detail">御社専用のシステム環境を構築します。（1〜2営業日）</div>
+                </div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item">
+                <span class="step-number">3</span>
+                <div class="step-content">
+                    <div class="step-title">初期データ登録</div>
+                    <div class="step-detail">車両・ユーザー・会社情報を登録します。</div>
+                </div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item">
+                <span class="step-number">4</span>
+                <div class="step-content">
+                    <div class="step-title">操作説明</div>
+                    <div class="step-detail">オンラインで操作方法をレクチャーします。（1時間程度）</div>
+                </div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item">
+                <span class="step-number">5</span>
+                <div class="step-content">
+                    <div class="step-title">トライアル運用</div>
+                    <div class="step-detail">2週間の試用期間で、実際の業務でお試しいただけます。</div>
+                </div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item">
+                <span class="step-number">6</span>
+                <div class="step-content">
+                    <div class="step-title">本運用開始</div>
+                    <div class="step-detail">トライアル期間を経て、本格稼働となります。</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== 5. 動作環境 ========== -->
+    <section class="page-break">
+        <h2>5. 動作環境</h2>
+
+        <table>
+            <tr>
+                <th>項目</th>
+                <th>要件</th>
+            </tr>
+            <tr>
+                <td>推奨ブラウザ</td>
+                <td>Google Chrome（最新版）</td>
+            </tr>
+            <tr>
+                <td>対応端末</td>
+                <td>iPhone / Android / PC / タブレット</td>
+            </tr>
+            <tr>
+                <td>インターネット</td>
+                <td>Wi-Fiまたはモバイル回線</td>
+            </tr>
+            <tr>
+                <td>アプリインストール</td>
+                <td>不要（ブラウザからホーム画面に追加するだけ）</td>
+            </tr>
+        </table>
+
+        <div class="tip">
+            専用アプリのインストールやアプリストアへの登録は不要です。ブラウザでURLにアクセスするだけで利用を開始できます。
+        </div>
+    </section>
+
+    <!-- ========== 6. セキュリティ ========== -->
+    <section>
+        <h2>6. セキュリティ</h2>
+        <p>お客様の大切なデータを安全にお預かりするため、以下の対策を実施しています。</p>
+
+        <ul class="security-list">
+            <li><strong>HTTPS暗号化通信</strong> --- すべての通信を暗号化し、第三者による傍受を防止</li>
+            <li><strong>パスワードの安全な保管</strong> --- bcryptによるハッシュ化で、万が一の漏洩時も安全</li>
+            <li><strong>セッション管理・CSRF対策</strong> --- 不正アクセスを防ぐセキュリティ機構を実装</li>
+            <li><strong>テナントごとのデータ完全分離</strong> --- 他社のデータは一切見えません</li>
+            <li><strong>定期自動バックアップ</strong> --- データの消失リスクを最小化</li>
+        </ul>
+    </section>
+
+    <!-- ========== 7. お問い合わせ ========== -->
+    <section>
+        <h2>7. お問い合わせ</h2>
+        <p>ご不明点やご導入のご相談は、お気軽にお問い合わせください。</p>
+
+        <div class="contact-box">
+            <div class="contact-company">株式会社Smiley</div>
+            <div class="contact-person">担当: 杉原</div>
+            <div class="contact-info">
+                TEL: [電話番号]<br>
+                E-mail: [メールアドレス]
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== フッター ========== -->
+    <div class="page-footer">
+        &copy; 株式会社Smiley ｜ スマルト 導入のご案内
+    </div>
+
+</div>
+
+</body>
+</html>
