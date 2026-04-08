@@ -107,20 +107,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// システム名を動的取得（設定可能システム名対応）
-$system_name = 'スマルト';
-try {
-    $pdo = getDBConnection();
-    $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'system_name'");
-    $stmt->execute();
-    $result = $stmt->fetchColumn();
-    if ($result) {
-        $system_name = $result;
-    }
-} catch (Exception $e) {
-    // デフォルト名を使用
-    error_log("System name fetch error: " . $e->getMessage());
-}
+// システム名を動的取得（tenant.php経由）
+$settings = getTenantSettings();
+$system_name = $settings['system_name'];
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -129,7 +118,7 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- PWA対応メタタグ -->
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="manifest.json.php">
     <meta name="theme-color" content="#2196F3">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -288,7 +277,7 @@ try {
         
         // Service Worker 登録
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/Smiley/taxi/wts/sw.js')
+            navigator.serviceWorker.register('<?= APP_BASE_PATH ?>/sw.js.php')
                 .then(registration => {
                     console.log('Service Worker 登録成功:', registration.scope);
                 })

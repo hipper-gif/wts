@@ -42,16 +42,9 @@ $current_time = date('H:i');
 $current_hour = (int)date('H');
 $current_month_start = date('Y-m-01');
 
-// システム名取得
-$system_name = '福祉輸送管理システム';
-try {
-    $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'system_name'");
-    $stmt->execute();
-    $result = $stmt->fetch();
-    if ($result) $system_name = $result['setting_value'];
-} catch (Exception $e) {
-    // デフォルト値を使用
-}
+// システム名取得（tenant.php経由）
+$settings = getTenantSettings();
+$system_name = $settings['system_name'];
 
 // 売上計算関数
 function calculateRevenue($pdo, $date_condition, $params = []) {
@@ -270,7 +263,7 @@ echo $page_data['html_head'];
 <!-- ダッシュボード専用ヘッダー -->
 <div class="dashboard-mini-header">
     <div class="d-flex align-items-center">
-        <img src="icons/smaruto-header@2x.png" alt="スマルト" style="height:28px;width:28px;vertical-align:middle;" class="me-2">
+        <img src="icons/smaruto-header@2x.png" alt="<?= htmlspecialchars($system_name) ?>" style="height:28px;width:28px;vertical-align:middle;" class="me-2">
         <strong class="dashboard-title"><?= htmlspecialchars($system_name) ?></strong>
         <span class="text-muted ms-2 d-none d-md-inline dashboard-user-info"><?= htmlspecialchars($user_name) ?> (<?= htmlspecialchars($user_role_display) ?>)</span>
     </div>

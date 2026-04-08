@@ -5,6 +5,10 @@ require_once 'includes/session_check.php';
 
 // $pdo, $user_id, $user_name, $user_role は session_check.php で設定済み
 
+// システム名取得（tenant.php経由）
+$settings = getTenantSettings();
+$system_name = $settings['system_name'];
+
 $page_config = getPageConfiguration('help');
 
 $page_data = renderCompletePage(
@@ -280,9 +284,9 @@ echo $page_data['page_header'];
 
                 <div class="help-section">
                     <h3><i class="fas fa-mobile-alt me-2"></i>アプリのインストール</h3>
-                    <p>スマルトはホーム画面に追加して、アプリのように使えます。</p>
+                    <p><?= htmlspecialchars($system_name) ?>はホーム画面に追加して、アプリのように使えます。</p>
                     <ol>
-                        <li>ブラウザでスマルトのURLにアクセス</li>
+                        <li>ブラウザで<?= htmlspecialchars($system_name) ?>のURLにアクセス</li>
                         <li>ログイン画面上部の<strong>「インストール」</strong>ボタンをタップ</li>
                         <li>確認ダイアログで<strong>「インストール」</strong>を選択</li>
                         <li>ホーム画面にアイコンが追加されます</li>
@@ -596,7 +600,7 @@ echo $page_data['page_header'];
 
                     <div class="faq-q">Q. ネットがつながらない場所では？</div>
                     <div class="faq-a">
-                        <p>スマルトはオフラインでも一部の機能が使えます。ネットワークに接続された際にデータが自動で同期されます。</p>
+                        <p><?= htmlspecialchars($system_name) ?>はオフラインでも一部の機能が使えます。ネットワークに接続された際にデータが自動で同期されます。</p>
                     </div>
 
                     <div class="faq-q">Q. セッションが切れてログイン画面に戻った場合は？</div>

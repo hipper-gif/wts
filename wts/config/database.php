@@ -46,4 +46,7 @@ function getDBConnection() {
         throw new RuntimeException("データベース接続に失敗しました。");
     }
 }
+
+// テナント設定読み込み
+require_once __DIR__ . '/tenant.php';
 ?>

@@ -54,19 +54,21 @@ function getSystemName() {
 function getResponsiveSystemNames() {
     $script = $_SERVER['SCRIPT_NAME'] ?? '';
     $is_calendar = (strpos($script, '/calendar/') !== false);
+    $tenant = getTenantSettings();
+    $name = $tenant['system_name'];
 
     if ($is_calendar) {
         return [
-            'full' => 'スマルト カレンダー',
-            'short' => 'スマルト カレンダー',
-            'mobile' => 'スマルト',
+            'full' => $name . ' カレンダー',
+            'short' => $name . ' カレンダー',
+            'mobile' => $name,
             'version' => 'v4.0'
         ];
     }
 
     return [
-        'full' => 'スマルト レコード',
-        'short' => 'スマルト レコード',
+        'full' => $name . ' レコード',
+        'short' => $name . ' レコード',
         'mobile' => 'レコード',
         'version' => 'v4.0'
     ];
@@ -317,7 +319,7 @@ function getPageConfiguration($page_type) {
             'category' => 'foundation',
             'icon' => 'question-circle',
             'title' => '使い方ガイド',
-            'subtitle' => 'スマルトの操作方法',
+            'subtitle' => getTenantSettings()['system_name'] . 'の操作方法',
             'description' => 'ドライバー向けの操作ガイド・FAQ',
             'frequency' => '随時',
             'priority' => 'normal'
@@ -381,7 +383,7 @@ function renderCompleteHTMLHead($page_title, $options = []) {
     $html .= '
     
     <!-- ========== PWA設定 v3.1.1 ========== -->
-    <link rel="manifest" href="/Smiley/taxi/wts/manifest.json">
+    <link rel="manifest" href="' . APP_BASE_PATH . '/manifest.json.php">
     <meta name="theme-color" content="#2196F3">
     <meta name="msapplication-TileColor" content="#2196F3">
     
@@ -389,15 +391,15 @@ function renderCompleteHTMLHead($page_title, $options = []) {
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="' . htmlspecialchars($system_names['mobile']) . ' ' . $system_names['version'] . '">
-    <link rel="apple-touch-icon" href="/Smiley/taxi/wts/icons/icon-192x192.png">
+    <link rel="apple-touch-icon" href="' . APP_BASE_PATH . '/icons/icon-192x192.png">
     
     <!-- Android Chrome対応 -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="application-name" content="' . htmlspecialchars($system_names['mobile']) . '">
     
     <!-- Favicon -->
-    <link rel="icon" type="image/png" sizes="192x192" href="/Smiley/taxi/wts/icons/icon-192x192.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/Smiley/taxi/wts/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="' . APP_BASE_PATH . '/icons/icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="' . APP_BASE_PATH . '/icons/favicon-32x32.png">
 
     <!-- Skip Link CSS -->
     <style>
@@ -448,7 +450,7 @@ function renderSystemHeader($user_name = '未設定', $user_role = 'User', $curr
                     <div class="system-title-area">
                         <a href="' . $header_base_path . 'dashboard.php" class="system-title-link">
                             <h1 class="system-title m-0">
-                                <img src="' . $header_base_path . 'icons/smaruto-header@2x.png" alt="スマルト" class="system-logo" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'inline\'">
+                                <img src="' . $header_base_path . 'icons/smaruto-header@2x.png" alt="' . htmlspecialchars($system_names['mobile']) . '" class="system-logo" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'inline\'">
                                 <i class="fas fa-taxi text-primary" style="display:none"></i>
                                 <span class="system-name-display d-none d-md-inline">' . htmlspecialchars($system_names['full']) . '</span>
                                 <span class="system-name-mobile d-inline d-md-none">' . htmlspecialchars($system_names['mobile']) . '</span>
@@ -855,7 +857,7 @@ function renderCompleteHTMLFooter($additional_js = []) {
     });
     // Service Worker 登録（一元管理）
     if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/Smiley/taxi/wts/sw.js")
+        navigator.serviceWorker.register("' . APP_BASE_PATH . '/sw.js.php")
             .catch(function(err) { console.log("SW registration failed:", err); });
     }
     </script>
