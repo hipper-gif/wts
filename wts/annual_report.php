@@ -515,7 +515,7 @@ body {
 
 <!-- タイトル -->
 <div class="report-title">
-    一般乗用旅客自動車運送事業 （限定） 輸送実績報告書 （<?= htmlspecialchars($year) ?>年度）
+    一般乗用旅客自動車運送事業 （限定） 輸送実績報告書 （' . htmlspecialchars($year) . '年度）
 </div>
 
 <!-- 宛先 -->
@@ -524,17 +524,17 @@ body {
 <!-- 事業者情報 -->
 <div class="company-block">
     <table>
-        <tr><td class="lbl">住　　　所</td><td class="val"><?= htmlspecialchars(($company['postal_code'] ? '〒' . $company['postal_code'] . '　' : '') . $company['address']) ?></td></tr>
-        <tr><td class="lbl">事業者名</td><td class="val"><?= htmlspecialchars($company['company_name']) ?></td></tr>
-        <tr><td class="lbl">代表者名</td><td class="val"><?= htmlspecialchars($company['representative_name']) ?>　</td></tr>
-        <tr><td class="lbl">電話番号</td><td class="val"><?= htmlspecialchars($company['phone']) ?></td></tr>
+        <tr><td class="lbl">住　　　所</td><td class="val">' . htmlspecialchars(($company['postal_code'] ? '〒' . $company['postal_code'] . '　' : '') . $company['address']) . '</td></tr>
+        <tr><td class="lbl">事業者名</td><td class="val">' . htmlspecialchars($company['company_name']) . '</td></tr>
+        <tr><td class="lbl">代表者名</td><td class="val">' . htmlspecialchars($company['representative_name']) . '　</td></tr>
+        <tr><td class="lbl">電話番号</td><td class="val">' . htmlspecialchars($company['phone']) . '</td></tr>
     </table>
 </div>
 
 <!-- ============ 事業概況 ============ -->
 <table class="data-table">
     <tr>
-        <td colspan="3" class="section-title">事業概況 （<?= htmlspecialchars($year) ?>年３月３１日現在）</td>
+        <td colspan="3" class="section-title">事業概況 （' . htmlspecialchars($year) . '年３月３１日現在）</td>
     </tr>
     <tr>
         <td class="col-header" style="width:50%;">&nbsp;</td>
@@ -553,13 +553,13 @@ body {
     </tr>
     <tr>
         <td class="item-label">事業用自動車数 （両）</td>
-        <td class="item-value"><?= $f($business['vehicle_count']) ?></td>
-        <td class="item-value"><?= $f($business['vehicle_count']) ?></td>
+        <td class="item-value">' . $f($business['vehicle_count']) . '</td>
+        <td class="item-value">' . $f($business['vehicle_count']) . '</td>
     </tr>
     <tr>
         <td class="item-label">従業員数</td>
-        <td class="item-value"><?= $f($business['employee_count']) ?><span class="employee-paren">（<?= $f($business['driver_count']) ?>）</span></td>
-        <td class="item-value"><?= $f($business['employee_count']) ?><span class="employee-paren">（<?= $f($business['driver_count']) ?>）</span></td>
+        <td class="item-value">' . $f($business['employee_count']) . '<span class="employee-paren">（' . $f($business['driver_count']) . '）</span></td>
+        <td class="item-value">' . $f($business['employee_count']) . '<span class="employee-paren">（' . $f($business['driver_count']) . '）</span></td>
     </tr>
 </table>
 
@@ -575,23 +575,23 @@ body {
     </tr>
     <tr>
         <td class="item-label">走行キロ （キロメートル）</td>
-        <td class="item-value"><?= $f($transport['total_distance']) ?></td>
-        <td class="item-value"><?= $f($transport['total_distance']) ?></td>
+        <td class="item-value">' . $f($transport['total_distance']) . '</td>
+        <td class="item-value">' . $f($transport['total_distance']) . '</td>
     </tr>
     <tr>
         <td class="item-label">運送回数 （回）</td>
-        <td class="item-value"><?= $f($transport['ride_count']) ?></td>
-        <td class="item-value"><?= $f($transport['ride_count']) ?></td>
+        <td class="item-value">' . $f($transport['ride_count']) . '</td>
+        <td class="item-value">' . $f($transport['ride_count']) . '</td>
     </tr>
     <tr>
         <td class="item-label">輸送人員 （人）</td>
-        <td class="item-value"><?= $f($transport['total_passengers']) ?></td>
-        <td class="item-value"><?= $f($transport['total_passengers']) ?></td>
+        <td class="item-value">' . $f($transport['total_passengers']) . '</td>
+        <td class="item-value">' . $f($transport['total_passengers']) . '</td>
     </tr>
     <tr>
         <td class="item-label">営業収入 （千円）</td>
-        <td class="item-value"><?= $f($revenue_sen) ?></td>
-        <td class="item-value"><?= $f($revenue_sen) ?></td>
+        <td class="item-value">' . $f($revenue_sen) . '</td>
+        <td class="item-value">' . $f($revenue_sen) . '</td>
     </tr>
 </table>
 
@@ -607,23 +607,23 @@ body {
     </tr>
     <tr>
         <td class="item-label">交通事故件数</td>
-        <td class="item-value"><?= $f($accident['traffic_accidents']) ?></td>
-        <td class="item-value"><?= $f($accident['traffic_accidents']) ?></td>
+        <td class="item-value">' . $f($accident['traffic_accidents']) . '</td>
+        <td class="item-value">' . $f($accident['traffic_accidents']) . '</td>
     </tr>
     <tr>
         <td class="item-label">重大事故件数</td>
-        <td class="item-value"><?= $f($accident['serious_accidents']) ?></td>
-        <td class="item-value"><?= $f($accident['serious_accidents']) ?></td>
+        <td class="item-value">' . $f($accident['serious_accidents']) . '</td>
+        <td class="item-value">' . $f($accident['serious_accidents']) . '</td>
     </tr>
     <tr>
         <td class="item-label">死者数</td>
-        <td class="item-value"><?= $f($accident['total_deaths']) ?></td>
-        <td class="item-value"><?= $f($accident['total_deaths']) ?></td>
+        <td class="item-value">' . $f($accident['total_deaths']) . '</td>
+        <td class="item-value">' . $f($accident['total_deaths']) . '</td>
     </tr>
     <tr>
         <td class="item-label">負傷者数</td>
-        <td class="item-value"><?= $f($accident['total_injuries']) ?></td>
-        <td class="item-value"><?= $f($accident['total_injuries']) ?></td>
+        <td class="item-value">' . $f($accident['total_injuries']) . '</td>
+        <td class="item-value">' . $f($accident['total_injuries']) . '</td>
     </tr>
 </table>
 
