@@ -334,71 +334,79 @@ echo $page_data['page_header'];
                         </div>
                     </div>
 
-                    <!-- 費用情報 -->
-                    <div class="row mb-4">
-                        <div class="col-md-4 mb-3">
-                            <label for="fuel_cost" class="form-label">
-                                <i class="fas fa-gas-pump me-1"></i>燃料代(円)
-                            </label>
-                            <input type="number" class="form-control" id="fuel_cost" name="fuel_cost" value="0" min="0" inputmode="numeric" placeholder="0">
-                        </div>
-
-                        <div class="col-md-4 mb-3">
-                            <label for="highway_cost" class="form-label">
-                                <i class="fas fa-road me-1"></i>高速代(円)
-                            </label>
-                            <input type="number" class="form-control" id="highway_cost" name="highway_cost" value="0" min="0" inputmode="numeric" placeholder="0">
-                        </div>
-
-                        <div class="col-md-4 mb-3">
-                            <label for="other_cost" class="form-label">
-                                <i class="fas fa-receipt me-1"></i>その他費用(円)
-                            </label>
-                            <input type="number" class="form-control" id="other_cost" name="other_cost" value="0" min="0" inputmode="numeric" placeholder="0">
-                        </div>
+                    <!-- 詳細項目（折りたたみ） -->
+                    <div class="mb-3">
+                        <button class="btn btn-outline-secondary btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#arrivalDetailFields" aria-expanded="false">
+                            <i class="fas fa-chevron-down me-1"></i>詳細項目を表示（費用・休憩記録・備考）
+                        </button>
                     </div>
-
-                    <!-- 休憩記録 -->
-                    <div class="card mb-4" style="border: 2px dashed #dee2e6;">
-                        <div class="card-header bg-light">
-                            <i class="fas fa-coffee me-2"></i>休憩記録（任意）
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label for="break_location" class="form-label">
-                                        <i class="fas fa-map-marker-alt me-1"></i>休憩場所
-                                    </label>
-                                    <input type="text" class="form-control" id="break_location" name="break_location" 
-                                           placeholder="例：○○SA、△△道の駅">
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label for="break_start_time" class="form-label">
-                                        <i class="fas fa-play me-1"></i>休憩開始
-                                    </label>
-                                    <input type="time" class="form-control" id="break_start_time" name="break_start_time">
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label for="break_end_time" class="form-label">
-                                        <i class="fas fa-stop me-1"></i>休憩終了
-                                    </label>
-                                    <input type="time" class="form-control" id="break_end_time" name="break_end_time">
-                                </div>
+                    <div class="collapse" id="arrivalDetailFields">
+                        <!-- 費用情報 -->
+                        <div class="row mb-4">
+                            <div class="col-md-4 mb-3">
+                                <label for="fuel_cost" class="form-label">
+                                    <i class="fas fa-gas-pump me-1"></i>燃料代(円)
+                                </label>
+                                <input type="number" class="form-control" id="fuel_cost" name="fuel_cost" value="0" min="0" inputmode="numeric" placeholder="0">
                             </div>
-                            <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>
-                                法定要件ではありませんが、労務管理のため記録を推奨します
+
+                            <div class="col-md-4 mb-3">
+                                <label for="highway_cost" class="form-label">
+                                    <i class="fas fa-road me-1"></i>高速代(円)
+                                </label>
+                                <input type="number" class="form-control" id="highway_cost" name="highway_cost" value="0" min="0" inputmode="numeric" placeholder="0">
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label for="other_cost" class="form-label">
+                                    <i class="fas fa-receipt me-1"></i>その他費用(円)
+                                </label>
+                                <input type="number" class="form-control" id="other_cost" name="other_cost" value="0" min="0" inputmode="numeric" placeholder="0">
                             </div>
                         </div>
-                    </div>
 
-                    <!-- 備考 -->
-                    <div class="mb-4">
-                        <label for="remarks" class="form-label">
-                            <i class="fas fa-sticky-note me-1"></i>備考・特記事項
-                        </label>
-                        <textarea class="form-control" id="remarks" name="remarks" rows="3" 
-                                  placeholder="特記事項があれば入力してください"></textarea>
+                        <!-- 休憩記録 -->
+                        <div class="card mb-4" style="border: 2px dashed #dee2e6;">
+                            <div class="card-header bg-light">
+                                <i class="fas fa-coffee me-2"></i>休憩記録（任意）
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label for="break_location" class="form-label">
+                                            <i class="fas fa-map-marker-alt me-1"></i>休憩場所
+                                        </label>
+                                        <input type="text" class="form-control" id="break_location" name="break_location"
+                                               placeholder="例：○○SA、△△道の駅">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="break_start_time" class="form-label">
+                                            <i class="fas fa-play me-1"></i>休憩開始
+                                        </label>
+                                        <input type="time" class="form-control" id="break_start_time" name="break_start_time">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="break_end_time" class="form-label">
+                                            <i class="fas fa-stop me-1"></i>休憩終了
+                                        </label>
+                                        <input type="time" class="form-control" id="break_end_time" name="break_end_time">
+                                    </div>
+                                </div>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    法定要件ではありませんが、労務管理のため記録を推奨します
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 備考 -->
+                        <div class="mb-4">
+                            <label for="remarks" class="form-label">
+                                <i class="fas fa-sticky-note me-1"></i>備考・特記事項
+                            </label>
+                            <textarea class="form-control" id="remarks" name="remarks" rows="3"
+                                      placeholder="特記事項があれば入力してください"></textarea>
+                        </div>
                     </div>
 
                     <!-- 操作ボタン（画面下部固定） -->

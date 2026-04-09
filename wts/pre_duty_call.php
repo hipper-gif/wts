@@ -386,12 +386,14 @@ echo $page_data['page_header'];
                     <div class="card mb-4">
                         <div class="card-body">
                             <?php
-                            $check_items = [
+                            $check_items_required = [
                                 'health_check' => ['健康状態', true],
-                                'clothing_check' => ['服装', false],
-                                'footwear_check' => ['履物', false],
                                 'pre_inspection_check' => ['運行前点検', true],
                                 'license_check' => ['免許証', true],
+                            ];
+                            $check_items_optional = [
+                                'clothing_check' => ['服装', false],
+                                'footwear_check' => ['履物', false],
                                 'vehicle_registration_check' => ['車検証', false],
                                 'insurance_check' => ['保険証', false],
                                 'emergency_tools_check' => ['応急工具', false],
@@ -404,26 +406,51 @@ echo $page_data['page_header'];
                                 'receipt_check' => ['領収書', false],
                                 'stop_sign_check' => ['停止表示機', false]
                             ];
+                            $check_items = array_merge($check_items_required, $check_items_optional);
                             ?>
 
+                            <!-- 必須確認項目 -->
                             <div class="row g-3">
-                                <?php $i = 1; foreach ($check_items as $key => $item): ?>
+                                <?php $i = 1; foreach ($check_items_required as $key => $item): ?>
                                 <div class="col-md-6 col-lg-4">
-                                    <div class="form-check p-3 border rounded <?= $is_edit_mode ? '' : 'check-item-clickable' ?> <?= ($existing_call && $existing_call[$key]) ? 'bg-success bg-opacity-10 border-success' : '' ?>" 
+                                    <div class="form-check p-3 border rounded <?= $is_edit_mode ? '' : 'check-item-clickable' ?> <?= ($existing_call && $existing_call[$key]) ? 'bg-success bg-opacity-10 border-success' : '' ?>"
                                          <?= $is_edit_mode ? '' : 'onclick="toggleCheck(\'' . $key . '\')"' ?>>
-                                        <input class="form-check-input" type="checkbox" name="<?= $key ?>" id="<?= $key ?>" 
+                                        <input class="form-check-input" type="checkbox" name="<?= $key ?>" id="<?= $key ?>"
                                             <?= ($existing_call && $existing_call[$key]) ? 'checked' : '' ?>
                                             <?= $is_edit_mode ? 'disabled' : '' ?>>
                                         <label class="form-check-label fw-bold" for="<?= $key ?>">
                                             <span class="badge bg-primary me-2"><?= $i ?></span>
                                             <?= $item[0] ?>
-                                            <?php if ($item[1]): ?>
-                                                <span class="text-danger fw-bold small">（必須）</span>
-                                            <?php endif; ?>
+                                            <span class="text-danger fw-bold small">（必須）</span>
                                         </label>
                                     </div>
                                 </div>
                                 <?php $i++; endforeach; ?>
+                            </div>
+
+                            <!-- 任意確認項目（折りたたみ） -->
+                            <div class="mt-3">
+                                <button class="btn btn-outline-secondary btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#optionalCheckItems" aria-expanded="false">
+                                    <i class="fas fa-chevron-down me-1"></i>その他の確認項目を表示（13項目）
+                                </button>
+                            </div>
+                            <div class="collapse mt-3" id="optionalCheckItems">
+                                <div class="row g-3">
+                                    <?php foreach ($check_items_optional as $key => $item): ?>
+                                    <div class="col-md-6 col-lg-4">
+                                        <div class="form-check p-3 border rounded <?= $is_edit_mode ? '' : 'check-item-clickable' ?> <?= ($existing_call && $existing_call[$key]) ? 'bg-success bg-opacity-10 border-success' : '' ?>"
+                                             <?= $is_edit_mode ? '' : 'onclick="toggleCheck(\'' . $key . '\')"' ?>>
+                                            <input class="form-check-input" type="checkbox" name="<?= $key ?>" id="<?= $key ?>"
+                                                <?= ($existing_call && $existing_call[$key]) ? 'checked' : '' ?>
+                                                <?= $is_edit_mode ? 'disabled' : '' ?>>
+                                            <label class="form-check-label fw-bold" for="<?= $key ?>">
+                                                <span class="badge bg-secondary me-2"><?= $i ?></span>
+                                                <?= $item[0] ?>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <?php $i++; endforeach; ?>
+                                </div>
                             </div>
                         </div>
                     </div>

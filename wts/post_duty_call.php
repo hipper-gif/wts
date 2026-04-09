@@ -414,13 +414,15 @@ echo $page_data['page_header'];
             <div class="card shadow-sm mb-4">
                 <div class="card-body">
                     <?php
-                    $check_items_labels = [
-                        'duty_record_check' => '乗務記録の記載は完了しているか',
-                        'vehicle_condition_check' => '車両に異常・損傷はないか',
+                    $check_items_required = [
                         'health_condition_check' => '健康状態に異常はないか',
-                        'fatigue_check' => '疲労・睡眠不足はないか',
                         'alcohol_drug_check' => '酒気・薬物の影響はないか',
                         'accident_violation_check' => '事故・違反の発生はないか',
+                        'vehicle_condition_check' => '車両に異常・損傷はないか',
+                    ];
+                    $check_items_optional = [
+                        'duty_record_check' => '乗務記録の記載は完了しているか',
+                        'fatigue_check' => '疲労・睡眠不足はないか',
                         'equipment_return_check' => '業務用品は適切に返却されているか',
                         'report_completion_check' => '業務報告は完了しているか',
                         'lost_items_check' => '車内の忘れ物はないか',
@@ -428,10 +430,12 @@ echo $page_data['page_header'];
                         'route_operation_check' => '予定路線での運行は適切だったか',
                         'passenger_condition_check' => '乗客に関する特記事項はないか'
                     ];
+                    $check_items_labels = array_merge($check_items_required, $check_items_optional);
                     ?>
 
+                    <!-- 主要確認項目 -->
                     <div class="row g-3">
-                        <?php $count = 1; foreach ($check_items_labels as $key => $label): ?>
+                        <?php $count = 1; foreach ($check_items_required as $key => $label): ?>
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check p-3 border rounded <?= $is_edit_mode ? '' : 'check-item-clickable' ?> <?= ($existing_call && $existing_call[$key]) ? 'bg-success bg-opacity-10 border-success' : '' ?>"
                                  <?= $is_edit_mode ? '' : 'onclick="toggleCheck(\'' . $key . '\')"' ?>>
@@ -445,6 +449,31 @@ echo $page_data['page_header'];
                             </div>
                         </div>
                         <?php $count++; endforeach; ?>
+                    </div>
+
+                    <!-- その他確認項目（折りたたみ） -->
+                    <div class="mt-3">
+                        <button class="btn btn-outline-secondary btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#optionalPostCheckItems" aria-expanded="false">
+                            <i class="fas fa-chevron-down me-1"></i>その他の確認項目を表示（8項目）
+                        </button>
+                    </div>
+                    <div class="collapse mt-3" id="optionalPostCheckItems">
+                        <div class="row g-3">
+                            <?php foreach ($check_items_optional as $key => $label): ?>
+                            <div class="col-md-6 col-lg-4">
+                                <div class="form-check p-3 border rounded <?= $is_edit_mode ? '' : 'check-item-clickable' ?> <?= ($existing_call && $existing_call[$key]) ? 'bg-success bg-opacity-10 border-success' : '' ?>"
+                                     <?= $is_edit_mode ? '' : 'onclick="toggleCheck(\'' . $key . '\')"' ?>>
+                                    <input class="form-check-input" type="checkbox" name="<?= $key ?>" id="<?= $key ?>"
+                                           <?= ($existing_call && $existing_call[$key]) ? 'checked' : '' ?>
+                                           <?= $is_edit_mode ? 'disabled' : '' ?>>
+                                    <label class="form-check-label d-block" for="<?= $key ?>">
+                                        <span class="fw-bold text-secondary"><?= $count ?>.</span>
+                                        <?= htmlspecialchars($label) ?>
+                                    </label>
+                                </div>
+                            </div>
+                            <?php $count++; endforeach; ?>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -868,25 +868,7 @@ echo $page_data['page_header'];
                         </div>
                     </div>
 
-                    <!-- 走行距離 -->
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label for="modalRideDistance" class="form-label unified-label">
-                                <i class="fas fa-road me-1"></i>走行距離 (km)
-                            </label>
-                            <input type="number" class="form-control unified-input" id="modalRideDistance" name="ride_distance"
-                                   min="0" step="0.1" inputmode="decimal" placeholder="例：12.5">
-                        </div>
-                    </div>
-
-                    <!-- 経由地 -->
-                    <div class="mb-3" id="waypointSection">
-                        <div id="waypointList"></div>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addWaypoint()">
-                            <i class="fas fa-plus me-1"></i>経由地を追加
-                        </button>
-                    </div>
-
+                    <!-- 運賃（必須） -->
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="modalFare" class="form-label unified-label">
@@ -895,33 +877,6 @@ echo $page_data['page_header'];
                             <input type="number" class="form-control unified-input" id="modalFare" name="fare" min="0" step="10" inputmode="numeric" placeholder="例：5000" required>
                         </div>
 
-                        <div class="col-md-6 mb-3">
-                            <label for="modalCharge" class="form-label unified-label">
-                                <i class="fas fa-plus me-1"></i>追加料金
-                            </label>
-                            <input type="number" class="form-control unified-input" id="modalCharge" name="charge" min="0" step="10" inputmode="numeric" placeholder="0" value="0">
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label for="modalTicketAmount" class="form-label unified-label">
-                                <i class="fas fa-ticket-alt me-1"></i>利用券額
-                            </label>
-                            <input type="number" class="form-control unified-input" id="modalTicketAmount" name="ticket_amount"
-                                   min="0" step="100" inputmode="numeric" placeholder="0" value="0">
-                        </div>
-                        <div class="col-md-4 mb-3 d-flex align-items-end">
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="modalDisabilityDiscount" name="disability_discount" value="1">
-                                <label class="form-check-label" for="modalDisabilityDiscount">
-                                    障害者割引
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="modalTransportationType" class="form-label unified-label">
                                 <i class="fas fa-tags me-1"></i>輸送分類 <span class="text-danger fw-bold small">（必須）</span>
@@ -933,7 +888,9 @@ echo $page_data['page_header'];
                                 <?php endforeach; ?>
                             </select>
                         </div>
+                    </div>
 
+                    <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="modalPaymentMethod" class="form-label unified-label">
                                 <i class="fas fa-credit-card me-1"></i>支払方法 <span class="text-danger fw-bold small">（必須）</span>
@@ -948,12 +905,62 @@ echo $page_data['page_header'];
                         </div>
                     </div>
 
+                    <!-- 詳細項目（折りたたみ） -->
                     <div class="mb-3">
-                        <label for="modalNotes" class="form-label unified-label">
-                            <i class="fas fa-sticky-note me-1"></i>備考
-                        </label>
-                        <textarea class="form-control unified-textarea" id="modalNotes" name="notes" rows="2"
-                                  placeholder="特記事項があれば入力してください"></textarea>
+                        <button class="btn btn-outline-secondary btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#rideDetailFields" aria-expanded="false">
+                            <i class="fas fa-chevron-down me-1"></i>詳細項目を表示（走行距離・経由地・料金調整・備考）
+                        </button>
+                    </div>
+                    <div class="collapse" id="rideDetailFields">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="modalRideDistance" class="form-label unified-label">
+                                    <i class="fas fa-road me-1"></i>走行距離 (km)
+                                </label>
+                                <input type="number" class="form-control unified-input" id="modalRideDistance" name="ride_distance"
+                                       min="0" step="0.1" inputmode="decimal" placeholder="例：12.5">
+                            </div>
+                        </div>
+
+                        <div class="mb-3" id="waypointSection">
+                            <div id="waypointList"></div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addWaypoint()">
+                                <i class="fas fa-plus me-1"></i>経由地を追加
+                            </button>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="modalCharge" class="form-label unified-label">
+                                    <i class="fas fa-plus me-1"></i>追加料金
+                                </label>
+                                <input type="number" class="form-control unified-input" id="modalCharge" name="charge" min="0" step="10" inputmode="numeric" placeholder="0" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="modalTicketAmount" class="form-label unified-label">
+                                    <i class="fas fa-ticket-alt me-1"></i>利用券額
+                                </label>
+                                <input type="number" class="form-control unified-input" id="modalTicketAmount" name="ticket_amount"
+                                       min="0" step="100" inputmode="numeric" placeholder="0" value="0">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modalDisabilityDiscount" name="disability_discount" value="1">
+                                <label class="form-check-label" for="modalDisabilityDiscount">
+                                    障害者割引
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="modalNotes" class="form-label unified-label">
+                                <i class="fas fa-sticky-note me-1"></i>備考
+                            </label>
+                            <textarea class="form-control unified-textarea" id="modalNotes" name="notes" rows="2"
+                                      placeholder="特記事項があれば入力してください"></textarea>
+                        </div>
                     </div>
 
                     <!-- 修正理由セクション（過去日データ編集時のみ表示） -->
