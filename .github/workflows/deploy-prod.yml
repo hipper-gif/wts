@@ -114,7 +114,8 @@ jobs:
         echo "tenant_list=$TENANT_LIST" >> "$GITHUB_OUTPUT"
         echo "📋 デプロイ対象: $TENANT_LIST"
 
-    - name: 📦 バックアップ＆🔥 デプロイ
+    - name: 📦 バックアップ（SSH）
+      continue-on-error: true
       env:
         SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       run: |
