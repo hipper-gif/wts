@@ -138,7 +138,7 @@ try {
 
 $staff = [];
 try {
-    $stmt = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name");
+    $stmt = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 AND login_id NOT LIKE 'sysop%' ORDER BY name");
     $staff = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 

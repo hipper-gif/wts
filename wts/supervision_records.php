@@ -104,7 +104,7 @@ $drivers_stmt = $pdo->query("SELECT id, name FROM users WHERE is_driver = 1 AND 
 $drivers = $drivers_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 指導者一覧取得（管理者・点呼者）
-$supervisors_stmt = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 AND (permission_level = 'Admin' OR is_manager = 1 OR is_caller = 1) ORDER BY name");
+$supervisors_stmt = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 AND login_id NOT LIKE 'sysop%' AND (permission_level = 'Admin' OR is_manager = 1 OR is_caller = 1) ORDER BY name");
 $supervisors = $supervisors_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 統計情報取得

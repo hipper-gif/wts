@@ -25,7 +25,7 @@ try {
 
     $user_role_display = '';
     if ($is_admin) {
-        $user_role_display = 'システム管理者';
+        $user_role_display = '管理者';
     } else {
         $roles = [];
         if ($user_data['is_driver']) $roles[] = '運転者';
@@ -299,27 +299,63 @@ $page_data = renderCompletePage(
         </div>
 
         <!-- 拡張機能（開発予定） -->
-        <h5 class="section-title"><i class="fas fa-puzzle-piece me-2"></i>拡張機能<span class="badge bg-info ms-2" style="font-size:0.7rem;">開発予定</span></h5>
+        <h5 class="section-title"><i class="fas fa-puzzle-piece me-2"></i>拡張機能</h5>
 
         <div class="row mb-4">
             <div class="col-lg-4 col-md-6 mb-3">
-                <div class="master-card coming-soon">
+                <?php if ($is_admin): ?>
+                <a href="company_settings.php" class="master-card">
                     <div class="position-relative">
-                        <span class="status-badge bg-info text-white">開発予定</span>
+                        <span class="status-badge bg-success text-white">利用可能</span>
                         <i class="fas fa-building master-icon icon-building"></i>
                         <h6 class="fw-bold">会社情報設定</h6>
                         <p class="card-description">
                             会社基本情報と許可証情報<br>
-                            帳票出力時の会社情報
+                            運行管理者・事業種別の設定
+                        </p>
+                        <?php if ($company_info_exists): ?>
+                        <div class="stats-number text-info"><i class="fas fa-check-circle"></i></div>
+                        <div class="stats-label">設定済み</div>
+                        <?php else: ?>
+                        <div class="stats-number text-warning"><i class="fas fa-exclamation-circle"></i></div>
+                        <div class="stats-label">未設定</div>
+                        <?php endif; ?>
+                    </div>
+                </a>
+                <?php else: ?>
+                <div class="master-card user-only" onclick="showPermissionAlert()">
+                    <div class="position-relative">
+                        <span class="status-badge bg-warning text-dark">要Admin権限</span>
+                        <i class="fas fa-building master-icon icon-building"></i>
+                        <h6 class="fw-bold">会社情報・事業報告</h6>
+                        <p class="card-description">
+                            会社基本情報と許可証情報<br>
+                            事業報告書（第4号様式）出力
                         </p>
                     </div>
                 </div>
+                <?php endif; ?>
             </div>
 
             <div class="col-lg-4 col-md-6 mb-3">
-                <div class="master-card coming-soon">
+                <?php if ($is_admin): ?>
+                <a href="transport_category_management.php" class="master-card">
                     <div class="position-relative">
-                        <span class="status-badge bg-info text-white">開発予定</span>
+                        <span class="status-badge bg-success text-white">利用可能</span>
+                        <i class="fas fa-tags master-icon icon-categories"></i>
+                        <h6 class="fw-bold">輸送分類管理</h6>
+                        <p class="card-description mb-2">
+                            通院・外出等の輸送分類<br>
+                            分類の追加・編集・並び順設定
+                        </p>
+                        <div class="stats-number text-warning"><?= $category_count ?></div>
+                        <div class="stats-label">登録分類数</div>
+                    </div>
+                </a>
+                <?php else: ?>
+                <div class="master-card user-only" onclick="showPermissionAlert()">
+                    <div class="position-relative">
+                        <span class="status-badge bg-warning text-dark">要Admin権限</span>
                         <i class="fas fa-tags master-icon icon-categories"></i>
                         <h6 class="fw-bold">輸送分類管理</h6>
                         <p class="card-description">
@@ -328,6 +364,7 @@ $page_data = renderCompletePage(
                         </p>
                     </div>
                 </div>
+                <?php endif; ?>
             </div>
 
             <div class="col-lg-4 col-md-6 mb-3">
@@ -445,35 +482,7 @@ $page_data = renderCompletePage(
                 <?php endif; ?>
             </div>
 
-            <!-- 運賃マスタ（Phase2） -->
-            <div class="col-lg-4 col-md-6 mb-3">
-                <div class="master-card coming-soon">
-                    <div class="position-relative">
-                        <span class="status-badge bg-secondary text-white">Phase2</span>
-                        <i class="fas fa-yen-sign master-icon icon-reports"></i>
-                        <h6 class="fw-bold">運賃マスタ管理</h6>
-                        <p class="card-description">
-                            距離別・時間帯別運賃設定<br>
-                            特別料金・割引設定
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 予約管理（Phase2） -->
-            <div class="col-lg-4 col-md-6 mb-3">
-                <div class="master-card coming-soon">
-                    <div class="position-relative">
-                        <span class="status-badge bg-secondary text-white">Phase2</span>
-                        <i class="fas fa-calendar-alt master-icon text-info"></i>
-                        <h6 class="fw-bold">予約管理</h6>
-                        <p class="card-description">
-                            顧客予約システム<br>
-                            スケジュール管理機能
-                        </p>
-                    </div>
-                </div>
-            </div>
+            <!-- 予約管理（Phase2 - カレンダー未完成のため非表示） -->
         </div>
 
         <!-- ヘルプ -->
@@ -488,6 +497,9 @@ $page_data = renderCompletePage(
                         <ul class="small mb-3">
                             <li><strong>ユーザー管理</strong>：Admin権限で利用可能</li>
                             <li><strong>車両管理</strong>：全ユーザーで利用可能</li>
+                            <li><strong>会社情報設定</strong>：Admin権限で利用可能</li>
+                            <li><strong>輸送分類管理</strong>：Admin権限で利用可能</li>
+                            <li><strong>場所マスタ管理</strong>：全ユーザーで利用可能</li>
                             <li><strong>システム設定</strong>：Admin権限で利用可能</li>
                             <li><strong>DBバックアップ</strong>：Admin権限で利用可能</li>
                         </ul>

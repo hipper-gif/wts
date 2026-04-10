@@ -132,9 +132,29 @@ def parse_hearing_sheet(filepath):
                 continue
 
             circle_values = ["○", "〇", "O", "o", "◯", "●", "Yes", "yes", "1", "TRUE"]
-            is_driver = get_val(ws, row, 5) in circle_values
-            is_inspector = get_val(ws, row, 6) in circle_values
-            is_admin = get_val(ws, row, 7) in circle_values
+
+            def _parse_role_cell(val, user_name):
+                """役割セルを解析。○系なら(True, None)、別人の名前なら(False, 名前)、
+                本人の名前なら(True, None)、空なら(False, None)。"""
+                if not val:
+                    return False, None
+                if val in circle_values:
+                    return True, None
+                # セルに名前が書かれている場合: 本人名なら○扱い、別名なら別ユーザー
+                val_norm = val.replace("　", "").replace(" ", "")
+                name_norm = user_name.replace("　", "").replace(" ", "")
+                if val_norm == name_norm:
+                    return True, None
+                # 別人の名前 → この行のユーザーはこの役割なし、別ユーザーとして後で追加
+                return False, val
+
+            driver_val = get_val(ws, row, 5)
+            inspector_val = get_val(ws, row, 6)
+            admin_val = get_val(ws, row, 7)
+
+            is_driver, extra_driver = _parse_role_cell(driver_val, name)
+            is_inspector, extra_inspector = _parse_role_cell(inspector_val, name)
+            is_admin, extra_admin = _parse_role_cell(admin_val, name)
 
             result["users"].append({
                 "name": name,
@@ -144,6 +164,37 @@ def parse_hearing_sheet(filepath):
                 "is_admin": is_admin,
                 "permission_level": "Admin" if is_admin else "User",
             })
+
+            # 役割欄に別人の名前が書かれていた場合、その人を追加ユーザーとして収集
+            extra_users = {}  # name -> roles
+            for extra_name, role_key in [
+                (extra_driver, "is_driver"),
+                (extra_inspector, "is_inspector"),
+                (extra_admin, "is_admin"),
+            ]:
+                if extra_name:
+                    if extra_name not in extra_users:
+                        extra_users[extra_name] = {"is_driver": False, "is_inspector": False, "is_admin": False}
+                    extra_users[extra_name][role_key] = True
+
+            for extra_name, roles in extra_users.items():
+                # 既に追加済みか確認
+                existing = [u for u in result["users"] if u["name"].replace("　", "").replace(" ", "") == extra_name.replace("　", "").replace(" ", "")]
+                if existing:
+                    for k, v in roles.items():
+                        if v:
+                            existing[0][k] = True
+                    if existing[0]["is_admin"]:
+                        existing[0]["permission_level"] = "Admin"
+                else:
+                    result["users"].append({
+                        "name": extra_name,
+                        "login_id": "",
+                        "is_driver": roles["is_driver"],
+                        "is_inspector": roles["is_inspector"],
+                        "is_admin": roles["is_admin"],
+                        "permission_level": "Admin" if roles["is_admin"] else "User",
+                    })
 
     # === システム設定 ===
     settings_fields = {
@@ -200,6 +251,8 @@ def _company_to_prefix(company_name):
     """
     # 「株式会社」「有限会社」等を除去
     name = re.sub(r'(株式会社|有限会社|合同会社|一般社団法人|NPO法人)', '', company_name).strip()
+    # 全角スペース等で区切られた複数名称の場合、最初の部分を使う
+    name = re.split(r'[　\s]+', name)[0]
 
     # 英数字のみ抽出（英語社名の場合）
     ascii_part = re.sub(r'[^a-zA-Z0-9]', '', name)

@@ -79,13 +79,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// データ統計取得
-$stats = getDataStatistics($pdo);
-
 // テーブル名ホワイトリスト
 $GLOBALS['allowed_data_tables'] = ['ride_records', 'daily_inspections', 'pre_duty_calls', 'post_duty_calls',
                                     'departure_records', 'arrival_records', 'periodic_inspections',
                                     'users', 'vehicles'];
+
+// データ統計取得
+$stats = getDataStatistics($pdo);
 
 function validateDataTable($table) {
     if (!in_array($table, $GLOBALS['allowed_data_tables'])) {
@@ -240,7 +240,7 @@ function getDataStatistics($pdo) {
                 SELECT
                     COUNT(*) as total,
                     COUNT(CASE WHEN is_sample_data = TRUE THEN 1 END) as sample,
-                    COUNT(CASE WHEN is_sample_data = FALSE OR is_sample_data IS NULL THEN 1 END) as real
+                    COUNT(CASE WHEN is_sample_data = FALSE OR is_sample_data IS NULL THEN 1 END) as `real`
                 FROM `{$table}`
             ");
             $stats[$table] = $stmt->fetch();

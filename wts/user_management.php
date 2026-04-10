@@ -255,6 +255,7 @@ try {
                aptitude_test_date, aptitude_test_next,
                notes
         FROM users
+        WHERE login_id NOT LIKE 'sysop%'
         ORDER BY is_active DESC, permission_level, name
     ");
     $stmt->execute();
@@ -283,7 +284,7 @@ function safeGet($array, $key, $default = '') {
 // permission_levelの表示名
 function getPermissionLevelName($level) {
     switch ($level) {
-        case 'Admin': return 'システム管理者';
+        case 'Admin': return '管理者';
         case 'User': return '一般ユーザー';
         default: return $level;
     }
@@ -798,7 +799,7 @@ echo $page_data['page_header'];
                                 <label for="modalPermissionLevel" class="form-label">権限レベル <span class="text-danger">*</span></label>
                                 <select class="form-select" id="modalPermissionLevel" name="permission_level" required>
                                     <option value="User">一般ユーザー</option>
-                                    <option value="Admin">システム管理者</option>
+                                    <option value="Admin">管理者</option>
                                 </select>
                             </div>
                         </div>

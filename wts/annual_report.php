@@ -30,36 +30,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (isset($_POST['action'])) {
             switch ($_POST['action']) {
-                case 'update_company_info':
-                    $pdo->beginTransaction();
-                    try {
-                        // 最初のレコードのIDを動的に取得してUPDATE
-                        $id_row = $pdo->query("SELECT id FROM company_info ORDER BY id LIMIT 1")->fetch();
-                        $target_id = $id_row ? $id_row['id'] : 1;
-                        $stmt = $pdo->prepare("
-                            UPDATE company_info SET
-                            company_name = ?, representative_name = ?,
-                            postal_code = ?, address = ?, phone = ?,
-                            fax = ?, manager_name = ?, manager_email = ?,
-                            license_number = ?, business_type = ?
-                            WHERE id = ?
-                        ");
-                        $stmt->execute([
-                            $_POST['company_name'], $_POST['representative_name'],
-                            $_POST['postal_code'], $_POST['address'], $_POST['phone'],
-                            $_POST['fax'] ?? '', $_POST['manager_name'] ?? '', $_POST['manager_email'] ?? '',
-                            $_POST['license_number'], $_POST['business_type'],
-                            $target_id
-                        ]);
-                        logAnnualReportAudit($pdo, $user_id, $user_name, '事業者情報更新', "company_name={$_POST['company_name']}");
-                        $pdo->commit();
-                    } catch (Exception $e) {
-                        $pdo->rollBack();
-                        throw $e;
-                    }
-                    $message = "事業者情報を更新しました。";
-                    break;
-
                 case 'create_report':
                     $fiscal_year = $_POST['fiscal_year'];
                     $report_type = $_POST['report_type'];
@@ -793,62 +763,21 @@ echo $page_data['page_header'];
         </div>
     <?php endif; ?>
 
-    <!-- 事業者情報カード -->
+    <!-- 事業者情報サマリー -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card border-primary">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-building me-2"></i>事業者基本情報</h5>
-                    <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#companyInfoModal">
-                        <i class="fas fa-edit me-1"></i>編集
-                    </button>
+                    <h5 class="mb-0"><i class="fas fa-building me-2"></i>事業者情報</h5>
+                    <a href="company_settings.php" class="btn btn-light btn-sm">
+                        <i class="fas fa-edit me-1"></i>会社情報設定へ
+                    </a>
                 </div>
-                <div class="card-body">
+                <div class="card-body py-2">
                     <div class="row">
-                        <div class="col-lg-6">
-                            <table class="table table-borderless table-sm">
-                                <tr>
-                                    <td class="fw-bold" style="width: 120px;">事業者名:</td>
-                                    <td><?= htmlspecialchars($company_info['company_name']) ?></td>
-                                </tr>
-                                <tr>
-                                    <td class="fw-bold">代表者名:</td>
-                                    <td><?= htmlspecialchars($company_info['representative_name']) ?></td>
-                                </tr>
-                                <tr>
-                                    <td class="fw-bold">住所:</td>
-                                    <td><?= htmlspecialchars($company_info['address']) ?></td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="col-lg-6">
-                            <table class="table table-borderless table-sm">
-                                <tr>
-                                    <td class="fw-bold" style="width: 120px;">電話番号:</td>
-                                    <td><?= htmlspecialchars($company_info['phone']) ?></td>
-                                </tr>
-                                <tr>
-                                    <td class="fw-bold">FAX:</td>
-                                    <td><?= htmlspecialchars($company_info['fax'] ?? '') ?></td>
-                                </tr>
-                                <tr>
-                                    <td class="fw-bold">運行管理者:</td>
-                                    <td><?= htmlspecialchars($company_info['manager_name'] ?? '') ?></td>
-                                </tr>
-                                <tr>
-                                    <td class="fw-bold">管理者メール:</td>
-                                    <td><?= htmlspecialchars($company_info['manager_email'] ?? '') ?></td>
-                                </tr>
-                                <tr>
-                                    <td class="fw-bold">事業種別:</td>
-                                    <td><?= htmlspecialchars($company_info['business_type']) ?></td>
-                                </tr>
-                                <tr>
-                                    <td class="fw-bold">許可番号:</td>
-                                    <td><?= htmlspecialchars($company_info['license_number'] ?: '未設定') ?></td>
-                                </tr>
-                            </table>
-                        </div>
+                        <div class="col-md-4"><strong><?= htmlspecialchars($company_info['company_name']) ?></strong></div>
+                        <div class="col-md-4">許可番号: <?= htmlspecialchars($company_info['license_number'] ?: '未設定') ?></div>
+                        <div class="col-md-4">運行管理者: <?= htmlspecialchars($company_info['manager_name'] ?? '未設定') ?></div>
                     </div>
                 </div>
             </div>
@@ -1209,125 +1138,6 @@ echo $page_data['page_header'];
     </div>
 </div>
 </main>
-
-<!-- 事業者情報編集モーダル -->
-<div class="modal fade" id="companyInfoModal" tabindex="-1" aria-labelledby="companyInfoModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="companyInfoModalLabel"><i class="fas fa-building me-2"></i>事業者情報編集</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
-            </div>
-            <form method="POST">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                <div class="modal-body">
-                    <input type="hidden" name="action" value="update_company_info">
-                    
-                    <div class="row">
-                        <div class="col-lg-6">
-                            <div class="mb-3">
-                                <label for="company_name" class="form-label">事業者名 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" name="company_name" 
-                                       value="<?= htmlspecialchars($company_info['company_name']) ?>" required>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="representative_name" class="form-label">代表者名</label>
-                                <input type="text" class="form-control" name="representative_name" 
-                                       value="<?= htmlspecialchars($company_info['representative_name']) ?>"
-                                       placeholder="代表取締役　田中　太郎">
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="postal_code" class="form-label">郵便番号</label>
-                                <input type="text" class="form-control" name="postal_code" 
-                                       value="<?= htmlspecialchars($company_info['postal_code']) ?>"
-                                       placeholder="000-0000">
-                            </div>
-                        </div>
-                        
-                        <div class="col-lg-6">
-                            <div class="mb-3">
-                                <label for="address" class="form-label">住所 <span class="text-danger">*</span></label>
-                                <textarea class="form-control" name="address" rows="3" required><?= htmlspecialchars($company_info['address']) ?></textarea>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="phone" class="form-label">電話番号</label>
-                                <input type="text" class="form-control" name="phone"
-                                       value="<?= htmlspecialchars($company_info['phone']) ?>"
-                                       placeholder="06-1234-5678">
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="fax" class="form-label">FAX番号</label>
-                                <input type="text" class="form-control" name="fax"
-                                       value="<?= htmlspecialchars($company_info['fax'] ?? '') ?>"
-                                       placeholder="06-1234-5679">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-lg-6">
-                            <div class="mb-3">
-                                <label for="manager_name" class="form-label">運行管理者氏名</label>
-                                <input type="text" class="form-control" name="manager_name"
-                                       value="<?= htmlspecialchars($company_info['manager_name'] ?? '') ?>"
-                                       placeholder="運行管理者の氏名">
-                            </div>
-                        </div>
-                        <div class="col-lg-6">
-                            <div class="mb-3">
-                                <label for="manager_email" class="form-label">管理者メールアドレス</label>
-                                <input type="email" class="form-control" name="manager_email"
-                                       value="<?= htmlspecialchars($company_info['manager_email'] ?? '') ?>"
-                                       placeholder="manager@example.co.jp">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-lg-6">
-                            <div class="mb-3">
-                                <label for="license_number" class="form-label">許可番号</label>
-                                <input type="text" class="form-control" name="license_number" 
-                                       value="<?= htmlspecialchars($company_info['license_number']) ?>"
-                                       placeholder="近運輸第○○号">
-                            </div>
-                        </div>
-                        
-                        <div class="col-lg-6">
-                            <div class="mb-3">
-                                <label for="business_type" class="form-label">事業種別</label>
-                                <select class="form-select" name="business_type">
-                                    <option value="一般乗用旅客自動車運送事業（福祉）" 
-                                            <?= $company_info['business_type'] === '一般乗用旅客自動車運送事業（福祉）' ? 'selected' : '' ?>>
-                                        一般乗用旅客自動車運送事業（福祉）
-                                    </option>
-                                    <option value="一般乗用旅客自動車運送事業" 
-                                            <?= $company_info['business_type'] === '一般乗用旅客自動車運送事業' ? 'selected' : '' ?>>
-                                        一般乗用旅客自動車運送事業
-                                    </option>
-                                    <option value="特定旅客自動車運送事業" 
-                                            <?= $company_info['business_type'] === '特定旅客自動車運送事業' ? 'selected' : '' ?>>
-                                        特定旅客自動車運送事業
-                                    </option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="submit" class="btn btn-success">
-                        <i class="fas fa-save me-1"></i>更新
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 
 <!-- レポート作成モーダル -->
 <div class="modal fade" id="createReportModal" tabindex="-1" aria-labelledby="createReportModalLabel" aria-hidden="true">

@@ -1,0 +1,108 @@
+{
+  "parsed_data": {
+    "company": {
+      "company_name": "合同会社LINO　LINO介護タクシー",
+      "representative": "鈴木　政典",
+      "postal_code": "570-0007",
+      "address": "大阪府守口市下島町6-12",
+      "phone": "070-2311-0777",
+      "fax": "",
+      "manager_name": "松尾弥生",
+      "manager_email": "mqsq300097@gmail.com",
+      "license_number": "近畿自二第５４２号"
+    },
+    "vehicles": [
+      {
+        "plate_number": "4657",
+        "model": "ノア",
+        "note": ""
+      }
+    ],
+    "users": [
+      {
+        "name": "鈴木　政典",
+        "login_id": "lino2025",
+        "is_driver": true,
+        "is_inspector": false,
+        "is_admin": true,
+        "permission_level": "Admin"
+      },
+      {
+        "name": "松尾弥生",
+        "login_id": "lino01",
+        "is_driver": false,
+        "is_inspector": true,
+        "is_admin": false,
+        "permission_level": "User",
+        "login_id_auto": true
+      }
+    ],
+    "settings": {
+      "business_days": "",
+      "business_hours": "",
+      "theme_color": ""
+    },
+    "operations": {
+      "inspection_method": "なし",
+      "record_method": "なし",
+      "reservation_method": "なし",
+      "has_existing_forms": "なし",
+      "audit_notes": "なし"
+    },
+    "environment": {
+      "internet": "Wi-Fi",
+      "device": "スマートフォン",
+      "device_os": "iPhone",
+      "browser": ""
+    }
+  },
+  "provision_params": {
+    "tenant_id": "<<要指定: テナントID（英数字）>>",
+    "db_name": "<<要指定: DB名>>",
+    "base_path": "<<要指定: ベースパス（例: /wts-tenants/xxx）>>",
+    "system_name": "スマルト",
+    "company_info": {
+      "company_name": "合同会社LINO　LINO介護タクシー",
+      "representative": "鈴木　政典",
+      "postal_code": "570-0007",
+      "address": "大阪府守口市下島町6-12",
+      "phone": "070-2311-0777",
+      "fax": "",
+      "manager_name": "松尾弥生",
+      "manager_email": "mqsq300097@gmail.com",
+      "license_number": "近畿自二第５４２号"
+    },
+    "vehicles": [
+      {
+        "plate_number": "4657",
+        "model": "ノア",
+        "note": ""
+      }
+    ],
+    "users": [
+      {
+        "name": "鈴木　政典",
+        "login_id": "lino2025",
+        "is_driver": true,
+        "is_inspector": false,
+        "is_admin": true,
+        "permission_level": "Admin"
+      },
+      {
+        "name": "松尾弥生",
+        "login_id": "lino01",
+        "is_driver": false,
+        "is_inspector": true,
+        "is_admin": false,
+        "permission_level": "User",
+        "login_id_auto": true
+      }
+    ],
+    "theme_color": "",
+    "settings": {
+      "business_days": "",
+      "business_hours": "",
+      "theme_color": ""
+    }
+  }
+}

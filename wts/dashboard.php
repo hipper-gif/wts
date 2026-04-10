@@ -22,7 +22,7 @@ try {
 
     $user_role_display = '';
     if ($is_admin) {
-        $user_role_display = 'システム管理者';
+        $user_role_display = '管理者';
     } else {
         $roles = [];
         if ($user_data['is_driver']) $roles[] = '運転者';

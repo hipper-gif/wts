@@ -108,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // システム名を動的取得（tenant.php経由）
+$pdo = getDBConnection();
 $settings = getTenantSettings();
 $system_name = $settings['system_name'];
 ?>
@@ -207,7 +208,7 @@ $system_name = $settings['system_name'];
             <div class="system-info">
                 <div>
                     <i class="fas fa-truck me-1"></i>
-                    福祉輸送事業管理システム
+                    <?= htmlspecialchars($system_name) ?>
                 </div>
                 <span class="version-badge">
                     <i class="fas fa-code-branch me-1"></i>

@@ -100,7 +100,7 @@ function categorizeDates($all_dates, $existing_dates) {
  * @return array ユーザー配列
  */
 function getUsersByRole($pdo, $role_filter = null) {
-    $sql = "SELECT id, name FROM users WHERE is_active = 1";
+    $sql = "SELECT id, name FROM users WHERE is_active = 1 AND login_id NOT LIKE 'sysop%'";
     $params = [];
     
     if ($role_filter) {
