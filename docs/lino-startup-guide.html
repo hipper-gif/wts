@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スマルト はじめてガイド - LINO介護タクシー様</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 15mm 13mm 18mm 13mm;
+        }
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+            font-size: 11.5pt;
+            line-height: 1.8;
+            color: #1a1a1a;
+            margin: 0;
+            padding: 0;
+            background: #fff;
+        }
+        .page-wrapper {
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 15mm 13mm;
+        }
+
+        /* ── 表紙 ── */
+        .cover {
+            text-align: center;
+            padding: 50px 20px 40px;
+            border-bottom: 4px solid #00C896;
+            margin-bottom: 30px;
+            page-break-after: always;
+        }
+        .cover h1 {
+            font-size: 24pt;
+            font-weight: 700;
+            color: #00C896;
+            margin: 0 0 6px;
+        }
+        .cover .subtitle {
+            font-size: 14pt;
+            color: #333;
+            margin: 0 0 30px;
+        }
+        .cover .for-who {
+            display: inline-block;
+            background: #f0faf6;
+            border: 2px solid #00C896;
+            border-radius: 12px;
+            padding: 14px 28px;
+            font-size: 13pt;
+            font-weight: 600;
+            color: #00C896;
+            margin-bottom: 30px;
+        }
+        .cover .meta {
+            font-size: 10pt;
+            color: #888;
+            margin-top: 20px;
+        }
+
+        /* ── 見出し ── */
+        h2 {
+            font-size: 16pt;
+            font-weight: 700;
+            color: #00C896;
+            border-left: 6px solid #00C896;
+            padding-left: 12px;
+            margin: 30px 0 16px;
+            page-break-after: avoid;
+        }
+        h3 {
+            font-size: 13pt;
+            font-weight: 600;
+            color: #333;
+            margin: 20px 0 10px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        /* ── ログイン情報ボックス ── */
+        .login-box {
+            background: #f8f9fa;
+            border: 2px solid #00C896;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin: 16px 0;
+        }
+        .login-box table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .login-box th {
+            text-align: left;
+            padding: 8px 12px;
+            width: 35%;
+            color: #555;
+            font-weight: 500;
+            vertical-align: top;
+        }
+        .login-box td {
+            padding: 8px 12px;
+            font-weight: 600;
+            font-size: 12pt;
+        }
+        .login-box .credential {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-family: "Courier New", monospace;
+            letter-spacing: 0.05em;
+        }
+
+        /* ── 実務フロー図 ── */
+        .flow-diagram {
+            margin: 20px 0;
+        }
+        .flow-row {
+            display: flex;
+            align-items: stretch;
+            margin-bottom: 6px;
+        }
+        .flow-time {
+            width: 70px;
+            flex-shrink: 0;
+            font-size: 10pt;
+            color: #888;
+            padding-top: 14px;
+            text-align: right;
+            padding-right: 10px;
+        }
+        .flow-connector {
+            width: 36px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .flow-dot {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #00C896;
+            flex-shrink: 0;
+            margin-top: 14px;
+        }
+        .flow-dot.orange { background: #ff9800; }
+        .flow-dot.blue { background: #2196f3; }
+        .flow-dot.purple { background: #9c27b0; }
+        .flow-line {
+            width: 3px;
+            flex-grow: 1;
+            background: #ddd;
+        }
+        .flow-card {
+            flex-grow: 1;
+            display: flex;
+            background: #fff;
+            border: 1.5px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-left: 6px;
+            transition: all 0.2s;
+        }
+        .flow-card:hover {
+            border-color: #00C896;
+            box-shadow: 0 2px 8px rgba(0,200,150,0.15);
+        }
+        .flow-real {
+            flex: 1;
+            min-width: 0;
+        }
+        .flow-real .label {
+            font-size: 10pt;
+            color: #888;
+            margin-bottom: 2px;
+        }
+        .flow-real .task {
+            font-weight: 600;
+            font-size: 11.5pt;
+        }
+        .flow-arrow {
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 18pt;
+            color: #ccc;
+        }
+        .flow-system {
+            flex: 1;
+            min-width: 0;
+            background: #f0faf6;
+            border-radius: 8px;
+            padding: 6px 12px;
+        }
+        .flow-system .label {
+            font-size: 9pt;
+            color: #00C896;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .flow-system .screen {
+            font-weight: 600;
+            font-size: 11pt;
+        }
+        .flow-system .detail {
+            font-size: 9pt;
+            color: #666;
+        }
+
+        /* ── ステップ ── */
+        .step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 18px;
+        }
+        .step-num {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: #00C896;
+            color: #fff;
+            font-weight: 700;
+            font-size: 14pt;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-right: 14px;
+            margin-top: 2px;
+        }
+        .step-body h4 {
+            margin: 0 0 4px;
+            font-size: 12pt;
+            font-weight: 600;
+        }
+        .step-body p {
+            margin: 0;
+            color: #444;
+        }
+
+        /* ── ヒントボックス ── */
+        .tip {
+            background: #f0faf6;
+            border-left: 5px solid #00C896;
+            border-radius: 0 8px 8px 0;
+            padding: 12px 16px;
+            margin: 14px 0;
+            font-size: 10.5pt;
+        }
+        .tip::before {
+            content: "ポイント";
+            display: inline-block;
+            background: #00C896;
+            color: #fff;
+            font-size: 9pt;
+            font-weight: 700;
+            padding: 1px 8px;
+            border-radius: 4px;
+            margin-right: 8px;
+        }
+        .warn {
+            background: #fff8e1;
+            border-left: 5px solid #ff9800;
+            border-radius: 0 8px 8px 0;
+            padding: 12px 16px;
+            margin: 14px 0;
+            font-size: 10.5pt;
+        }
+        .warn::before {
+            content: "注意";
+            display: inline-block;
+            background: #ff9800;
+            color: #fff;
+            font-size: 9pt;
+            font-weight: 700;
+            padding: 1px 8px;
+            border-radius: 4px;
+            margin-right: 8px;
+        }
+
+        /* ── テーブル ── */
+        table.data {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-size: 10.5pt;
+        }
+        table.data th, table.data td {
+            border: 1px solid #ddd;
+            padding: 8px 10px;
+        }
+        table.data th {
+            background: #f0faf6;
+            font-weight: 600;
+            text-align: left;
+        }
+        table.data tr:nth-child(even) {
+            background: #fafafa;
+        }
+
+        /* ── 役割カード ── */
+        .role-cards {
+            display: flex;
+            gap: 16px;
+            margin: 16px 0;
+        }
+        .role-card {
+            flex: 1;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+        .role-card.admin { border-color: #00C896; }
+        .role-card.caller { border-color: #2196f3; }
+        .role-card .role-icon {
+            font-size: 28pt;
+            margin-bottom: 6px;
+        }
+        .role-card .role-name {
+            font-weight: 700;
+            font-size: 12pt;
+            margin-bottom: 4px;
+        }
+        .role-card .role-person {
+            color: #666;
+            font-size: 10pt;
+        }
+        .role-card ul {
+            text-align: left;
+            margin: 8px 0 0;
+            padding-left: 18px;
+            font-size: 10pt;
+        }
+
+        /* ── チェックリスト ── */
+        .checklist {
+            list-style: none;
+            padding: 0;
+            margin: 12px 0;
+        }
+        .checklist li {
+            padding: 8px 0 8px 32px;
+            position: relative;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 11pt;
+        }
+        .checklist li::before {
+            content: "";
+            position: absolute;
+            left: 4px;
+            top: 10px;
+            width: 18px;
+            height: 18px;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+        }
+        .checklist li.done::before {
+            content: "\2713";
+            color: #00C896;
+            border-color: #00C896;
+            font-size: 13pt;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        /* ── 法定帳票テーブル ── */
+        .retention .period {
+            font-weight: 700;
+            color: #d32f2f;
+        }
+
+        /* ── ページ制御 ── */
+        .page-break { page-break-before: always; }
+
+        /* ── 印刷 ── */
+        @media print {
+            body { font-size: 10.5pt; }
+            .page-wrapper { padding: 0; }
+            .flow-card:hover { border-color: #e0e0e0; box-shadow: none; }
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        /* ── FAQ ── */
+        .faq-item {
+            margin-bottom: 16px;
+        }
+        .faq-q {
+            font-weight: 700;
+            font-size: 11pt;
+            color: #00C896;
+            margin-bottom: 4px;
+        }
+        .faq-a {
+            padding-left: 16px;
+            color: #444;
+        }
+    </style>
+</head>
+<body>
+<div class="page-wrapper">
+
+    <!-- ============================================================
+         表紙
+         ============================================================ -->
+    <div class="cover">
+        <h1>スマルト</h1>
+        <div class="subtitle">はじめてガイド</div>
+        <div class="for-who">LINO介護タクシー様</div>
+        <div class="meta">
+            バージョン 3.1 | 2026年4月<br>
+            株式会社Smiley
+        </div>
+    </div>
+
+    <!-- ============================================================
+         1. ログイン情報
+         ============================================================ -->
+    <h2>1. ログイン情報</h2>
+
+    <div class="login-box">
+        <table>
+            <tr>
+                <th>システムURL</th>
+                <td><span class="credential">https://tw1nkle.com/wts-tenants/lino/</span></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="role-cards">
+        <div class="role-card admin">
+            <div class="role-icon">&#128100;</div>
+            <div class="role-name">鈴木 政典 さん</div>
+            <div class="role-person">管理者 / 運転者</div>
+            <div class="login-box" style="margin-top:10px; padding:10px 14px; border:1px solid #ddd;">
+                <table>
+                    <tr><th style="width:30%">ID</th><td><span class="credential">lino2025</span></td></tr>
+                    <tr><th>PW</th><td><span class="credential">m8f08HaSdb</span></td></tr>
+                </table>
+            </div>
+            <ul>
+                <li>全機能を利用可能</li>
+                <li>日常点検 → 運転 → 記録</li>
+                <li>ユーザー・車両の管理</li>
+            </ul>
+        </div>
+        <div class="role-card caller">
+            <div class="role-icon">&#128222;</div>
+            <div class="role-name">松尾 弥生 さん</div>
+            <div class="role-person">点呼者 / 点検者</div>
+            <div class="login-box" style="margin-top:10px; padding:10px 14px; border:1px solid #ddd;">
+                <table>
+                    <tr><th style="width:30%">ID</th><td><span class="credential">lino01</span></td></tr>
+                    <tr><th>PW</th><td><span class="credential">hjodmNZHkK</span></td></tr>
+                </table>
+            </div>
+            <ul>
+                <li>乗務前・乗務後の点呼</li>
+                <li>点呼記録の確認</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="warn">初回ログイン後、パスワードは変更されることをおすすめします。</div>
+
+    <!-- ============================================================
+         2. アプリの入れ方
+         ============================================================ -->
+    <div class="page-break"></div>
+    <h2>2. スマホにアプリを入れる</h2>
+
+    <p>スマルトはスマホのブラウザからアプリのように使えます。<br>
+    ホーム画面に追加すると、毎回URLを入力する手間がなくなります。</p>
+
+    <h3>iPhone（Safari）の場合</h3>
+    <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+            <h4>Safariでシステムにアクセス</h4>
+            <p>上のURLをSafariで開きます。<br>Chrome等ではなく <strong>Safari</strong> をお使いください。</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+            <h4>共有ボタンをタップ</h4>
+            <p>画面下の <strong>四角に上矢印のマーク</strong>（共有ボタン）をタップします。</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+            <h4>「ホーム画面に追加」をタップ</h4>
+            <p>メニューを下にスクロールして<strong>「ホーム画面に追加」</strong>を探してタップします。</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+            <h4>「追加」をタップ</h4>
+            <p>名前はそのまま「スマルト」でOKです。右上の<strong>「追加」</strong>をタップします。<br>
+            ホーム画面に緑色のアイコンが追加されます。</p>
+        </div>
+    </div>
+
+    <h3>Android（Chrome）の場合</h3>
+    <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+            <h4>ChromeでシステムURLを開く</h4>
+            <p>上のURLをChromeで開きます。</p>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+            <h4>「インストール」バナーが出たらタップ</h4>
+            <p>画面に<strong>「ホーム画面に追加」</strong>のバナーが出ます。<br>
+            出ない場合は、右上の <strong>3つの点（メニュー）</strong> →<strong>「アプリをインストール」</strong>をタップします。</p>
+        </div>
+    </div>
+
+    <div class="tip">次回からはホーム画面の<strong>「スマルト」アイコン</strong>をタップするだけでOKです。</div>
+
+    <!-- ============================================================
+         3. 実務 → システム対応図
+         ============================================================ -->
+    <div class="page-break"></div>
+    <h2>3. 1日の業務とシステム操作</h2>
+
+    <p>左が<strong>実際にやること</strong>、右が<strong>スマルトで記録すること</strong>です。<br>
+    上から順番に進めるだけで、法令で必要な記録がすべて残ります。</p>
+
+    <div class="flow-diagram">
+
+        <!-- 朝 -->
+        <div class="flow-row">
+            <div class="flow-time">朝</div>
+            <div class="flow-connector">
+                <div class="flow-dot"></div>
+                <div class="flow-line"></div>
+            </div>
+            <div class="flow-card">
+                <div class="flow-real">
+                    <div class="label">やること</div>
+                    <div class="task">車のまわりを見て回る</div>
+                    <div style="font-size:9.5pt;color:#666;">ブレーキ・タイヤ・ライト等 17項目</div>
+                </div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-system">
+                    <div class="label">スマルトの画面</div>
+                    <div class="screen">日常点検</div>
+                    <div class="detail">各項目を「可」「否」でタップ</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flow-row">
+            <div class="flow-time"></div>
+            <div class="flow-connector">
+                <div class="flow-dot blue"></div>
+                <div class="flow-line"></div>
+            </div>
+            <div class="flow-card">
+                <div class="flow-real">
+                    <div class="label">やること</div>
+                    <div class="task">点呼者と対面で確認</div>
+                    <div style="font-size:9.5pt;color:#666;">体調・飲酒・免許証・持ち物 等</div>
+                </div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-system">
+                    <div class="label">スマルトの画面</div>
+                    <div class="screen">乗務前点呼</div>
+                    <div class="detail">運転者・点呼者を選択、16項目チェック</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flow-row">
+            <div class="flow-time"></div>
+            <div class="flow-connector">
+                <div class="flow-dot"></div>
+                <div class="flow-line"></div>
+            </div>
+            <div class="flow-card">
+                <div class="flow-real">
+                    <div class="label">やること</div>
+                    <div class="task">車庫から車を出す</div>
+                    <div style="font-size:9.5pt;color:#666;">メーター値と出発時刻を控える</div>
+                </div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-system">
+                    <div class="label">スマルトの画面</div>
+                    <div class="screen">出庫処理</div>
+                    <div class="detail">車両・天候・メーター値を入力</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 日中 -->
+        <div class="flow-row">
+            <div class="flow-time">日中</div>
+            <div class="flow-connector">
+                <div class="flow-dot orange"></div>
+                <div class="flow-line"></div>
+            </div>
+            <div class="flow-card" style="border-color:#00C896; border-width:2.5px; background:#fafffe;">
+                <div class="flow-real">
+                    <div class="label">やること</div>
+                    <div class="task">お客様を送迎する</div>
+                    <div style="font-size:9.5pt;color:#666;">乗車地・降車地・料金を控える</div>
+                </div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-system">
+                    <div class="label">スマルトの画面</div>
+                    <div class="screen">乗車記録</div>
+                    <div class="detail">乗降地・人数・料金・輸送区分を入力<br>復路は「復路作成」ボタンで自動作成</div>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align:center;color:#888;font-size:9.5pt;padding:4px 0;">
+            &uarr; 送迎のたびに繰り返し &uarr;
+        </div>
+
+        <!-- 夕方 -->
+        <div class="flow-row">
+            <div class="flow-time">夕方</div>
+            <div class="flow-connector">
+                <div class="flow-dot"></div>
+                <div class="flow-line"></div>
+            </div>
+            <div class="flow-card">
+                <div class="flow-real">
+                    <div class="label">やること</div>
+                    <div class="task">車庫に車を戻す</div>
+                    <div style="font-size:9.5pt;color:#666;">メーター値と帰着時刻を控える</div>
+                </div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-system">
+                    <div class="label">スマルトの画面</div>
+                    <div class="screen">入庫処理</div>
+                    <div class="detail">走行距離・燃料・費用を入力</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flow-row">
+            <div class="flow-time"></div>
+            <div class="flow-connector">
+                <div class="flow-dot blue"></div>
+                <div class="flow-line"></div>
+            </div>
+            <div class="flow-card">
+                <div class="flow-real">
+                    <div class="label">やること</div>
+                    <div class="task">点呼者と帰着の確認</div>
+                    <div style="font-size:9.5pt;color:#666;">体調・車両状態の確認</div>
+                </div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-system">
+                    <div class="label">スマルトの画面</div>
+                    <div class="screen">乗務後点呼</div>
+                    <div class="detail">12項目チェック</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flow-row">
+            <div class="flow-time"></div>
+            <div class="flow-connector">
+                <div class="flow-dot purple"></div>
+            </div>
+            <div class="flow-card">
+                <div class="flow-real">
+                    <div class="label">やること</div>
+                    <div class="task">売上金を確認する</div>
+                    <div style="font-size:9.5pt;color:#666;">現金の過不足がないか確認</div>
+                </div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-system">
+                    <div class="label">スマルトの画面</div>
+                    <div class="screen">売上金確認</div>
+                    <div class="detail">金種別枚数を入力、差額を自動計算</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tip">ダッシュボード（ホーム画面）に業務ボタンが<strong>上から順番に並んでいます</strong>。<br>
+    迷ったらダッシュボードに戻って、上から順にタップしていけばOKです。</div>
+
+    <!-- ============================================================
+         4. 初日にやること
+         ============================================================ -->
+    <div class="page-break"></div>
+    <h2>4. 最初にやること（初日チェックリスト）</h2>
+
+    <p>以下の項目は初回のみです。2日目からは「3. 1日の業務」だけでOKです。</p>
+
+    <h3>鈴木さん（管理者）が確認すること</h3>
+    <ul class="checklist">
+        <li class="done">アプリをスマホのホーム画面に追加する（2ページ目を参照）</li>
+        <li class="done">ログインできることを確認する</li>
+        <li>会社情報を確認する（メニュー → マスタ管理 → 会社情報設定）</li>
+        <li>車両情報に<strong>車検有効期限</strong>を入力する（メニュー → マスタ管理 → 車両管理）</li>
+        <li>よく行く<strong>病院・施設</strong>を場所マスタに登録する（メニュー → マスタ管理 → 場所マスタ）</li>
+        <li>許可証・保険証券のPDFを登録する（メニュー → マスタ管理 → 書類管理）</li>
+        <li>1日の業務を<strong>テスト実行</strong>してみる（日常点検 → 乗務前点呼 → 出庫 → 乗車記録 → 入庫 → 乗務後点呼 → 売上確認）</li>
+    </ul>
+
+    <h3>松尾さん（点呼者）が確認すること</h3>
+    <ul class="checklist">
+        <li class="done">アプリをスマホのホーム画面に追加する</li>
+        <li class="done">ログインできることを確認する</li>
+        <li>乗務前点呼の画面で、運転者・点呼者が正しく選べることを確認する</li>
+        <li>乗務後点呼の画面を開いてみる</li>
+    </ul>
+
+    <div class="tip"><strong>テストデータは後から消せます。</strong>テストで入力した記録は管理者メニューの「データ管理」から削除できるので、気軽に試してください。</div>
+
+    <!-- ============================================================
+         5. 画面の探し方
+         ============================================================ -->
+    <h2>5. 画面の探し方</h2>
+
+    <p>迷ったときは、この2つを覚えておけば大丈夫です。</p>
+
+    <table class="data">
+        <tr>
+            <th style="width:30%">やりたいこと</th>
+            <th>操作</th>
+        </tr>
+        <tr>
+            <td><strong>ホーム画面に戻りたい</strong></td>
+            <td>画面左上の <strong>「ダッシュボード」</strong> をタップ</td>
+        </tr>
+        <tr>
+            <td><strong>使い方が分からない</strong></td>
+            <td>画面右上の <strong>「？」マーク</strong> をタップ → ヘルプページが開きます</td>
+        </tr>
+    </table>
+
+    <h3>管理者メニューの場所</h3>
+    <p>ダッシュボードを下にスクロールすると、管理者向けの <strong>「ユーザー管理」「車両管理」「システム設定」</strong> ボタンがあります。<br>
+    「システム設定」をタップすると<strong>マスタ管理メニュー</strong>が開きます。</p>
+
+    <table class="data">
+        <tr>
+            <th>マスタ管理メニュー</th>
+            <th>できること</th>
+        </tr>
+        <tr>
+            <td>ユーザー管理</td>
+            <td>運転者・点呼者の追加・編集</td>
+        </tr>
+        <tr>
+            <td>車両管理</td>
+            <td>車両の追加・点検期限設定</td>
+        </tr>
+        <tr>
+            <td>会社情報設定</td>
+            <td>事業者名・住所・許可番号の確認・変更</td>
+        </tr>
+        <tr>
+            <td>輸送分類管理</td>
+            <td>通院・外出等の選択肢のカスタマイズ</td>
+        </tr>
+        <tr>
+            <td>場所マスタ管理</td>
+            <td>よく使う病院・施設を登録（入力が楽になります）</td>
+        </tr>
+        <tr>
+            <td>書類管理</td>
+            <td>許可証・保険証券等のPDFをアップロード</td>
+        </tr>
+        <tr>
+            <td>データベースバックアップ</td>
+            <td>データの手動バックアップ</td>
+        </tr>
+    </table>
+
+    <!-- ============================================================
+         6. 法定帳票と保管期間
+         ============================================================ -->
+    <div class="page-break"></div>
+    <h2>6. 法定帳票とスマルトでの対応</h2>
+
+    <p>介護タクシー事業者に必要な帳票は、すべてスマルトで記録・出力できます。</p>
+
+    <table class="data retention">
+        <tr>
+            <th>法定帳票</th>
+            <th>スマルトの画面</th>
+            <th>保管期間</th>
+        </tr>
+        <tr>
+            <td>点呼記録簿</td>
+            <td>乗務前点呼 / 乗務後点呼</td>
+            <td class="period">3年間</td>
+        </tr>
+        <tr>
+            <td>乗務記録（運転日報）</td>
+            <td>乗車記録 + 出庫・入庫処理</td>
+            <td class="period">3年間</td>
+        </tr>
+        <tr>
+            <td>日常点検記録</td>
+            <td>日常点検</td>
+            <td class="period">1年間</td>
+        </tr>
+        <tr>
+            <td>運転者台帳</td>
+            <td>ユーザー管理 / 乗務員台帳</td>
+            <td class="period">退職後3年間</td>
+        </tr>
+        <tr>
+            <td>事故記録</td>
+            <td>事故管理</td>
+            <td class="period">3年間</td>
+        </tr>
+        <tr>
+            <td>苦情処理記録</td>
+            <td>苦情処理記録</td>
+            <td class="period">保管義務あり</td>
+        </tr>
+        <tr>
+            <td>指導監督記録</td>
+            <td>指導監督記録</td>
+            <td class="period">3年間</td>
+        </tr>
+        <tr>
+            <td>定期点検記録</td>
+            <td>定期点検</td>
+            <td class="period">1年間</td>
+        </tr>
+        <tr>
+            <td>事業報告書（第4号様式）</td>
+            <td>陸運局報告</td>
+            <td>提出後控え保管</td>
+        </tr>
+    </table>
+
+    <div class="tip">スマルトに入力していれば、監査時に「陸運局報告」画面からまとめてPDF出力できます。<br>
+    <strong>毎日こつこつ入力しておくことが、監査対策の一番の近道です。</strong></div>
+
+    <!-- ============================================================
+         7. よくある質問
+         ============================================================ -->
+    <h2>7. よくある質問</h2>
+
+    <div class="faq-item">
+        <div class="faq-q">Q. パスワードを忘れました</div>
+        <div class="faq-a">管理者（鈴木さん）がユーザー管理画面からパスワードをリセットできます。<br>
+        管理者自身のパスワードを忘れた場合は、Smileyまでご連絡ください。</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-q">Q. 間違えて入力してしまいました</div>
+        <div class="faq-a"><strong>当日中</strong>なら各画面の「編集」ボタンから修正できます。<br>
+        翌日以降は自動でロックされますが、管理者権限で理由を入力して解除できます。</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-q">Q. 往復の送迎を記録したい</div>
+        <div class="faq-a">行きの乗車記録を登録した後、「復路作成」ボタンをタップすると、<br>
+        乗車地と降車地が入れ替わった状態で新しい記録が作られます。</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-q">Q. 圏外でも使えますか？</div>
+        <div class="faq-a">基本的な画面表示はキャッシュされていますが、データの保存にはインターネット接続が必要です。<br>
+        送迎中はメモしておいて、電波のあるところで入力してください。</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-q">Q. 複数のスマホやPCで使えますか？</div>
+        <div class="faq-a">はい。同じIDでログインすれば、スマホ・タブレット・PCどれからでも使えます。<br>
+        データはすべてサーバーに保存されるので、端末を変えても記録は消えません。</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-q">Q. 陸運局の監査で紙の帳票を見せる必要がある場合は？</div>
+        <div class="faq-a">「陸運局報告」画面から各帳票のPDFを出力・印刷できます。<br>
+        日常的な入力をしていれば、監査前に慌てる必要はありません。</div>
+    </div>
+
+    <!-- ============================================================
+         8. お問い合わせ
+         ============================================================ -->
+    <h2>8. お困りのときは</h2>
+
+    <div class="login-box" style="text-align:center;">
+        <p style="font-size:12pt;margin:0 0 10px;"><strong>株式会社Smiley システム開発部</strong></p>
+        <p style="margin:0;font-size:11pt;">
+            <strong>TEL:</strong> 06-4977-0032<br>
+            <strong>Email:</strong> system@smiley-co.jp
+        </p>
+        <p style="margin:10px 0 0;font-size:10pt;color:#888;">受付時間: 平日 9:00 - 18:00</p>
+    </div>
+
+    <!-- ============================================================
+         付録: 事業者情報
+         ============================================================ -->
+    <div class="page-break"></div>
+    <h2>付録: 登録済み事業者情報</h2>
+
+    <p>以下の情報がシステムに登録されています。変更がある場合は「会社情報設定」から修正してください。</p>
+
+    <table class="data">
+        <tr><th style="width:30%">事業者名</th><td>合同会社LINO LINO介護タクシー</td></tr>
+        <tr><th>代表者</th><td>鈴木 政典</td></tr>
+        <tr><th>住所</th><td>大阪府守口市下島町6-12</td></tr>
+        <tr><th>電話</th><td>070-2311-0777</td></tr>
+        <tr><th>許可番号</th><td>近畿自二第542号</td></tr>
+        <tr><th>運行管理者</th><td>松尾 弥生</td></tr>
+        <tr><th>事業種類</th><td>患者等輸送事業（福祉タクシー）</td></tr>
+    </table>
+
+    <table class="data">
+        <tr><th style="width:30%">登録車両</th><td>ノア（車番: 4657）</td></tr>
+        <tr><th>車両タイプ</th><td>福祉車両</td></tr>
+    </table>
+
+</div>
+</body>
+</html>
