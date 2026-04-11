@@ -144,21 +144,12 @@ log "Step 4: SQLマイグレーション実行"
 ${SSH_CMD} bash -s <<REMOTE_SCRIPT
 set -euo pipefail
 
-SQL_DIR="${TENANT_DIR}/sql"
-if [ ! -d "\${SQL_DIR}" ]; then
-    echo "警告: sql/ ディレクトリが見つかりません。マイグレーションをスキップします。"
-    exit 0
+if [ -f "${TENANT_DIR}/sql/run_migration.php" ]; then
+    cd "${TENANT_DIR}"
+    php sql/run_migration.php
+else
+    echo "警告: run_migration.php が見つかりません。マイグレーションをスキップします。"
 fi
-
-# 番号付きSQLファイルを昇順で実行（例: 003_xxx.sql, 004_xxx.sql ...）
-for sql_file in \$(ls "\${SQL_DIR}"/[0-9]*.sql 2>/dev/null | sort); do
-    filename=\$(basename "\${sql_file}")
-    echo "実行中: \${filename}"
-    mysql -u "${DB_USER}" -p'${DB_PASS}' "${DB_NAME}" < "\${sql_file}" 2>&1 || {
-        echo "エラー: \${filename} の実行に失敗しました"
-        exit 1
-    }
-done
 
 echo "マイグレーション完了"
 REMOTE_SCRIPT

@@ -7,6 +7,7 @@
 //   php run_migration.php 007_migration.sql  # 指定ファイルのみ実行
 //   php run_migration.php --status           # 適用状況を表示
 //   php run_migration.php --dry-run          # 実行せず計画を表示
+//   php run_migration.php --baseline         # 全SQLを適用済みとして登録（既存テナント初回用）
 // ============================================================
 
 require_once __DIR__ . '/../config/database.php';
@@ -17,6 +18,7 @@ $pdo = getDBConnection();
 $args     = array_slice($argv ?? [], 1);
 $dry_run  = in_array('--dry-run', $args);
 $status   = in_array('--status', $args);
+$baseline = in_array('--baseline', $args);
 $specific = array_values(array_filter($args, fn($a) => !str_starts_with($a, '--')));
 
 // ---- migration_history テーブル確保 ----
@@ -24,6 +26,30 @@ ensureMigrationTable($pdo);
 
 if ($status) {
     showStatus($pdo);
+    exit(0);
+}
+
+// ---- baseline モード: 全SQLを「適用済み」として登録（実行しない） ----
+if ($baseline) {
+    $sql_dir = __DIR__;
+    $all_files = glob("$sql_dir/[0-9]*.sql");
+    sort($all_files);
+    $applied = getAppliedMigrations($pdo);
+    $registered = 0;
+
+    echo "=== Baseline モード: 既存マイグレーションを適用済みとして登録 ===\n\n";
+    foreach ($all_files as $file) {
+        $basename = basename($file);
+        if (isset($applied[$basename])) {
+            echo "  [済] {$basename}\n";
+            continue;
+        }
+        $checksum = hash('sha256', file_get_contents($file));
+        recordMigration($pdo, $basename, $checksum, 0, 'success', 'Baseline registration');
+        echo "  [登録] {$basename}\n";
+        $registered++;
+    }
+    echo "\n{$registered} 件を適用済みとして登録しました。\n";
     exit(0);
 }
 

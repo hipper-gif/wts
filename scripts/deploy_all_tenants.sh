@@ -124,11 +124,11 @@ ARCHIVE_NAME="wts_deploy_$(date +%Y%m%d_%H%M%S).tar.gz"
 LOCAL_ARCHIVE="/tmp/${ARCHIVE_NAME}"
 REMOTE_ARCHIVE="/tmp/${ARCHIVE_NAME}"
 
-# .env, uploads/, sql/, .git を除外してアーカイブ
+# .env, uploads/, .git を除外してアーカイブ（sql/は含める — マイグレーション用）
 (cd "${LOCAL_CODE_DIR}" && tar czf "${LOCAL_ARCHIVE}" \
     --exclude='.env' \
     --exclude='uploads' \
-    --exclude='sql' \
+    --exclude='sql/applied' \
     --exclude='.git' \
     --exclude='.gitignore' \
     .)
@@ -179,11 +179,6 @@ if [ -d "\${TENANT_DIR}/uploads" ]; then
     cp -a "\${TENANT_DIR}/uploads" "\${BACKUP_DIR}/uploads"
 fi
 
-# sql を退避（テナント固有のマイグレーション状態保持）
-if [ -d "\${TENANT_DIR}/sql" ]; then
-    cp -a "\${TENANT_DIR}/sql" "\${BACKUP_DIR}/sql"
-fi
-
 # アーカイブを展開（既存ファイルを上書き）
 cd "\${TENANT_DIR}"
 tar xzf "\${REMOTE_ARCHIVE}"
@@ -200,14 +195,15 @@ if [ -d "\${BACKUP_DIR}/uploads" ]; then
     cp -a "\${BACKUP_DIR}/uploads" "\${TENANT_DIR}/uploads"
 fi
 
-# sql を復元
-if [ -d "\${BACKUP_DIR}/sql" ]; then
-    rm -rf "\${TENANT_DIR}/sql"
-    cp -a "\${BACKUP_DIR}/sql" "\${TENANT_DIR}/sql"
-fi
-
 # バックアップ削除
 rm -rf "\${BACKUP_DIR}"
+
+# マイグレーション実行（未適用のSQLがあれば自動適用）
+if [ -f "\${TENANT_DIR}/sql/run_migration.php" ]; then
+    echo "マイグレーション実行中: ${tid}"
+    cd "\${TENANT_DIR}"
+    php sql/run_migration.php 2>&1 || echo "警告: マイグレーションでエラーが発生しました（${tid}）"
+fi
 
 echo "デプロイ完了: ${tid}"
 REMOTE_SCRIPT
