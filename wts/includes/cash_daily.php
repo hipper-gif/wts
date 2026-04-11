@@ -128,6 +128,7 @@ $cash_confirmation = getCashConfirmation($pdo, $selected_date);
                         <small class="text-muted">(<?= date('Y/m/d', strtotime($selected_date)) ?>)</small>
                     </h5>
                     <form method="POST" id="cashConfirmForm">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                         <input type="hidden" name="action" value="confirm_cash">
                         <input type="hidden" name="target_date" value="<?= htmlspecialchars($selected_date) ?>">
                         
