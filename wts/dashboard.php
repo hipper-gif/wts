@@ -395,6 +395,7 @@ echo $page_data['html_head'];
                     <small>復路作成機能付き乗車管理</small>
                 </div>
             </a>
+            <!-- カレンダー予約機能は開発中のため非表示
             <a href="calendar/index.php" class="workflow-item calendar-link">
                 <div class="workflow-icon calendar-icon"><i class="fas fa-calendar-alt"></i></div>
                 <div>
@@ -405,6 +406,7 @@ echo $page_data['html_head'];
                     </small>
                 </div>
             </a>
+            -->
         </div>
 
         <!-- 終了業務 -->
