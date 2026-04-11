@@ -74,38 +74,12 @@ CREATE TABLE IF NOT EXISTS frequent_destinations (
 --    新規予約では顧客マスタから選択、既存予約は段階的に紐付ける。
 -- -----------------------------------------------------------------
 
--- カラムが存在しない場合のみ追加（MariaDB用のプロシージャ）
-DELIMITER //
+-- カラムが存在しない場合のみ追加
+-- NOTE: ALTER TABLE IF NOT EXISTS はMariaDB 10.0.2+で利用可能
+ALTER TABLE reservations
+    ADD COLUMN IF NOT EXISTS customer_id INT NULL COMMENT '顧客マスタID'
+    AFTER client_name;
 
-DROP PROCEDURE IF EXISTS add_customer_id_to_reservations//
-
-CREATE PROCEDURE add_customer_id_to_reservations()
-BEGIN
-    -- customer_id カラムが存在するか確認
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = 'reservations'
-          AND COLUMN_NAME = 'customer_id'
-    ) THEN
-        -- カラム追加（client_name の直後に配置）
-        ALTER TABLE reservations
-            ADD COLUMN customer_id INT NULL COMMENT '顧客マスタID'
-            AFTER client_name;
-
-        -- インデックス追加
-        ALTER TABLE reservations
-            ADD INDEX idx_reservations_customer_id (customer_id);
-
-        -- 外部キー追加
-        ALTER TABLE reservations
-            ADD CONSTRAINT fk_reservations_customer
-                FOREIGN KEY (customer_id) REFERENCES customers(id)
-                ON DELETE SET NULL ON UPDATE CASCADE;
-    END IF;
-END//
-
-DELIMITER ;
-
-CALL add_customer_id_to_reservations();
-DROP PROCEDURE IF EXISTS add_customer_id_to_reservations;
+-- インデックス追加（既存の場合は無視）
+-- MariaDBではCREATE INDEX IF NOT EXISTSが使える
+CREATE INDEX IF NOT EXISTS idx_reservations_customer_id ON reservations (customer_id);

@@ -131,14 +131,18 @@ foreach ($pending as $file) {
         continue;
     }
 
+    // DELIMITER文を除去（PDOでは使用不可）
+    $statements = array_filter($statements, fn($s) => !preg_match('/^\s*DELIMITER\b/i', $s));
+    $statements = array_values($statements);
+
     $start = microtime(true);
     try {
-        $pdo->beginTransaction();
+        // MySQL/MariaDBではDDL（CREATE/ALTER/DROP TABLE等）が暗黙コミットするため
+        // トランザクションは使わず、各文を直接実行する
         foreach ($statements as $stmt) {
             echo "  実行: " . mb_substr(trim(preg_replace('/\s+/', ' ', $stmt)), 0, 80) . "...\n";
             $pdo->exec($stmt);
         }
-        $pdo->commit();
 
         $elapsed = (int)((microtime(true) - $start) * 1000);
         recordMigration($pdo, $basename, $checksum, $elapsed, 'success');
@@ -146,7 +150,6 @@ foreach ($pending as $file) {
         $success++;
 
     } catch (Exception $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
         $elapsed = (int)((microtime(true) - $start) * 1000);
         recordMigration($pdo, $basename, $checksum, $elapsed, 'failed', $e->getMessage());
         echo "  エラー: " . $e->getMessage() . "\n\n";

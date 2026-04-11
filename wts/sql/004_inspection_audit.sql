@@ -46,76 +46,21 @@ CREATE TABLE IF NOT EXISTS inspection_audit_logs (
 --    既存レコードは未ロック（is_locked=0）として扱う。
 -- -----------------------------------------------------------------
 
-DELIMITER //
+-- MariaDB 10.0.2+ の ADD COLUMN IF NOT EXISTS を使用
+ALTER TABLE daily_inspections
+    ADD COLUMN IF NOT EXISTS is_locked TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'ロック状態（0=編集可, 1=ロック済）';
 
-DROP PROCEDURE IF EXISTS add_audit_columns_to_daily_inspections//
+ALTER TABLE daily_inspections
+    ADD COLUMN IF NOT EXISTS locked_at DATETIME NULL COMMENT 'ロック日時';
 
-CREATE PROCEDURE add_audit_columns_to_daily_inspections()
-BEGIN
-    -- is_locked カラム: レコードがロックされているか
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = 'daily_inspections'
-          AND COLUMN_NAME = 'is_locked'
-    ) THEN
-        ALTER TABLE daily_inspections
-            ADD COLUMN is_locked TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'ロック状態（0=編集可, 1=ロック済）';
-    END IF;
+ALTER TABLE daily_inspections
+    ADD COLUMN IF NOT EXISTS last_edited_by INT NULL COMMENT '最終編集者ユーザーID';
 
-    -- locked_at カラム: ロックされた日時
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = 'daily_inspections'
-          AND COLUMN_NAME = 'locked_at'
-    ) THEN
-        ALTER TABLE daily_inspections
-            ADD COLUMN locked_at DATETIME NULL COMMENT 'ロック日時'
-            AFTER is_locked;
-    END IF;
+ALTER TABLE daily_inspections
+    ADD COLUMN IF NOT EXISTS last_edited_at DATETIME NULL COMMENT '最終編集日時';
 
-    -- last_edited_by カラム: 最終編集者
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = 'daily_inspections'
-          AND COLUMN_NAME = 'last_edited_by'
-    ) THEN
-        ALTER TABLE daily_inspections
-            ADD COLUMN last_edited_by INT NULL COMMENT '最終編集者ユーザーID'
-            AFTER locked_at;
-    END IF;
-
-    -- last_edited_at カラム: 最終編集日時
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = 'daily_inspections'
-          AND COLUMN_NAME = 'last_edited_at'
-    ) THEN
-        ALTER TABLE daily_inspections
-            ADD COLUMN last_edited_at DATETIME NULL COMMENT '最終編集日時'
-            AFTER last_edited_by;
-    END IF;
-
-    -- edit_count カラム: 編集回数
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = 'daily_inspections'
-          AND COLUMN_NAME = 'edit_count'
-    ) THEN
-        ALTER TABLE daily_inspections
-            ADD COLUMN edit_count INT NOT NULL DEFAULT 0 COMMENT '編集回数'
-            AFTER last_edited_at;
-    END IF;
-END//
-
-DELIMITER ;
-
-CALL add_audit_columns_to_daily_inspections();
-DROP PROCEDURE IF EXISTS add_audit_columns_to_daily_inspections;
+ALTER TABLE daily_inspections
+    ADD COLUMN IF NOT EXISTS edit_count INT NOT NULL DEFAULT 0 COMMENT '編集回数';
 
 -- -----------------------------------------------------------------
 -- 3. 自動ロック処理について

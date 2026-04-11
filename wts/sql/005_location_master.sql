@@ -61,74 +61,17 @@ CREATE TABLE IF NOT EXISTS customer_locations (
 --    既存データとの互換性を保つため NULL 許可とする。
 -- -----------------------------------------------------------------
 
-DELIMITER //
+-- MariaDB 10.0.2+ の ADD COLUMN IF NOT EXISTS を使用
+ALTER TABLE customers
+    ADD COLUMN IF NOT EXISTS default_pickup_location_id INT NULL COMMENT 'デフォルト乗車地（場所マスタID）';
 
-DROP PROCEDURE IF EXISTS add_location_columns_to_customers//
+ALTER TABLE customers
+    ADD COLUMN IF NOT EXISTS default_dropoff_location_id INT NULL COMMENT 'デフォルト降車地（場所マスタID）';
 
-CREATE PROCEDURE add_location_columns_to_customers()
-BEGIN
-    -- default_pickup_location_id カラムが存在するか確認
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = 'customers'
-          AND COLUMN_NAME = 'default_pickup_location_id'
-    ) THEN
-        ALTER TABLE customers
-            ADD COLUMN default_pickup_location_id INT NULL COMMENT 'デフォルト乗車地（場所マスタID）'
-            AFTER default_dropoff_location;
+ALTER TABLE customers
+    ADD COLUMN IF NOT EXISTS assigned_driver_id INT NULL COMMENT '担当ドライバー（ユーザーID）';
 
-        ALTER TABLE customers
-            ADD INDEX idx_customers_pickup_location (default_pickup_location_id);
-
-        ALTER TABLE customers
-            ADD CONSTRAINT fk_customers_pickup_location
-                FOREIGN KEY (default_pickup_location_id) REFERENCES location_master(id)
-                ON DELETE SET NULL ON UPDATE CASCADE;
-    END IF;
-
-    -- default_dropoff_location_id カラムが存在するか確認
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = 'customers'
-          AND COLUMN_NAME = 'default_dropoff_location_id'
-    ) THEN
-        ALTER TABLE customers
-            ADD COLUMN default_dropoff_location_id INT NULL COMMENT 'デフォルト降車地（場所マスタID）'
-            AFTER default_pickup_location_id;
-
-        ALTER TABLE customers
-            ADD INDEX idx_customers_dropoff_location (default_dropoff_location_id);
-
-        ALTER TABLE customers
-            ADD CONSTRAINT fk_customers_dropoff_location
-                FOREIGN KEY (default_dropoff_location_id) REFERENCES location_master(id)
-                ON DELETE SET NULL ON UPDATE CASCADE;
-    END IF;
-
-    -- assigned_driver_id カラムが存在するか確認
-    IF NOT EXISTS (
-        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = 'customers'
-          AND COLUMN_NAME = 'assigned_driver_id'
-    ) THEN
-        ALTER TABLE customers
-            ADD COLUMN assigned_driver_id INT NULL COMMENT '担当ドライバー（ユーザーID）'
-            AFTER default_dropoff_location_id;
-
-        ALTER TABLE customers
-            ADD INDEX idx_customers_assigned_driver (assigned_driver_id);
-
-        ALTER TABLE customers
-            ADD CONSTRAINT fk_customers_assigned_driver
-                FOREIGN KEY (assigned_driver_id) REFERENCES users(id)
-                ON DELETE SET NULL ON UPDATE CASCADE;
-    END IF;
-END//
-
-DELIMITER ;
-
-CALL add_location_columns_to_customers();
-DROP PROCEDURE IF EXISTS add_location_columns_to_customers;
+-- インデックス追加（既存の場合は無視）
+CREATE INDEX IF NOT EXISTS idx_customers_pickup_location ON customers (default_pickup_location_id);
+CREATE INDEX IF NOT EXISTS idx_customers_dropoff_location ON customers (default_dropoff_location_id);
+CREATE INDEX IF NOT EXISTS idx_customers_assigned_driver ON customers (assigned_driver_id);
