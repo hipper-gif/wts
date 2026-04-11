@@ -3,6 +3,8 @@
 -- 作成日: 2026-04-08
 
 ALTER TABLE company_info
-    ADD COLUMN fax VARCHAR(20) DEFAULT '' AFTER phone,
-    ADD COLUMN manager_name VARCHAR(100) DEFAULT '' AFTER fax,
-    ADD COLUMN manager_email VARCHAR(200) DEFAULT '' AFTER manager_name;
+    ADD COLUMN IF NOT EXISTS fax VARCHAR(20) DEFAULT '' AFTER phone;
+ALTER TABLE company_info
+    ADD COLUMN IF NOT EXISTS manager_name VARCHAR(100) DEFAULT '' AFTER fax;
+ALTER TABLE company_info
+    ADD COLUMN IF NOT EXISTS manager_email VARCHAR(200) DEFAULT '' AFTER manager_name;

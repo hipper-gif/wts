@@ -5,30 +5,29 @@
 -- =====================================================
 
 -- departure_records に複合インデックス追加
-ALTER TABLE departure_records
-    ADD INDEX idx_departure_date_driver (departure_date, driver_id),
-    ADD INDEX idx_departure_vehicle_date (vehicle_id, departure_date);
+CREATE INDEX IF NOT EXISTS idx_departure_date_driver ON departure_records (departure_date, driver_id);
+CREATE INDEX IF NOT EXISTS idx_departure_vehicle_date ON departure_records (vehicle_id, departure_date);
 
 -- arrival_records に複合インデックス追加
-ALTER TABLE arrival_records
-    ADD INDEX idx_arrival_date_driver (arrival_date, driver_id),
-    ADD INDEX idx_arrival_departure_record (departure_record_id);
+CREATE INDEX IF NOT EXISTS idx_arrival_date_driver ON arrival_records (arrival_date, driver_id);
+CREATE INDEX IF NOT EXISTS idx_arrival_departure_record ON arrival_records (departure_record_id);
 
 -- 外部キー制約: departure_records → users, vehicles
+-- MariaDB: ADD CONSTRAINT IF NOT EXISTS は10.5.2+
 ALTER TABLE departure_records
-    ADD CONSTRAINT fk_departure_driver FOREIGN KEY (driver_id)
-        REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_departure_vehicle FOREIGN KEY (vehicle_id)
+    ADD CONSTRAINT IF NOT EXISTS fk_departure_driver FOREIGN KEY (driver_id)
+        REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE departure_records
+    ADD CONSTRAINT IF NOT EXISTS fk_departure_vehicle FOREIGN KEY (vehicle_id)
         REFERENCES vehicles(id) ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- 外部キー制約: arrival_records → departure_records
+-- 外部キー制約: arrival_records → departure_records, users, vehicles
 ALTER TABLE arrival_records
-    ADD CONSTRAINT fk_arrival_departure FOREIGN KEY (departure_record_id)
+    ADD CONSTRAINT IF NOT EXISTS fk_arrival_departure FOREIGN KEY (departure_record_id)
         REFERENCES departure_records(id) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- 外部キー制約: arrival_records → users, vehicles
 ALTER TABLE arrival_records
-    ADD CONSTRAINT fk_arrival_driver FOREIGN KEY (driver_id)
-        REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    ADD CONSTRAINT fk_arrival_vehicle FOREIGN KEY (vehicle_id)
+    ADD CONSTRAINT IF NOT EXISTS fk_arrival_driver FOREIGN KEY (driver_id)
+        REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE arrival_records
+    ADD CONSTRAINT IF NOT EXISTS fk_arrival_vehicle FOREIGN KEY (vehicle_id)
         REFERENCES vehicles(id) ON DELETE RESTRICT ON UPDATE CASCADE;
