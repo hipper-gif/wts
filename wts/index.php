@@ -28,10 +28,12 @@ if (empty($_SESSION['csrf_token'])) {
 
 // ログイン処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // CSRF検証
+    // CSRF検証（セッション切れ後の再ログインではトークン不一致を許容し、トークンを再生成）
     $token = $_POST['csrf_token'] ?? '';
     if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
-        $error_message = '不正なリクエストです。ページを再読み込みしてください。';
+        // トークンを再生成して再度ログインを促す
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        $error_message = 'セッションの有効期限が切れました。もう一度ログインしてください。';
     }
 
     $login_id = trim($_POST['login_id'] ?? '');
