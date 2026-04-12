@@ -113,46 +113,48 @@
             padding: 4px 10px;
             font-family: "Courier New", monospace;
             letter-spacing: 0.05em;
+            white-space: nowrap;
+            display: inline-block;
         }
 
         /* ── 実務フロー図 ── */
         .flow-diagram {
-            margin: 20px 0;
+            margin: 10px 0;
         }
         .flow-row {
             display: flex;
             align-items: stretch;
-            margin-bottom: 6px;
+            margin-bottom: 3px;
         }
         .flow-time {
-            width: 70px;
+            width: 50px;
             flex-shrink: 0;
-            font-size: 10pt;
+            font-size: 9pt;
             color: #888;
-            padding-top: 14px;
+            padding-top: 8px;
             text-align: right;
-            padding-right: 10px;
+            padding-right: 8px;
         }
         .flow-connector {
-            width: 36px;
+            width: 28px;
             flex-shrink: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
         }
         .flow-dot {
-            width: 18px;
-            height: 18px;
+            width: 14px;
+            height: 14px;
             border-radius: 50%;
             background: #00C896;
             flex-shrink: 0;
-            margin-top: 14px;
+            margin-top: 10px;
         }
         .flow-dot.orange { background: #ff9800; }
         .flow-dot.blue { background: #2196f3; }
         .flow-dot.purple { background: #9c27b0; }
         .flow-line {
-            width: 3px;
+            width: 2px;
             flex-grow: 1;
             background: #ddd;
         }
@@ -161,9 +163,9 @@
             display: flex;
             background: #fff;
             border: 1.5px solid #e0e0e0;
-            border-radius: 10px;
-            padding: 12px 16px;
-            margin-left: 6px;
+            border-radius: 8px;
+            padding: 6px 12px;
+            margin-left: 4px;
             transition: all 0.2s;
         }
         .flow-card:hover {
@@ -175,41 +177,46 @@
             min-width: 0;
         }
         .flow-real .label {
-            font-size: 10pt;
+            font-size: 8.5pt;
             color: #888;
-            margin-bottom: 2px;
+            margin-bottom: 0;
+            line-height: 1.3;
         }
         .flow-real .task {
             font-weight: 600;
-            font-size: 11.5pt;
+            font-size: 10pt;
+            line-height: 1.3;
         }
         .flow-arrow {
             display: flex;
             align-items: center;
-            padding: 0 12px;
-            font-size: 18pt;
+            padding: 0 8px;
+            font-size: 14pt;
             color: #ccc;
         }
         .flow-system {
             flex: 1;
             min-width: 0;
             background: #f0faf6;
-            border-radius: 8px;
-            padding: 6px 12px;
+            border-radius: 6px;
+            padding: 4px 10px;
         }
         .flow-system .label {
-            font-size: 9pt;
+            font-size: 8pt;
             color: #00C896;
             font-weight: 600;
-            margin-bottom: 2px;
+            margin-bottom: 0;
+            line-height: 1.3;
         }
         .flow-system .screen {
             font-weight: 600;
-            font-size: 11pt;
+            font-size: 10pt;
+            line-height: 1.3;
         }
         .flow-system .detail {
-            font-size: 9pt;
+            font-size: 8.5pt;
             color: #666;
+            line-height: 1.3;
         }
 
         /* ── ステップ ── */
@@ -381,6 +388,37 @@
         /* ── ページ制御 ── */
         .page-break { page-break-before: always; }
 
+        /* 見出しの直後で切れないように */
+        h2, h3 {
+            page-break-after: avoid;
+            break-after: avoid;
+        }
+
+        /* 各コンポーネントが途中で切れないように */
+        .step, .flow-row, .faq-item, .login-box, .role-card,
+        .tip, .warn, .checklist li {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        /* テーブル行が途中で切れないように */
+        table.data tr, .login-box tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        /* フロー図全体を1ページにまとめる */
+        .flow-diagram {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        /* 役割カード2枚をまとめる */
+        .role-cards {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
         /* ── 印刷 ── */
         @media print {
             body { font-size: 10.5pt; }
@@ -388,6 +426,26 @@
             .flow-card:hover { border-color: #e0e0e0; box-shadow: none; }
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+
+            /* 印刷時は見出し前で改ページを許可（見出し後は禁止） */
+            h2 {
+                page-break-before: auto;
+                break-before: auto;
+            }
+
+            /* セクション全体をorphan/widowで保護 */
+            p, li { orphans: 3; widows: 3; }
+
+            /* セクション区切り */
+            section {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            /* ただし長いセクションは分割を許可 */
+            section.allow-break {
+                page-break-inside: auto;
+                break-inside: auto;
+            }
         }
 
         /* ── FAQ ── */
@@ -475,7 +533,6 @@
     <!-- ============================================================
          2. アプリの入れ方
          ============================================================ -->
-    <div class="page-break"></div>
     <h2>2. スマホにアプリを入れる</h2>
 
     <p>スマルトはスマホのブラウザからアプリのように使えます。<br>
@@ -537,8 +594,7 @@
     <div class="page-break"></div>
     <h2>3. 1日の業務とシステム操作</h2>
 
-    <p>左が<strong>実際にやること</strong>、右が<strong>スマルトで記録すること</strong>です。<br>
-    上から順番に進めるだけで、法令で必要な記録がすべて残ります。</p>
+    <p style="margin-bottom:6px;">左が<strong>実際にやること</strong>、右が<strong>スマルトで記録すること</strong>です。上から順番に進めるだけで、法令で必要な記録がすべて残ります。</p>
 
     <div class="flow-diagram">
 
@@ -553,7 +609,7 @@
                 <div class="flow-real">
                     <div class="label">やること</div>
                     <div class="task">車のまわりを見て回る</div>
-                    <div style="font-size:9.5pt;color:#666;">ブレーキ・タイヤ・ライト等 17項目</div>
+                    <div style="font-size:8.5pt;color:#666;line-height:1.3;">ブレーキ・タイヤ・ライト等 17項目</div>
                 </div>
                 <div class="flow-arrow">&rarr;</div>
                 <div class="flow-system">
@@ -574,7 +630,7 @@
                 <div class="flow-real">
                     <div class="label">やること</div>
                     <div class="task">点呼者と対面で確認</div>
-                    <div style="font-size:9.5pt;color:#666;">体調・飲酒・免許証・持ち物 等</div>
+                    <div style="font-size:8.5pt;color:#666;line-height:1.3;">体調・飲酒・免許証・持ち物 等</div>
                 </div>
                 <div class="flow-arrow">&rarr;</div>
                 <div class="flow-system">
@@ -595,7 +651,7 @@
                 <div class="flow-real">
                     <div class="label">やること</div>
                     <div class="task">車庫から車を出す</div>
-                    <div style="font-size:9.5pt;color:#666;">メーター値と出発時刻を控える</div>
+                    <div style="font-size:8.5pt;color:#666;line-height:1.3;">メーター値と出発時刻を控える</div>
                 </div>
                 <div class="flow-arrow">&rarr;</div>
                 <div class="flow-system">
@@ -617,7 +673,7 @@
                 <div class="flow-real">
                     <div class="label">やること</div>
                     <div class="task">お客様を送迎する</div>
-                    <div style="font-size:9.5pt;color:#666;">乗車地・降車地・料金を控える</div>
+                    <div style="font-size:8.5pt;color:#666;line-height:1.3;">乗車地・降車地・料金を控える</div>
                 </div>
                 <div class="flow-arrow">&rarr;</div>
                 <div class="flow-system">
@@ -628,7 +684,7 @@
             </div>
         </div>
 
-        <div style="text-align:center;color:#888;font-size:9.5pt;padding:4px 0;">
+        <div style="text-align:center;color:#888;font-size:8.5pt;padding:2px 0;">
             &uarr; 送迎のたびに繰り返し &uarr;
         </div>
 
@@ -643,7 +699,7 @@
                 <div class="flow-real">
                     <div class="label">やること</div>
                     <div class="task">車庫に車を戻す</div>
-                    <div style="font-size:9.5pt;color:#666;">メーター値と帰着時刻を控える</div>
+                    <div style="font-size:8.5pt;color:#666;line-height:1.3;">メーター値と帰着時刻を控える</div>
                 </div>
                 <div class="flow-arrow">&rarr;</div>
                 <div class="flow-system">
@@ -664,7 +720,7 @@
                 <div class="flow-real">
                     <div class="label">やること</div>
                     <div class="task">点呼者と帰着の確認</div>
-                    <div style="font-size:9.5pt;color:#666;">体調・車両状態の確認</div>
+                    <div style="font-size:8.5pt;color:#666;line-height:1.3;">体調・車両状態の確認</div>
                 </div>
                 <div class="flow-arrow">&rarr;</div>
                 <div class="flow-system">
@@ -684,7 +740,7 @@
                 <div class="flow-real">
                     <div class="label">やること</div>
                     <div class="task">売上金を確認する</div>
-                    <div style="font-size:9.5pt;color:#666;">現金の過不足がないか確認</div>
+                    <div style="font-size:8.5pt;color:#666;line-height:1.3;">現金の過不足がないか確認</div>
                 </div>
                 <div class="flow-arrow">&rarr;</div>
                 <div class="flow-system">
@@ -696,8 +752,7 @@
         </div>
     </div>
 
-    <div class="tip">ダッシュボード（ホーム画面）に業務ボタンが<strong>上から順番に並んでいます</strong>。<br>
-    迷ったらダッシュボードに戻って、上から順にタップしていけばOKです。</div>
+    <div class="tip" style="margin-top:8px;">ダッシュボード（ホーム画面）に業務ボタンが<strong>上から順番に並んでいます</strong>。迷ったらダッシュボードに戻って、上から順にタップしていけばOKです。</div>
 
     <!-- ============================================================
          4. 初日にやること
@@ -900,12 +955,11 @@
     <h2>8. お困りのときは</h2>
 
     <div class="login-box" style="text-align:center;">
-        <p style="font-size:12pt;margin:0 0 10px;"><strong>株式会社Smiley システム開発部</strong></p>
+        <p style="font-size:12pt;margin:0 0 10px;"><strong>株式会社Smiley 杉原 星</strong></p>
         <p style="margin:0;font-size:11pt;">
-            <strong>TEL:</strong> 06-4977-0032<br>
-            <strong>Email:</strong> system@smiley-co.jp
+            <strong>TEL:</strong> 080-7357-4155<br>
+            <strong>Email:</strong> shou-s@smiley-g.co.jp
         </p>
-        <p style="margin:10px 0 0;font-size:10pt;color:#888;">受付時間: 平日 9:00 - 18:00</p>
     </div>
 
     <!-- ============================================================
