@@ -18,7 +18,7 @@ try {
     $user_data = $stmt->fetch();
 
     if (!$user_data) {
-        session_destroy();
+        destroySessionFully();
         header('Location: index.php');
         exit;
     }
@@ -35,7 +35,7 @@ try {
     }
 } catch (PDOException $e) {
     error_log("ユーザーデータ取得エラー: " . $e->getMessage());
-    session_destroy();
+    destroySessionFully();
     header('Location: index.php');
     exit;
 }

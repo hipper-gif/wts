@@ -30,20 +30,19 @@ if (empty($_SESSION['csrf_token'])) {
 
 // ログイン処理
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // CSRF検証（セッション切れ後の再ログインではトークン不一致を許容し、トークンを再生成）
+    // CSRF検証（ログイン画面ではセッション切れによる不一致を許容し、トークンを再生成するのみ）
     $token = $_POST['csrf_token'] ?? '';
     if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
-        // トークンを再生成して再度ログインを促す
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-        $error_message = 'セッションの有効期限が切れました。もう一度ログインしてください。';
+        // ログインはブロックしない（セッション切れ後の再ログインを妨げないため）
     }
 
     $login_id = trim($_POST['login_id'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    if (empty($error_message) && (empty($login_id) || empty($password))) {
+    if (empty($login_id) || empty($password)) {
         $error_message = 'ログインIDとパスワードを入力してください。';
-    } elseif (empty($error_message)) {
+    } else {
         try {
             $pdo = getDBConnection();
             

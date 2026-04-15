@@ -29,11 +29,23 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+// セッション完全破棄ヘルパー（Cookie含む）
+function destroySessionFully() {
+    $_SESSION = array();
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $params["path"], $params["domain"],
+            $params["secure"], $params["httponly"]
+        );
+    }
+    session_destroy();
+}
+
 // セッションタイムアウトチェック（DB設定値をセッションにキャッシュ）
 $session_timeout = $_SESSION['session_timeout_seconds'] ?? 28800; // デフォルト8時間
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
-    session_unset();
-    session_destroy();
+    destroySessionFully();
     header('Location: ' . $_sc_base . 'index.php?timeout=1');
     exit;
 }
@@ -77,7 +89,7 @@ function getCurrentUser() {
         
         if (!$user) {
             // ユーザーが見つからない場合はログアウト
-            session_destroy();
+            destroySessionFully();
             global $_sc_base;
             header('Location: ' . ($_sc_base ?? '') . 'index.php');
             exit;
@@ -88,7 +100,7 @@ function getCurrentUser() {
     } catch (PDOException $e) {
         // データベースエラーの場合 — 安全のためアクセス拒否
         error_log("Database error in session_check: " . $e->getMessage());
-        session_destroy();
+        destroySessionFully();
         global $_sc_base;
         header('Location: ' . ($_sc_base ?? '') . 'index.php?error=db');
         exit;

@@ -18,7 +18,7 @@ $stmt->execute([$user_id]);
 $current_user = $stmt->fetch(PDO::FETCH_OBJ);
 
 if (!$current_user) {
-    session_destroy();
+    destroySessionFully();
     header('Location: index.php');
     exit;
 }
