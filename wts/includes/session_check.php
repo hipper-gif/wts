@@ -6,6 +6,8 @@ if (session_status() == PHP_SESSION_NONE) {
     ini_set('session.cookie_httponly', 1);
     ini_set('session.cookie_samesite', 'Lax');
     ini_set('session.use_strict_mode', 1);
+    ini_set('session.gc_maxlifetime', 28800); // 8時間（アプリのタイムアウトに合わせる）
+    ini_set('session.cookie_lifetime', 0);    // ブラウザを閉じるまで有効
     if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
         ini_set('session.cookie_secure', 1);
     }
@@ -56,6 +58,7 @@ if (!isset($_SESSION['session_timeout_cached_at']) || (time() - $_SESSION['sessi
         $timeout_val = $stmt_timeout->fetchColumn();
         if ($timeout_val !== false) {
             $_SESSION['session_timeout_seconds'] = (int)$timeout_val;
+            ini_set('session.gc_maxlifetime', (int)$timeout_val);
         }
     } catch (PDOException $e) {
         // テーブルがない場合等は無視（デフォルト値を使用）
