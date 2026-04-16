@@ -23,7 +23,7 @@ header('Service-Worker-Allowed: ' . $basePath . '/');
 // 福祉輸送管理システム (WTS) - Service Worker
 // Version 1.0.0
 
-const CACHE_VERSION = 'wts-v1.1.0';
+const CACHE_VERSION = 'wts-v1.2.0';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_DYNAMIC = `${CACHE_VERSION}-dynamic`;
 const CACHE_API = `${CACHE_VERSION}-api`;
@@ -120,6 +120,11 @@ self.addEventListener('fetch', (event) => {
     const { request } = event;
     const url = new URL(request.url);
 
+    // POST（フォーム送信）はSWを通さずブラウザに任せる
+    if (request.method !== 'GET') {
+        return;
+    }
+
     // 外部リソース（CDN）の処理
     if (!url.origin.includes(self.location.origin) && !url.hostname.includes('cdnjs.cloudflare.com')) {
         return; // 外部APIなどはService Workerで処理しない
@@ -183,39 +188,37 @@ async function networkFirstStrategy(request, cacheName) {
     try {
         const networkResponse = await fetch(request);
 
-        // 成功したレスポンスをキャッシュ
-        if (networkResponse && networkResponse.status === 200) {
+        // 成功かつリダイレクトされていないレスポンスのみキャッシュ
+        // （セッション切れで302→ログインページに飛んだ場合、
+        //   fetch()が自動追従してログインページの200を返すため、
+        //   redirectedフラグでこれを除外する）
+        if (networkResponse && networkResponse.status === 200
+            && !networkResponse.redirected
+            && request.method === 'GET') {
             const cache = await caches.open(cacheName);
-            // POSTリクエストはキャッシュしない
-            if (request.method === 'GET') {
-                cache.put(request, networkResponse.clone());
-            }
+            cache.put(request, networkResponse.clone());
         }
 
         return networkResponse;
     } catch (error) {
-        // ネットワークが失敗した場合、キャッシュから取得
-        const cachedResponse = await caches.match(request);
-        if (cachedResponse) {
-            return cachedResponse;
-        }
-
-        // キャッシュにもない場合
-        if (request.destination === 'document') {
-            const cache = await caches.open(CACHE_STATIC);
-            const offlinePage = await cache.match(OFFLINE_PAGE);
-            if (offlinePage) {
-                return offlinePage;
+        // ネットワークが失敗した場合、キャッシュから取得（GETのみ）
+        if (request.method === 'GET') {
+            const cachedResponse = await caches.match(request);
+            if (cachedResponse) {
+                return cachedResponse;
             }
         }
 
-        // 最終的なフォールバック
-        return new Response('オフラインです。ネットワーク接続を確認してください。', {
+        // フォールバック: ネットワークエラーメッセージ（ログインページは返さない）
+        return new Response(
+            '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>接続エラー</title></head>'
+            + '<body style="font-family:sans-serif;text-align:center;padding:40px">'
+            + '<h2>ネットワークに接続できません</h2>'
+            + '<p>インターネット接続を確認してから、もう一度お試しください。</p>'
+            + '<button onclick="location.reload()" style="padding:12px 24px;font-size:16px;cursor:pointer">再読み込み</button>'
+            + '</body></html>', {
             status: 503,
-            statusText: 'Service Unavailable',
-            headers: new Headers({
-                'Content-Type': 'text/plain; charset=utf-8'
-            })
+            headers: { 'Content-Type': 'text/html; charset=utf-8' }
         });
     }
 }
