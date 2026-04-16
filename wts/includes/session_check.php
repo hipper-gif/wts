@@ -29,12 +29,6 @@ if (preg_match('#/wts/calendar/api(/|$)#', $_sc_script)) {
     $_sc_base = '../';
 }
 
-// ログインチェック
-if (!isset($_SESSION['user_id'])) {
-    header('Location: ' . $_sc_base . 'index.php');
-    exit;
-}
-
 // セッション完全破棄ヘルパー（Cookie含む）
 function destroySessionFully() {
     $_SESSION = array();
@@ -48,9 +42,34 @@ function destroySessionFully() {
     session_destroy();
 }
 
+// ログインチェック（診断ログ付き）
+if (!isset($_SESSION['user_id'])) {
+    $diag = [
+        'reason' => 'no_user_id',
+        'session_id' => session_id(),
+        'session_data_keys' => implode(',', array_keys($_SESSION)),
+        'save_path' => session_save_path(),
+        'page' => $_SERVER['REQUEST_URI'] ?? 'unknown',
+        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+    ];
+    error_log("[WTS-SESSION-DIAG] Logout: " . json_encode($diag, JSON_UNESCAPED_UNICODE));
+    header('Location: ' . $_sc_base . 'index.php');
+    exit;
+}
+
 // セッションタイムアウトチェック（DB設定値をセッションにキャッシュ）
 $session_timeout = $_SESSION['session_timeout_seconds'] ?? 28800; // デフォルト8時間
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
+    $diag = [
+        'reason' => 'timeout',
+        'last_activity' => date('Y-m-d H:i:s', $_SESSION['last_activity']),
+        'now' => date('Y-m-d H:i:s'),
+        'elapsed_sec' => time() - $_SESSION['last_activity'],
+        'timeout_sec' => $session_timeout,
+        'user' => $_SESSION['user_name'] ?? 'unknown',
+        'page' => $_SERVER['REQUEST_URI'] ?? 'unknown',
+    ];
+    error_log("[WTS-SESSION-DIAG] Logout: " . json_encode($diag, JSON_UNESCAPED_UNICODE));
     destroySessionFully();
     header('Location: ' . $_sc_base . 'index.php?timeout=1');
     exit;
@@ -76,7 +95,7 @@ if (!isset($_SESSION['session_timeout_cached_at']) || (time() - $_SESSION['sessi
         $timeout_val = $stmt_timeout->fetchColumn();
         if ($timeout_val !== false) {
             $_SESSION['session_timeout_seconds'] = (int)$timeout_val;
-            ini_set('session.gc_maxlifetime', (int)$timeout_val);
+            // gc_maxlifetimeは.user.iniとsession_start前のini_setで設定済み
         }
     } catch (PDOException $e) {
         // テーブルがない場合等は無視（デフォルト値を使用）
