@@ -1,10 +1,14 @@
 <?php
-// セッションセキュリティ設定
+// セッションセキュリティ設定（主設定は.user.ini、ここはフォールバック）
+$wts_session_dir = '/home/twinklemark/twinklemark.xsrv.jp/xserver_php/session_wts';
+if (is_dir($wts_session_dir)) {
+    ini_set('session.save_path', $wts_session_dir);
+}
+ini_set('session.gc_maxlifetime', 28800);
+ini_set('session.cookie_lifetime', 0);
 ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_samesite', 'Lax');
 ini_set('session.use_strict_mode', 1);
-ini_set('session.gc_maxlifetime', 28800); // 8時間（アプリのタイムアウトに合わせる）
-ini_set('session.cookie_lifetime', 0);    // ブラウザを閉じるまで有効
 if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
     ini_set('session.cookie_secure', 1);
 }

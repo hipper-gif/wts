@@ -1,4 +1,8 @@
 <?php
+$wts_session_dir = '/home/twinklemark/twinklemark.xsrv.jp/xserver_php/session_wts';
+if (is_dir($wts_session_dir)) {
+    ini_set('session.save_path', $wts_session_dir);
+}
 ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_samesite', 'Lax');
 ini_set('session.use_strict_mode', 1);
