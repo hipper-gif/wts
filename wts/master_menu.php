@@ -482,6 +482,20 @@ $page_data = renderCompletePage(
                 <?php endif; ?>
             </div>
 
+            <!-- 院内介助ログ -->
+            <div class="col-lg-4 col-md-6 mb-3">
+                <a href="hospital_assistance_logs.php" class="master-card">
+                    <div class="position-relative">
+                        <i class="fas fa-hospital master-icon" style="color:#20c997;"></i>
+                        <h6 class="fw-bold">院内介助ログ</h6>
+                        <p class="card-description">
+                            院内介助の記録・共有<br>
+                            利用者・施設・担当スタッフの記録
+                        </p>
+                    </div>
+                </a>
+            </div>
+
             <!-- 予約管理（Phase2 - カレンダー未完成のため非表示） -->
         </div>
 

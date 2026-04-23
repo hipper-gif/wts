@@ -276,6 +276,15 @@ function getPageConfiguration($page_type) {
             'frequency' => '随時',
             'priority' => 'high'
         ],
+        'hospital_assistance_logs' => [
+            'category' => 'management',
+            'icon' => 'hospital',
+            'title' => '院内介助ログ',
+            'subtitle' => '院内介助の記録・共有',
+            'description' => '院内介助の実施記録を管理・共有',
+            'frequency' => '随時',
+            'priority' => 'normal'
+        ],
         'document_generator' => [
             'category' => 'management',
             'icon' => 'shield-alt',
