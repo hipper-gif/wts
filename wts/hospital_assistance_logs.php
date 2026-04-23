@@ -125,11 +125,17 @@ if ($filter_staff) {
     $params[] = (int)$filter_staff;
 }
 
-$sql .= " ORDER BY hal.assistance_date DESC, hal.assistance_time DESC, hal.id DESC";
+$sql .= " ORDER BY hal.customer_name, hal.assistance_date DESC, hal.assistance_time DESC, hal.id DESC";
 
 $stmt_list = $pdo->prepare($sql);
 $stmt_list->execute($params);
 $records = $stmt_list->fetchAll(PDO::FETCH_ASSOC);
+
+// 顧客単位でグループ化
+$grouped_records = [];
+foreach ($records as $record) {
+    $grouped_records[$record['customer_name']][] = $record;
+}
 
 // ページ生成（統一ヘッダーシステム）
 $page_options = [
@@ -267,76 +273,82 @@ $page_data = renderCompletePage(
             </div>
         </div>
 
-        <!-- 一覧テーブル -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-list me-2"></i>院内介助記録一覧</h5>
-                        <span class="badge bg-secondary"><?= count($records) ?>件</span>
-                    </div>
-                    <div class="card-body">
-                        <?php if ($records): ?>
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>日付</th>
-                                            <th>時刻</th>
-                                            <th>利用者名</th>
-                                            <th>担当スタッフ</th>
-                                            <th>施設名</th>
-                                            <th>備考</th>
-                                            <th>操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($records as $record): ?>
-                                            <tr class="record-row">
-                                                <td><?= date('Y/m/d', strtotime($record['assistance_date'])) ?></td>
-                                                <td><?= $record['assistance_time'] ? date('H:i', strtotime($record['assistance_time'])) : '-' ?></td>
-                                                <td><?= htmlspecialchars($record['customer_name']) ?></td>
-                                                <td><?= htmlspecialchars($record['staff_name'] ?? '-') ?></td>
-                                                <td><?= htmlspecialchars($record['facility_name']) ?></td>
-                                                <td>
-                                                    <?php if ($record['notes']): ?>
-                                                        <span class="d-inline-block text-truncate" style="max-width: 150px;" title="<?= htmlspecialchars($record['notes']) ?>">
-                                                            <?= htmlspecialchars($record['notes']) ?>
-                                                        </span>
-                                                    <?php else: ?>
-                                                        -
-                                                    <?php endif; ?>
-                                                </td>
-                                                <td>
-                                                    <div class="btn-group" role="group">
-                                                        <button class="btn btn-outline-primary btn-sm" onclick="editRecord(<?= $record['id'] ?>)" title="編集">
-                                                            <i class="fas fa-edit"></i>
-                                                        </button>
-                                                        <?php if ($is_admin): ?>
-                                                        <button class="btn btn-outline-danger btn-sm" onclick="deleteRecord(<?= $record['id'] ?>)" title="削除">
-                                                            <i class="fas fa-trash"></i>
-                                                        </button>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php else: ?>
-                            <div class="text-center py-4">
-                                <i class="fas fa-hospital fa-3x text-muted mb-3"></i>
-                                <p class="text-muted">院内介助記録はありません</p>
-                                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addRecordModal">
-                                    <i class="fas fa-plus me-1"></i>最初の記録を追加
-                                </button>
-                            </div>
-                        <?php endif; ?>
+        <!-- 一覧（顧客別） -->
+        <?php if ($grouped_records): ?>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="fas fa-list me-2"></i>院内介助記録一覧</h5>
+                <span class="badge bg-secondary"><?= count($records) ?>件（<?= count($grouped_records) ?>名）</span>
+            </div>
+
+            <?php foreach ($grouped_records as $customer_name => $customer_records): ?>
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-user me-2 text-primary"></i><?= htmlspecialchars($customer_name) ?>
+                    </h6>
+                    <span class="badge bg-primary"><?= count($customer_records) ?>件</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>日付</th>
+                                    <th>時刻</th>
+                                    <th>担当スタッフ</th>
+                                    <th>施設名</th>
+                                    <th>備考</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($customer_records as $record): ?>
+                                    <tr class="record-row">
+                                        <td><?= date('Y/m/d', strtotime($record['assistance_date'])) ?></td>
+                                        <td><?= $record['assistance_time'] ? date('H:i', strtotime($record['assistance_time'])) : '-' ?></td>
+                                        <td><?= htmlspecialchars($record['staff_name'] ?? '-') ?></td>
+                                        <td><?= htmlspecialchars($record['facility_name']) ?></td>
+                                        <td>
+                                            <?php if ($record['notes']): ?>
+                                                <span class="d-inline-block text-truncate" style="max-width: 200px;" title="<?= htmlspecialchars($record['notes']) ?>">
+                                                    <?= htmlspecialchars($record['notes']) ?>
+                                                </span>
+                                            <?php else: ?>
+                                                -
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <button class="btn btn-outline-primary btn-sm" onclick="editRecord(<?= $record['id'] ?>)" title="編集">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <?php if ($is_admin): ?>
+                                                <button class="btn btn-outline-danger btn-sm" onclick="deleteRecord(<?= $record['id'] ?>)" title="削除">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                                <?php endif; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
-        </div>
+            <?php endforeach; ?>
+
+        <?php else: ?>
+            <div class="card mb-4">
+                <div class="card-body text-center py-4">
+                    <i class="fas fa-hospital fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">院内介助記録はありません</p>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addRecordModal">
+                        <i class="fas fa-plus me-1"></i>最初の記録を追加
+                    </button>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <!-- 戻るボタン -->
         <div class="row mb-4">
