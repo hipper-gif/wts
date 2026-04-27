@@ -370,9 +370,14 @@ $system_name = $settings['system_name'];
             }
         });
         
-        // エラー時のログイン試行回数カウント
-        <?php if (!empty($error_message)): ?>
+        // エラー時のログイン試行回数カウント（タイムアウト・ログアウトメッセージは除外）
+        <?php if (!empty($error_message) && !isset($_GET['timeout']) && !isset($_GET['logout'])): ?>
             handleLoginAttempt();
+        <?php endif; ?>
+        // タイムアウトやログアウトからの復帰時はカウンターをリセット
+        <?php if (isset($_GET['timeout']) || isset($_GET['logout'])): ?>
+            localStorage.removeItem('loginAttempts');
+            localStorage.removeItem('lastAttempt');
         <?php endif; ?>
     </script>
 </body>

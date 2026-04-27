@@ -141,12 +141,21 @@ $is_admin = ($user_role === 'Admin'); // 各ページでの判定を省略する
 
 /**
  * CSRFトークンを検証
+ * Ajax（X-CSRF-TOKEN）の場合はJSON応答、通常フォームの場合はログイン画面へリダイレクト
  */
 function validateCsrfToken() {
     $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['csrf_token'] ?? '';
     if (empty($token) || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => '不正なリクエストです']);
+        $is_ajax = !empty($_SERVER['HTTP_X_CSRF_TOKEN']) ||
+                   (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
+        if ($is_ajax) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'セッションが切れました。ページを再読み込みしてください。']);
+            exit;
+        }
+        // 通常フォーム送信の場合はログイン画面へリダイレクト
+        global $_sc_base;
+        header('Location: ' . ($_sc_base ?? '') . 'index.php?timeout=1');
         exit;
     }
 }
