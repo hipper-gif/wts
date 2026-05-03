@@ -55,17 +55,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $pdo->beginTransaction();
             try {
+                $is_wheelchair = isset($_POST['is_wheelchair_compatible']) ? 1 : 0;
+                $is_udt = isset($_POST['is_universal_design_taxi']) ? 1 : 0;
+                $is_stretcher = isset($_POST['is_stretcher_compatible']) ? 1 : 0;
+                $is_combo = isset($_POST['is_combo_vehicle']) ? 1 : 0;
+                $is_rotation = isset($_POST['is_rotation_seat']) ? 1 : 0;
+
                 $stmt = $pdo->prepare("
                     INSERT INTO vehicles (
                         vehicle_number, vehicle_name, model, registration_date,
                         vehicle_type, capacity, current_mileage, next_inspection_date,
-                        status, is_active, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
+                        status, is_active,
+                        is_wheelchair_compatible, is_universal_design_taxi, is_stretcher_compatible, is_combo_vehicle, is_rotation_seat,
+                        created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, NOW())
                 ");
                 $stmt->execute([
                     $vehicle_number, $vehicle_name, $model, $registration_date,
                     $vehicle_type, $capacity, $current_mileage, $next_inspection_date,
-                    $status
+                    $status,
+                    $is_wheelchair, $is_udt, $is_stretcher, $is_combo, $is_rotation
                 ]);
                 $new_id = $pdo->lastInsertId();
 
@@ -127,17 +136,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $pdo->beginTransaction();
             try {
+                $is_wheelchair = isset($_POST['is_wheelchair_compatible']) ? 1 : 0;
+                $is_udt = isset($_POST['is_universal_design_taxi']) ? 1 : 0;
+                $is_stretcher = isset($_POST['is_stretcher_compatible']) ? 1 : 0;
+                $is_combo = isset($_POST['is_combo_vehicle']) ? 1 : 0;
+                $is_rotation = isset($_POST['is_rotation_seat']) ? 1 : 0;
+
                 $stmt = $pdo->prepare("
                     UPDATE vehicles SET
                         vehicle_number = ?, vehicle_name = ?, model = ?, registration_date = ?,
                         vehicle_type = ?, capacity = ?, current_mileage = ?, next_inspection_date = ?,
-                        status = ?, is_active = ?, updated_at = NOW()
+                        status = ?, is_active = ?,
+                        is_wheelchair_compatible = ?, is_universal_design_taxi = ?, is_stretcher_compatible = ?, is_combo_vehicle = ?, is_rotation_seat = ?,
+                        updated_at = NOW()
                     WHERE id = ?
                 ");
                 $stmt->execute([
                     $vehicle_number, $vehicle_name, $model, $registration_date,
                     $vehicle_type, $capacity, $current_mileage, $next_inspection_date,
-                    $status, $is_active, $vehicle_id
+                    $status, $is_active,
+                    $is_wheelchair, $is_udt, $is_stretcher, $is_combo, $is_rotation,
+                    $vehicle_id
                 ]);
 
                 logAudit($pdo, $vehicle_id, 'edit', $user_id, 'vehicle', $changes);
@@ -606,6 +625,39 @@ echo $page_data['page_header'];
                                 </label>
                             </div>
                         </div>
+
+                        <!-- 第21号様式（移動等円滑化実績等報告書）用フラグ -->
+                        <div class="col-12 mb-2">
+                            <hr class="my-2">
+                            <label class="form-label unified-label">
+                                <i class="fas fa-wheelchair me-1"></i>福祉タクシー車両区分（第21号様式 集計用）
+                            </label>
+                            <small class="text-muted d-block mb-2">公共交通移動等円滑化基準省令 第45条 適合車両のみチェック</small>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modalIsWheelchair" name="is_wheelchair_compatible">
+                                <label class="form-check-label" for="modalIsWheelchair">車椅子対応車（第45条第1項）</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modalIsUDT" name="is_universal_design_taxi">
+                                <label class="form-check-label" for="modalIsUDT">うち、ユニバーサルデザインタクシー認定</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modalIsStretcher" name="is_stretcher_compatible">
+                                <label class="form-check-label" for="modalIsStretcher">寝台対応車（第45条第1項）</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modalIsCombo" name="is_combo_vehicle">
+                                <label class="form-check-label" for="modalIsCombo">兼用車（車椅子・寝台どちらも輸送可）</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modalIsRotation" name="is_rotation_seat">
+                                <label class="form-check-label" for="modalIsRotation">回転シート車（第45条第2項）</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -699,6 +751,11 @@ function editVehicle(vehicle) {
     document.getElementById('modalNextInspectionDate').value = vehicle.next_inspection_date || '';
     document.getElementById('modalStatus').value = vehicle.status || 'active';
     document.getElementById('modalIsActive').checked = vehicle.is_active == 1;
+    document.getElementById('modalIsWheelchair').checked = vehicle.is_wheelchair_compatible == 1;
+    document.getElementById('modalIsUDT').checked = vehicle.is_universal_design_taxi == 1;
+    document.getElementById('modalIsStretcher').checked = vehicle.is_stretcher_compatible == 1;
+    document.getElementById('modalIsCombo').checked = vehicle.is_combo_vehicle == 1;
+    document.getElementById('modalIsRotation').checked = vehicle.is_rotation_seat == 1;
     document.getElementById('activeField').style.display = 'block';
 
     new bootstrap.Modal(document.getElementById('vehicleModal')).show();

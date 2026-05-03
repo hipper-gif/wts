@@ -37,7 +37,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             postal_code = ?, address = ?, phone = ?,
             fax = ?, manager_name = ?, manager_email = ?,
             license_number = ?, business_type = ?,
-            business_number = ?, capital_thousand_yen = ?, concurrent_business = ?
+            business_number = ?, capital_thousand_yen = ?, concurrent_business = ?,
+            form21_prev_total = ?, form21_prev_wheelchair = ?, form21_prev_udt = ?,
+            form21_prev_stretcher = ?, form21_prev_combo = ?, form21_prev_rotation = ?,
+            form21_plan_content = ?, form21_change_content = ?
             WHERE id = ?
         ");
         $stmt->execute([
@@ -46,6 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_POST['fax'] ?? '', $_POST['manager_name'] ?? '', $_POST['manager_email'] ?? '',
             $_POST['license_number'], $_POST['business_type'],
             $_POST['business_number'] ?? '', intval($_POST['capital_thousand_yen'] ?? 0), $_POST['concurrent_business'] ?? '',
+            intval($_POST['form21_prev_total'] ?? 0), intval($_POST['form21_prev_wheelchair'] ?? 0), intval($_POST['form21_prev_udt'] ?? 0),
+            intval($_POST['form21_prev_stretcher'] ?? 0), intval($_POST['form21_prev_combo'] ?? 0), intval($_POST['form21_prev_rotation'] ?? 0),
+            $_POST['form21_plan_content'] ?? '', $_POST['form21_change_content'] ?? '',
             $target_id
         ]);
         logAudit($pdo, 0, '[会社情報] 事業者情報更新', $user_id, 'company_settings', [], "company_name={$_POST['company_name']}");
@@ -280,6 +286,46 @@ $page_data = renderCompletePage(
                                placeholder="有 / 無し / 配食事業 など">
                         <small class="text-muted">「有」「無し」または兼営事業名を記入</small>
                     </div>
+                </div>
+            </div>
+
+            <hr class="my-3">
+            <h6 class="mb-3"><i class="fas fa-wheelchair me-2 text-info"></i>第21号様式（移動等円滑化実績等報告書 福祉タクシー車両）専用項目</h6>
+            <p class="text-muted small">前年度3月31日時点の車両数を入力。年度末車両数は車両管理画面のフラグから自動集計。</p>
+            <div class="row">
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label small">前年度 計</label>
+                    <input type="number" class="form-control form-control-sm" name="form21_prev_total" min="0" value="<?= intval($company['form21_prev_total'] ?? 0) ?>">
+                </div>
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label small">前年度 車椅子対応</label>
+                    <input type="number" class="form-control form-control-sm" name="form21_prev_wheelchair" min="0" value="<?= intval($company['form21_prev_wheelchair'] ?? 0) ?>">
+                </div>
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label small">前年度 うちUDT</label>
+                    <input type="number" class="form-control form-control-sm" name="form21_prev_udt" min="0" value="<?= intval($company['form21_prev_udt'] ?? 0) ?>">
+                </div>
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label small">前年度 寝台対応</label>
+                    <input type="number" class="form-control form-control-sm" name="form21_prev_stretcher" min="0" value="<?= intval($company['form21_prev_stretcher'] ?? 0) ?>">
+                </div>
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label small">前年度 兼用車</label>
+                    <input type="number" class="form-control form-control-sm" name="form21_prev_combo" min="0" value="<?= intval($company['form21_prev_combo'] ?? 0) ?>">
+                </div>
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label small">前年度 回転シート</label>
+                    <input type="number" class="form-control form-control-sm" name="form21_prev_rotation" min="0" value="<?= intval($company['form21_prev_rotation'] ?? 0) ?>">
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-lg-6">
+                    <label class="form-label">計画内容（計画対象期間及び事業の主な内容）</label>
+                    <textarea class="form-control" name="form21_plan_content" rows="4" placeholder="例: 令和8年度〜令和10年度の3年間で福祉タクシー車両を1台増車予定…"><?= htmlspecialchars($company['form21_plan_content'] ?? '') ?></textarea>
+                </div>
+                <div class="col-lg-6">
+                    <label class="form-label">前年度の計画からの変更内容</label>
+                    <textarea class="form-control" name="form21_change_content" rows="4" placeholder="例: 変更なし、または計画期間延長等"><?= htmlspecialchars($company['form21_change_content'] ?? '') ?></textarea>
                 </div>
             </div>
 

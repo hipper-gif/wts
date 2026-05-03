@@ -104,6 +104,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     generateForm4Excel($company_info_export, $business_overview_export, $transport_results_export, $accident_data_export, $export_year);
                     exit();
                     break;
+
+                case 'export_form21':
+                    // 第21号様式 PDF出力（移動等円滑化実績等報告書 福祉タクシー車両）
+                    $export_year = $_POST['fiscal_year'];
+                    $company_info_export = getCompanyInfo($pdo);
+                    $form21_data_export = getForm21Data($pdo);
+                    generateForm21PDF($company_info_export, $form21_data_export, $export_year);
+                    exit();
+                    break;
+
+                case 'export_form21_excel':
+                    // 第21号様式 Excel出力
+                    $export_year = $_POST['fiscal_year'];
+                    $company_info_export = getCompanyInfo($pdo);
+                    $form21_data_export = getForm21Data($pdo);
+                    generateForm21Excel($company_info_export, $form21_data_export, $export_year);
+                    exit();
+                    break;
             }
         }
     } catch (Exception $e) {
@@ -790,6 +808,357 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
     echo '</table></body></html>';
 }
 
+// ============================================================
+// 第21号様式（移動等円滑化実績等報告書 福祉タクシー車両）
+// 参照見本: NAS \\LS220D679\share\…\2024年度\2024年度移動等円滑化実績等報告書（福祉タクシー車両）.xlsx
+// 根拠: バリアフリー法施行規則第23条
+// 提出期限: 翌年度6月30日 / 提出先: 大阪運輸支局 輸送部門
+// ============================================================
+
+function getForm21Data($pdo) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT
+                COUNT(*) AS total,
+                COALESCE(SUM(is_wheelchair_compatible), 0) AS wheelchair,
+                COALESCE(SUM(is_universal_design_taxi), 0) AS udt,
+                COALESCE(SUM(is_stretcher_compatible), 0) AS stretcher,
+                COALESCE(SUM(is_combo_vehicle), 0) AS combo,
+                COALESCE(SUM(is_rotation_seat), 0) AS rotation
+            FROM vehicles
+            WHERE is_active = 1
+              AND COALESCE(vehicle_type, '') != 'other'
+              AND vehicle_number NOT LIKE '%その他%'
+        ");
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        return [
+            'total' => intval($row['total'] ?? 0),
+            'wheelchair' => intval($row['wheelchair'] ?? 0),
+            'udt' => intval($row['udt'] ?? 0),
+            'stretcher' => intval($row['stretcher'] ?? 0),
+            'combo' => intval($row['combo'] ?? 0),
+            'rotation' => intval($row['rotation'] ?? 0),
+        ];
+    } catch (Exception $e) {
+        error_log("Form21 data error: " . $e->getMessage());
+        return ['total' => 0, 'wheelchair' => 0, 'udt' => 0, 'stretcher' => 0, 'combo' => 0, 'rotation' => 0];
+    }
+}
+
+function generateForm21PDF($company, $f21, $year) {
+    header('Content-Type: text/html; charset=UTF-8');
+    header('Cache-Control: private, max-age=0, must-revalidate');
+
+    $reiwa = toReiwaYear($year);
+    $h = function($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
+    $f = function($v) { return $v === null || $v === '' ? '　' : intval($v); };
+
+    echo '<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>第21号様式 移動等円滑化実績等報告書（福祉タクシー車両） 令和' . $reiwa . '年度</title>
+<style>
+@page { size: A4 portrait; margin: 10mm 10mm; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: "Yu Mincho", "YuMincho", "MS Mincho", serif;
+    font-size: 10pt; color: #000; background: #fff; line-height: 1.4;
+}
+.page-wrapper {
+    width: 210mm; min-height: 297mm;
+    margin: 10mm auto; padding: 10mm 10mm;
+    background: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.15);
+}
+.print-controls {
+    text-align: center; margin: 0 auto 10px; padding: 12px;
+    background: #f5f5f5; border-radius: 6px; max-width: 210mm;
+    font-family: sans-serif;
+}
+.print-controls button {
+    padding: 8px 24px; font-size: 12pt; cursor: pointer;
+    margin: 0 4px; border-radius: 4px; border: 1px solid #ccc;
+}
+.print-controls .btn-print { background: #1976D2; color: #fff; border-color: #1565C0; }
+.print-controls .btn-close { background: #757575; color: #fff; border-color: #616161; }
+@media print {
+    .print-controls { display: none !important; }
+    .page-wrapper { margin: 0; padding: 0; box-shadow: none; min-height: auto; }
+    body { background: #fff; }
+}
+
+.form-no { font-size: 9pt; margin-bottom: 4mm; }
+.title { text-align: center; font-size: 14pt; font-weight: bold; letter-spacing: 0.3em; margin: 6mm 0 2mm; }
+.subtitle { text-align: center; font-size: 11pt; margin-bottom: 6mm; }
+
+.company-block { margin: 0 0 6mm 95mm; }
+.company-block table { border-collapse: collapse; width: 90mm; }
+.company-block td { padding: 0.5mm 2mm; font-size: 10pt; vertical-align: bottom; }
+.company-block td.lbl { white-space: nowrap; width: 30mm; }
+.company-block td.val { border-bottom: 0.5pt solid #000; min-width: 60mm; }
+
+.section-h { font-size: 10.5pt; margin: 4mm 0 2mm; }
+.as-of { font-size: 10pt; margin: 0 0 2mm; }
+
+.t1 { width: 100%; border-collapse: collapse; border: 1pt solid #000; margin-bottom: 4mm; }
+.t1 td { border: 0.5pt solid #000; padding: 3px 6px; font-size: 9.5pt; vertical-align: middle; text-align: center; }
+.t1 td.h1 { font-weight: normal; height: 6mm; }
+.t1 td.lbl { text-align: center; }
+.t1 td.val { font-size: 11pt; height: 8mm; }
+
+.t2 { width: 100%; border-collapse: collapse; border: 1pt solid #000; margin-bottom: 4mm; }
+.t2 td { border: 0.5pt solid #000; padding: 3px 6px; font-size: 10pt; vertical-align: middle; }
+.t2 td.h { text-align: center; height: 7mm; }
+.t2 td.lbl { width: 35%; padding-left: 4mm; }
+.t2 td.body { padding: 4mm; min-height: 24mm; vertical-align: top; }
+
+.t3 { width: 100%; border-collapse: collapse; border: 1pt solid #000; margin-bottom: 4mm; }
+.t3 td { border: 0.5pt solid #000; padding: 3px 6px; font-size: 10pt; vertical-align: middle; }
+.t3 td.body { padding: 4mm; min-height: 18mm; vertical-align: top; }
+
+.req-table { width: 100%; border-collapse: collapse; border: 1pt solid #000; margin-bottom: 4mm; }
+.req-table td { border: 0.5pt solid #000; padding: 4px 6px; font-size: 9.5pt; vertical-align: top; }
+.req-table td.req-text { width: 90%; }
+.req-table td.req-mark { width: 10%; text-align: center; }
+
+.notes { font-size: 8.5pt; line-height: 1.6; margin-top: 4mm; }
+.notes .note-title { font-weight: bold; margin-bottom: 1mm; }
+.notes ol { margin-left: 6mm; }
+.notes li { margin-bottom: 0.5mm; }
+</style>
+</head>
+<body>
+
+<div class="print-controls">
+    <button class="btn-print" onclick="window.print()"><b>PDF保存 / 印刷</b></button>
+    <button class="btn-close" onclick="window.close()">閉じる</button>
+</div>
+
+<div class="page-wrapper">
+
+<div class="form-no">第21号様式（日本工業規格Ａ列４番）</div>
+
+<div class="title">移 動 等 円 滑 化 実 績 等 報 告 書（福祉タクシー車両）</div>
+<div class="subtitle">（令和' . $reiwa . '年度）</div>
+
+<!-- 事業者情報 -->
+<div class="company-block">
+    <table>
+        <tr><td class="lbl">　　住　　所</td><td class="val">' . $h($company['address']) . '</td></tr>
+        <tr><td class="lbl">　　事業者名</td><td class="val">' . $h($company['company_name']) . '</td></tr>
+        <tr><td class="lbl">　　代表者名（役職名及び氏名）</td><td class="val">' . $h($company['representative_name']) . '</td></tr>
+    </table>
+</div>
+
+<!-- 1. 達成状況 -->
+<div class="section-h">１．福祉タクシー車両の移動等円滑化の達成状況</div>
+<div class="as-of">（令和' . $reiwa . '年３月３１日現在）</div>
+
+<table class="t1">
+    <tr>
+        <td class="h1" rowspan="2" style="width:18%;">　</td>
+        <td class="h1" colspan="6">公　共　交　通　移　動　等　円　滑　化　基　準　省　令　に　適　合　し　た　車　両　数</td>
+    </tr>
+    <tr>
+        <td class="h1" style="width:9%;">計</td>
+        <td class="h1" colspan="2" style="width:24%;">車椅子対応車数<br><span style="font-size:8.5pt;">うち、ユニバーサルデザインタクシー車両数</span></td>
+        <td class="h1" style="width:13%;">寝台対応車数</td>
+        <td class="h1" style="width:13%;">兼用車数</td>
+        <td class="h1" style="width:14%;">回転シート車数</td>
+    </tr>
+    <tr>
+        <td class="lbl">前年度車両数</td>
+        <td class="val">' . $f($company['form21_prev_total'] ?? 0) . '</td>
+        <td class="val">' . $f($company['form21_prev_wheelchair'] ?? 0) . '</td>
+        <td class="val">' . $f($company['form21_prev_udt'] ?? 0) . '</td>
+        <td class="val">' . $f($company['form21_prev_stretcher'] ?? 0) . '</td>
+        <td class="val">' . $f($company['form21_prev_combo'] ?? 0) . '</td>
+        <td class="val">' . $f($company['form21_prev_rotation'] ?? 0) . '</td>
+    </tr>
+    <tr>
+        <td class="lbl">年度末車両数</td>
+        <td class="val">' . $f21['total'] . '</td>
+        <td class="val">' . $f21['wheelchair'] . '</td>
+        <td class="val">' . $f21['udt'] . '</td>
+        <td class="val">' . $f21['stretcher'] . '</td>
+        <td class="val">' . $f21['combo'] . '</td>
+        <td class="val">' . $f21['rotation'] . '</td>
+    </tr>
+</table>
+
+<!-- 2. 計画 -->
+<div class="section-h">２．福祉タクシー車両の移動等円滑化のための事業の計画</div>
+
+<table class="t2">
+    <tr>
+        <td class="h" style="width:30%;">対象となる福祉タクシー車両</td>
+        <td class="h">計画内容<br><span style="font-size:9pt;">（計画対象期間及び事業の主な内容を明記すること。）</span></td>
+    </tr>
+    <tr>
+        <td class="body">　</td>
+        <td class="body">' . nl2br($h($company['form21_plan_content'] ?? '')) . '</td>
+    </tr>
+</table>
+
+<table class="t3">
+    <tr><td class="h" style="text-align:left; padding-left:4mm; height:6mm;">前年度の計画からの変更内容</td></tr>
+    <tr><td class="body">' . nl2br($h($company['form21_change_content'] ?? '')) . '</td></tr>
+</table>
+
+<!-- Ⅲ. 要件 -->
+<div class="section-h">Ⅲ．高齢者、障害者等の移動等の円滑化の促進に関する法律施行規則第６条の２で定める要件に関する事項</div>
+
+<table class="req-table">
+    <tr>
+        <td class="req-text">（１）過去３年度における１年度当たりの平均の輸送人員が1000万人以上である。</td>
+        <td class="req-mark">　</td>
+    </tr>
+    <tr>
+        <td class="req-text">（２）過去３年度における１年度当たりの平均の輸送人員が100万人以上1000万人未満であり、かつ、以下のいずれかに該当する。<br>　　　①中小企業者でない。<br>　　　②大企業者である公共交通事業者等が自社の株式を50％以上所有しているか、又は自社に対し50％以上出資している中小企業者である。</td>
+        <td class="req-mark">　</td>
+    </tr>
+</table>
+
+<!-- 注記 -->
+<div class="notes">
+    <div class="note-title">（第21号様式）</div>
+    <ol>
+        <li>公共交通移動等円滑化基準省令に適合した車両数の欄には、公共交通移動等円滑化基準省令第45条第１項又は第２項の基準に適合している車両の合計数を記入すること。</li>
+        <li>車椅子対応車数の欄には、公共交通移動等円滑化基準省令第45条第１項の基準に適合している車両のうち、車椅子使用者のみを輸送することができる車両の合計数を記入すること。</li>
+        <li>ユニバーサルデザインタクシーの台数の欄には、２の車両のうち、移動等円滑化の促進に関する基本方針において移動等円滑化の目標が定められているノンステップバスの基準等を定める告示（平成24年国土交通省告示第257号）第４条第１項の規定に基づき、ユニバーサルデザインタクシーの認定を受けている車両の合計数を記入すること。</li>
+        <li>寝台対応車数の欄には、公共交通移動等円滑化基準省令第45条第１項の基準に適合している車両のうち、寝台等を使用している者のみを輸送することができる車両の合計数を記入すること。</li>
+        <li>兼用車数の欄には、公共交通移動等円滑化基準省令第45条第１項の基準に適合している車両のうち、車椅子使用者及び寝台等を使用している者のいずれをも輸送することができる車両の合計数を記入すること。</li>
+        <li>回転シート車数の欄には、公共交通移動等円滑化基準省令第45条第２項の基準に適合している車両の合計数を記入すること。</li>
+        <li>Ⅲについては、該当する場合には右の欄に○印を記入すること。</li>
+        <li>「中小企業者」とは、資本金の額が３億円以下又は従業員数が300人以下である民間事業者を指す。</li>
+        <li>「大企業者」とは、中小企業者以外の民間事業者を指す。</li>
+    </ol>
+</div>
+
+</div>
+</body>
+</html>';
+}
+
+function generateForm21Excel($company, $f21, $year) {
+    $filename = 'fukushi_taxi_R' . toReiwaYear($year) . '.xls';
+    header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: no-cache, must-revalidate');
+    header('Pragma: no-cache');
+
+    $reiwa = toReiwaYear($year);
+    $h = function($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
+
+    echo "\xEF\xBB\xBF";
+    echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8">
+<!--[if gte mso 9]><xml>
+ <x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+  <x:Name>福祉タクシー車両</x:Name>
+  <x:WorksheetOptions><x:Print><x:PaperSizeIndex>9</x:PaperSizeIndex><x:Orientation>Portrait</x:Orientation></x:Print></x:WorksheetOptions>
+ </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook>
+</xml><![endif]-->
+<style>
+table { border-collapse: collapse; }
+td { font-family: "ＭＳ Ｐ明朝", "Yu Mincho", serif; font-size: 10pt; vertical-align: middle; }
+td.bx { border: 0.5pt solid #000; }
+td.ctr { text-align: center; }
+td.title { font-size: 14pt; font-weight: bold; text-align: center; }
+td.sub { font-size: 11pt; text-align: center; }
+td.head { font-size: 9pt; }
+td.h { font-size: 9.5pt; text-align: center; }
+td.num { text-align: center; mso-number-format:"\#\,\#\#0"; }
+td.note { font-size: 9pt; }
+</style>
+</head><body>
+<table>';
+    // 様式番号
+    echo '<tr><td colspan="7" class="head">第21号様式（日本工業規格Ａ列４番）</td></tr>';
+    echo '<tr><td colspan="7" class="title">移 動 等 円 滑 化 実 績 等 報 告 書（福祉タクシー車両）</td></tr>';
+    echo '<tr><td colspan="7" class="sub">（令和' . $reiwa . '年度）</td></tr>';
+    echo '<tr><td colspan="7"></td></tr>';
+
+    // 事業者情報
+    echo '<tr><td colspan="3"></td><td>　　住　　所</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['address']) . '</td></tr>';
+    echo '<tr><td colspan="3"></td><td>　　事業者名</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['company_name']) . '</td></tr>';
+    echo '<tr><td colspan="3"></td><td>　　代表者名（役職名及び氏名）</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['representative_name']) . '</td></tr>';
+    echo '<tr><td colspan="7"></td></tr>';
+
+    // 1. 達成状況
+    echo '<tr><td colspan="7">１．福祉タクシー車両の移動等円滑化の達成状況</td></tr>';
+    echo '<tr><td colspan="7">（令和' . $reiwa . '年３月３１日現在）</td></tr>';
+
+    // 達成状況テーブル: 7列構成
+    echo '<tr>';
+    echo '<td class="bx h" rowspan="2">　</td>';
+    echo '<td class="bx h" colspan="6">公共交通移動等円滑化基準省令に適合した車両数</td>';
+    echo '</tr>';
+    echo '<tr>';
+    echo '<td class="bx h">計</td>';
+    echo '<td class="bx h">車椅子対応車数</td>';
+    echo '<td class="bx h">うちUDT</td>';
+    echo '<td class="bx h">寝台対応車数</td>';
+    echo '<td class="bx h">兼用車数</td>';
+    echo '<td class="bx h">回転シート車数</td>';
+    echo '</tr>';
+
+    // 前年度車両数
+    echo '<tr>';
+    echo '<td class="bx ctr">前年度車両数</td>';
+    echo '<td class="bx num">' . intval($company['form21_prev_total'] ?? 0) . '</td>';
+    echo '<td class="bx num">' . intval($company['form21_prev_wheelchair'] ?? 0) . '</td>';
+    echo '<td class="bx num">' . intval($company['form21_prev_udt'] ?? 0) . '</td>';
+    echo '<td class="bx num">' . intval($company['form21_prev_stretcher'] ?? 0) . '</td>';
+    echo '<td class="bx num">' . intval($company['form21_prev_combo'] ?? 0) . '</td>';
+    echo '<td class="bx num">' . intval($company['form21_prev_rotation'] ?? 0) . '</td>';
+    echo '</tr>';
+
+    // 年度末車両数
+    echo '<tr>';
+    echo '<td class="bx ctr">年度末車両数</td>';
+    echo '<td class="bx num">' . $f21['total'] . '</td>';
+    echo '<td class="bx num">' . $f21['wheelchair'] . '</td>';
+    echo '<td class="bx num">' . $f21['udt'] . '</td>';
+    echo '<td class="bx num">' . $f21['stretcher'] . '</td>';
+    echo '<td class="bx num">' . $f21['combo'] . '</td>';
+    echo '<td class="bx num">' . $f21['rotation'] . '</td>';
+    echo '</tr>';
+    echo '<tr><td colspan="7"></td></tr>';
+
+    // 2. 計画
+    echo '<tr><td colspan="7">２．福祉タクシー車両の移動等円滑化のための事業の計画</td></tr>';
+    echo '<tr><td class="bx h" colspan="3">対象となる福祉タクシー車両</td><td class="bx h" colspan="4">計画内容（計画対象期間及び事業の主な内容を明記すること。）</td></tr>';
+    echo '<tr><td class="bx" colspan="3" style="height:60pt;"></td><td class="bx" colspan="4" style="height:60pt; vertical-align:top;">' . nl2br($h($company['form21_plan_content'] ?? '')) . '</td></tr>';
+    echo '<tr><td class="bx" colspan="7">前年度の計画からの変更内容</td></tr>';
+    echo '<tr><td class="bx" colspan="7" style="height:50pt; vertical-align:top;">' . nl2br($h($company['form21_change_content'] ?? '')) . '</td></tr>';
+    echo '<tr><td colspan="7"></td></tr>';
+
+    // Ⅲ. 要件
+    echo '<tr><td colspan="7">Ⅲ．高齢者、障害者等の移動等の円滑化の促進に関する法律施行規則第６条の２で定める要件に関する事項</td></tr>';
+    echo '<tr><td class="bx" colspan="6">（１）過去３年度における１年度当たりの平均の輸送人員が1000万人以上である。</td><td class="bx ctr">　</td></tr>';
+    echo '<tr><td class="bx" colspan="6">（２）過去３年度における１年度当たりの平均の輸送人員が100万人以上1000万人未満であり、かつ、以下のいずれかに該当する。<br>　　　①中小企業者でない。<br>　　　②大企業者である公共交通事業者等が自社の株式を50％以上所有しているか、又は自社に対し50％以上出資している中小企業者である。</td><td class="bx ctr">　</td></tr>';
+    echo '<tr><td colspan="7"></td></tr>';
+
+    // 注記
+    foreach ([
+        '注１．公共交通移動等円滑化基準省令に適合した車両数の欄には、公共交通移動等円滑化基準省令第45条第１項又は第２項の基準に適合している車両の合計数を記入すること。',
+        '　２．車椅子対応車数の欄には、公共交通移動等円滑化基準省令第45条第１項の基準に適合している車両のうち、車椅子使用者のみを輸送することができる車両の合計数を記入すること。',
+        '　３．ユニバーサルデザインタクシーの台数の欄には、２の車両のうち、移動等円滑化の促進に関する基本方針において移動等円滑化の目標が定められているノンステップバスの基準等を定める告示（平成24年国土交通省告示第257号）第４条第１項の規定に基づき、ユニバーサルデザインタクシーの認定を受けている車両の合計数を記入すること。',
+        '　４．寝台対応車数の欄には、公共交通移動等円滑化基準省令第45条第１項の基準に適合している車両のうち、寝台等を使用している者のみを輸送することができる車両の合計数を記入すること。',
+        '　５．兼用車数の欄には、公共交通移動等円滑化基準省令第45条第１項の基準に適合している車両のうち、車椅子使用者及び寝台等を使用している者のいずれをも輸送することができる車両の合計数を記入すること。',
+        '　６．回転シート車数の欄には、公共交通移動等円滑化基準省令第45条第２項の基準に適合している車両の合計数を記入すること。',
+        '　７．Ⅲについては、該当する場合には右の欄に○印を記入すること。',
+        '　８．「中小企業者」とは、資本金の額が３億円以下又は従業員数が300人以下である民間事業者を指す。',
+        '　９．「大企業者」とは、中小企業者以外の民間事業者を指す。',
+    ] as $note) {
+        echo '<tr><td colspan="7" class="note">' . $h($note) . '</td></tr>';
+    }
+
+    echo '</table></body></html>';
+}
+
 // データ取得
 $company_info = getCompanyInfo($pdo);
 $business_overview = getBusinessOverview($pdo, $selected_year);
@@ -1204,6 +1573,57 @@ echo $page_data['page_header'];
                             </p>
                         </div>
                     <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 第21号様式（移動等円滑化実績等報告書 福祉タクシー車両） -->
+    <?php $form21_data = getForm21Data($pdo); ?>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-wheelchair me-2"></i>第21号様式（移動等円滑化実績等報告書 福祉タクシー車両）</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-lg-8">
+                            <h6>バリアフリー法施行規則第23条に基づく報告書</h6>
+                            <p class="text-muted mb-2">
+                                提出先: 国土交通省近畿運輸局 大阪運輸支局 輸送部門　提出期限: 毎年6月30日<br>
+                                対象: 福祉車両を保有する一般乗用旅客自動車運送事業者
+                            </p>
+                            <div class="small">
+                                <span class="badge bg-secondary">年度末車両数</span>
+                                計 <strong><?= $form21_data['total'] ?></strong>両 ／
+                                車椅子対応 <?= $form21_data['wheelchair'] ?>両 ／
+                                うちUDT <?= $form21_data['udt'] ?>両 ／
+                                寝台対応 <?= $form21_data['stretcher'] ?>両 ／
+                                兼用 <?= $form21_data['combo'] ?>両 ／
+                                回転シート <?= $form21_data['rotation'] ?>両
+                            </div>
+                            <small class="text-muted">※車両ごとの区分は <a href="vehicle_management.php">車両管理</a> 画面で設定。前年度数値・計画内容は <a href="company_settings.php">会社情報設定</a> で入力。</small>
+                        </div>
+                        <div class="col-lg-4 text-end">
+                            <form method="POST" class="d-inline" target="_blank">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                                <input type="hidden" name="action" value="export_form21">
+                                <input type="hidden" name="fiscal_year" value="<?= $selected_year ?>">
+                                <button type="submit" class="btn btn-success btn-lg">
+                                    <i class="fas fa-file-pdf me-2"></i>PDF出力
+                                </button>
+                            </form>
+                            <form method="POST" class="d-inline ms-2">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                                <input type="hidden" name="action" value="export_form21_excel">
+                                <input type="hidden" name="fiscal_year" value="<?= $selected_year ?>">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-file-excel me-2"></i>Excel出力
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
