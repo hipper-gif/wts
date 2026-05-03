@@ -337,24 +337,28 @@ function getAnnualReports($pdo, $year = null) {
     }
 }
 
-// PDF出力関数 — 近畿運輸局 第4号様式 第3表（福祉限定）の正式フォーマットに準拠
+// 西暦年度 → 和暦（令和X）変換
+function toReiwaYear($year) {
+    return intval($year) - 2018;
+}
+
+// PDF出力関数 — 近畿運輸局 第4号様式 第3表（福祉限定）公式書式に準拠
+// 参照: NAS \\LS220D679\share\04.介護タクシー共有フォルダ\…\2024年度\2024年度輸送実績報告書.xls
 function generateForm4PDF($company, $business, $transport, $accident, $year) {
     header('Content-Type: text/html; charset=UTF-8');
     header('Cache-Control: private, max-age=0, must-revalidate');
 
-    $prev_year = $year - 1;
-    $revenue_sen = floor(($transport['total_revenue'] ?? 0) / 1000); // 千円単位
+    $revenue_sen = floor(($transport['total_revenue'] ?? 0) / 1000);
+    $reiwa = toReiwaYear($year);
 
-    // 値のフォーマット（0の場合も表示）
     $f = function($v) { return number_format(intval($v)); };
 
     echo '<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>第4号様式 第3表（限定）輸送実績報告書 ' . htmlspecialchars($year) . '年度</title>
+<title>第4号様式 第3表（限定）輸送実績報告書 令和' . $reiwa . '年度</title>
 <style>
-/* === 印刷設定: A4縦 === */
 @page { size: A4 portrait; margin: 12mm 15mm 10mm 15mm; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -364,8 +368,6 @@ body {
     background: #fff;
     line-height: 1.4;
 }
-
-/* === 画面プレビュー === */
 .page-wrapper {
     width: 210mm; min-height: 297mm;
     margin: 10mm auto; padding: 12mm 15mm 10mm 15mm;
@@ -387,75 +389,73 @@ body {
     body { background: #fff; }
 }
 
-/* === 様式ヘッダー === */
-.form-header { font-size: 8pt; color: #333; margin-bottom: 6mm; }
-.form-number { display: flex; justify-content: space-between; }
-.form-number-left { }
-.form-number-right { display: flex; align-items: center; gap: 2mm; }
-.form-number-right .bango-box {
-    display: inline-block; border: 1px solid #000; padding: 1px 8px;
-    min-width: 60mm; text-align: center; font-size: 9pt;
+.form-header { font-size: 9pt; color: #000; margin-bottom: 4mm; }
+.form-number-row { display: flex; justify-content: space-between; align-items: center; }
+.bango-row { display: flex; align-items: center; gap: 2mm; font-size: 9pt; }
+.bango-row .bango-label { }
+.bango-row .bango-box {
+    display: inline-block; border: 1px solid #000; padding: 1px 6px;
+    min-width: 18mm; text-align: center;
 }
-.form-number-right .gentei { border: 1px solid #000; padding: 1px 6px; font-size: 9pt; }
+.bango-row .gentei { border: 1px solid #000; padding: 1px 8px; }
 
-.shikyu-line { font-size: 10pt; margin: 4mm 0; }
+.shikyu-line { font-size: 10.5pt; margin: 3mm 0 2mm; }
 .shikyu-line .shikyu-name {
     border-bottom: 1px solid #000; display: inline-block;
-    min-width: 30mm; text-align: center; padding: 0 2mm;
+    min-width: 22mm; text-align: center; padding: 0 2mm;
 }
+.shikyu-line .shikyu-suffix { padding-left: 1mm; }
 
-/* === タイトル === */
 .report-title {
-    text-align: center; font-size: 12pt; font-weight: bold;
-    margin: 4mm 0 5mm; letter-spacing: 0.15em;
+    text-align: center; font-size: 13pt; font-weight: bold;
+    margin: 4mm 0 4mm; letter-spacing: 0.1em;
 }
 
-/* === 宛先・事業者情報 === */
-.ate-line { font-size: 10pt; margin: 2mm 0 4mm; text-indent: 12em; }
-.company-block { margin-left: 48%; margin-bottom: 4mm; }
-.company-block table { border-collapse: collapse; }
-.company-block td { padding: 1px 4px; font-size: 9.5pt; vertical-align: top; }
-.company-block td.lbl { white-space: nowrap; padding-right: 6px; }
-.company-block td.val { border-bottom: 1px dotted #666; min-width: 50mm; }
+.ate-line { font-size: 10pt; margin: 2mm 0 3mm; padding-left: 28%; }
+.company-block { margin-left: 45%; margin-bottom: 4mm; }
+.company-block table { border-collapse: collapse; width: 100%; }
+.company-block td { padding: 1px 4px; font-size: 10pt; vertical-align: top; }
+.company-block td.lbl { white-space: nowrap; padding-right: 6px; width: 24mm; }
+.company-block td.val { border-bottom: 1px solid #000; }
 
-/* === データテーブル === */
 .data-table {
-    width: 100%; border-collapse: collapse; margin-bottom: 0;
-    border: 1.5pt solid #000;
+    width: 100%; border-collapse: collapse;
+    border: 1.2pt solid #000;
 }
-.data-table th, .data-table td {
+.data-table td {
     border: 0.5pt solid #000; padding: 3px 6px;
-    font-size: 9.5pt; vertical-align: middle;
+    font-size: 10pt; vertical-align: middle;
 }
 .data-table .section-title {
-    text-align: left; font-weight: bold; font-size: 9.5pt;
-    background: none; border-bottom: 1.5pt solid #000;
+    text-align: left; font-weight: normal; font-size: 10pt;
+    border-bottom: 0.5pt solid #000;
     padding: 4px 6px;
 }
 .data-table .col-header {
-    text-align: center; font-weight: normal; font-size: 9pt;
-    background: none; height: 22px;
+    text-align: center; font-weight: normal; font-size: 9.5pt;
+    height: 20px;
 }
 .data-table .item-label {
-    text-align: left; font-size: 9.5pt; background: none;
-    padding-left: 8px;
+    text-align: left; font-size: 10pt; padding-left: 8px;
 }
 .data-table .item-value {
-    text-align: right; font-size: 10pt; background: none;
-    padding-right: 8px;
+    text-align: right; font-size: 10pt; padding-right: 4px;
 }
-.data-table .employee-paren {
-    text-align: right; font-size: 9pt; padding-right: 4px;
+.data-table .item-unit {
+    text-align: left; font-size: 9pt; padding-left: 4px;
+    width: 10mm; color: #000;
+}
+.data-table .empl-paren {
+    text-align: right; font-size: 9.5pt;
 }
 
-/* === 備考 === */
 .biko {
-    border: 1.5pt solid #000; border-top: none;
-    padding: 4px 8px; font-size: 8pt; line-height: 1.5;
+    border: 1.2pt solid #000; border-top: none;
+    padding: 4px 10px; font-size: 8.5pt; line-height: 1.6;
 }
-.biko .biko-title { font-weight: bold; font-size: 8.5pt; margin-bottom: 2px; }
-.biko ol { margin: 0; padding-left: 16px; }
-.biko li { margin-bottom: 1px; }
+.biko .biko-title { font-weight: normal; font-size: 9pt; margin-bottom: 2px; display: inline-block; padding-right: 6px; }
+.biko ol { margin: 0 0 0 24px; padding: 0; }
+.biko li { margin-bottom: 0; }
 </style>
 </head>
 <body>
@@ -467,12 +467,13 @@ body {
 
 <div class="page-wrapper">
 
-<!-- ヘッダー: 様式番号 -->
+<!-- 様式番号と事業者番号 -->
 <div class="form-header">
-    <div class="form-number">
-        <div class="form-number-left">第４号様式　（第２条関係）　（日本工業規格Ａ列４番）　第３表</div>
-        <div class="form-number-right">
-            事業者番号 <span class="bango-box">&nbsp;</span>
+    <div class="form-number-row">
+        <div>第４号様式　（第２条関係）　（日本工業規格Ａ列４番）　第３表</div>
+        <div class="bango-row">
+            <span class="bango-label">事業者番号</span>
+            <span class="bango-box">' . htmlspecialchars($company['business_number'] ?? '') . '</span>
             <span class="gentei">限定</span>
         </div>
     </div>
@@ -480,23 +481,23 @@ body {
 
 <!-- 運輸支局 -->
 <div class="shikyu-line">
-    <span class="shikyu-name">大阪</span>運輸支局
+    <span class="shikyu-name">大阪</span><span class="shikyu-suffix">運輸支局</span>
 </div>
 
 <!-- タイトル -->
 <div class="report-title">
-    一般乗用旅客自動車運送事業 （限定） 輸送実績報告書 （' . htmlspecialchars($year) . '年度）
+    一般乗用旅客自動車運送事業 （限定） 輸送実績報告書 （令和' . $reiwa . '年度）
 </div>
 
 <!-- 宛先 -->
-<div class="ate-line">国土交通大臣　あて</div>
+<div class="ate-line">あて</div>
 
 <!-- 事業者情報 -->
 <div class="company-block">
     <table>
-        <tr><td class="lbl">住　　　所</td><td class="val">' . htmlspecialchars(($company['postal_code'] ? '〒' . $company['postal_code'] . '　' : '') . $company['address']) . '</td></tr>
+        <tr><td class="lbl">住　　　所</td><td class="val">' . htmlspecialchars($company['address']) . '</td></tr>
         <tr><td class="lbl">事業者名</td><td class="val">' . htmlspecialchars($company['company_name']) . '</td></tr>
-        <tr><td class="lbl">代表者名</td><td class="val">' . htmlspecialchars($company['representative_name']) . '　</td></tr>
+        <tr><td class="lbl">代表者名</td><td class="val">' . htmlspecialchars($company['representative_name']) . '</td></tr>
         <tr><td class="lbl">電話番号</td><td class="val">' . htmlspecialchars($company['phone']) . '</td></tr>
     </table>
 </div>
@@ -504,96 +505,118 @@ body {
 <!-- ============ 事業概況 ============ -->
 <table class="data-table">
     <tr>
-        <td colspan="3" class="section-title">事業概況 （' . htmlspecialchars($year) . '年３月３１日現在）</td>
+        <td colspan="5" class="section-title">事業概況 （令和' . $reiwa . '年３月３１日現在）</td>
     </tr>
     <tr>
         <td class="col-header" style="width:50%;">&nbsp;</td>
-        <td class="col-header" style="width:25%;">管轄区域内</td>
-        <td class="col-header" style="width:25%;">全国</td>
+        <td class="col-header" colspan="2" style="width:25%;">管轄区域内</td>
+        <td class="col-header" colspan="2" style="width:25%;">全国</td>
     </tr>
     <tr>
-        <td class="item-label">資本金（基金）の額 （千円）</td>
+        <td class="item-label">資本金（資金）の額 （千円）</td>
+        <td class="item-value">' . $f($company['capital_thousand_yen'] ?? 0) . '</td>
+        <td class="item-unit">千円</td>
         <td class="item-value">&nbsp;</td>
-        <td class="item-value">&nbsp;</td>
+        <td class="item-unit">&nbsp;</td>
     </tr>
     <tr>
         <td class="item-label">兼営事業</td>
-        <td class="item-value">&nbsp;</td>
-        <td class="item-value">&nbsp;</td>
+        <td class="item-value" colspan="2">' . htmlspecialchars($company['concurrent_business'] ?? '') . '</td>
+        <td class="item-value" colspan="2">&nbsp;</td>
     </tr>
     <tr>
         <td class="item-label">事業用自動車数 （両）</td>
         <td class="item-value">' . $f($business['vehicle_count']) . '</td>
-        <td class="item-value">' . $f($business['vehicle_count']) . '</td>
+        <td class="item-unit">両</td>
+        <td class="item-value">&nbsp;</td>
+        <td class="item-unit">&nbsp;</td>
     </tr>
     <tr>
         <td class="item-label">従業員数</td>
-        <td class="item-value">' . $f($business['employee_count']) . '<span class="employee-paren">（' . $f($business['driver_count']) . '）</span></td>
-        <td class="item-value">' . $f($business['employee_count']) . '<span class="employee-paren">（' . $f($business['driver_count']) . '）</span></td>
+        <td class="item-value">' . $f($business['employee_count']) . '</td>
+        <td class="empl-paren">（' . $f($business['driver_count']) . '）</td>
+        <td class="item-value">&nbsp;</td>
+        <td class="empl-paren">（　　）</td>
     </tr>
 </table>
 
 <!-- ============ 輸送実績 ============ -->
 <table class="data-table" style="border-top: none;">
     <tr>
-        <td colspan="3" class="section-title">輸送実績 （前年４月１日から本年３月３１日まで）</td>
+        <td colspan="5" class="section-title">輸送実績 （前年４月１日から本年３月３１日まで）</td>
     </tr>
     <tr>
         <td class="col-header" style="width:50%;">&nbsp;</td>
-        <td class="col-header" style="width:25%;">管轄区域内</td>
-        <td class="col-header" style="width:25%;">全国</td>
+        <td class="col-header" colspan="2" style="width:25%;">管轄区域内</td>
+        <td class="col-header" colspan="2" style="width:25%;">全国</td>
     </tr>
     <tr>
         <td class="item-label">走行キロ （キロメートル）</td>
         <td class="item-value">' . $f($transport['total_distance']) . '</td>
-        <td class="item-value">' . $f($transport['total_distance']) . '</td>
+        <td class="item-unit">km</td>
+        <td class="item-value">&nbsp;</td>
+        <td class="item-unit">&nbsp;</td>
     </tr>
     <tr>
         <td class="item-label">運送回数 （回）</td>
         <td class="item-value">' . $f($transport['ride_count']) . '</td>
-        <td class="item-value">' . $f($transport['ride_count']) . '</td>
+        <td class="item-unit">回</td>
+        <td class="item-value">&nbsp;</td>
+        <td class="item-unit">&nbsp;</td>
     </tr>
     <tr>
         <td class="item-label">輸送人員 （人）</td>
         <td class="item-value">' . $f($transport['total_passengers']) . '</td>
-        <td class="item-value">' . $f($transport['total_passengers']) . '</td>
+        <td class="item-unit">人</td>
+        <td class="item-value">&nbsp;</td>
+        <td class="item-unit">&nbsp;</td>
     </tr>
     <tr>
         <td class="item-label">営業収入 （千円）</td>
         <td class="item-value">' . $f($revenue_sen) . '</td>
-        <td class="item-value">' . $f($revenue_sen) . '</td>
+        <td class="item-unit">千円</td>
+        <td class="item-value">&nbsp;</td>
+        <td class="item-unit">&nbsp;</td>
     </tr>
 </table>
 
 <!-- ============ 事故件数 ============ -->
 <table class="data-table" style="border-top: none;">
     <tr>
-        <td colspan="3" class="section-title">事故件数 （前年４月１日から本年３月３１日まで）</td>
+        <td colspan="5" class="section-title">事故件数 （前年４月１日から本年３月３１日まで）</td>
     </tr>
     <tr>
         <td class="col-header" style="width:50%;">&nbsp;</td>
-        <td class="col-header" style="width:25%;">管轄区域内</td>
-        <td class="col-header" style="width:25%;">全国</td>
+        <td class="col-header" colspan="2" style="width:25%;">管轄区域内</td>
+        <td class="col-header" colspan="2" style="width:25%;">全国</td>
     </tr>
     <tr>
         <td class="item-label">交通事故件数</td>
         <td class="item-value">' . $f($accident['traffic_accidents']) . '</td>
-        <td class="item-value">' . $f($accident['traffic_accidents']) . '</td>
+        <td class="item-unit">件</td>
+        <td class="item-value">&nbsp;</td>
+        <td class="item-unit">&nbsp;</td>
     </tr>
     <tr>
         <td class="item-label">重大事故件数</td>
         <td class="item-value">' . $f($accident['serious_accidents']) . '</td>
-        <td class="item-value">' . $f($accident['serious_accidents']) . '</td>
+        <td class="item-unit">件</td>
+        <td class="item-value">&nbsp;</td>
+        <td class="item-unit">&nbsp;</td>
     </tr>
     <tr>
         <td class="item-label">死者数</td>
         <td class="item-value">' . $f($accident['total_deaths']) . '</td>
-        <td class="item-value">' . $f($accident['total_deaths']) . '</td>
+        <td class="item-unit">件</td>
+        <td class="item-value">&nbsp;</td>
+        <td class="item-unit">&nbsp;</td>
     </tr>
     <tr>
         <td class="item-label">負傷者数</td>
         <td class="item-value">' . $f($accident['total_injuries']) . '</td>
-        <td class="item-value">' . $f($accident['total_injuries']) . '</td>
+        <td class="item-unit">件</td>
+        <td class="item-value">&nbsp;</td>
+        <td class="item-unit">&nbsp;</td>
     </tr>
 </table>
 
@@ -603,84 +626,98 @@ body {
     <ol>
         <li>兼営事業については、主な兼営事業の名称を記載すること。</li>
         <li>従業員数は、兼営事業がある場合は主として当該事業に従事している人数及び共通部門に従事している従業員については当該事業分として適正な基準により配分した人数とする。</li>
-        <li>従業員数の欄の（　　）には、運転者数を記載すること。</li>
+        <li>従業員数の欄の（　　　　）には、運転者数を記載すること。</li>
         <li>交通事故とは、道路交通法（昭和35年法律第105号）第72条第１項の交通事故をいう。</li>
         <li>重大事故とは、自動車事故報告規則（昭和26年運輸省令第104号）第２条の事故をいう。</li>
     </ol>
 </div>
 
-</div><!-- .page-wrapper -->
+</div>
 </body>
 </html>';
 }
 
-// エクセル出力関数 — 第4号様式 第3表（福祉限定）準拠
+// エクセル出力関数 — 近畿運輸局 第4号様式 第3表（福祉限定）公式書式に準拠
 function generateForm4Excel($company, $business, $transport, $accident, $year) {
-    $filename = 'gentei_jisseki_' . $year . '.xls';
+    $filename = 'gentei_jisseki_R' . toReiwaYear($year) . '.xls';
     header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Cache-Control: no-cache, must-revalidate');
     header('Pragma: no-cache');
 
     $revenue_sen = floor(($transport['total_revenue'] ?? 0) / 1000);
+    $reiwa = toReiwaYear($year);
 
-    // UTF-8 BOM for Excel compatibility
     echo "\xEF\xBB\xBF";
 
     echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
     echo '<head><meta charset="UTF-8">';
     echo '<style>
-        td, th { font-family: "Yu Gothic", "Meiryo", sans-serif; font-size: 10pt; vertical-align: middle; }
+        td { font-family: "Yu Gothic", "Meiryo", sans-serif; font-size: 10pt; vertical-align: middle; }
         td.num { text-align: right; mso-number-format:"\#\,\#\#0"; }
-        td.lbl { background: none; }
-        .sec { font-weight: bold; }
-        .hdr { text-align: center; }
+        td.unit { text-align: left; font-size: 9pt; }
+        td.hdr { text-align: center; font-size: 9.5pt; }
+        td.sec { font-size: 10pt; }
+        td.title { text-align: center; font-weight: bold; font-size: 12pt; }
     </style></head><body>';
 
     echo '<table border="1" cellpadding="4" cellspacing="0">';
 
-    // 様式番号
-    echo '<tr><td colspan="3">第４号様式（第２条関係）（日本工業規格Ａ列４番）第３表</td></tr>';
-    echo '<tr><td colspan="3"></td></tr>';
+    // 様式番号 + 事業者番号
+    echo '<tr>';
+    echo '<td colspan="3">第４号様式（第２条関係）（日本工業規格Ａ列４番）第３表</td>';
+    echo '<td>事業者番号</td><td>' . htmlspecialchars($company['business_number'] ?? '') . '</td>';
+    echo '<td>限定</td>';
+    echo '</tr>';
+    echo '<tr><td colspan="6"></td></tr>';
 
-    // 支局・タイトル
-    echo '<tr><td colspan="3">大阪運輸支局</td></tr>';
-    echo '<tr><td colspan="3"></td></tr>';
-    echo '<tr><td colspan="3" style="text-align:center;font-weight:bold;font-size:12pt;">一般乗用旅客自動車運送事業（限定）輸送実績報告書（' . htmlspecialchars($year) . '年度）</td></tr>';
-    echo '<tr><td colspan="3"></td></tr>';
+    echo '<tr><td colspan="6">大阪運輸支局</td></tr>';
+    echo '<tr><td colspan="6"></td></tr>';
+    echo '<tr><td colspan="6" class="title">一般乗用旅客自動車運送事業（限定）輸送実績報告書（令和' . $reiwa . '年度）</td></tr>';
+    echo '<tr><td colspan="6"></td></tr>';
+    echo '<tr><td colspan="6" style="text-align:right;">あて</td></tr>';
+    echo '<tr><td colspan="6"></td></tr>';
 
     // 事業者情報
-    echo '<tr><td></td><td>住　　　所</td><td>' . htmlspecialchars(($company['postal_code'] ? '〒' . $company['postal_code'] . ' ' : '') . $company['address']) . '</td></tr>';
-    echo '<tr><td></td><td>事業者名</td><td>' . htmlspecialchars($company['company_name']) . '</td></tr>';
-    echo '<tr><td></td><td>代表者名</td><td>' . htmlspecialchars($company['representative_name']) . '</td></tr>';
-    echo '<tr><td></td><td>電話番号</td><td>' . htmlspecialchars($company['phone']) . '</td></tr>';
-    echo '<tr><td colspan="3"></td></tr>';
+    echo '<tr><td colspan="2"></td><td>住　　　所</td><td colspan="3">' . htmlspecialchars($company['address']) . '</td></tr>';
+    echo '<tr><td colspan="2"></td><td>事業者名</td><td colspan="3">' . htmlspecialchars($company['company_name']) . '</td></tr>';
+    echo '<tr><td colspan="2"></td><td>代表者名</td><td colspan="3">' . htmlspecialchars($company['representative_name']) . '</td></tr>';
+    echo '<tr><td colspan="2"></td><td>電話番号</td><td colspan="3">' . htmlspecialchars($company['phone']) . '</td></tr>';
+    echo '<tr><td colspan="6"></td></tr>';
 
     // 事業概況
-    echo '<tr><td colspan="3" class="sec">事業概況（' . htmlspecialchars($year) . '年3月31日現在）</td></tr>';
-    echo '<tr><td class="lbl"></td><td class="hdr">管轄区域内</td><td class="hdr">全国</td></tr>';
-    echo '<tr><td class="lbl">資本金（基金）の額（千円）</td><td class="num"></td><td class="num"></td></tr>';
-    echo '<tr><td class="lbl">兼営事業</td><td></td><td></td></tr>';
-    echo '<tr><td class="lbl">事業用自動車数（両）</td><td class="num">' . $business['vehicle_count'] . '</td><td class="num">' . $business['vehicle_count'] . '</td></tr>';
-    echo '<tr><td class="lbl">従業員数（うち運転者数）</td><td class="num">' . $business['employee_count'] . '（' . $business['driver_count'] . '）</td><td class="num">' . $business['employee_count'] . '（' . $business['driver_count'] . '）</td></tr>';
-    echo '<tr><td colspan="3"></td></tr>';
+    echo '<tr><td colspan="6" class="sec">事業概況（令和' . $reiwa . '年３月３１日現在）</td></tr>';
+    echo '<tr><td colspan="2"></td><td colspan="2" class="hdr">管轄区域内</td><td colspan="2" class="hdr">全国</td></tr>';
+    echo '<tr><td colspan="2">資本金（資金）の額 （千円）</td><td class="num">' . intval($company['capital_thousand_yen'] ?? 0) . '</td><td class="unit">千円</td><td class="num"></td><td class="unit"></td></tr>';
+    echo '<tr><td colspan="2">兼営事業</td><td colspan="2">' . htmlspecialchars($company['concurrent_business'] ?? '') . '</td><td colspan="2"></td></tr>';
+    echo '<tr><td colspan="2">事業用自動車数 （両）</td><td class="num">' . intval($business['vehicle_count']) . '</td><td class="unit">両</td><td class="num"></td><td class="unit"></td></tr>';
+    echo '<tr><td colspan="2">従業員数</td><td class="num">' . intval($business['employee_count']) . '</td><td class="unit">（' . intval($business['driver_count']) . '）</td><td class="num"></td><td class="unit">（　　）</td></tr>';
+    echo '<tr><td colspan="6"></td></tr>';
 
     // 輸送実績
-    echo '<tr><td colspan="3" class="sec">輸送実績（前年4月1日から本年3月31日まで）</td></tr>';
-    echo '<tr><td class="lbl"></td><td class="hdr">管轄区域内</td><td class="hdr">全国</td></tr>';
-    echo '<tr><td class="lbl">走行キロ（キロメートル）</td><td class="num">' . intval($transport['total_distance']) . '</td><td class="num">' . intval($transport['total_distance']) . '</td></tr>';
-    echo '<tr><td class="lbl">運送回数（回）</td><td class="num">' . intval($transport['ride_count']) . '</td><td class="num">' . intval($transport['ride_count']) . '</td></tr>';
-    echo '<tr><td class="lbl">輸送人員（人）</td><td class="num">' . intval($transport['total_passengers']) . '</td><td class="num">' . intval($transport['total_passengers']) . '</td></tr>';
-    echo '<tr><td class="lbl">営業収入（千円）</td><td class="num">' . $revenue_sen . '</td><td class="num">' . $revenue_sen . '</td></tr>';
-    echo '<tr><td colspan="3"></td></tr>';
+    echo '<tr><td colspan="6" class="sec">輸送実績 （前年４月１日から本年３月３１日まで）</td></tr>';
+    echo '<tr><td colspan="2"></td><td colspan="2" class="hdr">管轄区域内</td><td colspan="2" class="hdr">全国</td></tr>';
+    echo '<tr><td colspan="2">走行キロ （キロメートル）</td><td class="num">' . intval($transport['total_distance']) . '</td><td class="unit">km</td><td class="num"></td><td class="unit"></td></tr>';
+    echo '<tr><td colspan="2">運送回数 （回）</td><td class="num">' . intval($transport['ride_count']) . '</td><td class="unit">回</td><td class="num"></td><td class="unit"></td></tr>';
+    echo '<tr><td colspan="2">輸送人員 （人）</td><td class="num">' . intval($transport['total_passengers']) . '</td><td class="unit">人</td><td class="num"></td><td class="unit"></td></tr>';
+    echo '<tr><td colspan="2">営業収入 （千円）</td><td class="num">' . $revenue_sen . '</td><td class="unit">千円</td><td class="num"></td><td class="unit"></td></tr>';
+    echo '<tr><td colspan="6"></td></tr>';
 
     // 事故件数
-    echo '<tr><td colspan="3" class="sec">事故件数（前年4月1日から本年3月31日まで）</td></tr>';
-    echo '<tr><td class="lbl"></td><td class="hdr">管轄区域内</td><td class="hdr">全国</td></tr>';
-    echo '<tr><td class="lbl">交通事故件数</td><td class="num">' . $accident['traffic_accidents'] . '</td><td class="num">' . $accident['traffic_accidents'] . '</td></tr>';
-    echo '<tr><td class="lbl">重大事故件数</td><td class="num">' . $accident['serious_accidents'] . '</td><td class="num">' . $accident['serious_accidents'] . '</td></tr>';
-    echo '<tr><td class="lbl">死者数</td><td class="num">' . $accident['total_deaths'] . '</td><td class="num">' . $accident['total_deaths'] . '</td></tr>';
-    echo '<tr><td class="lbl">負傷者数</td><td class="num">' . $accident['total_injuries'] . '</td><td class="num">' . $accident['total_injuries'] . '</td></tr>';
+    echo '<tr><td colspan="6" class="sec">事故件数 （前年４月１日から本年３月３１日まで）</td></tr>';
+    echo '<tr><td colspan="2"></td><td colspan="2" class="hdr">管轄区域内</td><td colspan="2" class="hdr">全国</td></tr>';
+    echo '<tr><td colspan="2">交通事故件数</td><td class="num">' . intval($accident['traffic_accidents']) . '</td><td class="unit">件</td><td class="num"></td><td class="unit"></td></tr>';
+    echo '<tr><td colspan="2">重大事故件数</td><td class="num">' . intval($accident['serious_accidents']) . '</td><td class="unit">件</td><td class="num"></td><td class="unit"></td></tr>';
+    echo '<tr><td colspan="2">死者数</td><td class="num">' . intval($accident['total_deaths']) . '</td><td class="unit">件</td><td class="num"></td><td class="unit"></td></tr>';
+    echo '<tr><td colspan="2">負傷者数</td><td class="num">' . intval($accident['total_injuries']) . '</td><td class="unit">件</td><td class="num"></td><td class="unit"></td></tr>';
+
+    // 備考
+    echo '<tr><td colspan="6"></td></tr>';
+    echo '<tr><td>備　考</td><td>1</td><td colspan="4">兼営事業については、主な兼営事業の名称を記載すること。</td></tr>';
+    echo '<tr><td></td><td>2</td><td colspan="4">従業員数は、兼営事業がある場合は主として当該事業に従事している人数及び共通部門に従事している従業員については当該事業分として適正な基準により配分した人数とする。</td></tr>';
+    echo '<tr><td></td><td>3</td><td colspan="4">従業員数の欄の（　　　　）には、運転者数を記載すること。</td></tr>';
+    echo '<tr><td></td><td>4</td><td colspan="4">交通事故とは、道路交通法（昭和35年法律第105号）第72条第１項の交通事故をいう。</td></tr>';
+    echo '<tr><td></td><td>5</td><td colspan="4">重大事故とは、自動車事故報告規則（昭和26年運輸省令第104号）第２条の事故をいう。</td></tr>';
 
     echo '</table></body></html>';
 }

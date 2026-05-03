@@ -36,7 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             company_name = ?, representative_name = ?,
             postal_code = ?, address = ?, phone = ?,
             fax = ?, manager_name = ?, manager_email = ?,
-            license_number = ?, business_type = ?
+            license_number = ?, business_type = ?,
+            business_number = ?, capital_thousand_yen = ?, concurrent_business = ?
             WHERE id = ?
         ");
         $stmt->execute([
@@ -44,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_POST['postal_code'], $_POST['address'], $_POST['phone'],
             $_POST['fax'] ?? '', $_POST['manager_name'] ?? '', $_POST['manager_email'] ?? '',
             $_POST['license_number'], $_POST['business_type'],
+            $_POST['business_number'] ?? '', intval($_POST['capital_thousand_yen'] ?? 0), $_POST['concurrent_business'] ?? '',
             $target_id
         ]);
         logAudit($pdo, 0, '[会社情報] 事業者情報更新', $user_id, 'company_settings', [], "company_name={$_POST['company_name']}");
@@ -65,7 +67,8 @@ if (!$company) {
         'address' => '', 'phone' => '', 'fax' => '',
         'manager_name' => '', 'manager_email' => '',
         'postal_code' => '', 'license_number' => '',
-        'business_type' => '一般乗用旅客自動車運送事業（福祉）'
+        'business_type' => '一般乗用旅客自動車運送事業（福祉）',
+        'business_number' => '', 'capital_thousand_yen' => 0, 'concurrent_business' => ''
     ];
 }
 
@@ -142,6 +145,27 @@ $page_data = renderCompletePage(
                 <div class="info-value"><?= htmlspecialchars($company['manager_email'] ?? '') ?></div>
                 <div class="info-label">許可番号</div>
                 <div class="info-value"><?= htmlspecialchars($company['license_number'] ?: '') ?></div>
+            </div>
+        </div>
+
+        <!-- 第4号様式（陸運局提出）専用情報 -->
+        <div class="col-12 mb-4">
+            <div class="info-card">
+                <h5 class="mb-3"><i class="fas fa-file-alt me-2 text-info"></i>第4号様式（陸運局提出）専用項目</h5>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="info-label">事業者番号</div>
+                        <div class="info-value"><?= htmlspecialchars($company['business_number'] ?? '') ?></div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="info-label">資本金（資金）千円</div>
+                        <div class="info-value"><?= number_format(intval($company['capital_thousand_yen'] ?? 0)) ?></div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="info-label">兼営事業</div>
+                        <div class="info-value"><?= htmlspecialchars($company['concurrent_business'] ?? '') ?></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -223,6 +247,38 @@ $page_data = renderCompletePage(
                                 <option value="<?= $t ?>" <?= ($company['business_type'] ?? '') === $t ? 'selected' : '' ?>><?= $t ?></option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-3">
+            <h6 class="mb-3"><i class="fas fa-file-alt me-2 text-info"></i>第4号様式（陸運局提出）専用項目</h6>
+            <div class="row">
+                <div class="col-lg-4">
+                    <div class="mb-3">
+                        <label class="form-label">事業者番号</label>
+                        <input type="text" class="form-control" name="business_number"
+                               value="<?= htmlspecialchars($company['business_number'] ?? '') ?>"
+                               placeholder="261">
+                        <small class="text-muted">第4号様式右上の「事業者番号」欄に出力</small>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="mb-3">
+                        <label class="form-label">資本金（資金）の額（千円）</label>
+                        <input type="number" class="form-control" name="capital_thousand_yen" min="0" step="1"
+                               value="<?= htmlspecialchars($company['capital_thousand_yen'] ?? 0) ?>"
+                               placeholder="3000">
+                        <small class="text-muted">千円単位で入力（例: 300万円 → 3000）</small>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="mb-3">
+                        <label class="form-label">兼営事業</label>
+                        <input type="text" class="form-control" name="concurrent_business"
+                               value="<?= htmlspecialchars($company['concurrent_business'] ?? '') ?>"
+                               placeholder="有 / 無し / 配食事業 など">
+                        <small class="text-muted">「有」「無し」または兼営事業名を記入</small>
                     </div>
                 </div>
             </div>
