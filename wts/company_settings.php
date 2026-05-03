@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             business_number = ?, capital_thousand_yen = ?, concurrent_business = ?,
             form21_prev_total = ?, form21_prev_wheelchair = ?, form21_prev_udt = ?,
             form21_prev_stretcher = ?, form21_prev_combo = ?, form21_prev_rotation = ?,
-            form21_plan_content = ?, form21_change_content = ?
+            form21_target_vehicles = ?, form21_plan_content = ?, form21_change_content = ?
             WHERE id = ?
         ");
         $stmt->execute([
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_POST['business_number'] ?? '', intval($_POST['capital_thousand_yen'] ?? 0), $_POST['concurrent_business'] ?? '',
             intval($_POST['form21_prev_total'] ?? 0), intval($_POST['form21_prev_wheelchair'] ?? 0), intval($_POST['form21_prev_udt'] ?? 0),
             intval($_POST['form21_prev_stretcher'] ?? 0), intval($_POST['form21_prev_combo'] ?? 0), intval($_POST['form21_prev_rotation'] ?? 0),
-            $_POST['form21_plan_content'] ?? '', $_POST['form21_change_content'] ?? '',
+            $_POST['form21_target_vehicles'] ?? '', $_POST['form21_plan_content'] ?? '', $_POST['form21_change_content'] ?? '',
             $target_id
         ]);
         logAudit($pdo, 0, '[会社情報] 事業者情報更新', $user_id, 'company_settings', [], "company_name={$_POST['company_name']}");
@@ -319,13 +319,22 @@ $page_data = renderCompletePage(
                 </div>
             </div>
             <div class="row mt-3">
+                <div class="col-lg-12">
+                    <label class="form-label">対象となる福祉タクシー車両</label>
+                    <input type="text" class="form-control" name="form21_target_vehicles" value="<?= htmlspecialchars($company['form21_target_vehicles'] ?? '') ?>" placeholder="例: 自社保有車両（車椅子対応車 2台）">
+                    <small class="text-muted">計画の対象となる車種・台数を簡潔に記入（「自社保有車両」「車椅子対応車2台」など）</small>
+                </div>
+            </div>
+            <div class="row mt-3">
                 <div class="col-lg-6">
                     <label class="form-label">計画内容（計画対象期間及び事業の主な内容）</label>
-                    <textarea class="form-control" name="form21_plan_content" rows="4" placeholder="例: 令和8年度〜令和10年度の3年間で福祉タクシー車両を1台増車予定…"><?= htmlspecialchars($company['form21_plan_content'] ?? '') ?></textarea>
+                    <textarea class="form-control" name="form21_plan_content" rows="4" placeholder="例（現状維持型）: 令和○年度／現有福祉車両2台体制を維持し、車椅子利用者・要介護者の安全輸送に対応する。乗務員の安全運転研修・接遇研修を継続実施。"><?= htmlspecialchars($company['form21_plan_content'] ?? '') ?></textarea>
+                    <small class="text-muted">公式記入要領なし。空欄は受理リスクあり。小規模事業者は「現状維持」型が定番。増車・廃車予定がある年だけ書き換える運用を推奨。</small>
                 </div>
                 <div class="col-lg-6">
                     <label class="form-label">前年度の計画からの変更内容</label>
-                    <textarea class="form-control" name="form21_change_content" rows="4" placeholder="例: 変更なし、または計画期間延長等"><?= htmlspecialchars($company['form21_change_content'] ?? '') ?></textarea>
+                    <textarea class="form-control" name="form21_change_content" rows="4" placeholder="例: 変更なし"><?= htmlspecialchars($company['form21_change_content'] ?? '') ?></textarea>
+                    <small class="text-muted">通常は「変更なし」。計画期間延長や対象車両変更があれば具体的に記入。</small>
                 </div>
             </div>
 

@@ -998,7 +998,7 @@ body {
         <td class="h">計画内容<br><span style="font-size:9pt;">（計画対象期間及び事業の主な内容を明記すること。）</span></td>
     </tr>
     <tr>
-        <td class="body">　</td>
+        <td class="body">' . nl2br($h($company['form21_target_vehicles'] ?? '')) . '</td>
         <td class="body">' . nl2br($h($company['form21_plan_content'] ?? '')) . '</td>
     </tr>
 </table>
@@ -1132,7 +1132,7 @@ td.note { font-size: 9pt; }
     // 2. 計画
     echo '<tr><td colspan="7">Ⅱ．福祉タクシー車両の移動等円滑化のための事業の計画</td></tr>';
     echo '<tr><td class="bx h" colspan="3">対象となる福祉タクシー車両</td><td class="bx h" colspan="4">計画内容（計画対象期間及び事業の主な内容を明記すること。）</td></tr>';
-    echo '<tr><td class="bx" colspan="3" style="height:60pt;"></td><td class="bx" colspan="4" style="height:60pt; vertical-align:top;">' . nl2br($h($company['form21_plan_content'] ?? '')) . '</td></tr>';
+    echo '<tr><td class="bx" colspan="3" style="height:60pt; vertical-align:top;">' . nl2br($h($company['form21_target_vehicles'] ?? '')) . '</td><td class="bx" colspan="4" style="height:60pt; vertical-align:top;">' . nl2br($h($company['form21_plan_content'] ?? '')) . '</td></tr>';
     echo '<tr><td class="bx" colspan="7">前年度の計画からの変更内容</td></tr>';
     echo '<tr><td class="bx" colspan="7" style="height:50pt; vertical-align:top;">' . nl2br($h($company['form21_change_content'] ?? '')) . '</td></tr>';
     echo '<tr><td colspan="7"></td></tr>';
