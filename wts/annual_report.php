@@ -817,14 +817,16 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
 
 function getForm21Data($pdo) {
     try {
+        // accessibility_category は排他選択（none/wheelchair/stretcher/combo/rotation）。
+        // UDT は車椅子対応のサブセットフラグ。
         $stmt = $pdo->prepare("
             SELECT
-                COUNT(*) AS total,
-                COALESCE(SUM(is_wheelchair_compatible), 0) AS wheelchair,
-                COALESCE(SUM(is_universal_design_taxi), 0) AS udt,
-                COALESCE(SUM(is_stretcher_compatible), 0) AS stretcher,
-                COALESCE(SUM(is_combo_vehicle), 0) AS combo,
-                COALESCE(SUM(is_rotation_seat), 0) AS rotation
+                COALESCE(SUM(accessibility_category != 'none'), 0) AS total,
+                COALESCE(SUM(accessibility_category = 'wheelchair'), 0) AS wheelchair,
+                COALESCE(SUM(accessibility_category = 'wheelchair' AND is_universal_design_taxi = 1), 0) AS udt,
+                COALESCE(SUM(accessibility_category = 'stretcher'), 0) AS stretcher,
+                COALESCE(SUM(accessibility_category = 'combo'), 0) AS combo,
+                COALESCE(SUM(accessibility_category = 'rotation'), 0) AS rotation
             FROM vehicles
             WHERE is_active = 1
               AND COALESCE(vehicle_type, '') != 'other'
