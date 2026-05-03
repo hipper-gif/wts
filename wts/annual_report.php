@@ -378,8 +378,9 @@ function generateForm4PDF($company, $business, $transport, $accident, $year) {
 <meta charset="UTF-8">
 <title>第4号様式 第3表（限定）輸送実績報告書 令和' . $reiwa . '年度</title>
 <style>
-@page { size: A4 portrait; margin: 10mm 12mm; }
+@page { size: A4 portrait; margin: 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 210mm; }
 body {
     font-family: "Yu Mincho", "YuMincho", "MS Mincho", "Hiragino Mincho ProN", serif;
     font-size: 10.5pt;
@@ -391,6 +392,7 @@ body {
     width: 210mm; min-height: 297mm;
     margin: 10mm auto; padding: 10mm 12mm;
     background: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.15);
+    overflow: hidden;
 }
 .print-controls {
     text-align: center; margin: 0 auto 10px; padding: 12px;
@@ -405,8 +407,8 @@ body {
 .print-controls .btn-close { background: #757575; color: #fff; border-color: #616161; }
 @media print {
     .print-controls { display: none !important; }
-    .page-wrapper { margin: 0; padding: 0; box-shadow: none; min-height: auto; }
-    body { background: #fff; }
+    .page-wrapper { margin: 0; padding: 10mm 12mm; box-shadow: none; min-height: auto; width: 210mm; }
+    body { background: #fff; width: 210mm; }
 }
 
 /* === 上部ヘッダー === */
@@ -461,6 +463,8 @@ body {
     border-left: 1pt solid #000;
     border-right: 1pt solid #000;
     table-layout: fixed;
+    word-break: break-all;
+    overflow-wrap: break-word;
 }
 .data-table.last { border-bottom: 1pt solid #000; }
 .data-table col.col-label  { width: 50%; }
@@ -862,8 +866,9 @@ function generateForm21PDF($company, $f21, $year) {
 <meta charset="UTF-8">
 <title>第21号様式 移動等円滑化実績等報告書（福祉タクシー車両） 令和' . $reiwa . '年度</title>
 <style>
-@page { size: A4 portrait; margin: 10mm 10mm; }
+@page { size: A4 portrait; margin: 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 210mm; }
 body {
     font-family: "Yu Mincho", "YuMincho", "MS Mincho", serif;
     font-size: 10pt; color: #000; background: #fff; line-height: 1.4;
@@ -872,6 +877,7 @@ body {
     width: 210mm; min-height: 297mm;
     margin: 10mm auto; padding: 10mm 10mm;
     background: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.15);
+    overflow: hidden;
 }
 .print-controls {
     text-align: center; margin: 0 auto 10px; padding: 12px;
@@ -886,8 +892,8 @@ body {
 .print-controls .btn-close { background: #757575; color: #fff; border-color: #616161; }
 @media print {
     .print-controls { display: none !important; }
-    .page-wrapper { margin: 0; padding: 0; box-shadow: none; min-height: auto; }
-    body { background: #fff; }
+    .page-wrapper { margin: 0; padding: 10mm 10mm; box-shadow: none; min-height: auto; width: 210mm; }
+    body { background: #fff; width: 210mm; }
 }
 
 .form-no { font-size: 9pt; margin-bottom: 4mm; }
@@ -903,26 +909,28 @@ body {
 .section-h { font-size: 10.5pt; margin: 4mm 0 2mm; }
 .as-of { font-size: 10pt; margin: 0 0 2mm; }
 
-.t1 { width: 100%; border-collapse: collapse; border: 1pt solid #000; margin-bottom: 4mm; }
-.t1 td { border: 0.5pt solid #000; padding: 3px 6px; font-size: 9.5pt; vertical-align: middle; text-align: center; }
+.t1 { width: 100%; border-collapse: collapse; border: 1pt solid #000; margin-bottom: 4mm; table-layout: fixed; }
+.t1 td { border: 0.5pt solid #000; padding: 3px 6px; font-size: 9.5pt; vertical-align: middle; text-align: center; word-break: break-all; overflow-wrap: break-word; }
 .t1 td.h1 { font-weight: normal; height: 6mm; }
 .t1 td.lbl { text-align: center; }
 .t1 td.val { font-size: 11pt; height: 8mm; }
 
-.t2 { width: 100%; border-collapse: collapse; border: 1pt solid #000; margin-bottom: 4mm; }
-.t2 td { border: 0.5pt solid #000; padding: 3px 6px; font-size: 10pt; vertical-align: middle; }
+.t2 { width: 100%; border-collapse: collapse; border: 1pt solid #000; margin-bottom: 4mm; table-layout: fixed; }
+.t2 td { border: 0.5pt solid #000; padding: 3px 6px; font-size: 10pt; vertical-align: middle; word-break: break-all; overflow-wrap: break-word; }
 .t2 td.h { text-align: center; height: 7mm; }
 .t2 td.lbl { width: 35%; padding-left: 4mm; }
 .t2 td.body { padding: 4mm; min-height: 24mm; vertical-align: top; }
 
-.t3 { width: 100%; border-collapse: collapse; border: 1pt solid #000; margin-bottom: 4mm; }
-.t3 td { border: 0.5pt solid #000; padding: 3px 6px; font-size: 10pt; vertical-align: middle; }
+.t3 { width: 100%; border-collapse: collapse; border: 1pt solid #000; margin-bottom: 4mm; table-layout: fixed; }
+.t3 td { border: 0.5pt solid #000; padding: 3px 6px; font-size: 10pt; vertical-align: middle; word-break: break-all; overflow-wrap: break-word; }
 .t3 td.body { padding: 4mm; min-height: 18mm; vertical-align: top; }
 
-.req-table { width: 100%; border-collapse: collapse; border: 1pt solid #000; margin-bottom: 4mm; }
-.req-table td { border: 0.5pt solid #000; padding: 4px 6px; font-size: 9.5pt; vertical-align: top; }
+.req-table { width: 100%; border-collapse: collapse; border: 1pt solid #000; margin-bottom: 4mm; table-layout: fixed; }
+.req-table td { border: 0.5pt solid #000; padding: 4px 6px; font-size: 9.5pt; vertical-align: top; word-break: break-all; overflow-wrap: break-word; }
 .req-table td.req-text { width: 90%; }
 .req-table td.req-mark { width: 10%; text-align: center; }
+
+.notes { word-break: break-all; overflow-wrap: break-word; }
 
 .notes { font-size: 8.5pt; line-height: 1.6; margin-top: 4mm; }
 .notes .note-title { font-weight: bold; margin-bottom: 1mm; }
