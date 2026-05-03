@@ -518,7 +518,7 @@ body {
 
 <!-- 上部: 様式番号 + 事業者番号 + 限定 -->
 <div class="head-row">
-    <span class="lhead">第４号様式　（第２条関係）　（日本工業規格Ａ列４番）　第３表</span>
+    <span class="lhead">第４号様式　（第２条関係）　（日本産業規格Ａ列４番）　第３表</span>
     <span class="rhead">
         <span class="bango-label">事業者番号</span><span class="bango-box">' . $h($company['business_number'] ?? '') . '</span><span class="gentei">限定</span>
     </span>
@@ -538,7 +538,7 @@ body {
     <table>
         <tr><td class="lbl">住　　　所</td><td class="val">' . $h($company['address']) . '</td></tr>
         <tr><td class="lbl">事業者名</td><td class="val">' . $h($company['company_name']) . '</td></tr>
-        <tr><td class="lbl">代表者名</td><td class="val">' . $h($company['representative_name']) . '</td></tr>
+        <tr><td class="lbl">代表者名（役職名及び氏名）</td><td class="val">' . $h($company['representative_name']) . '</td></tr>
         <tr><td class="lbl">電話番号</td><td class="val">' . $h($company['phone']) . '</td></tr>
     </table>
 </div>
@@ -553,7 +553,7 @@ body {
         <td class="col-header" colspan="2">全国</td>
     </tr>
     <tr>
-        <td class="lbl">資本金（資金）の額　（千円）</td>
+        <td class="lbl">資本金（基金）の額　（千円）</td>
         <td class="val">　</td><td class="unit">　</td>
         <td class="val">' . $f($company['capital_thousand_yen'] ?? 0) . '</td><td class="unit">千円</td>
     </tr>
@@ -626,12 +626,12 @@ body {
     </tr>
     <tr>
         <td class="lbl">死者数</td>
-        <td class="val">' . $f($accident['total_deaths']) . '</td><td class="unit">件</td>
+        <td class="val">' . $f($accident['total_deaths']) . '</td><td class="unit">人</td>
         <td class="val">　</td><td class="unit">　</td>
     </tr>
     <tr>
         <td class="lbl">負傷者数</td>
-        <td class="val">' . $f($accident['total_injuries']) . '</td><td class="unit">件</td>
+        <td class="val">' . $f($accident['total_injuries']) . '</td><td class="unit">人</td>
         <td class="val">　</td><td class="unit">　</td>
     </tr>
 </table>
@@ -643,7 +643,7 @@ body {
         <li>　兼営事業については、主な兼営事業の名称を記載すること。</li>
         <li>　従業員数は、兼営事業がある場合は主として当該事業に従事している人数及び共通部門に従事している従業員については当該事業分として適正な基準により配分した人数とする。</li>
         <li>　従業員数の欄の（　　　　）には、運転者数を記載すること。</li>
-        <li>　交通事故とは、道路交通法（昭和35年法律第105号）第72条第１項の交通事故をいう。</li>
+        <li>　交通事故とは、道路交通法（昭和23年法律第105号）第72条第１項の交通事故をいう。</li>
         <li>　重大事故とは、自動車事故報告規則（昭和26年運輸省令第104号）第２条の事故をいう。</li>
     </ol>
 </div>
@@ -716,7 +716,7 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
 
     // 行0: 様式番号（左） + 事業者番号 + 限定（右）
     echo '<tr style="height:18pt;">';
-    echo '<td colspan="5" class="formhead">第４号様式　（第２条関係）　（日本工業規格Ａ列４番）　第３表</td>';
+    echo '<td colspan="5" class="formhead">第４号様式　（第２条関係）　（日本産業規格Ａ列４番）　第３表</td>';
     echo '<td class="formhead" style="text-align:right;">事業者番号</td>';
     echo '<td class="bango-box">' . $h($company['business_number'] ?? '') . '</td>';
     echo '<td class="gentei">限定</td>';
@@ -738,7 +738,7 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
     // 事業者情報（右寄せブロック）
     echo '<tr><td colspan="4"></td><td>住　　　所</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['address']) . '</td></tr>';
     echo '<tr><td colspan="4"></td><td>事業者名</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['company_name']) . '</td></tr>';
-    echo '<tr><td colspan="4"></td><td>代表者名</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['representative_name']) . '</td></tr>';
+    echo '<tr><td colspan="4"></td><td>代表者名（役職名及び氏名）</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['representative_name']) . '</td></tr>';
     echo '<tr><td colspan="4"></td><td>電話番号</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['phone']) . '</td></tr>';
     echo '<tr style="height:8pt;"><td colspan="8"></td></tr>';
 
@@ -746,7 +746,7 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
     echo '<tr><td class="bx sec" colspan="8">事業概況　（令和' . $reiwa . '年３月３１日現在）</td></tr>';
     echo '<tr><td class="bx" colspan="4">　</td><td class="bx hdr" colspan="2">管轄区域内</td><td class="bx hdr" colspan="2">全国</td></tr>';
     echo '<tr>';
-    echo '<td class="bx txt" colspan="4">資本金（資金）の額　（千円）</td>';
+    echo '<td class="bx txt" colspan="4">資本金（基金）の額　（千円）</td>';
     echo '<td class="bx num">　</td><td class="bx unit">　</td>';
     echo '<td class="bx num">' . intval($company['capital_thousand_yen'] ?? 0) . '</td><td class="bx unit">千円</td>';
     echo '</tr>';
@@ -786,14 +786,14 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
     echo '<tr><td class="bx sec" colspan="8">事故件数　（前年４月１日から本年３月３１日まで）</td></tr>';
     echo '<tr><td class="bx" colspan="4">　</td><td class="bx hdr" colspan="2">管轄区域内</td><td class="bx hdr" colspan="2">全国</td></tr>';
     foreach ([
-        ['交通事故件数', intval($accident['traffic_accidents'])],
-        ['重大事故件数', intval($accident['serious_accidents'])],
-        ['死者数',       intval($accident['total_deaths'])],
-        ['負傷者数',     intval($accident['total_injuries'])],
+        ['交通事故件数', intval($accident['traffic_accidents']), '件'],
+        ['重大事故件数', intval($accident['serious_accidents']), '件'],
+        ['死者数',       intval($accident['total_deaths']),     '人'],
+        ['負傷者数',     intval($accident['total_injuries']),   '人'],
     ] as $row) {
         echo '<tr>';
         echo '<td class="bx txt" colspan="4">' . $h($row[0]) . '</td>';
-        echo '<td class="bx num">' . $row[1] . '</td><td class="bx unit">件</td>';
+        echo '<td class="bx num">' . $row[1] . '</td><td class="bx unit">' . $h($row[2]) . '</td>';
         echo '<td class="bx num">　</td><td class="bx unit">　</td>';
         echo '</tr>';
     }
@@ -802,7 +802,7 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
     echo '<tr><td class="bx biko">備　考</td><td class="bx biko ctr">1</td><td class="bx biko" colspan="6">兼営事業については、主な兼営事業の名称を記載すること。</td></tr>';
     echo '<tr><td class="bx"></td><td class="bx biko ctr">2</td><td class="bx biko" colspan="6">従業員数は、兼営事業がある場合は主として当該事業に従事している人数及び共通部門に従事している従業員については当該事業分として適正な基準により配分した人数とする。</td></tr>';
     echo '<tr><td class="bx"></td><td class="bx biko ctr">3</td><td class="bx biko" colspan="6">従業員数の欄の（　　　　）には、運転者数を記載すること。</td></tr>';
-    echo '<tr><td class="bx"></td><td class="bx biko ctr">4</td><td class="bx biko" colspan="6">交通事故とは、道路交通法（昭和35年法律第105号）第72条第１項の交通事故をいう。</td></tr>';
+    echo '<tr><td class="bx"></td><td class="bx biko ctr">4</td><td class="bx biko" colspan="6">交通事故とは、道路交通法（昭和23年法律第105号）第72条第１項の交通事故をいう。</td></tr>';
     echo '<tr><td class="bx"></td><td class="bx biko ctr">5</td><td class="bx biko" colspan="6">重大事故とは、自動車事故報告規則（昭和26年運輸省令第104号）第２条の事故をいう。</td></tr>';
 
     echo '</table></body></html>';
@@ -812,7 +812,7 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
 // 第21号様式（移動等円滑化実績等報告書 福祉タクシー車両）
 // 参照見本: NAS \\LS220D679\share\…\2024年度\2024年度移動等円滑化実績等報告書（福祉タクシー車両）.xlsx
 // 根拠: バリアフリー法施行規則第23条
-// 提出期限: 翌年度6月30日 / 提出先: 大阪運輸支局 輸送部門
+// 提出期限: 翌年度5月31日 / 提出先: 大阪運輸支局 輸送部門
 // ============================================================
 
 function getForm21Data($pdo) {
@@ -939,7 +939,7 @@ body {
 
 <div class="page-wrapper">
 
-<div class="form-no">第21号様式（日本工業規格Ａ列４番）</div>
+<div class="form-no">第21号様式（日本産業規格Ａ列４番）</div>
 
 <div class="title">移 動 等 円 滑 化 実 績 等 報 告 書（福祉タクシー車両）</div>
 <div class="subtitle">（令和' . $reiwa . '年度）</div>
@@ -954,7 +954,7 @@ body {
 </div>
 
 <!-- 1. 達成状況 -->
-<div class="section-h">１．福祉タクシー車両の移動等円滑化の達成状況</div>
+<div class="section-h">Ⅰ．福祉タクシー車両の移動等円滑化の達成状況</div>
 <div class="as-of">（令和' . $reiwa . '年３月３１日現在）</div>
 
 <table class="t1">
@@ -990,7 +990,7 @@ body {
 </table>
 
 <!-- 2. 計画 -->
-<div class="section-h">２．福祉タクシー車両の移動等円滑化のための事業の計画</div>
+<div class="section-h">Ⅱ．福祉タクシー車両の移動等円滑化のための事業の計画</div>
 
 <table class="t2">
     <tr>
@@ -1077,7 +1077,7 @@ td.note { font-size: 9pt; }
 </head><body>
 <table>';
     // 様式番号
-    echo '<tr><td colspan="7" class="head">第21号様式（日本工業規格Ａ列４番）</td></tr>';
+    echo '<tr><td colspan="7" class="head">第21号様式（日本産業規格Ａ列４番）</td></tr>';
     echo '<tr><td colspan="7" class="title">移 動 等 円 滑 化 実 績 等 報 告 書（福祉タクシー車両）</td></tr>';
     echo '<tr><td colspan="7" class="sub">（令和' . $reiwa . '年度）</td></tr>';
     echo '<tr><td colspan="7"></td></tr>';
@@ -1089,7 +1089,7 @@ td.note { font-size: 9pt; }
     echo '<tr><td colspan="7"></td></tr>';
 
     // 1. 達成状況
-    echo '<tr><td colspan="7">１．福祉タクシー車両の移動等円滑化の達成状況</td></tr>';
+    echo '<tr><td colspan="7">Ⅰ．福祉タクシー車両の移動等円滑化の達成状況</td></tr>';
     echo '<tr><td colspan="7">（令和' . $reiwa . '年３月３１日現在）</td></tr>';
 
     // 達成状況テーブル: 7列構成
@@ -1130,7 +1130,7 @@ td.note { font-size: 9pt; }
     echo '<tr><td colspan="7"></td></tr>';
 
     // 2. 計画
-    echo '<tr><td colspan="7">２．福祉タクシー車両の移動等円滑化のための事業の計画</td></tr>';
+    echo '<tr><td colspan="7">Ⅱ．福祉タクシー車両の移動等円滑化のための事業の計画</td></tr>';
     echo '<tr><td class="bx h" colspan="3">対象となる福祉タクシー車両</td><td class="bx h" colspan="4">計画内容（計画対象期間及び事業の主な内容を明記すること。）</td></tr>';
     echo '<tr><td class="bx" colspan="3" style="height:60pt;"></td><td class="bx" colspan="4" style="height:60pt; vertical-align:top;">' . nl2br($h($company['form21_plan_content'] ?? '')) . '</td></tr>';
     echo '<tr><td class="bx" colspan="7">前年度の計画からの変更内容</td></tr>';
@@ -1593,7 +1593,7 @@ echo $page_data['page_header'];
                         <div class="col-lg-8">
                             <h6>バリアフリー法施行規則第23条に基づく報告書</h6>
                             <p class="text-muted mb-2">
-                                提出先: 国土交通省近畿運輸局 大阪運輸支局 輸送部門　提出期限: 毎年6月30日<br>
+                                提出先: 国土交通省近畿運輸局 大阪運輸支局 輸送部門　提出期限: 毎年5月31日<br>
                                 対象: 福祉車両を保有する一般乗用旅客自動車運送事業者
                             </p>
                             <div class="small">

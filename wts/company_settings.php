@@ -164,7 +164,7 @@ $page_data = renderCompletePage(
                         <div class="info-value"><?= htmlspecialchars($company['business_number'] ?? '') ?></div>
                     </div>
                     <div class="col-md-4">
-                        <div class="info-label">資本金（資金）千円</div>
+                        <div class="info-label">資本金（基金）千円</div>
                         <div class="info-value"><?= number_format(intval($company['capital_thousand_yen'] ?? 0)) ?></div>
                     </div>
                     <div class="col-md-4">
@@ -271,7 +271,7 @@ $page_data = renderCompletePage(
                 </div>
                 <div class="col-lg-4">
                     <div class="mb-3">
-                        <label class="form-label">資本金（資金）の額（千円）</label>
+                        <label class="form-label">資本金（基金）の額（千円）</label>
                         <input type="number" class="form-control" name="capital_thousand_yen" min="0" step="1"
                                value="<?= htmlspecialchars($company['capital_thousand_yen'] ?? 0) ?>"
                                placeholder="3000">
