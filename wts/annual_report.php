@@ -424,7 +424,6 @@ body {
 
 .ate-line {
     font-size: 10.5pt; margin: 0 0 4mm;
-    padding-left: 60mm;
 }
 
 .company-block { margin: 0 0 6mm 95mm; }
@@ -514,7 +513,7 @@ body {
 <div class="report-title">一般乗用旅客自動車運送事業　（限定）　輸送実績報告書　（令和' . $reiwa . '年度）</div>
 
 <!-- 宛先 -->
-<div class="ate-line">あ　て</div>
+<div class="ate-line">　　　　　　　　　　　　　あて</div>
 
 <!-- 事業者情報 -->
 <div class="company-block">
@@ -714,8 +713,8 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
     echo '<tr style="height:24pt;"><td colspan="8" class="title">一般乗用旅客自動車運送事業　（限定）　輸送実績報告書　（令和' . $reiwa . '年度）</td></tr>';
     echo '<tr style="height:6pt;"><td colspan="8"></td></tr>';
 
-    // 宛先
-    echo '<tr><td colspan="4"></td><td colspan="4">あ　て</td></tr>';
+    // 宛先（見本通り「13個の全角スペース + あて」を列0始点）
+    echo '<tr><td colspan="8">　　　　　　　　　　　　　あて</td></tr>';
     echo '<tr style="height:6pt;"><td colspan="8"></td></tr>';
 
     // 事業者情報（右寄せブロック）
