@@ -76,50 +76,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     break;
                     
                 case 'export_form4':
-                    // 第4号様式PDF出力処理
-                    $export_year = $_POST['fiscal_year'];
-
-                    // データ取得
-                    $company_info_export = getCompanyInfo($pdo);
-                    $business_overview_export = getBusinessOverview($pdo, $export_year);
-                    $transport_results_export = getTransportResults($pdo, $export_year);
-                    $accident_data_export = getAccidentData($pdo, $export_year);
-
-                    // PDF出力
-                    generateForm4PDF($company_info_export, $business_overview_export, $transport_results_export, $accident_data_export, $export_year);
-                    exit();
-                    break;
-
                 case 'export_form4_excel':
-                    // 第4号様式エクセル出力処理
-                    $export_year = $_POST['fiscal_year'];
-
-                    // データ取得
-                    $company_info_export = getCompanyInfo($pdo);
-                    $business_overview_export = getBusinessOverview($pdo, $export_year);
-                    $transport_results_export = getTransportResults($pdo, $export_year);
-                    $accident_data_export = getAccidentData($pdo, $export_year);
-
-                    // エクセル出力
-                    generateForm4Excel($company_info_export, $business_overview_export, $transport_results_export, $accident_data_export, $export_year);
-                    exit();
-                    break;
-
                 case 'export_form21':
-                    // 第21号様式 PDF出力（移動等円滑化実績等報告書 福祉タクシー車両）
+                case 'export_form21_excel':
                     $export_year = $_POST['fiscal_year'];
+                    $is_form4 = ($_POST['action'] === 'export_form4' || $_POST['action'] === 'export_form4_excel');
+                    $report_type = $is_form4 ? '第4号様式' : '第21号様式';
+
+                    // 出力履歴を annual_reports に自動記録（重複時は更新）
+                    try {
+                        $stmt = $pdo->prepare("
+                            INSERT INTO annual_reports (fiscal_year, report_type, status, submitted_by, updated_at)
+                            VALUES (?, ?, '作成中', ?, NOW())
+                            ON DUPLICATE KEY UPDATE updated_at = NOW(), submitted_by = VALUES(submitted_by)
+                        ");
+                        $stmt->execute([$export_year, $report_type, $user_id]);
+                        logAnnualReportAudit($pdo, $user_id, $user_name, '書類出力', "year={$export_year}, type={$report_type}, action={$_POST['action']}");
+                    } catch (Exception $logEx) {
+                        error_log("Annual report log error: " . $logEx->getMessage());
+                    }
+
                     $company_info_export = getCompanyInfo($pdo);
-                    $form21_data_export = getForm21Data($pdo);
-                    generateForm21PDF($company_info_export, $form21_data_export, $export_year);
+                    if ($is_form4) {
+                        $business_overview_export = getBusinessOverview($pdo, $export_year);
+                        $transport_results_export = getTransportResults($pdo, $export_year);
+                        $accident_data_export = getAccidentData($pdo, $export_year);
+                        if ($_POST['action'] === 'export_form4') {
+                            generateForm4PDF($company_info_export, $business_overview_export, $transport_results_export, $accident_data_export, $export_year);
+                        } else {
+                            generateForm4Excel($company_info_export, $business_overview_export, $transport_results_export, $accident_data_export, $export_year);
+                        }
+                    } else {
+                        $form21_data_export = getForm21Data($pdo);
+                        if ($_POST['action'] === 'export_form21') {
+                            generateForm21PDF($company_info_export, $form21_data_export, $export_year);
+                        } else {
+                            generateForm21Excel($company_info_export, $form21_data_export, $export_year);
+                        }
+                    }
                     exit();
                     break;
 
-                case 'export_form21_excel':
-                    // 第21号様式 Excel出力
-                    $export_year = $_POST['fiscal_year'];
-                    $company_info_export = getCompanyInfo($pdo);
-                    $form21_data_export = getForm21Data($pdo);
-                    generateForm21Excel($company_info_export, $form21_data_export, $export_year);
+                case 'update_inline_field':
+                    // インライン編集 — AJAX で company_info の単一フィールドを更新
+                    header('Content-Type: application/json; charset=UTF-8');
+                    $allowed = [
+                        'business_number', 'capital_thousand_yen', 'concurrent_business',
+                        'form21_target_vehicles', 'form21_plan_content', 'form21_change_content',
+                        'form21_prev_total', 'form21_prev_wheelchair', 'form21_prev_udt',
+                        'form21_prev_stretcher', 'form21_prev_combo', 'form21_prev_rotation',
+                    ];
+                    $field = $_POST['field'] ?? '';
+                    $value = $_POST['value'] ?? '';
+
+                    if (!in_array($field, $allowed, true)) {
+                        echo json_encode(['success' => false, 'error' => 'invalid_field']);
+                        exit();
+                    }
+
+                    // 数値フィールドは intval で正規化
+                    $numeric_fields = [
+                        'capital_thousand_yen', 'form21_prev_total', 'form21_prev_wheelchair',
+                        'form21_prev_udt', 'form21_prev_stretcher', 'form21_prev_combo', 'form21_prev_rotation',
+                    ];
+                    if (in_array($field, $numeric_fields, true)) {
+                        $value = intval(preg_replace('/[^0-9-]/', '', (string)$value));
+                    }
+
+                    try {
+                        $id_row = $pdo->query("SELECT id FROM company_info ORDER BY id LIMIT 1")->fetch();
+                        if (!$id_row) {
+                            $pdo->exec("INSERT INTO company_info (id) VALUES (1)");
+                            $target_id = 1;
+                        } else {
+                            $target_id = $id_row['id'];
+                        }
+                        $stmt = $pdo->prepare("UPDATE company_info SET {$field} = ?, updated_at = NOW() WHERE id = ?");
+                        $stmt->execute([$value, $target_id]);
+                        logAnnualReportAudit($pdo, $user_id, $user_name, 'インライン編集', "field={$field}");
+                        echo json_encode(['success' => true, 'field' => $field, 'value' => $value]);
+                    } catch (Exception $e) {
+                        error_log("Inline edit error: " . $e->getMessage());
+                        echo json_encode(['success' => false, 'error' => 'db_error']);
+                    }
                     exit();
                     break;
             }
@@ -1209,28 +1248,302 @@ echo $page_data['system_header'];
 echo $page_data['page_header'];
 ?>
 
-<!-- モーダル確実動作のための追加スタイル -->
+<!-- Google Fonts (Zen Maru Gothic + JetBrains Mono) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
 <style>
 /* Bootstrap モーダルの z-index を明示的に設定（カスタムCSSとの競合を防ぐ） */
-.modal-backdrop {
-    z-index: 1040 !important;
-}
-.modal {
-    z-index: 1055 !important;
-}
-/* モバイル端末でのスタッキングコンテキスト問題を防ぐ */
+.modal-backdrop { z-index: 1040 !important; }
+.modal { z-index: 1055 !important; }
 @media (max-width: 767px) {
-    .modal,
-    .modal-backdrop {
+    .modal, .modal-backdrop {
         -webkit-transform: none !important;
         transform: none !important;
     }
+}
+
+/* === スマルト デザイントークン (.ar-* スコープ) === */
+.ar-root {
+    --ar-teal: #2C7A7B; --ar-teal-light: #38B2AC; --ar-teal-bg: #E6FFFA; --ar-teal-bg-deep: #B2F5EA;
+    --ar-lamp: #ED8936; --ar-lamp-light: #F6AD55; --ar-lamp-bg: #FFFAF0;
+    --ar-ink: #1A202C; --ar-ink-soft: #2D3748; --ar-muted: #718096; --ar-muted-soft: #A0AEC0;
+    --ar-line: #E2E8F0; --ar-line-soft: #EDF2F7; --ar-paper: #F7FAFC;
+    --ar-success: #38A169; --ar-warn: #D69E2E; --ar-danger: #E53E3E;
+    --ar-shadow: 0 1px 2px rgba(26,32,44,.04), 0 6px 24px rgba(26,32,44,.06);
+    --ar-shadow-lift: 0 2px 6px rgba(26,32,44,.05), 0 24px 48px rgba(26,32,44,.10);
+    --ar-jp: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', 'Yu Gothic', system-ui, sans-serif;
+    --ar-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+    font-family: var(--ar-jp);
+    color: var(--ar-ink);
+    padding: 24px 8px 80px;
+}
+.ar-root * { box-sizing: border-box; }
+.ar-root button { font-family: inherit; cursor: pointer; }
+
+/* === Page header === */
+.ar-pageheader { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 22px; flex-wrap: wrap; }
+.ar-pageheader .ar-badge {
+    width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0;
+    background: var(--ar-lamp-bg); border: 1px solid #FEEBC8;
+    display: flex; align-items: center; justify-content: center; color: var(--ar-lamp);
+}
+.ar-pageheader h1 { font-size: 26px; font-weight: 700; line-height: 1.25; margin: 0; }
+.ar-pageheader .ar-sub { font-size: 14px; color: var(--ar-muted); margin-top: 4px; line-height: 1.7; }
+
+/* === Year selector pill === */
+.ar-yearbar {
+    background: #fff; border: 1px solid var(--ar-line); border-radius: 14px;
+    padding: 6px; display: inline-flex; gap: 4px; box-shadow: var(--ar-shadow);
+    margin-bottom: 18px; flex-wrap: wrap;
+}
+.ar-yearbar a, .ar-yearbar button {
+    padding: 8px 16px; border-radius: 10px; border: none; background: none;
+    font-size: 14px; font-weight: 700; color: var(--ar-ink-soft);
+    text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--ar-jp);
+}
+.ar-yearbar a.on, .ar-yearbar button.on {
+    background: var(--ar-teal); color: #fff;
+    box-shadow: 0 2px 8px rgba(44,122,123,.3);
+}
+.ar-yearbar a:hover:not(.on), .ar-yearbar button:hover:not(.on) { background: var(--ar-line-soft); }
+.ar-yearbar .ar-reiwa { font-size: 11px; opacity: .65; font-family: var(--ar-mono); }
+
+/* === Hero === */
+.ar-hero {
+    background: linear-gradient(180deg, #fff 0%, #FFFAF0 100%);
+    border: 1px solid var(--ar-line); border-radius: 20px;
+    padding: 22px 26px; margin-bottom: 22px; box-shadow: var(--ar-shadow);
+    display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center;
+}
+.ar-hero-eyebrow { font-size: 13px; color: var(--ar-lamp); font-weight: 700; letter-spacing: 0.08em; margin-bottom: 4px; }
+.ar-hero h2 { font-size: 21px; font-weight: 700; line-height: 1.45; margin: 0 0 4px; }
+.ar-hero p { font-size: 14px; color: var(--ar-muted); line-height: 1.7; margin: 0; }
+.ar-hero-progress {
+    display: flex; align-items: center; gap: 14px; padding: 16px 20px; background: #fff;
+    border: 1.5px solid var(--ar-lamp-light); border-radius: 16px; min-width: 220px;
+}
+.ar-hero-progress .ar-ring { width: 64px; height: 64px; flex-shrink: 0; position: relative; }
+.ar-hero-progress .ar-ring svg { transform: rotate(-90deg); }
+.ar-hero-progress .ar-ring .ar-num {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: var(--ar-lamp);
+}
+.ar-hero-progress .ar-label { font-size: 12px; color: var(--ar-muted); margin-bottom: 2px; }
+.ar-hero-progress .ar-val { font-size: 17px; font-weight: 700; color: var(--ar-ink); }
+.ar-hero-progress .ar-deadline { font-size: 11px; color: var(--ar-muted); margin-top: 2px; font-family: var(--ar-mono); }
+
+/* === Steps === */
+.ar-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 26px; }
+.ar-step {
+    background: #fff; border: 1px solid var(--ar-line); border-radius: 16px;
+    padding: 20px; box-shadow: var(--ar-shadow);
+    display: flex; flex-direction: column; gap: 10px;
+    transition: transform .15s, box-shadow .15s;
+}
+.ar-step:hover { transform: translateY(-2px); box-shadow: var(--ar-shadow-lift); }
+.ar-step .ar-step-num {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--ar-teal-bg); color: var(--ar-teal);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 16px; font-family: var(--ar-mono);
+}
+.ar-step.done .ar-step-num { background: var(--ar-success); color: #fff; }
+.ar-step.current { border-color: var(--ar-lamp); border-width: 2px; padding: 19px; }
+.ar-step.current .ar-step-num { background: var(--ar-lamp); color: #fff; box-shadow: 0 0 0 4px rgba(237,137,54,.18); }
+.ar-step h3 { font-size: 16px; font-weight: 700; line-height: 1.35; margin: 0; }
+.ar-step .ar-step-desc { font-size: 13px; color: var(--ar-muted); line-height: 1.65; flex: 1; margin: 0; }
+.ar-step .ar-step-stat {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--ar-muted); padding: 5px 10px;
+    background: var(--ar-line-soft); border-radius: 8px; align-self: flex-start;
+}
+.ar-step.done .ar-step-stat { background: #F0FFF4; color: var(--ar-success); }
+.ar-step.current .ar-step-stat { background: var(--ar-lamp-bg); color: var(--ar-lamp); }
+
+/* === Section title === */
+.ar-section-title {
+    display: flex; align-items: center; gap: 10px;
+    margin: 26px 0 14px; font-size: 17px; font-weight: 700;
+}
+.ar-section-title .ar-accent { width: 4px; height: 18px; background: var(--ar-teal); border-radius: 2px; }
+.ar-section-title .ar-count { font-size: 13px; color: var(--ar-muted); font-weight: 500; }
+.ar-section-title .ar-right { margin-left: auto; }
+
+/* === Data review === */
+.ar-review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ar-data-card {
+    background: #fff; border: 1px solid var(--ar-line); border-radius: 16px;
+    padding: 18px 20px; box-shadow: var(--ar-shadow);
+}
+.ar-data-card .ar-head {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 12px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--ar-line-soft);
+}
+.ar-data-card .ar-icw {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--ar-teal-bg); color: var(--ar-teal);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.ar-data-card.ar-lamp .ar-icw { background: var(--ar-lamp-bg); color: var(--ar-lamp); }
+.ar-data-card.ar-danger .ar-icw { background: #FFF5F5; color: var(--ar-danger); }
+.ar-data-card .ar-head h4 { font-size: 14px; font-weight: 700; margin: 0; }
+.ar-data-card .ar-as-of {
+    margin-left: auto; font-size: 11px; color: var(--ar-muted);
+    background: var(--ar-line-soft); padding: 3px 8px; border-radius: 999px; font-family: var(--ar-mono);
+}
+.ar-kv { display: flex; align-items: center; padding: 9px 0; border-bottom: 1px dashed var(--ar-line-soft); }
+.ar-kv:last-child { border-bottom: none; }
+.ar-kv .ar-k { font-size: 13px; color: var(--ar-muted); flex: 1; font-weight: 500; }
+.ar-kv .ar-v {
+    font-size: 18px; font-weight: 700; color: var(--ar-ink);
+    font-feature-settings: "tnum"; letter-spacing: -0.01em;
+}
+.ar-kv .ar-v small { font-size: 11px; color: var(--ar-muted); margin-left: 3px; font-weight: 500; }
+
+/* Inline edit affordance */
+.ar-edit {
+    cursor: text; padding: 2px 6px; border-radius: 4px;
+    transition: background .1s; min-width: 24px; display: inline-block;
+}
+.ar-edit:hover { background: var(--ar-lamp-bg); outline: 1px dashed var(--ar-lamp-light); outline-offset: 2px; }
+.ar-edit[contenteditable="true"]:focus {
+    background: #fff; outline: 2px solid var(--ar-lamp); outline-offset: 2px;
+}
+
+/* Help tip */
+.ar-tip {
+    margin-top: 18px;
+    background: #FFFCEF; border: 1px solid #FAF089; border-radius: 12px;
+    padding: 14px 18px; display: flex; gap: 12px; align-items: flex-start;
+}
+.ar-tip .ar-i {
+    width: 26px; height: 26px; border-radius: 50%; background: var(--ar-lamp);
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-weight: 700; font-family: var(--ar-mono); font-size: 13px;
+}
+.ar-tip h5 { font-size: 14px; font-weight: 700; margin: 0 0 3px; }
+.ar-tip p { font-size: 13px; color: var(--ar-ink-soft); line-height: 1.7; margin: 0; }
+
+/* Export panel */
+.ar-exports {
+    background: linear-gradient(180deg, var(--ar-teal-bg) 0%, #fff 100%);
+    border: 1px solid var(--ar-teal-bg-deep); border-radius: 20px;
+    padding: 24px; margin: 24px 0; box-shadow: var(--ar-shadow);
+}
+.ar-exports h3 { font-size: 17px; font-weight: 700; margin: 0 0 4px; }
+.ar-exports .ar-exports-sub { font-size: 13px; color: var(--ar-muted); margin: 0 0 16px; }
+.ar-export-row {
+    background: #fff; border: 1px solid var(--ar-line); border-radius: 14px;
+    padding: 16px 18px; display: flex; align-items: center; gap: 14px;
+    margin-bottom: 10px; flex-wrap: wrap;
+}
+.ar-export-row .ar-ic-tile {
+    width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
+    background: var(--ar-teal-bg); color: var(--ar-teal);
+    display: flex; align-items: center; justify-content: center;
+}
+.ar-export-row.ar-form21 .ar-ic-tile { background: var(--ar-lamp-bg); color: var(--ar-lamp); }
+.ar-export-row .ar-info { flex: 1; min-width: 200px; }
+.ar-export-row h4 { font-size: 15px; font-weight: 700; margin: 0 0 2px; }
+.ar-export-row .ar-meta { font-size: 12px; color: var(--ar-muted); display: flex; gap: 10px; flex-wrap: wrap; }
+.ar-export-row .ar-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+/* Buttons */
+.ar-btn {
+    height: 42px; padding: 0 18px; border-radius: 10px;
+    font-family: var(--ar-jp); font-size: 14px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border: 1.5px solid transparent; transition: transform .1s, box-shadow .1s;
+    text-decoration: none;
+}
+.ar-btn:active { transform: translateY(1px); }
+.ar-btn-primary { background: var(--ar-teal); color: #fff; box-shadow: 0 2px 8px rgba(44,122,123,.25); }
+.ar-btn-primary:hover { background: #285E61; color: #fff; }
+.ar-btn-lamp { background: var(--ar-lamp); color: #fff; box-shadow: 0 2px 8px rgba(237,137,54,.25); }
+.ar-btn-lamp:hover { background: #C05621; color: #fff; }
+.ar-btn-ghost { background: #fff; color: var(--ar-ink-soft); border-color: var(--ar-line); }
+.ar-btn-ghost:hover { background: var(--ar-line-soft); border-color: var(--ar-muted-soft); }
+.ar-btn-sm { height: 34px; padding: 0 12px; font-size: 13px; }
+
+/* History table */
+.ar-history { background: #fff; border: 1px solid var(--ar-line); border-radius: 16px; overflow: hidden; box-shadow: var(--ar-shadow); }
+.ar-history table { width: 100%; border-collapse: collapse; }
+.ar-history th, .ar-history td { padding: 13px 16px; text-align: left; font-size: 13px; border-bottom: 1px solid var(--ar-line-soft); }
+.ar-history th { background: var(--ar-paper); color: var(--ar-muted); font-weight: 600; font-size: 12px; }
+.ar-history tr:last-child td { border-bottom: none; }
+.ar-history tr:hover td { background: var(--ar-line-soft); }
+.ar-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.ar-pill .ar-dot { width: 6px; height: 6px; border-radius: 50%; }
+.ar-pill.ar-draft { background: var(--ar-lamp-bg); color: var(--ar-lamp); }
+.ar-pill.ar-draft .ar-dot { background: var(--ar-lamp); }
+.ar-pill.ar-done { background: #F0FFF4; color: var(--ar-success); }
+.ar-pill.ar-done .ar-dot { background: var(--ar-success); }
+.ar-pill.ar-idle { background: var(--ar-line-soft); color: var(--ar-muted); }
+.ar-pill.ar-idle .ar-dot { background: var(--ar-muted); }
+.ar-pill.ar-check { background: #EBF8FF; color: #2B6CB0; }
+.ar-pill.ar-check .ar-dot { background: #2B6CB0; }
+
+/* Toast */
+.ar-toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px);
+    background: var(--ar-ink); color: #fff;
+    padding: 13px 22px; border-radius: 12px; font-size: 14px; font-weight: 600;
+    box-shadow: 0 12px 32px rgba(0,0,0,.25); z-index: 9999; opacity: 0;
+    transition: all .25s ease-out; display: flex; align-items: center; gap: 10px;
+    font-family: var(--ar-jp);
+}
+.ar-toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+.ar-toast .ar-tic { color: var(--ar-teal-light); }
+
+/* Mobile */
+@media (max-width: 900px) {
+    .ar-pageheader { flex-direction: column; align-items: stretch; }
+    .ar-hero { grid-template-columns: 1fr; padding: 18px 20px; }
+    .ar-steps { grid-template-columns: 1fr; }
+    .ar-review-grid { grid-template-columns: 1fr; }
+    .ar-export-row { flex-direction: column; align-items: stretch; }
+    .ar-export-row .ar-actions { width: 100%; }
+    .ar-export-row .ar-actions .ar-btn { flex: 1; }
+    .ar-history { overflow-x: auto; }
 }
 </style>
 
 <!-- メインコンテンツ開始 -->
 <main class="main-content">
-<div class="container-fluid px-4">
+<?php
+// 第21号様式データを取得（メインカード表示用）
+$form21_data_main = getForm21Data($pdo);
+
+// 提出期限（年度の翌年5月31日）と残日数
+$deadline_str = $selected_year . '-05-31';
+$today = new DateTime('today');
+$deadline = new DateTime($deadline_str);
+$days_left = (int) $today->diff($deadline)->format('%r%a');
+
+// 年度履歴の form4/form21 提出済み状態を集計（進捗リング用）
+$has_form4 = false; $has_form21 = false; $form4_done = false; $form21_done = false;
+foreach (($annual_reports ?? []) as $rpt) {
+    if ($rpt['report_type'] === '第4号様式') {
+        $has_form4 = true;
+        if ($rpt['status'] === '提出済み') $form4_done = true;
+    }
+    if ($rpt['report_type'] === '第21号様式') {
+        $has_form21 = true;
+        if ($rpt['status'] === '提出済み') $form21_done = true;
+    }
+}
+$completed_steps = 1; // データ自動集計は常に完了
+if ($has_form4 || $has_form21) $completed_steps = 2; // 一度でも出力していれば内容確認段階
+if ($form4_done && $form21_done) $completed_steps = 3; // 両方提出済み
+$progress_pct = intval(round($completed_steps / 3 * 100));
+
+$reiwa_year = toReiwaYear($selected_year);
+?>
+<div class="ar-root container-fluid px-md-4 px-2">
 
     <!-- メッセージ表示 -->
     <?php if ($message): ?>
@@ -1239,7 +1552,6 @@ echo $page_data['page_header'];
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
-
     <?php if ($error): ?>
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <i class="fas fa-exclamation-triangle me-2"></i><?= htmlspecialchars($error) ?>
@@ -1247,432 +1559,314 @@ echo $page_data['page_header'];
         </div>
     <?php endif; ?>
 
-    <!-- 事業者情報サマリー -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-primary">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-building me-2"></i>事業者情報</h5>
-                    <a href="company_settings.php" class="btn btn-light btn-sm">
-                        <i class="fas fa-edit me-1"></i>会社情報設定へ
-                    </a>
-                </div>
-                <div class="card-body py-2">
-                    <div class="row">
-                        <div class="col-md-4"><strong><?= htmlspecialchars($company_info['company_name']) ?></strong></div>
-                        <div class="col-md-4">許可番号: <?= htmlspecialchars($company_info['license_number'] ?: '未設定') ?></div>
-                        <div class="col-md-4">運行管理者: <?= htmlspecialchars($company_info['manager_name'] ?? '未設定') ?></div>
-                    </div>
-                </div>
+    <!-- ===== Page header ===== -->
+    <div class="ar-pageheader">
+        <div class="ar-badge" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 13h6M9 17h4"/></svg>
+        </div>
+        <div>
+            <h1>陸運局へ提出する年次報告書</h1>
+            <p class="ar-sub">輸送実績報告書（第4号様式）と、福祉タクシー車両報告書（第21号様式）を <b>1年に1回</b> 作成します。<br>
+                スマルトのデータから自動で集計するので、内容を確認するだけで完了します。</p>
+        </div>
+    </div>
+
+    <!-- ===== Year selector ===== -->
+    <div class="ar-yearbar" role="tablist" aria-label="年度">
+        <?php for ($y = $current_year + 1; $y >= $current_year - 4; $y--): ?>
+            <a href="?year=<?= $y ?>" class="<?= $y == $selected_year ? 'on' : '' ?>">
+                <?= $y ?>年度<span class="ar-reiwa">R<?= toReiwaYear($y) ?></span>
+            </a>
+        <?php endfor; ?>
+    </div>
+
+    <!-- ===== Hero ===== -->
+    <div class="ar-hero">
+        <div>
+            <div class="ar-hero-eyebrow">
+                <?php if ($days_left > 0): ?>
+                    ▲ 提出期限まで <?= $days_left ?>日
+                <?php elseif ($days_left === 0): ?>
+                    ⚡ 提出期限は本日です
+                <?php else: ?>
+                    ✓ <?= abs($days_left) ?>日経過（期限超過）
+                <?php endif; ?>
+            </div>
+            <h2><?= $selected_year ?>年度（令和<?= $reiwa_year ?>年度）の提出を準備しましょう</h2>
+            <p>提出先：大阪運輸支局　／　提出期限：<b><?= htmlspecialchars($deadline_str) ?></b><br>
+                スマルトのデータから自動集計済み。内容を確認したらPDF/Excelで書き出して、郵送または窓口へ提出してください。</p>
+        </div>
+        <div class="ar-hero-progress">
+            <div class="ar-ring" aria-hidden="true">
+                <svg width="64" height="64">
+                    <circle cx="32" cy="32" r="28" fill="none" stroke="#FFE5BD" stroke-width="6"/>
+                    <circle cx="32" cy="32" r="28" fill="none" stroke="#ED8936" stroke-width="6"
+                            stroke-dasharray="175.9" stroke-dashoffset="<?= 175.9 - (175.9 * $progress_pct / 100) ?>" stroke-linecap="round"/>
+                </svg>
+                <div class="ar-num"><?= $progress_pct ?>%</div>
+            </div>
+            <div>
+                <div class="ar-label">完了状況</div>
+                <div class="ar-val"><?= $completed_steps ?>/3 ステップ</div>
+                <div class="ar-deadline"><?= $completed_steps == 3 ? '提出済み' : ($completed_steps == 2 ? '残り：提出のみ' : '残り：内容確認・出力') ?></div>
             </div>
         </div>
     </div>
 
-    <!-- 年度選択 -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card bg-light">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            <i class="fas fa-calendar-alt me-2"></i>年度選択
-                            <span class="badge bg-primary ms-2"><?= $selected_year ?>年度</span>
-                        </h5>
-                        <form method="GET" class="d-flex">
-                            <select name="year" class="form-select me-2" style="width: auto;">
-                                <?php for ($year = $current_year + 1; $year >= $current_year - 5; $year--): ?>
-                                    <option value="<?= $year ?>" <?= $year == $selected_year ? 'selected' : '' ?>>
-                                        <?= $year ?>年度（<?= $year - 1 ?>年4月〜<?= $year ?>年3月）
-                                    </option>
-                                <?php endfor; ?>
-                            </select>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-search"></i>変更
-                            </button>
-                        </form>
-                    </div>
-                </div>
+    <!-- ===== 3 STEP cards ===== -->
+    <div class="ar-steps">
+        <div class="ar-step done">
+            <div class="ar-step-num">✓</div>
+            <h3>1. データを集める</h3>
+            <p class="ar-step-desc">スマルトに記録された運行・乗車・事故・車両データから自動で年度集計します。手作業の入力は不要です。</p>
+            <div class="ar-step-stat">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 7"/></svg>
+                自動集計済み
+            </div>
+        </div>
+        <div class="ar-step <?= $completed_steps == 2 ? 'current' : ($completed_steps >= 2 ? 'done' : '') ?>">
+            <div class="ar-step-num"><?= $completed_steps >= 3 ? '✓' : '2' ?></div>
+            <h3>2. 内容を確認する</h3>
+            <p class="ar-step-desc">下の集計データを確認してください。事業者番号・資本金・兼営事業などは数値をクリックしてその場で編集できます。</p>
+            <div class="ar-step-stat">
+                <?php if ($completed_steps >= 3): ?>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 7"/></svg>
+                    確認済み
+                <?php elseif ($completed_steps == 2): ?>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                    いまここ
+                <?php else: ?>
+                    まだ
+                <?php endif; ?>
+            </div>
+        </div>
+        <div class="ar-step <?= $completed_steps == 3 ? 'done' : ($completed_steps == 2 ? '' : 'current') ?>">
+            <div class="ar-step-num"><?= $completed_steps >= 3 ? '✓' : '3' ?></div>
+            <h3>3. ダウンロードして提出</h3>
+            <p class="ar-step-desc">PDFまたはExcelで書き出して、運輸支局へ郵送または窓口提出。書式は近畿運輸局の公式様式に準拠しています。</p>
+            <div class="ar-step-stat">
+                <?php if ($completed_steps >= 3): ?>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 7"/></svg>
+                    提出済み
+                <?php else: ?>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    まだ
+                <?php endif; ?>
             </div>
         </div>
     </div>
 
-    <!-- 年度データサマリー（陸運局様式準拠） -->
-    <div class="row mb-4">
-        <div class="col-lg-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body text-center">
-                    <div class="display-4 mb-0"><?= $business_overview['vehicle_count'] ?></div>
-                    <div class="h5">事業用自動車数</div>
-                    <small><?= $selected_year ?>年3月31日現在</small>
+    <!-- ===== Data review ===== -->
+    <div class="ar-section-title">
+        <div class="ar-accent"></div>
+        集計データを確認
+        <span class="ar-count"><?= ($selected_year - 1) ?>年4月1日 〜 <?= $selected_year ?>年3月31日</span>
+        <div class="ar-right">
+            <a href="?year=<?= $selected_year ?>&refresh=1" class="ar-btn ar-btn-ghost ar-btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+                再集計
+            </a>
+        </div>
+    </div>
+
+    <div class="ar-review-grid">
+        <!-- 事業概況 -->
+        <div class="ar-data-card">
+            <div class="ar-head">
+                <div class="ar-icw"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l8-4 8 4v14"/><path d="M9 9h.01M9 12h.01M9 15h.01M13 9h.01M13 12h.01M13 15h.01"/></svg></div>
+                <h4>事業概況</h4>
+                <span class="ar-as-of">R<?= $reiwa_year ?>年3月31日現在</span>
+            </div>
+            <div class="ar-kv"><span class="ar-k">事業者番号</span><span class="ar-v"><span class="ar-edit" data-field="business_number"><?= htmlspecialchars($company_info['business_number'] ?? '') ?></span></span></div>
+            <div class="ar-kv"><span class="ar-k">事業用自動車数</span><span class="ar-v"><?= number_format(intval($business_overview['vehicle_count'] ?? 0)) ?><small>両</small></span></div>
+            <div class="ar-kv"><span class="ar-k">従業員数（うち運転者）</span><span class="ar-v"><?= number_format(intval($business_overview['employee_count'] ?? 0)) ?><small>名（</small><?= number_format(intval($business_overview['driver_count'] ?? 0)) ?><small>）</small></span></div>
+            <div class="ar-kv"><span class="ar-k">資本金</span><span class="ar-v"><span class="ar-edit" data-field="capital_thousand_yen" data-numeric="1"><?= number_format(intval($company_info['capital_thousand_yen'] ?? 0)) ?></span><small>千円</small></span></div>
+            <div class="ar-kv"><span class="ar-k">兼営事業</span><span class="ar-v" style="font-size:14px;font-weight:600;"><span class="ar-edit" data-field="concurrent_business"><?= htmlspecialchars($company_info['concurrent_business'] ?? '') ?></span></span></div>
+        </div>
+
+        <!-- 輸送実績 -->
+        <div class="ar-data-card ar-lamp">
+            <div class="ar-head">
+                <div class="ar-icw"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l2-5a2 2 0 0 1 2-1h6a2 2 0 0 1 2 1l2 5"/><rect x="3" y="12" width="18" height="5"/><circle cx="7" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></svg></div>
+                <h4>輸送実績</h4>
+                <span class="ar-as-of">R<?= $reiwa_year - 1 ?>年4月〜R<?= $reiwa_year ?>年3月</span>
+            </div>
+            <div class="ar-kv"><span class="ar-k">走行キロ</span><span class="ar-v"><?= number_format(intval($transport_results['total_distance'] ?? 0)) ?><small>km</small></span></div>
+            <div class="ar-kv"><span class="ar-k">運送回数</span><span class="ar-v"><?= number_format(intval($transport_results['ride_count'] ?? 0)) ?><small>回</small></span></div>
+            <div class="ar-kv"><span class="ar-k">輸送人員</span><span class="ar-v"><?= number_format(intval($transport_results['total_passengers'] ?? 0)) ?><small>人</small></span></div>
+            <div class="ar-kv"><span class="ar-k">営業収入</span><span class="ar-v"><?= number_format(intval(($transport_results['total_revenue'] ?? 0) / 1000)) ?><small>千円</small></span></div>
+        </div>
+
+        <!-- 事故件数 -->
+        <div class="ar-data-card ar-danger">
+            <div class="ar-head">
+                <div class="ar-icw"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 20h20L12 3zM12 10v5M12 18h.01"/></svg></div>
+                <h4>事故件数</h4>
+                <span class="ar-as-of">年度集計</span>
+            </div>
+            <div class="ar-kv"><span class="ar-k">交通事故件数</span><span class="ar-v"><?= intval($accident_data['traffic_accidents'] ?? 0) ?><small>件</small></span></div>
+            <div class="ar-kv"><span class="ar-k">重大事故件数</span><span class="ar-v"><?= intval($accident_data['serious_accidents'] ?? 0) ?><small>件</small></span></div>
+            <div class="ar-kv"><span class="ar-k">死者数</span><span class="ar-v"><?= intval($accident_data['total_deaths'] ?? 0) ?><small>人</small></span></div>
+            <div class="ar-kv"><span class="ar-k">負傷者数</span><span class="ar-v"><?= intval($accident_data['total_injuries'] ?? 0) ?><small>人</small></span></div>
+        </div>
+
+        <!-- 福祉タクシー車両（第21号様式） -->
+        <div class="ar-data-card ar-lamp">
+            <div class="ar-head">
+                <div class="ar-icw"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="3"/><path d="M9 22v-7a3 3 0 0 1 3-3 3 3 0 0 1 3 3v7"/><circle cx="6" cy="20" r="2"/></svg></div>
+                <h4>福祉タクシー車両（第21号様式）</h4>
+                <span class="ar-as-of">R<?= $reiwa_year ?>年3月31日現在</span>
+            </div>
+            <div class="ar-kv"><span class="ar-k">合計</span><span class="ar-v"><?= intval($form21_data_main['total']) ?><small>両</small></span></div>
+            <div class="ar-kv"><span class="ar-k">車椅子対応車（うちUDT）</span><span class="ar-v"><?= intval($form21_data_main['wheelchair']) ?><small>両（</small><?= intval($form21_data_main['udt']) ?><small>）</small></span></div>
+            <div class="ar-kv"><span class="ar-k">寝台対応車</span><span class="ar-v"><?= intval($form21_data_main['stretcher']) ?><small>両</small></span></div>
+            <div class="ar-kv"><span class="ar-k">兼用車・回転シート車</span><span class="ar-v"><?= intval($form21_data_main['combo']) + intval($form21_data_main['rotation']) ?><small>両</small></span></div>
+        </div>
+    </div>
+
+    <div class="ar-tip">
+        <div class="ar-i">i</div>
+        <div>
+            <h5>数字を直接編集できます</h5>
+            <p>事業者番号・資本金・兼営事業は <b style="color:var(--ar-lamp);">薄い枠が出る</b> 場所をクリックすると編集できます。編集内容はダウンロードする書類に反映されます。集計値（走行キロ・運送回数・事故件数・車両数）は<a href="vehicle_management.php">車両管理</a>等の元データを修正してから「再集計」してください。</p>
+        </div>
+    </div>
+
+    <!-- ===== Export panel ===== -->
+    <div class="ar-section-title" style="margin-top: 30px;">
+        <div class="ar-accent" style="background: var(--ar-lamp);"></div>
+        ダウンロードして提出
+        <span class="ar-count">公式様式に準拠</span>
+    </div>
+
+    <div class="ar-exports">
+        <h3>📥 <?= $selected_year ?>年度（令和<?= $reiwa_year ?>年度）の書類を書き出す</h3>
+        <p class="ar-exports-sub">A4縦・近畿運輸局の公式書式に準拠。印刷してそのまま提出できます。出力するとこの画面の「過去の提出履歴」にも自動記録されます。</p>
+
+        <!-- 第4号様式 -->
+        <div class="ar-export-row">
+            <div class="ar-ic-tile">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>
+            </div>
+            <div class="ar-info">
+                <h4>第4号様式 第3表 — 輸送実績報告書</h4>
+                <div class="ar-meta">
+                    <span>提出期限：5月31日</span>
+                    <span>旅客自動車運送事業等報告規則 第2条</span>
                 </div>
             </div>
-        </div>
-        <div class="col-lg-3">
-            <div class="card bg-info text-white">
-                <div class="card-body text-center">
-                    <div class="display-4 mb-0"><?= $business_overview['employee_count'] ?></div>
-                    <div class="h5">従業員数</div>
-                    <small>運転者<?= $business_overview['driver_count'] ?>名含む</small>
-                </div>
+            <div class="ar-actions">
+                <form method="POST" class="d-inline" target="_blank">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="action" value="export_form4">
+                    <input type="hidden" name="fiscal_year" value="<?= $selected_year ?>">
+                    <button type="submit" class="ar-btn ar-btn-ghost">PDF</button>
+                </form>
+                <form method="POST" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="action" value="export_form4_excel">
+                    <input type="hidden" name="fiscal_year" value="<?= $selected_year ?>">
+                    <button type="submit" class="ar-btn ar-btn-primary">Excel</button>
+                </form>
             </div>
         </div>
-        <div class="col-lg-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body text-center">
-                    <div class="display-4 mb-0"><?= number_format($transport_results['ride_count']) ?></div>
-                    <div class="h5">運送回数</div>
-                    <small>年度期間合計</small>
+
+        <!-- 第21号様式 -->
+        <div class="ar-export-row ar-form21">
+            <div class="ar-ic-tile">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="3"/><path d="M9 22v-7a3 3 0 0 1 3-3 3 3 0 0 1 3 3v7"/><circle cx="6" cy="20" r="2"/></svg>
+            </div>
+            <div class="ar-info">
+                <h4>第21号様式 — 移動等円滑化実績等報告書（福祉タクシー車両）</h4>
+                <div class="ar-meta">
+                    <span>提出期限：5月31日</span>
+                    <span>バリアフリー法施行規則 第23条</span>
                 </div>
             </div>
-        </div>
-        <div class="col-lg-3">
-            <div class="card bg-warning text-dark">
-                <div class="card-body text-center">
-                    <div class="display-4 mb-0"><?= $accident_data['traffic_accidents'] + $accident_data['serious_accidents'] ?></div>
-                    <div class="h5">事故件数</div>
-                    <small>交通事故・重大事故計</small>
-                </div>
+            <div class="ar-actions">
+                <form method="POST" class="d-inline" target="_blank">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="action" value="export_form21">
+                    <input type="hidden" name="fiscal_year" value="<?= $selected_year ?>">
+                    <button type="submit" class="ar-btn ar-btn-ghost">PDF</button>
+                </form>
+                <form method="POST" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="action" value="export_form21_excel">
+                    <input type="hidden" name="fiscal_year" value="<?= $selected_year ?>">
+                    <button type="submit" class="ar-btn ar-btn-lamp">Excel</button>
+                </form>
             </div>
         </div>
     </div>
 
-    <!-- 第4号様式詳細データ -->
-    <div class="row mb-4">
-        <div class="col-lg-4">
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-building me-2"></i>事業概況（<?= $selected_year ?>年3月31日現在）</h6>
-                </div>
-                <div class="card-body">
-                    <table class="table table-sm mb-0">
-                        <tr>
-                            <td>事業用自動車数</td>
-                            <td class="text-end fw-bold"><?= $business_overview['vehicle_count'] ?>台</td>
-                        </tr>
-                        <tr>
-                            <td>従業員数</td>
-                            <td class="text-end fw-bold"><?= $business_overview['employee_count'] ?>名</td>
-                        </tr>
-                        <tr>
-                            <td>　うち運転者数</td>
-                            <td class="text-end"><?= $business_overview['driver_count'] ?>名</td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-lg-4">
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>輸送実績（<?= $selected_year ?>年度）</h6>
-                </div>
-                <div class="card-body">
-                    <table class="table table-sm mb-0">
-                        <tr>
-                            <td>走行キロ</td>
-                            <td class="text-end fw-bold"><?= number_format($transport_results['total_distance']) ?>km</td>
-                        </tr>
-                        <tr>
-                            <td>運送回数</td>
-                            <td class="text-end fw-bold"><?= number_format($transport_results['ride_count']) ?>回</td>
-                        </tr>
-                        <tr>
-                            <td>輸送人員</td>
-                            <td class="text-end fw-bold"><?= number_format($transport_results['total_passengers']) ?>人</td>
-                        </tr>
-                        <tr class="table-success">
-                            <td>営業収入</td>
-                            <td class="text-end fw-bold">¥<?= number_format($transport_results['total_revenue']) ?></td>
-                        </tr>
-                        <tr>
-                            <td><small>（千円単位）</small></td>
-                            <td class="text-end"><small><?= number_format(floor($transport_results['total_revenue'] / 1000)) ?>千円</small></td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-lg-4">
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>事故件数（<?= $selected_year ?>年度）</h6>
-                </div>
-                <div class="card-body">
-                    <table class="table table-sm mb-0">
-                        <tr>
-                            <td>交通事故件数</td>
-                            <td class="text-end fw-bold"><?= $accident_data['traffic_accidents'] ?>件</td>
-                        </tr>
-                        <tr>
-                            <td>重大事故件数</td>
-                            <td class="text-end fw-bold"><?= $accident_data['serious_accidents'] ?>件</td>
-                        </tr>
-                        <tr>
-                            <td>死者数</td>
-                            <td class="text-end fw-bold"><?= $accident_data['total_deaths'] ?>名</td>
-                        </tr>
-                        <tr>
-                            <td>負傷者数</td>
-                            <td class="text-end fw-bold"><?= $accident_data['total_injuries'] ?>名</td>
-                        </tr>
-                    </table>
-                    
-                    <?php if (($accident_data['traffic_accidents'] + $accident_data['serious_accidents']) == 0): ?>
-                        <div class="text-center mt-2">
-                            <span class="badge bg-success">無事故達成</span>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
+    <!-- ===== History ===== -->
+    <div class="ar-section-title">
+        <div class="ar-accent"></div>
+        過去の提出履歴
+        <span class="ar-count"><?= count($annual_reports ?? []) ?>件</span>
     </div>
 
-    <!-- 輸送種別詳細 -->
-    <?php if (!empty($transport_results['transport_categories'])): ?>
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-list me-2"></i>輸送種別詳細（<?= $selected_year ?>年度）</h6>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>輸送種別</th>
-                                    <th class="text-end">運送回数</th>
-                                    <th class="text-end">輸送人員</th>
-                                    <th class="text-end">営業収入</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($transport_results['transport_categories'] as $category): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($category['transportation_type']) ?></td>
-                                    <td class="text-end"><?= number_format($category['count']) ?>回</td>
-                                    <td class="text-end"><?= number_format($category['passengers']) ?>人</td>
-                                    <td class="text-end">¥<?= number_format($category['revenue']) ?></td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- 第4号様式出力・管理 -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-primary">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-file-pdf me-2"></i>第4号様式 第3表（福祉限定 輸送実績報告書）</h5>
-                    <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#createReportModal">
-                        <i class="fas fa-plus me-1"></i>新規作成
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-lg-8">
-                            <h6>陸運局提出用書類の作成・管理</h6>
-                            <p class="text-muted mb-0">
-                                旅客自動車運送事業等報告規則第2条に基づく輸送実績報告書（限定）です。<br>
-                                提出先: 国土交通省近畿運輸局 大阪運輸支局　提出期限: 毎年5月31日
-                            </p>
-                        </div>
-                        <div class="col-lg-4 text-end">
-                            <form method="POST" class="d-inline" target="_blank">
-                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                                <input type="hidden" name="action" value="export_form4">
-                                <input type="hidden" name="fiscal_year" value="<?= $selected_year ?>">
-                                <button type="submit" class="btn btn-success btn-lg">
-                                    <i class="fas fa-file-pdf me-2"></i>PDF出力
-                                </button>
-                            </form>
-                            <form method="POST" class="d-inline ms-2">
-                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                                <input type="hidden" name="action" value="export_form4_excel">
-                                <input type="hidden" name="fiscal_year" value="<?= $selected_year ?>">
-                                <button type="submit" class="btn btn-primary btn-lg">
-                                    <i class="fas fa-file-excel me-2"></i>Excel出力
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                    
-                    <!-- レポート一覧 -->
-                    <?php if ($annual_reports): ?>
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>年度</th>
-                                        <th>レポート種別</th>
-                                        <th>状態</th>
-                                        <th>提出日</th>
-                                        <th>担当者</th>
-                                        <th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($annual_reports as $report): ?>
-                                        <tr>
-                                            <td><span class="badge bg-secondary"><?= $report['fiscal_year'] ?>年度</span></td>
-                                            <td><?= htmlspecialchars($report['report_type']) ?></td>
-                                            <td>
-                                                <span class="badge 
-                                                    <?php
-                                                    switch($report['status']) {
-                                                        case '未作成': echo 'bg-secondary'; break;
-                                                        case '作成中': echo 'bg-warning text-dark'; break;
-                                                        case '確認中': echo 'bg-info'; break;
-                                                        case '提出済み': echo 'bg-success'; break;
-                                                    }
-                                                    ?>">
-                                                    <?= $report['status'] ?>
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <?= $report['submission_date'] ? date('Y/m/d', strtotime($report['submission_date'])) : '-' ?>
-                                            </td>
-                                            <td><?= htmlspecialchars($report['submitted_by_name'] ?? '') ?></td>
-                                            <td>
-                                                <div class="btn-group" role="group">
-                                                    <?php if ($report['status'] !== '提出済み'): ?>
-                                                        <button class="btn btn-outline-primary btn-sm" 
-                                                                onclick="updateStatus(<?= $report['id'] ?>, '<?= $report['status'] ?>')">
-                                                            <i class="fas fa-edit"></i>
-                                                        </button>
-                                                    <?php endif; ?>
-                                                    
-                                                    <form method="POST" class="d-inline" target="_blank">
-                                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                                                        <input type="hidden" name="action" value="export_form4">
-                                                        <input type="hidden" name="fiscal_year" value="<?= $report['fiscal_year'] ?>">
-                                                        <button type="submit" class="btn btn-outline-success btn-sm" title="PDF出力">
-                                                            <i class="fas fa-file-pdf"></i>
-                                                        </button>
-                                                    </form>
-                                                    <form method="POST" class="d-inline">
-                                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                                                        <input type="hidden" name="action" value="export_form4_excel">
-                                                        <input type="hidden" name="fiscal_year" value="<?= $report['fiscal_year'] ?>">
-                                                        <button type="submit" class="btn btn-outline-primary btn-sm" title="Excel出力">
-                                                            <i class="fas fa-file-excel"></i>
-                                                        </button>
-                                                    </form>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php else: ?>
-                        <div class="text-center py-5">
-                            <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
-                            <h5 class="text-muted">まだレポートが作成されていません</h5>
-                            <p class="text-muted">
-                                <?= $selected_year ?>年度の第4号様式はまだ作成されていません。<br>
-                                上記のPDF出力ボタンから直接出力するか、「新規作成」で管理記録を作成してください。
-                            </p>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
+    <div class="ar-history">
+        <table>
+            <thead>
+                <tr><th>年度</th><th>様式</th><th>状態</th><th>担当</th><th>更新日</th><th></th></tr>
+            </thead>
+            <tbody>
+                <?php if (empty($annual_reports)): ?>
+                    <tr><td colspan="6" style="text-align:center; padding: 40px 16px; color: var(--ar-muted);">
+                        まだ書類を出力していません。上の「ダウンロードして提出」から PDF/Excel を生成すると、自動で履歴に記録されます。
+                    </td></tr>
+                <?php else: foreach ($annual_reports as $report): ?>
+                <tr>
+                    <td><b><?= htmlspecialchars($report['fiscal_year']) ?>年度</b><span style="color:var(--ar-muted);font-size:11px;margin-left:6px;">R<?= toReiwaYear($report['fiscal_year']) ?></span></td>
+                    <td><?= htmlspecialchars($report['report_type']) ?></td>
+                    <td>
+                        <?php
+                        $st = $report['status'];
+                        $cls = 'ar-idle';
+                        if ($st === '作成中') $cls = 'ar-draft';
+                        elseif ($st === '確認中') $cls = 'ar-check';
+                        elseif ($st === '提出済み') $cls = 'ar-done';
+                        ?>
+                        <span class="ar-pill <?= $cls ?>"><span class="ar-dot"></span><?= htmlspecialchars($st) ?></span>
+                    </td>
+                    <td><?= htmlspecialchars($report['submitted_by_name'] ?? '') ?></td>
+                    <td style="font-family:var(--ar-mono);font-size:12px;color:var(--ar-muted);">
+                        <?= !empty($report['updated_at']) ? date('Y-m-d', strtotime($report['updated_at'])) : '-' ?>
+                    </td>
+                    <td>
+                        <?php if ($st !== '提出済み'): ?>
+                            <button class="ar-btn ar-btn-ghost ar-btn-sm" onclick="updateStatus(<?= $report['id'] ?>, '<?= htmlspecialchars($st) ?>')">状態変更</button>
+                        <?php else: ?>
+                            <span style="color:var(--ar-muted); font-size:12px;">完了</span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
     </div>
 
-    <!-- 第21号様式（移動等円滑化実績等報告書 福祉タクシー車両） -->
-    <?php $form21_data = getForm21Data($pdo); ?>
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-info">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0"><i class="fas fa-wheelchair me-2"></i>第21号様式（移動等円滑化実績等報告書 福祉タクシー車両）</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-lg-8">
-                            <h6>バリアフリー法施行規則第23条に基づく報告書</h6>
-                            <p class="text-muted mb-2">
-                                提出先: 国土交通省近畿運輸局 大阪運輸支局 輸送部門　提出期限: 毎年5月31日<br>
-                                対象: 福祉車両を保有する一般乗用旅客自動車運送事業者
-                            </p>
-                            <div class="small">
-                                <span class="badge bg-secondary">年度末車両数</span>
-                                計 <strong><?= $form21_data['total'] ?></strong>両 ／
-                                車椅子対応 <?= $form21_data['wheelchair'] ?>両 ／
-                                うちUDT <?= $form21_data['udt'] ?>両 ／
-                                寝台対応 <?= $form21_data['stretcher'] ?>両 ／
-                                兼用 <?= $form21_data['combo'] ?>両 ／
-                                回転シート <?= $form21_data['rotation'] ?>両
-                            </div>
-                            <small class="text-muted">※車両ごとの区分は <a href="vehicle_management.php">車両管理</a> 画面で設定。前年度数値・計画内容は <a href="company_settings.php">会社情報設定</a> で入力。</small>
-                        </div>
-                        <div class="col-lg-4 text-end">
-                            <form method="POST" class="d-inline" target="_blank">
-                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                                <input type="hidden" name="action" value="export_form21">
-                                <input type="hidden" name="fiscal_year" value="<?= $selected_year ?>">
-                                <button type="submit" class="btn btn-success btn-lg">
-                                    <i class="fas fa-file-pdf me-2"></i>PDF出力
-                                </button>
-                            </form>
-                            <form method="POST" class="d-inline ms-2">
-                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
-                                <input type="hidden" name="action" value="export_form21_excel">
-                                <input type="hidden" name="fiscal_year" value="<?= $selected_year ?>">
-                                <button type="submit" class="btn btn-primary btn-lg">
-                                    <i class="fas fa-file-excel me-2"></i>Excel出力
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- ===== 関連機能（既存維持） ===== -->
+    <div class="ar-section-title" style="margin-top: 30px;">
+        <div class="ar-accent" style="background: var(--ar-muted-soft);"></div>
+        関連機能
+    </div>
+    <div class="row g-2 mb-4">
+        <div class="col-6 col-lg-3"><a href="accident_management.php" class="ar-btn ar-btn-ghost w-100"><i class="fas fa-exclamation-triangle me-1"></i>事故管理</a></div>
+        <div class="col-6 col-lg-3"><a href="vehicle_management.php" class="ar-btn ar-btn-ghost w-100"><i class="fas fa-car me-1"></i>車両管理</a></div>
+        <div class="col-6 col-lg-3"><a href="company_settings.php" class="ar-btn ar-btn-ghost w-100"><i class="fas fa-building me-1"></i>会社情報設定</a></div>
+        <div class="col-6 col-lg-3"><a href="dashboard.php" class="ar-btn ar-btn-ghost w-100"><i class="fas fa-home me-1"></i>ダッシュボード</a></div>
     </div>
 
-    <!-- 関連機能 -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card bg-light">
-                <div class="card-body">
-                    <h6 class="mb-3"><i class="fas fa-link me-2"></i>関連機能</h6>
-                    <div class="row">
-                        <div class="col-lg-3">
-                            <a href="accident_management.php" class="btn btn-warning w-100">
-                                <i class="fas fa-exclamation-triangle me-1"></i>事故管理
-                            </a>
-                        </div>
-                        <div class="col-lg-3">
-                            <a href="vehicle_management.php" class="btn btn-info w-100">
-                                <i class="fas fa-car me-1"></i>車両管理
-                            </a>
-                        </div>
-                        <div class="col-lg-3">
-                            <a href="ride_records.php" class="btn btn-primary w-100">
-                                <i class="fas fa-route me-1"></i>乗車記録
-                            </a>
-                        </div>
-                        <div class="col-lg-3">
-                            <a href="dashboard.php" class="btn btn-secondary w-100">
-                                <i class="fas fa-home me-1"></i>ダッシュボード
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-</main>
+</div><!-- .ar-root -->
+
+<!-- Toast -->
+<div class="ar-toast" id="arToast">
+    <svg class="ar-tic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 7"/></svg>
+    <span id="arToastMsg">完了しました</span>
+</div></main>
 
 <!-- レポート作成モーダル -->
 <div class="modal fade" id="createReportModal" tabindex="-1" aria-labelledby="createReportModalLabel" aria-hidden="true">
@@ -1767,14 +1961,92 @@ echo $page_data['page_header'];
 </div>
 
 <script>
-    // 状態更新モーダル（DOMContentLoaded後に実行）
-    function updateStatus(reportId, currentStatus) {
+(function() {
+    // ===== Toast =====
+    const toast = document.getElementById('arToast');
+    const toastMsg = document.getElementById('arToastMsg');
+    let toastTimer;
+    window.arShowToast = function(msg, isError) {
+        if (!toast || !toastMsg) return;
+        toastMsg.textContent = msg;
+        toast.style.background = isError ? '#E53E3E' : '#1A202C';
+        toast.classList.add('on');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('on'), 2400);
+    };
+
+    // ===== Inline edit (AJAX保存) =====
+    const csrf = '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>';
+    document.querySelectorAll('.ar-edit').forEach(el => {
+        el.setAttribute('contenteditable', 'true');
+        el.setAttribute('spellcheck', 'false');
+
+        let originalValue = el.textContent;
+        el.addEventListener('focus', () => {
+            originalValue = el.textContent;
+        });
+        el.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+            if (e.key === 'Escape') { el.textContent = originalValue; el.blur(); }
+        });
+        el.addEventListener('blur', () => {
+            const field = el.dataset.field;
+            let value = el.textContent.trim();
+            if (el.dataset.numeric === '1') {
+                value = value.replace(/[^\d-]/g, '');
+            }
+            if (value === originalValue.trim()) return; // 変更なし
+
+            const fd = new FormData();
+            fd.append('action', 'update_inline_field');
+            fd.append('field', field);
+            fd.append('value', value);
+            fd.append('csrf_token', csrf);
+
+            fetch(window.location.pathname, { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        if (el.dataset.numeric === '1') {
+                            el.textContent = Number(data.value).toLocaleString();
+                        }
+                        window.arShowToast('変更を保存しました');
+                    } else {
+                        el.textContent = originalValue;
+                        window.arShowToast('保存に失敗しました（' + (data.error || 'unknown') + '）', true);
+                    }
+                })
+                .catch(err => {
+                    el.textContent = originalValue;
+                    window.arShowToast('通信エラーが発生しました', true);
+                    console.error(err);
+                });
+        });
+    });
+
+    // ===== 出力ボタン押下時にトースト表示 =====
+    document.querySelectorAll('.ar-export-row form').forEach(f => {
+        f.addEventListener('submit', () => {
+            const action = f.querySelector('[name="action"]').value;
+            const map = {
+                'export_form4':       '第4号様式 PDFを生成しています…',
+                'export_form4_excel': '第4号様式 Excelをダウンロードします',
+                'export_form21':      '第21号様式 PDFを生成しています…',
+                'export_form21_excel':'第21号様式 Excelをダウンロードします',
+            };
+            window.arShowToast(map[action] || '書類を出力します');
+        });
+    });
+
+    // ===== 状態更新モーダル（履歴テーブルの「状態変更」ボタンから） =====
+    window.updateStatus = function(reportId, currentStatus) {
         document.getElementById('update_report_id').value = reportId;
         document.getElementById('status').value = currentStatus;
-        var modalEl = document.getElementById('updateStatusModal');
-        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        const modalEl = document.getElementById('updateStatusModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         modal.show();
-    }
+    };
+})();
 </script>
 
 <?php
