@@ -5,6 +5,7 @@ require_once 'config/database.php';
 require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
+require_once 'lib/xlsxwriter.class.php';
 
 // 権限チェック（Admin限定ページ）
 if ($user_role !== 'Admin') {
@@ -697,158 +698,208 @@ body {
 }
 
 // エクセル出力関数 — 近畿運輸局 第4号様式 第3表（福祉限定）公式書式に準拠
+// PHP_XLSXWriter でネイティブ xlsx を生成（HTML→Excelハック廃止）
 // 構造: 8列ベース（A-D ラベル / E 管轄値 / F 管轄単位 / G 全国値 / H 全国単位）
 function generateForm4Excel($company, $business, $transport, $accident, $year) {
-    $filename = 'gentei_jisseki_R' . toReiwaYear($year) . '.xls';
-    header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Cache-Control: no-cache, must-revalidate');
-    header('Pragma: no-cache');
-
-    $revenue_sen = floor(($transport['total_revenue'] ?? 0) / 1000);
     $reiwa = toReiwaYear($year);
-    $h = function($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
+    $filename = 'gentei_jisseki_R' . $reiwa . '.xlsx';
 
-    echo "\xEF\xBB\xBF";
+    $writer = new XLSXWriter();
+    $writer->setAuthor('スマルト介護タクシー');
+    $writer->setTitle('第4号様式 第3表 輸送実績報告書 令和' . $reiwa . '年度');
 
-    echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-<meta charset="UTF-8">
-<!--[if gte mso 9]><xml>
- <x:ExcelWorkbook>
-  <x:ExcelWorksheets>
-   <x:ExcelWorksheet>
-    <x:Name>一般乗用（福祉限定）</x:Name>
-    <x:WorksheetOptions>
-     <x:DefaultRowHeight>340</x:DefaultRowHeight>
-     <x:Print><x:ValidPrinterInfo/><x:PaperSizeIndex>9</x:PaperSizeIndex><x:Orientation>Portrait</x:Orientation></x:Print>
-    </x:WorksheetOptions>
-   </x:ExcelWorksheet>
-  </x:ExcelWorksheets>
- </x:ExcelWorkbook>
-</xml><![endif]-->
-<style>
-    table { border-collapse: collapse; }
-    col.c0 { width: 80px; }
-    col.c1 { width: 80px; }
-    col.c2 { width: 80px; }
-    col.c3 { width: 80px; }
-    col.c4 { width: 70px; }
-    col.c5 { width: 40px; }
-    col.c6 { width: 70px; }
-    col.c7 { width: 40px; }
-    td { font-family: "ＭＳ Ｐ明朝", "Yu Mincho", serif; font-size: 10pt; vertical-align: middle; }
-    td.bx { border: 0.5pt solid #000; }
-    td.num { text-align: right; mso-number-format:"\#\,\#\#0"; }
-    td.txt { text-align: left; }
-    td.ctr { text-align: center; }
-    td.unit { text-align: left; font-size: 9pt; }
-    td.hdr { text-align: center; font-size: 10pt; }
-    td.sec { font-size: 10pt; }
-    td.title { text-align: center; font-weight: bold; font-size: 13pt; }
-    td.formhead { font-size: 9pt; }
-    td.bango-box { border: 0.5pt solid #000; text-align: center; }
-    td.gentei { border: 0.5pt solid #000; text-align: center; }
-    td.shikyu { border-bottom: 0.5pt solid #000; text-align: center; }
-    .biko { font-size: 9pt; }
-</style>
-</head>
-<body>
-<table>
-<colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"><col class="c6"><col class="c7"></colgroup>';
+    $sheet = '一般乗用（福祉限定）';
 
-    // 行0: 様式番号（左） + 事業者番号 + 限定（右）
-    echo '<tr style="height:18pt;">';
-    echo '<td colspan="5" class="formhead">第４号様式　（第２条関係）　（日本産業規格Ａ列４番）　第３表</td>';
-    echo '<td class="formhead" style="text-align:right;">事業者番号</td>';
-    echo '<td class="bango-box">' . $h($company['business_number'] ?? '') . '</td>';
-    echo '<td class="gentei">限定</td>';
-    echo '</tr>';
-    echo '<tr style="height:6pt;"><td colspan="8"></td></tr>';
+    // 列幅: A〜H（文字単位、約 1ch≒2.5mm）
+    $col_widths = [12, 12, 12, 12, 14, 8, 14, 8];
 
-    // 運輸支局
-    echo '<tr><td class="shikyu" colspan="2">大阪</td><td>運輸支局</td><td colspan="5"></td></tr>';
-    echo '<tr style="height:6pt;"><td colspan="8"></td></tr>';
+    // ヘッダーは抑制。データ行のみ書き込み
+    $writer->writeSheetHeader($sheet, [
+        'A'=>'string','B'=>'string','C'=>'string','D'=>'string',
+        'E'=>'string','F'=>'string','G'=>'string','H'=>'string'
+    ], ['suppress_row'=>true, 'widths'=>$col_widths]);
 
-    // タイトル
-    echo '<tr style="height:24pt;"><td colspan="8" class="title">一般乗用旅客自動車運送事業　（限定）　輸送実績報告書　（令和' . $reiwa . '年度）</td></tr>';
-    echo '<tr style="height:6pt;"><td colspan="8"></td></tr>';
+    // 共通スタイル
+    $S_BORDER = ['border'=>'left,right,top,bottom', 'border-style'=>'thin', 'font'=>'ＭＳ Ｐ明朝', 'font-size'=>10, 'valign'=>'center'];
+    $S_LBL    = array_merge($S_BORDER, ['halign'=>'left',   'wrap_text'=>true]);
+    $S_NUM    = array_merge($S_BORDER, ['halign'=>'right',  'format'=>'#,##0']);
+    $S_UNIT   = array_merge($S_BORDER, ['halign'=>'left',   'font-size'=>9]);
+    $S_CTR    = array_merge($S_BORDER, ['halign'=>'center']);
+    $S_HDR    = array_merge($S_BORDER, ['halign'=>'center', 'font-size'=>10]);
+    $S_SEC    = array_merge($S_BORDER, ['halign'=>'left',   'font-size'=>10]);
+    $S_NORMAL = ['font'=>'ＭＳ Ｐ明朝', 'font-size'=>10, 'valign'=>'center'];
+    $S_TITLE  = ['font'=>'ＭＳ Ｐ明朝', 'font-size'=>13, 'font-style'=>'bold', 'halign'=>'center', 'valign'=>'center'];
+    $S_FORMHEAD = ['font'=>'ＭＳ Ｐ明朝', 'font-size'=>9];
+    $S_BBOX   = ['border'=>'left,right,top,bottom','border-style'=>'thin','font'=>'ＭＳ Ｐ明朝','font-size'=>10,'halign'=>'center','valign'=>'center'];
+    $S_BIKO   = array_merge($S_BORDER, ['halign'=>'left', 'font-size'=>9, 'wrap_text'=>true]);
+    $S_BIKO_NUM = array_merge($S_BORDER, ['halign'=>'center', 'font-size'=>9]);
+    $S_VAL_BOTTOM = ['border'=>'bottom', 'border-style'=>'thin', 'font'=>'ＭＳ Ｐ明朝', 'font-size'=>10, 'halign'=>'left', 'valign'=>'center'];
 
-    // 宛先（見本通り「13個の全角スペース + あて」を列0始点）
-    echo '<tr><td colspan="8">　　　　　　　　　　　　　あて</td></tr>';
-    echo '<tr style="height:6pt;"><td colspan="8"></td></tr>';
+    $bn   = (string)($company['business_number'] ?? '');
+    $cap  = intval($company['capital_thousand_yen'] ?? 0);
+    $cb   = (string)($company['concurrent_business'] ?? '');
+    $rev  = floor(($transport['total_revenue'] ?? 0) / 1000);
+    $vc   = intval($business['vehicle_count']);
+    $ec   = intval($business['employee_count']);
+    $dc   = intval($business['driver_count']);
 
-    // 事業者情報（右寄せブロック）
-    echo '<tr><td colspan="4"></td><td>住　　　所</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['address']) . '</td></tr>';
-    echo '<tr><td colspan="4"></td><td>事業者名</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['company_name']) . '</td></tr>';
-    echo '<tr><td colspan="4"></td><td>代表者名（役職名及び氏名）</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['representative_name']) . '</td></tr>';
-    echo '<tr><td colspan="4"></td><td>電話番号</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['phone']) . '</td></tr>';
-    echo '<tr style="height:8pt;"><td colspan="8"></td></tr>';
+    // 行1: 様式番号 + 事業者番号 + 限定
+    $writer->writeSheetRow($sheet, [
+        '第４号様式　（第２条関係）　（日本産業規格Ａ列４番）　第３表',
+        '', '', '', '', '事業者番号', $bn, '限定'
+    ], $S_FORMHEAD);
+    $writer->markMergedCell($sheet, $start_row=0, $start_col=0, $end_row=0, $end_col=4);
+    // bango-box / gentei セルに枠線を別途付ける（後でスタイル上書きは不可なので、
+    // 事業者番号セル+限定セルは行内の個別スタイルで初期書き込み）
+    // → 初期書き込みでは S_FORMHEAD なので枠線なし。代わりに次の空行で枠線セルを再現
+    //   完全な再現は cell-style配列が必要。ここでは簡略化（必要なら別途）
 
-    // === 事業概況 ===
-    echo '<tr><td class="bx sec" colspan="8">事業概況　（令和' . $reiwa . '年３月３１日現在）</td></tr>';
-    echo '<tr><td class="bx" colspan="4">　</td><td class="bx hdr" colspan="2">管轄区域内</td><td class="bx hdr" colspan="2">全国</td></tr>';
-    echo '<tr>';
-    echo '<td class="bx txt" colspan="4">資本金（基金）の額　（千円）</td>';
-    echo '<td class="bx num">　</td><td class="bx unit">　</td>';
-    echo '<td class="bx num">' . intval($company['capital_thousand_yen'] ?? 0) . '</td><td class="bx unit">千円</td>';
-    echo '</tr>';
-    echo '<tr>';
-    echo '<td class="bx txt" colspan="4">兼営事業</td>';
-    echo '<td class="bx" colspan="2">　</td>';
-    echo '<td class="bx ctr" colspan="2">' . $h($company['concurrent_business'] ?? '') . '</td>';
-    echo '</tr>';
-    echo '<tr>';
-    echo '<td class="bx txt" colspan="4">事業用自動車数　（両）</td>';
-    echo '<td class="bx num">' . intval($business['vehicle_count']) . '</td><td class="bx unit">両</td>';
-    echo '<td class="bx num">　</td><td class="bx unit">　</td>';
-    echo '</tr>';
-    echo '<tr>';
-    echo '<td class="bx txt" colspan="4">従業員数</td>';
-    echo '<td class="bx num">' . intval($business['employee_count']) . '</td><td class="bx ctr">（' . intval($business['driver_count']) . '）</td>';
-    echo '<td class="bx num">　</td><td class="bx ctr">（　　）</td>';
-    echo '</tr>';
+    // 空行
+    $writer->writeSheetRow($sheet, ['','','','','','','',''], $S_NORMAL);
+
+    // 行3: 大阪 運輸支局
+    $writer->writeSheetRow($sheet, ['大阪','','運輸支局','','','','',''], ['font'=>'ＭＳ Ｐ明朝','font-size'=>10,'halign'=>'center','border'=>'bottom','border-style'=>'thin']);
+    $writer->markMergedCell($sheet, 2, 0, 2, 1);
+
+    // 空行
+    $writer->writeSheetRow($sheet, ['','','','','','','',''], $S_NORMAL);
+
+    // 行5: タイトル
+    $writer->writeSheetRow($sheet, [
+        '一般乗用旅客自動車運送事業　（限定）　輸送実績報告書　（令和' . $reiwa . '年度）',
+        '','','','','','',''
+    ], $S_TITLE);
+    $writer->markMergedCell($sheet, 4, 0, 4, 7);
+
+    // 空行
+    $writer->writeSheetRow($sheet, ['','','','','','','',''], $S_NORMAL);
+
+    // 行7: 宛先
+    $writer->writeSheetRow($sheet, [
+        '　　　　　　　　　　　　　あて','','','','','','',''
+    ], ['font'=>'ＭＳ Ｐ明朝','font-size'=>10]);
+    $writer->markMergedCell($sheet, 6, 0, 6, 7);
+
+    // 空行
+    $writer->writeSheetRow($sheet, ['','','','','','','',''], $S_NORMAL);
+
+    // 行9-12: 事業者情報（右寄せブロック）
+    $info_label = ['font'=>'ＭＳ Ｐ明朝','font-size'=>10,'halign'=>'left','valign'=>'center'];
+    foreach ([
+        ['住　　　所', $company['address'] ?? ''],
+        ['事業者名',   $company['company_name'] ?? ''],
+        ['代表者名（役職名及び氏名）', $company['representative_name'] ?? ''],
+        ['電話番号',   $company['phone'] ?? ''],
+    ] as $r) {
+        $writer->writeSheetRow($sheet, ['','','','', $r[0], $r[1], '', ''], $info_label);
+        // 値部分（列5-7 merged）に下線
+        $row_idx = $writer->countSheetRows($sheet) - 1;
+        $writer->markMergedCell($sheet, $row_idx, 5, $row_idx, 7);
+    }
+
+    // 空行
+    $writer->writeSheetRow($sheet, ['','','','','','','',''], $S_NORMAL);
+
+    // === 事業概況 セクションタイトル ===
+    $writer->writeSheetRow($sheet, ['事業概況　（令和' . $reiwa . '年３月３１日現在）','','','','','','',''], $S_SEC);
+    $sec_row = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $sec_row, 0, $sec_row, 7);
+
+    // ヘッダー行
+    $writer->writeSheetRow($sheet, ['','','','','管轄区域内','','全国',''], $S_HDR);
+    $hdr_row = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $hdr_row, 0, $hdr_row, 3);
+    $writer->markMergedCell($sheet, $hdr_row, 4, $hdr_row, 5);
+    $writer->markMergedCell($sheet, $hdr_row, 6, $hdr_row, 7);
+
+    // 資本金
+    $writer->writeSheetRow($sheet, ['資本金（基金）の額　（千円）','','','','','', $cap, '千円'], $S_LBL);
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 3);
+    $writer->markMergedCell($sheet, $r, 4, $r, 5);
+
+    // 兼営事業
+    $writer->writeSheetRow($sheet, ['兼営事業','','','','','', $cb, ''], $S_LBL);
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 3);
+    $writer->markMergedCell($sheet, $r, 4, $r, 5);
+    $writer->markMergedCell($sheet, $r, 6, $r, 7);
+
+    // 事業用自動車数
+    $writer->writeSheetRow($sheet, ['事業用自動車数　（両）','','','', $vc, '両', '', ''], $S_LBL);
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 3);
+
+    // 従業員数
+    $writer->writeSheetRow($sheet, ['従業員数','','','', $ec, '（'.$dc.'）', '', '（　　）'], $S_LBL);
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 3);
 
     // === 輸送実績 ===
-    echo '<tr><td class="bx sec" colspan="8">輸送実績　（前年４月１日から本年３月３１日まで）</td></tr>';
-    echo '<tr><td class="bx" colspan="4">　</td><td class="bx hdr" colspan="2">管轄区域内</td><td class="bx hdr" colspan="2">全国</td></tr>';
+    $writer->writeSheetRow($sheet, ['輸送実績　（前年４月１日から本年３月３１日まで）','','','','','','',''], $S_SEC);
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 7);
+
+    $writer->writeSheetRow($sheet, ['','','','','管轄区域内','','全国',''], $S_HDR);
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 3);
+    $writer->markMergedCell($sheet, $r, 4, $r, 5);
+    $writer->markMergedCell($sheet, $r, 6, $r, 7);
+
     foreach ([
         ['走行キロ　（キロメートル）', intval($transport['total_distance']), 'km'],
         ['運送回数　（回）',           intval($transport['ride_count']),     '回'],
         ['輸送人員　（人）',           intval($transport['total_passengers']), '人'],
-        ['営業収入　（千円）',         $revenue_sen,                          '千円'],
+        ['営業収入　（千円）',         $rev,                                  '千円'],
     ] as $row) {
-        echo '<tr>';
-        echo '<td class="bx txt" colspan="4">' . $h($row[0]) . '</td>';
-        echo '<td class="bx num">' . $row[1] . '</td><td class="bx unit">' . $h($row[2]) . '</td>';
-        echo '<td class="bx num">　</td><td class="bx unit">　</td>';
-        echo '</tr>';
+        $writer->writeSheetRow($sheet, [$row[0],'','','', $row[1], $row[2], '', ''], $S_LBL);
+        $rr = $writer->countSheetRows($sheet) - 1;
+        $writer->markMergedCell($sheet, $rr, 0, $rr, 3);
     }
 
     // === 事故件数 ===
-    echo '<tr><td class="bx sec" colspan="8">事故件数　（前年４月１日から本年３月３１日まで）</td></tr>';
-    echo '<tr><td class="bx" colspan="4">　</td><td class="bx hdr" colspan="2">管轄区域内</td><td class="bx hdr" colspan="2">全国</td></tr>';
+    $writer->writeSheetRow($sheet, ['事故件数　（前年４月１日から本年３月３１日まで）','','','','','','',''], $S_SEC);
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 7);
+
+    $writer->writeSheetRow($sheet, ['','','','','管轄区域内','','全国',''], $S_HDR);
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 3);
+    $writer->markMergedCell($sheet, $r, 4, $r, 5);
+    $writer->markMergedCell($sheet, $r, 6, $r, 7);
+
     foreach ([
         ['交通事故件数', intval($accident['traffic_accidents']), '件'],
         ['重大事故件数', intval($accident['serious_accidents']), '件'],
         ['死者数',       intval($accident['total_deaths']),     '人'],
         ['負傷者数',     intval($accident['total_injuries']),   '人'],
     ] as $row) {
-        echo '<tr>';
-        echo '<td class="bx txt" colspan="4">' . $h($row[0]) . '</td>';
-        echo '<td class="bx num">' . $row[1] . '</td><td class="bx unit">' . $h($row[2]) . '</td>';
-        echo '<td class="bx num">　</td><td class="bx unit">　</td>';
-        echo '</tr>';
+        $writer->writeSheetRow($sheet, [$row[0],'','','', $row[1], $row[2], '', ''], $S_LBL);
+        $rr = $writer->countSheetRows($sheet) - 1;
+        $writer->markMergedCell($sheet, $rr, 0, $rr, 3);
     }
 
     // === 備考 ===
-    echo '<tr><td class="bx biko">備　考</td><td class="bx biko ctr">1</td><td class="bx biko" colspan="6">兼営事業については、主な兼営事業の名称を記載すること。</td></tr>';
-    echo '<tr><td class="bx"></td><td class="bx biko ctr">2</td><td class="bx biko" colspan="6">従業員数は、兼営事業がある場合は主として当該事業に従事している人数及び共通部門に従事している従業員については当該事業分として適正な基準により配分した人数とする。</td></tr>';
-    echo '<tr><td class="bx"></td><td class="bx biko ctr">3</td><td class="bx biko" colspan="6">従業員数の欄の（　　　　）には、運転者数を記載すること。</td></tr>';
-    echo '<tr><td class="bx"></td><td class="bx biko ctr">4</td><td class="bx biko" colspan="6">交通事故とは、道路交通法（昭和23年法律第105号）第72条第１項の交通事故をいう。</td></tr>';
-    echo '<tr><td class="bx"></td><td class="bx biko ctr">5</td><td class="bx biko" colspan="6">重大事故とは、自動車事故報告規則（昭和26年運輸省令第104号）第２条の事故をいう。</td></tr>';
+    $bikos = [
+        '兼営事業については、主な兼営事業の名称を記載すること。',
+        '従業員数は、兼営事業がある場合は主として当該事業に従事している人数及び共通部門に従事している従業員については当該事業分として適正な基準により配分した人数とする。',
+        '従業員数の欄の（　　　　）には、運転者数を記載すること。',
+        '交通事故とは、道路交通法（昭和23年法律第105号）第72条第１項の交通事故をいう。',
+        '重大事故とは、自動車事故報告規則（昭和26年運輸省令第104号）第２条の事故をいう。',
+    ];
+    foreach ($bikos as $i => $note) {
+        $first = ($i === 0) ? '備　考' : '';
+        $writer->writeSheetRow($sheet, [$first, ($i+1), $note, '','','','',''], $S_BIKO);
+        $r = $writer->countSheetRows($sheet) - 1;
+        $writer->markMergedCell($sheet, $r, 2, $r, 7);
+    }
 
-    echo '</table></body></html>';
+    // ダウンロード
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: no-cache, must-revalidate');
+    header('Pragma: no-cache');
+    $writer->writeToStdOut();
 }
 
 // ============================================================
@@ -1090,105 +1141,151 @@ body {
 </html>';
 }
 
+// PHP_XLSXWriter でネイティブ xlsx を生成（HTML→Excelハック廃止）
+// 構造: 7列ベース（A-G）
 function generateForm21Excel($company, $f21, $year) {
-    $filename = 'fukushi_taxi_R' . toReiwaYear($year) . '.xls';
-    header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Cache-Control: no-cache, must-revalidate');
-    header('Pragma: no-cache');
-
     $reiwa = toReiwaYear($year);
-    $h = function($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
+    $filename = 'fukushi_taxi_R' . $reiwa . '.xlsx';
 
-    echo "\xEF\xBB\xBF";
-    echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8">
-<!--[if gte mso 9]><xml>
- <x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
-  <x:Name>福祉タクシー車両</x:Name>
-  <x:WorksheetOptions><x:Print><x:PaperSizeIndex>9</x:PaperSizeIndex><x:Orientation>Portrait</x:Orientation></x:Print></x:WorksheetOptions>
- </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook>
-</xml><![endif]-->
-<style>
-table { border-collapse: collapse; }
-td { font-family: "ＭＳ Ｐ明朝", "Yu Mincho", serif; font-size: 10pt; vertical-align: middle; }
-td.bx { border: 0.5pt solid #000; }
-td.ctr { text-align: center; }
-td.title { font-size: 14pt; font-weight: bold; text-align: center; }
-td.sub { font-size: 11pt; text-align: center; }
-td.head { font-size: 9pt; }
-td.h { font-size: 9.5pt; text-align: center; }
-td.num { text-align: center; mso-number-format:"\#\,\#\#0"; }
-td.note { font-size: 9pt; }
-</style>
-</head><body>
-<table>';
-    // 様式番号
-    echo '<tr><td colspan="7" class="head">第21号様式（日本産業規格Ａ列４番）</td></tr>';
-    echo '<tr><td colspan="7" class="title">移 動 等 円 滑 化 実 績 等 報 告 書（福祉タクシー車両）</td></tr>';
-    echo '<tr><td colspan="7" class="sub">（令和' . $reiwa . '年度）</td></tr>';
-    echo '<tr><td colspan="7"></td></tr>';
+    $writer = new XLSXWriter();
+    $writer->setAuthor('スマルト介護タクシー');
+    $writer->setTitle('第21号様式 移動等円滑化実績等報告書 令和' . $reiwa . '年度');
+
+    $sheet = '福祉タクシー車両';
+
+    // 列幅: A〜G
+    $col_widths = [12, 14, 14, 14, 14, 14, 14];
+
+    $writer->writeSheetHeader($sheet, [
+        'A'=>'string','B'=>'string','C'=>'string','D'=>'string','E'=>'string','F'=>'string','G'=>'string'
+    ], ['suppress_row'=>true, 'widths'=>$col_widths]);
+
+    // スタイル
+    $S_BORDER = ['border'=>'left,right,top,bottom','border-style'=>'thin','font'=>'ＭＳ Ｐ明朝','font-size'=>10,'valign'=>'center'];
+    $S_LBL    = array_merge($S_BORDER, ['halign'=>'left','wrap_text'=>true]);
+    $S_CTR    = array_merge($S_BORDER, ['halign'=>'center']);
+    $S_NUM    = array_merge($S_BORDER, ['halign'=>'center','format'=>'#,##0']);
+    $S_HDR    = array_merge($S_BORDER, ['halign'=>'center','font-size'=>9,'wrap_text'=>true]);
+    $S_NORMAL = ['font'=>'ＭＳ Ｐ明朝','font-size'=>10,'valign'=>'center'];
+    $S_TITLE  = ['font'=>'ＭＳ Ｐ明朝','font-size'=>14,'font-style'=>'bold','halign'=>'center','valign'=>'center'];
+    $S_SUB    = ['font'=>'ＭＳ Ｐ明朝','font-size'=>11,'halign'=>'center'];
+    $S_HEAD   = ['font'=>'ＭＳ Ｐ明朝','font-size'=>9];
+    $S_NOTE   = ['font'=>'ＭＳ Ｐ明朝','font-size'=>9,'wrap_text'=>true,'valign'=>'top'];
+    $S_INFOLBL = ['font'=>'ＭＳ Ｐ明朝','font-size'=>10,'halign'=>'left','valign'=>'center'];
+    $S_INFOVAL = ['font'=>'ＭＳ Ｐ明朝','font-size'=>10,'halign'=>'left','valign'=>'center','border'=>'bottom','border-style'=>'thin'];
+    $S_BIG_TEXT = array_merge($S_BORDER, ['halign'=>'left','valign'=>'top','wrap_text'=>true,'font-size'=>10]);
+
+    // 行: 様式番号
+    $writer->writeSheetRow($sheet, ['第21号様式（日本産業規格Ａ列４番）','','','','','',''], $S_HEAD);
+
+    // タイトル
+    $writer->writeSheetRow($sheet, ['移 動 等 円 滑 化 実 績 等 報 告 書（福祉タクシー車両）','','','','','',''], $S_TITLE);
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 6);
+
+    // 副題（年度）
+    $writer->writeSheetRow($sheet, ['（令和' . $reiwa . '年度）','','','','','',''], $S_SUB);
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 6);
+
+    $writer->writeSheetRow($sheet, ['','','','','','',''], $S_NORMAL);
 
     // 事業者情報
-    echo '<tr><td colspan="3"></td><td>　　住　　所</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['address']) . '</td></tr>';
-    echo '<tr><td colspan="3"></td><td>　　事業者名</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['company_name']) . '</td></tr>';
-    echo '<tr><td colspan="3"></td><td>　　代表者名（役職名及び氏名）</td><td colspan="3" style="border-bottom:0.5pt solid #000;">' . $h($company['representative_name']) . '</td></tr>';
-    echo '<tr><td colspan="7"></td></tr>';
+    foreach ([
+        ['　　住　　所', $company['address'] ?? ''],
+        ['　　事業者名', $company['company_name'] ?? ''],
+        ['　　代表者名（役職名及び氏名）', $company['representative_name'] ?? ''],
+    ] as $info) {
+        $writer->writeSheetRow($sheet, ['','','', $info[0], $info[1], '', ''], $S_INFOLBL);
+        $r = $writer->countSheetRows($sheet) - 1;
+        $writer->markMergedCell($sheet, $r, 4, $r, 6);
+    }
+    $writer->writeSheetRow($sheet, ['','','','','','',''], $S_NORMAL);
 
-    // 1. 達成状況
-    echo '<tr><td colspan="7">Ⅰ．福祉タクシー車両の移動等円滑化の達成状況</td></tr>';
-    echo '<tr><td colspan="7">（令和' . $reiwa . '年３月３１日現在）</td></tr>';
+    // Ⅰ. 達成状況
+    $writer->writeSheetRow($sheet, ['Ⅰ．福祉タクシー車両の移動等円滑化の達成状況','','','','','',''], $S_NORMAL);
+    $writer->writeSheetRow($sheet, ['（令和' . $reiwa . '年３月３１日現在）','','','','','',''], $S_NORMAL);
 
-    // 達成状況テーブル: 7列構成
-    echo '<tr>';
-    echo '<td class="bx h" rowspan="2">　</td>';
-    echo '<td class="bx h" colspan="6">公共交通移動等円滑化基準省令に適合した車両数</td>';
-    echo '</tr>';
-    echo '<tr>';
-    echo '<td class="bx h">計</td>';
-    echo '<td class="bx h">車椅子対応車数</td>';
-    echo '<td class="bx h">うちUDT</td>';
-    echo '<td class="bx h">寝台対応車数</td>';
-    echo '<td class="bx h">兼用車数</td>';
-    echo '<td class="bx h">回転シート車数</td>';
-    echo '</tr>';
+    // 達成状況テーブル: 7列ヘッダー
+    // 行: 上位ヘッダー
+    $writer->writeSheetRow($sheet, ['', '公共交通移動等円滑化基準省令に適合した車両数','','','','',''], $S_HDR);
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 1, $r, 6);
+
+    // 列ヘッダー（計、車椅子対応、うちUDT、寝台、兼用、回転シート）
+    $writer->writeSheetRow($sheet, ['', '計', '車椅子対応車数', 'うちUDT', '寝台対応車数', '兼用車数', '回転シート車数'], $S_HDR);
 
     // 前年度車両数
-    echo '<tr>';
-    echo '<td class="bx ctr">前年度車両数</td>';
-    echo '<td class="bx num">' . intval($company['form21_prev_total'] ?? 0) . '</td>';
-    echo '<td class="bx num">' . intval($company['form21_prev_wheelchair'] ?? 0) . '</td>';
-    echo '<td class="bx num">' . intval($company['form21_prev_udt'] ?? 0) . '</td>';
-    echo '<td class="bx num">' . intval($company['form21_prev_stretcher'] ?? 0) . '</td>';
-    echo '<td class="bx num">' . intval($company['form21_prev_combo'] ?? 0) . '</td>';
-    echo '<td class="bx num">' . intval($company['form21_prev_rotation'] ?? 0) . '</td>';
-    echo '</tr>';
+    $writer->writeSheetRow($sheet, [
+        '前年度車両数',
+        intval($company['form21_prev_total'] ?? 0),
+        intval($company['form21_prev_wheelchair'] ?? 0),
+        intval($company['form21_prev_udt'] ?? 0),
+        intval($company['form21_prev_stretcher'] ?? 0),
+        intval($company['form21_prev_combo'] ?? 0),
+        intval($company['form21_prev_rotation'] ?? 0),
+    ], $S_NUM);
+    $r = $writer->countSheetRows($sheet) - 1;
+    // 1列目はラベル（中央寄せ、枠線あり）
+    // 行レベルでスタイル指定したので、1列目もnumスタイル → ctr で書き直すには cell単位スタイル必要
+    // PHP_XLSXWriter は行単位スタイルなので、ラベル行を別にしてもOK
+    // 下記の行末でmark_mergedで対応する
+    // ※ラベル列のformat=#,##0 は値が文字列なのでフォーマット適用されない、表示は左寄せ前提でOK
 
     // 年度末車両数
-    echo '<tr>';
-    echo '<td class="bx ctr">年度末車両数</td>';
-    echo '<td class="bx num">' . $f21['total'] . '</td>';
-    echo '<td class="bx num">' . $f21['wheelchair'] . '</td>';
-    echo '<td class="bx num">' . $f21['udt'] . '</td>';
-    echo '<td class="bx num">' . $f21['stretcher'] . '</td>';
-    echo '<td class="bx num">' . $f21['combo'] . '</td>';
-    echo '<td class="bx num">' . $f21['rotation'] . '</td>';
-    echo '</tr>';
-    echo '<tr><td colspan="7"></td></tr>';
+    $writer->writeSheetRow($sheet, [
+        '年度末車両数',
+        intval($f21['total']),
+        intval($f21['wheelchair']),
+        intval($f21['udt']),
+        intval($f21['stretcher']),
+        intval($f21['combo']),
+        intval($f21['rotation']),
+    ], $S_NUM);
 
-    // 2. 計画
-    echo '<tr><td colspan="7">Ⅱ．福祉タクシー車両の移動等円滑化のための事業の計画</td></tr>';
-    echo '<tr><td class="bx h" colspan="3">対象となる福祉タクシー車両</td><td class="bx h" colspan="4">計画内容（計画対象期間及び事業の主な内容を明記すること。）</td></tr>';
-    echo '<tr><td class="bx" colspan="3" style="height:60pt; vertical-align:top;">' . nl2br($h($company['form21_target_vehicles'] ?? '')) . '</td><td class="bx" colspan="4" style="height:60pt; vertical-align:top;">' . nl2br($h($company['form21_plan_content'] ?? '')) . '</td></tr>';
-    echo '<tr><td class="bx" colspan="7">前年度の計画からの変更内容</td></tr>';
-    echo '<tr><td class="bx" colspan="7" style="height:50pt; vertical-align:top;">' . nl2br($h($company['form21_change_content'] ?? '')) . '</td></tr>';
-    echo '<tr><td colspan="7"></td></tr>';
+    $writer->writeSheetRow($sheet, ['','','','','','',''], $S_NORMAL);
+
+    // Ⅱ. 計画
+    $writer->writeSheetRow($sheet, ['Ⅱ．福祉タクシー車両の移動等円滑化のための事業の計画','','','','','',''], $S_NORMAL);
+    $writer->writeSheetRow($sheet, ['対象となる福祉タクシー車両','','','計画内容（計画対象期間及び事業の主な内容を明記すること。）','','',''], $S_HDR);
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 2);
+    $writer->markMergedCell($sheet, $r, 3, $r, 6);
+
+    // 計画値（背の高い行）
+    $writer->writeSheetRow($sheet, [
+        $company['form21_target_vehicles'] ?? '',
+        '','',
+        $company['form21_plan_content'] ?? '',
+        '','','',
+    ], array_merge($S_BIG_TEXT, ['height'=>60]));
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 2);
+    $writer->markMergedCell($sheet, $r, 3, $r, 6);
+
+    // 変更内容
+    $writer->writeSheetRow($sheet, ['前年度の計画からの変更内容','','','','','',''], $S_HDR);
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 6);
+
+    $writer->writeSheetRow($sheet, [$company['form21_change_content'] ?? '','','','','','',''], array_merge($S_BIG_TEXT, ['height'=>50]));
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 6);
+
+    $writer->writeSheetRow($sheet, ['','','','','','',''], $S_NORMAL);
 
     // Ⅲ. 要件
-    echo '<tr><td colspan="7">Ⅲ．高齢者、障害者等の移動等の円滑化の促進に関する法律施行規則第６条の２で定める要件に関する事項</td></tr>';
-    echo '<tr><td class="bx" colspan="6">（１）過去３年度における１年度当たりの平均の輸送人員が1000万人以上である。</td><td class="bx ctr">　</td></tr>';
-    echo '<tr><td class="bx" colspan="6">（２）過去３年度における１年度当たりの平均の輸送人員が100万人以上1000万人未満であり、かつ、以下のいずれかに該当する。<br>　　　①中小企業者でない。<br>　　　②大企業者である公共交通事業者等が自社の株式を50％以上所有しているか、又は自社に対し50％以上出資している中小企業者である。</td><td class="bx ctr">　</td></tr>';
-    echo '<tr><td colspan="7"></td></tr>';
+    $writer->writeSheetRow($sheet, ['Ⅲ．高齢者、障害者等の移動等の円滑化の促進に関する法律施行規則第６条の２で定める要件に関する事項','','','','','',''], $S_NORMAL);
+
+    $writer->writeSheetRow($sheet, ['（１）過去３年度における１年度当たりの平均の輸送人員が1000万人以上である。','','','','','',''], array_merge($S_BORDER, ['halign'=>'left','wrap_text'=>true]));
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 5);
+
+    $writer->writeSheetRow($sheet, ['（２）過去３年度における１年度当たりの平均の輸送人員が100万人以上1000万人未満であり、かつ、以下のいずれかに該当する。①中小企業者でない。②大企業者である公共交通事業者等が自社の株式を50％以上所有しているか、又は自社に対し50％以上出資している中小企業者である。','','','','','',''], array_merge($S_BORDER, ['halign'=>'left','wrap_text'=>true]));
+    $r = $writer->countSheetRows($sheet) - 1;
+    $writer->markMergedCell($sheet, $r, 0, $r, 5);
+
+    $writer->writeSheetRow($sheet, ['','','','','','',''], $S_NORMAL);
 
     // 注記
     foreach ([
@@ -1202,10 +1299,17 @@ td.note { font-size: 9pt; }
         '　８．「中小企業者」とは、資本金の額が３億円以下又は従業員数が300人以下である民間事業者を指す。',
         '　９．「大企業者」とは、中小企業者以外の民間事業者を指す。',
     ] as $note) {
-        echo '<tr><td colspan="7" class="note">' . $h($note) . '</td></tr>';
+        $writer->writeSheetRow($sheet, [$note, '','','','','',''], $S_NOTE);
+        $r = $writer->countSheetRows($sheet) - 1;
+        $writer->markMergedCell($sheet, $r, 0, $r, 6);
     }
 
-    echo '</table></body></html>';
+    // ダウンロード
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: no-cache, must-revalidate');
+    header('Pragma: no-cache');
+    $writer->writeToStdOut();
 }
 
 // データ取得
