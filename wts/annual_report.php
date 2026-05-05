@@ -880,6 +880,27 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
     }
 
     // === 備考 ===
+    // 行高を動的に計算するヘルパー
+    $estimateHeight = function($text, $merged_width_chars, $min_pt = 18, $line_pt = 14) {
+        $text = (string)$text;
+        if ($text === '') return $min_pt;
+        $segments = preg_split('/\r\n|\r|\n/', $text);
+        $total_lines = 0;
+        foreach ($segments as $seg) {
+            $len = mb_strlen($seg);
+            $half_eq = 0;
+            for ($i = 0; $i < $len; $i++) {
+                $ch = mb_substr($seg, $i, 1);
+                $half_eq += (preg_match('/[\x{0020}-\x{007E}]/u', $ch)) ? 1 : 2;
+            }
+            $effective_width = max(1, $merged_width_chars * 2);
+            $total_lines += max(1, ceil($half_eq / $effective_width));
+        }
+        return max($min_pt, $total_lines * $line_pt);
+    };
+    // 備考の merged 列幅（列2-7 = 12+12+14+8+14+8 = 68文字相当）
+    $biko_width = $col_widths[2] + $col_widths[3] + $col_widths[4] + $col_widths[5] + $col_widths[6] + $col_widths[7];
+
     $bikos = [
         '兼営事業については、主な兼営事業の名称を記載すること。',
         '従業員数は、兼営事業がある場合は主として当該事業に従事している人数及び共通部門に従事している従業員については当該事業分として適正な基準により配分した人数とする。',
@@ -889,7 +910,8 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
     ];
     foreach ($bikos as $i => $note) {
         $first = ($i === 0) ? '備　考' : '';
-        $writer->writeSheetRow($sheet, [$first, ($i+1), $note, '','','','',''], $S_BIKO);
+        $biko_h = $estimateHeight($note, $biko_width, 18, 14);
+        $writer->writeSheetRow($sheet, [$first, ($i+1), $note, '','','','',''], array_merge($S_BIKO, ['height' => $biko_h]));
         $r = $writer->countSheetRows($sheet) - 1;
         $writer->markMergedCell($sheet, $r, 2, $r, 7);
     }
@@ -1252,13 +1274,41 @@ function generateForm21Excel($company, $f21, $year) {
     $writer->markMergedCell($sheet, $r, 0, $r, 2);
     $writer->markMergedCell($sheet, $r, 3, $r, 6);
 
-    // 計画値（背の高い行）
+    // 行高を動的に計算するヘルパー: マージされた幅(文字数)とテキストから推定
+    $estimateHeight = function($text, $merged_width_chars, $min_pt = 30, $line_pt = 16) {
+        $text = (string)$text;
+        if ($text === '') return $min_pt;
+        // 改行で分割
+        $segments = preg_split('/\r\n|\r|\n/', $text);
+        $total_lines = 0;
+        foreach ($segments as $seg) {
+            // 全角は2文字幅換算でラップ
+            $len = mb_strlen($seg);
+            $half_eq = 0;
+            for ($i = 0; $i < $len; $i++) {
+                $ch = mb_substr($seg, $i, 1);
+                $half_eq += (preg_match('/[\x{0020}-\x{007E}]/u', $ch)) ? 1 : 2;
+            }
+            $effective_width = max(1, $merged_width_chars * 2); // 列幅×2（全角換算）
+            $total_lines += max(1, ceil($half_eq / $effective_width));
+        }
+        return max($min_pt, $total_lines * $line_pt);
+    };
+
+    // 計画値（テキスト量に応じて行高動的）
+    $target_text = $company['form21_target_vehicles'] ?? '';
+    $plan_text   = $company['form21_plan_content'] ?? '';
+    // 計画列(D-G)はmerged幅: col_widths[3..6]の合計 = 14*4 = 56文字相当
+    $plan_h = max(
+        $estimateHeight($target_text, 12 + 14 + 14, 30, 16), // 対象車両 (A-C merged 12+14+14)
+        $estimateHeight($plan_text,   14 + 14 + 14 + 14, 30, 16)  // 計画 (D-G merged)
+    );
     $writer->writeSheetRow($sheet, [
-        $company['form21_target_vehicles'] ?? '',
+        $target_text,
         '','',
-        $company['form21_plan_content'] ?? '',
+        $plan_text,
         '','','',
-    ], array_merge($S_BIG_TEXT, ['height'=>60]));
+    ], array_merge($S_BIG_TEXT, ['height' => $plan_h]));
     $r = $writer->countSheetRows($sheet) - 1;
     $writer->markMergedCell($sheet, $r, 0, $r, 2);
     $writer->markMergedCell($sheet, $r, 3, $r, 6);
@@ -1268,7 +1318,9 @@ function generateForm21Excel($company, $f21, $year) {
     $r = $writer->countSheetRows($sheet) - 1;
     $writer->markMergedCell($sheet, $r, 0, $r, 6);
 
-    $writer->writeSheetRow($sheet, [$company['form21_change_content'] ?? '','','','','','',''], array_merge($S_BIG_TEXT, ['height'=>50]));
+    $change_text = $company['form21_change_content'] ?? '';
+    $change_h = $estimateHeight($change_text, 12 + 14 + 14 + 14 + 14 + 14 + 14, 30, 16);
+    $writer->writeSheetRow($sheet, [$change_text,'','','','','',''], array_merge($S_BIG_TEXT, ['height' => $change_h]));
     $r = $writer->countSheetRows($sheet) - 1;
     $writer->markMergedCell($sheet, $r, 0, $r, 6);
 
@@ -1287,7 +1339,8 @@ function generateForm21Excel($company, $f21, $year) {
 
     $writer->writeSheetRow($sheet, ['','','','','','',''], $S_NORMAL);
 
-    // 注記
+    // 注記（行高動的計算）
+    $merged_width_all = array_sum($col_widths);
     foreach ([
         '注１．公共交通移動等円滑化基準省令に適合した車両数の欄には、公共交通移動等円滑化基準省令第45条第１項又は第２項の基準に適合している車両の合計数を記入すること。',
         '　２．車椅子対応車数の欄には、公共交通移動等円滑化基準省令第45条第１項の基準に適合している車両のうち、車椅子使用者のみを輸送することができる車両の合計数を記入すること。',
@@ -1299,7 +1352,8 @@ function generateForm21Excel($company, $f21, $year) {
         '　８．「中小企業者」とは、資本金の額が３億円以下又は従業員数が300人以下である民間事業者を指す。',
         '　９．「大企業者」とは、中小企業者以外の民間事業者を指す。',
     ] as $note) {
-        $writer->writeSheetRow($sheet, [$note, '','','','','',''], $S_NOTE);
+        $note_h = $estimateHeight($note, $merged_width_all, 18, 14);
+        $writer->writeSheetRow($sheet, [$note, '','','','','',''], array_merge($S_NOTE, ['height' => $note_h]));
         $r = $writer->countSheetRows($sheet) - 1;
         $writer->markMergedCell($sheet, $r, 0, $r, 6);
     }
