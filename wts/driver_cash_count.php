@@ -472,7 +472,8 @@ echo $page_data['html_head'];
         .then(function(result) {
             if (result.success) {
                 showToast('現金カウントを保存しました', 'success');
-                window.location.reload();
+                // トーストが見えるよう1.4秒遅延してリロード
+                setTimeout(function() { window.location.reload(); }, 1400);
             } else {
                 showToast('保存に失敗しました: ' + (result.message || '不明なエラー'), 'danger');
             }
@@ -485,6 +486,42 @@ echo $page_data['html_head'];
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-save"></i> 現金カウント保存';
         });
+    }
+
+    // ===== 共通トースト関数 =====
+    function showToast(message, type) {
+        type = type || 'info';
+        var colors = {
+            success: '#38A169',
+            danger:  '#E53E3E',
+            warning: '#D69E2E',
+            info:    '#1A202C'
+        };
+        var icons = {
+            success: '✓',
+            danger:  '✕',
+            warning: '!',
+            info:    'i'
+        };
+        var toast = document.getElementById('wtsToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'wtsToast';
+            toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:#1A202C;color:#fff;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:600;box-shadow:0 12px 32px rgba(0,0,0,.25);z-index:9999;opacity:0;transition:all .25s ease-out;max-width:90vw;display:flex;align-items:center;gap:10px;font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic",system-ui,sans-serif;';
+            document.body.appendChild(toast);
+        }
+        toast.style.background = colors[type] || colors.info;
+        toast.innerHTML = '<span style="font-size:18px;font-weight:700;">' + (icons[type] || icons.info) + '</span><span></span>';
+        toast.lastChild.textContent = message;
+        requestAnimationFrame(function() {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(-50%) translateY(0)';
+        });
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(function() {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(-50%) translateY(100px)';
+        }, 3000);
     }
 
     document.addEventListener('DOMContentLoaded', function() {
