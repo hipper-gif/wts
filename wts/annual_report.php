@@ -916,12 +916,8 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
         $writer->markMergedCell($sheet, $r, 2, $r, 7);
     }
 
-    // ダウンロード
-    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Cache-Control: no-cache, must-revalidate');
-    header('Pragma: no-cache');
-    $writer->writeToStdOut();
+    // A4縦・1ページ幅fitで出力（XML後処理）
+    emitXlsxA4($writer, $filename);
 }
 
 // ============================================================
@@ -1165,6 +1161,44 @@ body {
 
 // PHP_XLSXWriter でネイティブ xlsx を生成（HTML→Excelハック廃止）
 // 構造: 7列ベース（A-G）
+// xlsx を A4縦・1ページ幅にfit するようにXMLパッチして出力するヘルパー
+function emitXlsxA4($writer, $filename) {
+    $tmpfile = tempnam(sys_get_temp_dir(), 'xlsxA4_');
+    $writer->writeToFile($tmpfile);
+
+    $zip = new ZipArchive();
+    if ($zip->open($tmpfile) === TRUE) {
+        // sheet1.xml を編集してA4縦＋1ページ幅fitに
+        for ($i = 1; $i <= 5; $i++) {
+            $name = 'xl/worksheets/sheet' . $i . '.xml';
+            $xml = $zip->getFromName($name);
+            if ($xml === false) break;
+            $xml = preg_replace('/<pageSetUpPr fitToPage="false"\\/>/', '<pageSetUpPr fitToPage="true"/>', $xml);
+            $xml = preg_replace(
+                '/<pageSetup[^\\/]*\\/>/',
+                '<pageSetup blackAndWhite="false" cellComments="none" copies="1" draft="false" firstPageNumber="1" fitToHeight="0" fitToWidth="1" horizontalDpi="300" orientation="portrait" pageOrder="downThenOver" paperSize="9" scale="100" useFirstPageNumber="true" usePrinterDefaults="false" verticalDpi="300"/>',
+                $xml
+            );
+            // 印刷余白を縮小（左右上下とも 0.4 inch ≈ 10mm）
+            $xml = preg_replace(
+                '/<pageMargins[^\\/]*\\/>/',
+                '<pageMargins left="0.4" right="0.4" top="0.4" bottom="0.4" header="0.2" footer="0.2"/>',
+                $xml
+            );
+            $zip->addFromString($name, $xml);
+        }
+        $zip->close();
+    }
+
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Content-Length: ' . filesize($tmpfile));
+    header('Cache-Control: no-cache, must-revalidate');
+    header('Pragma: no-cache');
+    readfile($tmpfile);
+    @unlink($tmpfile);
+}
+
 function generateForm21Excel($company, $f21, $year) {
     $reiwa = toReiwaYear($year);
     $filename = 'fukushi_taxi_R' . $reiwa . '.xlsx';
@@ -1181,6 +1215,25 @@ function generateForm21Excel($company, $f21, $year) {
     $writer->writeSheetHeader($sheet, [
         'A'=>'string','B'=>'string','C'=>'string','D'=>'string','E'=>'string','F'=>'string','G'=>'string'
     ], ['suppress_row'=>true, 'widths'=>$col_widths]);
+
+    // 行高動的計算ヘルパー（先頭で定義）
+    $estimateHeight = function($text, $merged_width_chars, $min_pt = 18, $line_pt = 14) {
+        $text = (string)$text;
+        if ($text === '') return $min_pt;
+        $segments = preg_split('/\r\n|\r|\n/', $text);
+        $total_lines = 0;
+        foreach ($segments as $seg) {
+            $len = mb_strlen($seg);
+            $half_eq = 0;
+            for ($i = 0; $i < $len; $i++) {
+                $ch = mb_substr($seg, $i, 1);
+                $half_eq += (preg_match('/[\x{0020}-\x{007E}]/u', $ch)) ? 1 : 2;
+            }
+            $effective_width = max(1, $merged_width_chars * 2);
+            $total_lines += max(1, ceil($half_eq / $effective_width));
+        }
+        return max($min_pt, $total_lines * $line_pt);
+    };
 
     // スタイル
     $S_BORDER = ['border'=>'left,right,top,bottom','border-style'=>'thin','font'=>'ＭＳ Ｐ明朝','font-size'=>10,'valign'=>'center'];
@@ -1229,13 +1282,15 @@ function generateForm21Excel($company, $f21, $year) {
     $writer->writeSheetRow($sheet, ['（令和' . $reiwa . '年３月３１日現在）','','','','','',''], $S_NORMAL);
 
     // 達成状況テーブル: 7列ヘッダー
-    // 行: 上位ヘッダー
-    $writer->writeSheetRow($sheet, ['', '公共交通移動等円滑化基準省令に適合した車両数','','','','',''], $S_HDR);
+    // 行: 上位ヘッダー（merged 6列）
+    $upper_hdr = '公共交通移動等円滑化基準省令に適合した車両数';
+    $upper_hdr_h = $estimateHeight($upper_hdr, 14 * 6, 22, 14);
+    $writer->writeSheetRow($sheet, ['', $upper_hdr,'','','','',''], array_merge($S_HDR, ['height' => $upper_hdr_h]));
     $r = $writer->countSheetRows($sheet) - 1;
     $writer->markMergedCell($sheet, $r, 1, $r, 6);
 
     // 列ヘッダー（計、車椅子対応、うちUDT、寝台、兼用、回転シート）
-    $writer->writeSheetRow($sheet, ['', '計', '車椅子対応車数', 'うちUDT', '寝台対応車数', '兼用車数', '回転シート車数'], $S_HDR);
+    $writer->writeSheetRow($sheet, ['', '計', '車椅子対応車数', 'うちUDT', '寝台対応車数', '兼用車数', '回転シート車数'], array_merge($S_HDR, ['height' => 22]));
 
     // 前年度車両数
     $writer->writeSheetRow($sheet, [
@@ -1269,31 +1324,10 @@ function generateForm21Excel($company, $f21, $year) {
 
     // Ⅱ. 計画
     $writer->writeSheetRow($sheet, ['Ⅱ．福祉タクシー車両の移動等円滑化のための事業の計画','','','','','',''], $S_NORMAL);
-    $writer->writeSheetRow($sheet, ['対象となる福祉タクシー車両','','','計画内容（計画対象期間及び事業の主な内容を明記すること。）','','',''], $S_HDR);
+    $writer->writeSheetRow($sheet, ['対象となる福祉タクシー車両','','','計画内容（計画対象期間及び事業の主な内容を明記すること。）','','',''], array_merge($S_HDR, ['height' => 28]));
     $r = $writer->countSheetRows($sheet) - 1;
     $writer->markMergedCell($sheet, $r, 0, $r, 2);
     $writer->markMergedCell($sheet, $r, 3, $r, 6);
-
-    // 行高を動的に計算するヘルパー: マージされた幅(文字数)とテキストから推定
-    $estimateHeight = function($text, $merged_width_chars, $min_pt = 30, $line_pt = 16) {
-        $text = (string)$text;
-        if ($text === '') return $min_pt;
-        // 改行で分割
-        $segments = preg_split('/\r\n|\r|\n/', $text);
-        $total_lines = 0;
-        foreach ($segments as $seg) {
-            // 全角は2文字幅換算でラップ
-            $len = mb_strlen($seg);
-            $half_eq = 0;
-            for ($i = 0; $i < $len; $i++) {
-                $ch = mb_substr($seg, $i, 1);
-                $half_eq += (preg_match('/[\x{0020}-\x{007E}]/u', $ch)) ? 1 : 2;
-            }
-            $effective_width = max(1, $merged_width_chars * 2); // 列幅×2（全角換算）
-            $total_lines += max(1, ceil($half_eq / $effective_width));
-        }
-        return max($min_pt, $total_lines * $line_pt);
-    };
 
     // 計画値（テキスト量に応じて行高動的）
     $target_text = $company['form21_target_vehicles'] ?? '';
@@ -1329,11 +1363,15 @@ function generateForm21Excel($company, $f21, $year) {
     // Ⅲ. 要件
     $writer->writeSheetRow($sheet, ['Ⅲ．高齢者、障害者等の移動等の円滑化の促進に関する法律施行規則第６条の２で定める要件に関する事項','','','','','',''], $S_NORMAL);
 
-    $writer->writeSheetRow($sheet, ['（１）過去３年度における１年度当たりの平均の輸送人員が1000万人以上である。','','','','','',''], array_merge($S_BORDER, ['halign'=>'left','wrap_text'=>true]));
+    $req1 = '（１）過去３年度における１年度当たりの平均の輸送人員が1000万人以上である。';
+    $req1_h = $estimateHeight($req1, 12 + 14 + 14 + 14 + 14 + 14, 22, 16);
+    $writer->writeSheetRow($sheet, [$req1,'','','','','',''], array_merge($S_BORDER, ['halign'=>'left','wrap_text'=>true,'height'=>$req1_h]));
     $r = $writer->countSheetRows($sheet) - 1;
     $writer->markMergedCell($sheet, $r, 0, $r, 5);
 
-    $writer->writeSheetRow($sheet, ['（２）過去３年度における１年度当たりの平均の輸送人員が100万人以上1000万人未満であり、かつ、以下のいずれかに該当する。①中小企業者でない。②大企業者である公共交通事業者等が自社の株式を50％以上所有しているか、又は自社に対し50％以上出資している中小企業者である。','','','','','',''], array_merge($S_BORDER, ['halign'=>'left','wrap_text'=>true]));
+    $req2 = '（２）過去３年度における１年度当たりの平均の輸送人員が100万人以上1000万人未満であり、かつ、以下のいずれかに該当する。①中小企業者でない。②大企業者である公共交通事業者等が自社の株式を50％以上所有しているか、又は自社に対し50％以上出資している中小企業者である。';
+    $req2_h = $estimateHeight($req2, 12 + 14 + 14 + 14 + 14 + 14, 22, 16);
+    $writer->writeSheetRow($sheet, [$req2,'','','','','',''], array_merge($S_BORDER, ['halign'=>'left','wrap_text'=>true,'height'=>$req2_h]));
     $r = $writer->countSheetRows($sheet) - 1;
     $writer->markMergedCell($sheet, $r, 0, $r, 5);
 
@@ -1358,12 +1396,8 @@ function generateForm21Excel($company, $f21, $year) {
         $writer->markMergedCell($sheet, $r, 0, $r, 6);
     }
 
-    // ダウンロード
-    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Cache-Control: no-cache, must-revalidate');
-    header('Pragma: no-cache');
-    $writer->writeToStdOut();
+    // A4縦・1ページ幅fitで出力（XML後処理）
+    emitXlsxA4($writer, $filename);
 }
 
 // データ取得
