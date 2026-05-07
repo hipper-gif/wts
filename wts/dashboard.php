@@ -199,6 +199,76 @@ try {
     } catch (Exception $e) {
         // 書類テーブルが存在しない場合等はスキップ
     }
+
+    // 陸運局年次提出 期限警告（第4号様式 + 第21号様式、提出期限：5月31日）
+    try {
+        $today_dt = new DateTime('today');
+        $cur_month = (int)$today_dt->format('n');
+        $cur_year = (int)$today_dt->format('Y');
+
+        // 提出対象年度: 4月以降なら直前完了年度、1〜3月は前々年度
+        $target_fy = ($cur_month >= 4) ? ($cur_year - 1) : ($cur_year - 2);
+        $deadline_dt = new DateTime(($target_fy + 1) . '-05-31');
+        $days_left = (int)$today_dt->diff($deadline_dt)->format('%r%a');
+
+        // 提出状態を取得
+        $stmt = $pdo->prepare("
+            SELECT report_type, status FROM annual_reports
+            WHERE fiscal_year = ? AND report_type IN ('第4号様式', '第21号様式')
+        ");
+        $stmt->execute([$target_fy]);
+        $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        $form4_done = (($rows['第4号様式'] ?? '') === '提出済み');
+        $form21_done = (($rows['第21号様式'] ?? '') === '提出済み');
+        $missing = [];
+        if (!$form4_done)  $missing[] = '第4号様式';
+        if (!$form21_done) $missing[] = '第21号様式';
+
+        if (!empty($missing)) {
+            $missing_text = implode('・', $missing);
+            $deadline_str = $deadline_dt->format('Y年n月j日');
+
+            if ($days_left < 0) {
+                // 期限超過 — 最重要
+                $alerts[] = [
+                    'type' => 'danger', 'priority' => 'critical',
+                    'icon' => 'fas fa-exclamation-triangle',
+                    'title' => '陸運局提出 期限超過',
+                    'message' => "{$target_fy}年度の{$missing_text}が未提出です。提出期限（{$deadline_str}）を" . abs($days_left) . "日過ぎています。今すぐ確認してください。",
+                    'action' => 'annual_report.php'
+                ];
+            } elseif ($days_left <= 14) {
+                // 残り2週間以下
+                $alerts[] = [
+                    'type' => 'danger', 'priority' => 'critical',
+                    'icon' => 'fas fa-calendar-times',
+                    'title' => "陸運局提出 期限まで{$days_left}日",
+                    'message' => "{$target_fy}年度の{$missing_text}を{$deadline_str}までに提出してください。",
+                    'action' => 'annual_report.php'
+                ];
+            } elseif ($days_left <= 31 && $cur_month >= 4) {
+                // 5月 残り1ヶ月以内
+                $alerts[] = [
+                    'type' => 'warning', 'priority' => 'high',
+                    'icon' => 'fas fa-calendar-day',
+                    'title' => '陸運局提出 期限間近',
+                    'message' => "{$target_fy}年度の{$missing_text}の提出期限が近づいています（残り{$days_left}日／{$deadline_str}）。",
+                    'action' => 'annual_report.php'
+                ];
+            } elseif ($cur_month === 4 || $cur_month === 5) {
+                // 4〜5月の準備期間（残り60日以内）
+                $alerts[] = [
+                    'type' => 'info', 'priority' => 'normal',
+                    'icon' => 'fas fa-info-circle',
+                    'title' => '陸運局提出 準備時期',
+                    'message' => "{$target_fy}年度の{$missing_text}の提出期限は{$deadline_str}です。早めに準備しましょう。",
+                    'action' => 'annual_report.php'
+                ];
+            }
+        }
+    } catch (Exception $e) {
+        // annual_reports テーブルが存在しない / company_info 未設定等はスキップ
+    }
 } catch (Exception $e) {
     error_log("ダッシュボード アラート生成エラー: " . $e->getMessage());
 }
@@ -343,6 +413,9 @@ echo $page_data['html_head'];
                             'arrival.php' => '入庫処理へ',
                             'departure.php' => '出庫処理へ',
                             'daily_inspection.php' => '日常点検へ',
+                            'annual_report.php' => '陸運局提出へ',
+                            'document_management.php' => '書類管理へ',
+                            'document_management.php?expiry=expired' => '書類管理へ',
                         ];
                         echo $action_labels[$alert['action']] ?? '対応する';
                     ?></a>
