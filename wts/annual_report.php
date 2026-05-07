@@ -774,11 +774,11 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
     // 空行
     $writer->writeSheetRow($sheet, ['','','','','','','',''], $S_NORMAL);
 
-    // 行7: 宛先
+    // 行7: 宛先（見本通り列0単独セル、隣セル空でオーバーフロー表示）
     $writer->writeSheetRow($sheet, [
         '　　　　　　　　　　　　　あて','','','','','','',''
     ], ['font'=>'ＭＳ Ｐ明朝','font-size'=>10]);
-    $writer->markMergedCell($sheet, 6, 0, 6, 7);
+    // ※merge しない。列0テキストが隣の空セルにオーバーフローして見本と同じ位置になる
 
     // 空行
     $writer->writeSheetRow($sheet, ['','','','','','','',''], $S_NORMAL);
@@ -893,7 +893,9 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
                 $ch = mb_substr($seg, $i, 1);
                 $half_eq += (preg_match('/[\x{0020}-\x{007E}]/u', $ch)) ? 1 : 2;
             }
-            $effective_width = max(1, $merged_width_chars * 2);
+            // merged_width_chars は半角文字幅単位、half_eq も半角換算 → そのまま割る
+            // 安全マージンを取って 0.92 倍（フォントによっては約8%ロス）
+            $effective_width = max(1, $merged_width_chars * 0.92);
             $total_lines += max(1, ceil($half_eq / $effective_width));
         }
         return max($min_pt, $total_lines * $line_pt);
@@ -1229,7 +1231,9 @@ function generateForm21Excel($company, $f21, $year) {
                 $ch = mb_substr($seg, $i, 1);
                 $half_eq += (preg_match('/[\x{0020}-\x{007E}]/u', $ch)) ? 1 : 2;
             }
-            $effective_width = max(1, $merged_width_chars * 2);
+            // merged_width_chars は半角文字幅単位、half_eq も半角換算 → そのまま割る
+            // 安全マージンを取って 0.92 倍（フォントによっては約8%ロス）
+            $effective_width = max(1, $merged_width_chars * 0.92);
             $total_lines += max(1, ceil($half_eq / $effective_width));
         }
         return max($min_pt, $total_lines * $line_pt);
