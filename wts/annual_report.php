@@ -19,8 +19,13 @@ function logAnnualReportAudit($pdo, $user_id, $user_name, $action, $details = ''
 }
 
 // 現在の年度取得
-$current_year = date('Y');
-$selected_year = $_GET['year'] ?? $current_year;
+// 年度＝標準和暦年度（開始年基準）。例: 2025年度 = 2025年4月〜2026年3月 = 令和7年度
+// 提出対象年度: 4月以降なら直前完了年度、1〜3月は前々年度（dashboard.phpと整合）
+$current_calendar_year = (int)date('Y');
+$current_month = (int)date('n');
+$default_fiscal_year = ($current_month >= 4) ? ($current_calendar_year - 1) : ($current_calendar_year - 2);
+$selected_year = (int)($_GET['year'] ?? $default_fiscal_year);
+$current_year = $default_fiscal_year; // 後方互換のため既存変数名を残す（年度selector loop用）
 
 // POST処理
 $message = '';
@@ -195,7 +200,8 @@ function getCompanyInfo($pdo) {
 }
 
 function getBusinessOverview($pdo, $year) {
-    $end_date = $year . '-03-31';
+    // $year は標準和暦年度（開始年）。終了日は翌年3月31日
+    $end_date = ($year + 1) . '-03-31';
     try {
         // 車両数（アクティブな車両のみ、「その他」を除外）
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM vehicles WHERE is_active = 1 AND COALESCE(vehicle_type, '') != 'other' AND vehicle_number NOT LIKE '%その他%'");
@@ -232,8 +238,9 @@ function getBusinessOverview($pdo, $year) {
 }
 
 function getTransportResults($pdo, $year) {
-    $start_date = ($year - 1) . '-04-01';
-    $end_date = $year . '-03-31';
+    // $year は標準和暦年度（開始年）
+    $start_date = $year . '-04-01';
+    $end_date = ($year + 1) . '-03-31';
     $default = [
         'start_date' => $start_date,
         'end_date' => $end_date,
@@ -313,9 +320,9 @@ function getTransportResults($pdo, $year) {
 }
 
 function getAccidentData($pdo, $year) {
-    // 事故データ（年度集計）
-    $start_date = ($year - 1) . '-04-01';
-    $end_date = $year . '-03-31';
+    // 事故データ（年度集計）— $year は標準和暦年度（開始年）
+    $start_date = $year . '-04-01';
+    $end_date = ($year + 1) . '-03-31';
     
     try {
         $stmt = $pdo->prepare("
@@ -408,7 +415,9 @@ function generateForm4PDF($company, $business, $transport, $accident, $year) {
     header('Cache-Control: private, max-age=0, must-revalidate');
 
     $revenue_sen = floor(($transport['total_revenue'] ?? 0) / 1000);
-    $reiwa = toReiwaYear($year);
+    // $year は標準和暦年度（開始年）。例: 2025 → 令和7年度（2025-04〜2026-03）
+    $reiwa = toReiwaYear($year);             // 年度番号（令和7）
+    $reiwa_end = toReiwaYear($year + 1);     // 末日基準の和暦年（令和8年3月31日現在）
     $f = function($v) { return number_format(intval($v)); };
     $h = function($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
 
@@ -590,7 +599,7 @@ body {
 <!-- ============ 事業概況 ============ -->
 <table class="data-table">
 <colgroup><col class="col-label"><col class="col-kv"><col class="col-ku"><col class="col-zv"><col class="col-zu"></colgroup>
-    <tr><td colspan="5" class="section-title">事業概況　（令和' . $reiwa . '年３月３１日現在）</td></tr>
+    <tr><td colspan="5" class="section-title">事業概況　（令和' . $reiwa_end . '年３月３１日現在）</td></tr>
     <tr>
         <td class="col-header">　</td>
         <td class="col-header" colspan="2">管轄区域内</td>
@@ -701,7 +710,9 @@ body {
 // PHP_XLSXWriter でネイティブ xlsx を生成（HTML→Excelハック廃止）
 // 構造: 8列ベース（A-D ラベル / E 管轄値 / F 管轄単位 / G 全国値 / H 全国単位）
 function generateForm4Excel($company, $business, $transport, $accident, $year) {
-    $reiwa = toReiwaYear($year);
+    // $year は標準和暦年度（開始年）
+    $reiwa = toReiwaYear($year);             // 年度（令和7）
+    $reiwa_end = toReiwaYear($year + 1);     // 末日基準（令和8年3月31日）
     $filename = 'gentei_jisseki_R' . $reiwa . '.xlsx';
 
     $writer = new XLSXWriter();
@@ -801,7 +812,7 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
     $writer->writeSheetRow($sheet, ['','','','','','','',''], $S_NORMAL);
 
     // === 事業概況 セクションタイトル ===
-    $writer->writeSheetRow($sheet, ['事業概況　（令和' . $reiwa . '年３月３１日現在）','','','','','','',''], $S_SEC);
+    $writer->writeSheetRow($sheet, ['事業概況　（令和' . $reiwa_end . '年３月３１日現在）','','','','','','',''], $S_SEC);
     $sec_row = $writer->countSheetRows($sheet) - 1;
     $writer->markMergedCell($sheet, $sec_row, 0, $sec_row, 7);
 
@@ -966,7 +977,9 @@ function generateForm21PDF($company, $f21, $year) {
     header('Content-Type: text/html; charset=UTF-8');
     header('Cache-Control: private, max-age=0, must-revalidate');
 
-    $reiwa = toReiwaYear($year);
+    // $year は標準和暦年度（開始年）
+    $reiwa = toReiwaYear($year);             // 年度（令和7）
+    $reiwa_end = toReiwaYear($year + 1);     // 末日基準（令和8年3月31日）
     $h = function($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
     $f = function($v) { return $v === null || $v === '' ? '　' : intval($v); };
 
@@ -1073,7 +1086,7 @@ body {
 
 <!-- 1. 達成状況 -->
 <div class="section-h">Ⅰ．福祉タクシー車両の移動等円滑化の達成状況</div>
-<div class="as-of">（令和' . $reiwa . '年３月３１日現在）</div>
+<div class="as-of">（令和' . $reiwa_end . '年３月３１日現在）</div>
 
 <table class="t1">
     <tr>
@@ -1202,7 +1215,9 @@ function emitXlsxA4($writer, $filename) {
 }
 
 function generateForm21Excel($company, $f21, $year) {
-    $reiwa = toReiwaYear($year);
+    // $year は標準和暦年度（開始年）
+    $reiwa = toReiwaYear($year);             // 年度（令和7）
+    $reiwa_end = toReiwaYear($year + 1);     // 末日基準（令和8年3月31日）
     $filename = 'fukushi_taxi_R' . $reiwa . '.xlsx';
 
     $writer = new XLSXWriter();
@@ -1283,7 +1298,7 @@ function generateForm21Excel($company, $f21, $year) {
 
     // Ⅰ. 達成状況
     $writer->writeSheetRow($sheet, ['Ⅰ．福祉タクシー車両の移動等円滑化の達成状況','','','','','',''], $S_NORMAL);
-    $writer->writeSheetRow($sheet, ['（令和' . $reiwa . '年３月３１日現在）','','','','','',''], $S_NORMAL);
+    $writer->writeSheetRow($sheet, ['（令和' . $reiwa_end . '年３月３１日現在）','','','','','',''], $S_NORMAL);
 
     // 達成状況テーブル: 7列ヘッダー
     // 行: 上位ヘッダー（merged 6列）
@@ -1715,7 +1730,8 @@ echo $page_data['page_header'];
 $form21_data_main = getForm21Data($pdo);
 
 // 提出期限（年度の翌年5月31日）と残日数
-$deadline_str = $selected_year . '-05-31';
+// $selected_year は標準和暦年度（開始年）。例: 2025年度 → 期限2026-05-31
+$deadline_str = ($selected_year + 1) . '-05-31';
 $today = new DateTime('today');
 $deadline = new DateTime($deadline_str);
 $days_left = (int) $today->diff($deadline)->format('%r%a');
@@ -1871,7 +1887,7 @@ $reiwa_year = toReiwaYear($selected_year);
             <div class="ar-head">
                 <div class="ar-icw"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l8-4 8 4v14"/><path d="M9 9h.01M9 12h.01M9 15h.01M13 9h.01M13 12h.01M13 15h.01"/></svg></div>
                 <h4>事業概況</h4>
-                <span class="ar-as-of">R<?= $reiwa_year ?>年3月31日現在</span>
+                <span class="ar-as-of">R<?= $reiwa_year + 1 ?>年3月31日現在</span>
             </div>
             <div class="ar-kv"><span class="ar-k">事業者番号</span><span class="ar-v"><span class="ar-edit" data-field="business_number"><?= htmlspecialchars($company_info['business_number'] ?? '') ?></span></span></div>
             <div class="ar-kv"><span class="ar-k">事業用自動車数</span><span class="ar-v"><?= number_format(intval($business_overview['vehicle_count'] ?? 0)) ?><small>両</small></span></div>
@@ -1885,7 +1901,7 @@ $reiwa_year = toReiwaYear($selected_year);
             <div class="ar-head">
                 <div class="ar-icw"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l2-5a2 2 0 0 1 2-1h6a2 2 0 0 1 2 1l2 5"/><rect x="3" y="12" width="18" height="5"/><circle cx="7" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></svg></div>
                 <h4>輸送実績</h4>
-                <span class="ar-as-of">R<?= $reiwa_year - 1 ?>年4月〜R<?= $reiwa_year ?>年3月</span>
+                <span class="ar-as-of">R<?= $reiwa_year ?>年4月〜R<?= $reiwa_year + 1 ?>年3月</span>
             </div>
             <div class="ar-kv"><span class="ar-k">走行キロ</span><span class="ar-v"><?= number_format(intval($transport_results['total_distance'] ?? 0)) ?><small>km</small></span></div>
             <div class="ar-kv"><span class="ar-k">運送回数</span><span class="ar-v"><?= number_format(intval($transport_results['ride_count'] ?? 0)) ?><small>回</small></span></div>
@@ -1911,7 +1927,7 @@ $reiwa_year = toReiwaYear($selected_year);
             <div class="ar-head">
                 <div class="ar-icw"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="3"/><path d="M9 22v-7a3 3 0 0 1 3-3 3 3 0 0 1 3 3v7"/><circle cx="6" cy="20" r="2"/></svg></div>
                 <h4>福祉タクシー車両（第21号様式）</h4>
-                <span class="ar-as-of">R<?= $reiwa_year ?>年3月31日現在</span>
+                <span class="ar-as-of">R<?= $reiwa_year + 1 ?>年3月31日現在</span>
             </div>
             <div class="ar-kv"><span class="ar-k">合計</span><span class="ar-v"><?= intval($form21_data_main['total']) ?><small>両</small></span></div>
             <div class="ar-kv"><span class="ar-k">車椅子対応車（うちUDT）</span><span class="ar-v"><?= intval($form21_data_main['wheelchair']) ?><small>両（</small><?= intval($form21_data_main['udt']) ?><small>）</small></span></div>
@@ -2082,7 +2098,7 @@ $reiwa_year = toReiwaYear($selected_year);
                         <select name="fiscal_year" id="fiscal_year" class="form-select" required>
                             <?php for ($year = $current_year + 1; $year >= $current_year - 5; $year--): ?>
                                 <option value="<?= $year ?>" <?= $year == $selected_year ? 'selected' : '' ?>>
-                                    <?= $year ?>年度（<?= $year - 1 ?>年4月〜<?= $year ?>年3月）
+                                    <?= $year ?>年度（<?= $year ?>年4月〜<?= $year + 1 ?>年3月）
                                 </option>
                             <?php endfor; ?>
                         </select>
