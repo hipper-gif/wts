@@ -80,9 +80,9 @@ $page_data = renderCompletePage(
 
 .invoice-page {
     background: #fff;
-    width: 297mm; min-height: 210mm;
+    width: 210mm; min-height: 297mm;
     margin: 0 auto;
-    padding: 12mm 12mm;
+    padding: 15mm 15mm;
     box-shadow: 0 0 12px rgba(0,0,0,0.15);
     font-family: "Yu Mincho", "YuMincho", "MS Mincho", "Hiragino Mincho ProN", serif;
     color: #000;
@@ -91,12 +91,14 @@ $page_data = renderCompletePage(
     position: relative;
 }
 
-.invoice-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6mm; }
-.invoice-header .to-city { font-size: 12pt; }
-.invoice-header .title { font-size: 22pt; font-weight: bold; letter-spacing: 0.6em; flex: 1; text-align: center; }
-.invoice-header .note { font-size: 9pt; color: #333; }
+.invoice-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8mm; }
+.invoice-header .to-city { font-size: 12pt; flex: 0 0 auto; }
+.invoice-header .title { font-size: 24pt; font-weight: bold; letter-spacing: 0.8em; flex: 1; text-align: center; }
+.invoice-header .note { font-size: 9pt; color: #333; flex: 0 0 auto; padding-top: 4mm; }
 
-.invoice-body { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 8mm; align-items: start; }
+.invoice-body { display: flex; flex-direction: column; gap: 6mm; }
+.invoice-body .block { width: 100%; }
+.invoice-body .row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; align-items: start; }
 
 .block h3 { font-size: 11pt; font-weight: bold; margin: 0 0 2mm; }
 
@@ -113,6 +115,14 @@ table.tt input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: n
 table.tt input[type="number"] { -moz-appearance: textfield; }
 table.tt td.readout { background: #fafafa; font-weight: bold; }
 table.tt tr.sum td { background: #f0f4f8; font-weight: bold; }
+table.tt th.vertical-label {
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    letter-spacing: 0.5em;
+    width: 12mm;
+    padding: 2mm 0;
+    background: #f5f5f5;
+}
 
 /* 内訳ブロック */
 .req-total-row { display: flex; align-items: center; gap: 2mm; margin-bottom: 2mm; }
@@ -142,16 +152,14 @@ table.tt tr.sum td { background: #f0f4f8; font-weight: bold; }
 
 /* 印刷モード */
 @media print {
-    @page { size: A4 landscape; margin: 0; }
+    @page { size: A4 portrait; margin: 0; }
     body { background: #fff !important; }
     .system-header, .page-header, .navbar, .toast-container,
     .invoice-toolbar, footer, .breadcrumb, .breadcrumb-container,
     .container > h1, .container > h2, .pageHeader { display: none !important; }
     .container, .container-fluid { padding: 0 !important; margin: 0 !important; max-width: none !important; }
-    .invoice-page { box-shadow: none; margin: 0; width: 297mm; min-height: 210mm; padding: 10mm 10mm; }
+    .invoice-page { box-shadow: none; margin: 0; width: 210mm; min-height: 297mm; padding: 12mm 12mm; }
     table.tt input, .company-table input, .date-line input { color: #000; }
-    /* 0 表示を非表示にする（紙の様式に近づける） */
-    .hide-zero-print[data-value="0"] { color: transparent; }
 }
 </style>
 </head>
@@ -182,10 +190,10 @@ table.tt tr.sum td { background: #f0f4f8; font-weight: bold; }
             <div class="note">※コピーして使って下さい</div>
         </div>
 
-        <!-- ボディ：3カラム -->
+        <!-- ボディ：縦並び（A4縦） -->
         <div class="invoice-body">
 
-            <!-- 左：内訳 -->
+            <!-- 内訳 -->
             <div class="block">
                 <div class="req-total-row">
                     <label>請求金額</label>
@@ -196,14 +204,18 @@ table.tt tr.sum td { background: #f0f4f8; font-weight: bold; }
                 <table class="tt" id="breakdownTable">
                     <thead>
                         <tr>
+                            <th style="width: 12mm;"></th>
                             <th>請求月</th>
-                            <th>枚数</th>
-                            <th>金額</th>
+                            <th style="width: 28mm;">枚数</th>
+                            <th style="width: 36mm;">金額</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php for ($i = 0; $i < 3; $i++): ?>
                         <tr>
+                            <?php if ($i === 0): ?>
+                            <th rowspan="3" class="vertical-label">内　訳</th>
+                            <?php endif; ?>
                             <td>
                                 <div class="month-input">
                                     <input type="number" class="year req-year" min="2020" max="2099"
@@ -217,7 +229,7 @@ table.tt tr.sum td { background: #f0f4f8; font-weight: bold; }
                         </tr>
                         <?php endfor; ?>
                         <tr class="sum">
-                            <td>合　計</td>
+                            <td colspan="2">合　計</td>
                             <td><span id="totalCount">0</span> 枚</td>
                             <td><span id="totalAmount">0</span> 円</td>
                         </tr>
@@ -225,13 +237,13 @@ table.tt tr.sum td { background: #f0f4f8; font-weight: bold; }
                 </table>
             </div>
 
-            <!-- 中央：月別明細 -->
+            <!-- 月別明細 -->
             <div class="block">
                 <h3>月別明細</h3>
                 <table class="tt" id="detailTable">
                     <thead>
                         <tr>
-                            <th rowspan="2">乗車料金<br>（円）</th>
+                            <th rowspan="2" style="width: 22mm;">乗車料金<br>（円）</th>
                             <?php for ($i = 0; $i < 3; $i++): ?>
                             <th colspan="2">
                                 <span class="detail-month-label" data-col="<?= $i ?>">
@@ -278,7 +290,7 @@ table.tt tr.sum td { background: #f0f4f8; font-weight: bold; }
                 </table>
             </div>
 
-            <!-- 右：事業者情報 -->
+            <!-- 事業者情報 -->
             <div class="block">
                 <div class="date-line">
                     令和 <input type="number" id="dateYear" min="1" max="99" value="<?= $reiwa_year ?>"> 年
@@ -289,7 +301,7 @@ table.tt tr.sum td { background: #f0f4f8; font-weight: bold; }
 
                 <table class="company-table">
                     <tr>
-                        <th rowspan="4" style="writing-mode: vertical-rl; text-orientation: upright; width: 8mm; padding: 0; letter-spacing: 0.3em;">請求事業者</th>
+                        <th rowspan="4" style="writing-mode: vertical-rl; text-orientation: upright; width: 10mm; padding: 2mm 0; letter-spacing: 0.3em;">請求事業者</th>
                         <th>住　所</th>
                         <td><input type="text" id="companyAddress" value="<?= htmlspecialchars(($company['postal_code'] ? '〒' . $company['postal_code'] . '　' : '') . $company['address']) ?>"></td>
                     </tr>
