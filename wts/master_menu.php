@@ -496,6 +496,20 @@ $page_data = renderCompletePage(
                 </a>
             </div>
 
+            <!-- タクシー利用券請求書 -->
+            <div class="col-lg-4 col-md-6 mb-3">
+                <a href="taxi_ticket_invoice.php" class="master-card">
+                    <div class="position-relative">
+                        <i class="fas fa-ticket-alt master-icon" style="color:#f59e0b;"></i>
+                        <h6 class="fw-bold">タクシー利用券請求書</h6>
+                        <p class="card-description">
+                            寝屋川市重度障害者(児)タクシー利用券<br>
+                            月別の請求書を入力・印刷
+                        </p>
+                    </div>
+                </a>
+            </div>
+
             <!-- 予約管理（Phase2 - カレンダー未完成のため非表示） -->
         </div>
 

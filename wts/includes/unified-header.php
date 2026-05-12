@@ -313,6 +313,16 @@ function getPageConfiguration($page_type) {
             'priority' => 'normal'
         ],
 
+        'taxi_ticket_invoice' => [
+            'category' => 'management',
+            'icon' => 'ticket-alt',
+            'title' => 'タクシー利用券請求書',
+            'subtitle' => '寝屋川市重度障害者(児)タクシー利用券 請求書',
+            'description' => '事業者→市への月別請求書を入力・印刷',
+            'frequency' => '月次',
+            'priority' => 'normal'
+        ],
+
         // 🛠️ 診断・管理ツール（5ページ）
         'data_management' => [
             'category' => 'diagnostic',
