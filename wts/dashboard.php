@@ -529,6 +529,13 @@ echo $page_data['html_head'];
                     <small>年1回の法定報告書提出</small>
                 </div>
             </a>
+            <a href="taxi_ticket_invoice.php" class="workflow-item">
+                <div class="workflow-icon"><i class="fas fa-ticket-alt"></i></div>
+                <div>
+                    <strong>タクシー利用券請求書</strong><br>
+                    <small>寝屋川市重度障害者(児)タクシー利用券 月次請求</small>
+                </div>
+            </a>
         </div>
     </div>
 
