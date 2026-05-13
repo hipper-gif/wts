@@ -35,16 +35,40 @@ $today_day = (int)$today->format('j');
 // 月別明細の乗車料金（紙様式どおり）
 $fare_rows = [680, 660, 640, 620, 610, 600, 590, 580, 570];
 
-// 請求対象の3か月（直近3か月をデフォルトで提案）
-$default_months = [];
-for ($i = 3; $i >= 1; $i--) {
-    $d = new DateTime();
-    $d->modify("-{$i} month");
-    $default_months[] = [
-        'year' => (int)$d->format('Y'),
-        'month' => (int)$d->format('n'),
-    ];
+// 四半期定義（年度＝4月始まり）
+// Q1: 4-6月, Q2: 7-9月, Q3: 10-12月, Q4: 1-3月（年度+1の暦年）
+function quarterMonths($quarter) {
+    $base = [1 => [4,5,6], 2 => [7,8,9], 3 => [10,11,12], 4 => [1,2,3]];
+    return $base[$quarter] ?? [4,5,6];
 }
+
+// 現在日付から「直近の完了した四半期」を求める
+$cy = (int)$today->format('Y');
+$cm = (int)$today->format('n');
+// 暦上の月から年度・四半期を判定
+if ($cm >= 4 && $cm <= 6)        { $cur_fy = $cy;     $cur_q = 1; }
+elseif ($cm >= 7 && $cm <= 9)    { $cur_fy = $cy;     $cur_q = 2; }
+elseif ($cm >= 10 && $cm <= 12)  { $cur_fy = $cy;     $cur_q = 3; }
+else /* 1-3月 */                 { $cur_fy = $cy - 1; $cur_q = 4; }
+// 直近の完了四半期＝1つ前
+if ($cur_q == 1) { $default_fy = $cur_fy - 1; $default_q = 4; }
+else             { $default_fy = $cur_fy;     $default_q = $cur_q - 1; }
+
+// 年度選択肢（過去5年+今年度）
+$fy_options = [];
+for ($y = $cur_fy; $y >= $cur_fy - 5; $y--) {
+    $fy_options[] = $y;
+}
+
+// 選択した年度・四半期から3か月を構築
+function monthsOfQuarter($fy, $q) {
+    $months = quarterMonths($q);
+    $year = ($q == 4) ? $fy + 1 : $fy; // Q4は翌年1-3月
+    return array_map(function($m) use ($year) {
+        return ['year' => $year, 'month' => $m];
+    }, $months);
+}
+$default_months = monthsOfQuarter($default_fy, $default_q);
 
 $page_config = getPageConfiguration('taxi_ticket_invoice');
 $page_data = renderCompletePage(
@@ -170,6 +194,20 @@ table.tt th.vertical-label {
 <div class="container-fluid mt-3">
 
     <div class="invoice-toolbar no-print">
+        <div class="d-flex align-items-center gap-2">
+            <label class="form-label mb-0 fw-bold"><i class="fas fa-calendar-alt me-1"></i>請求対象</label>
+            <select id="fyPicker" class="form-select form-select-sm" style="width: auto;">
+                <?php foreach ($fy_options as $fy): ?>
+                <option value="<?= $fy ?>" <?= $fy === $default_fy ? 'selected' : '' ?>><?= $fy ?>年度</option>
+                <?php endforeach; ?>
+            </select>
+            <select id="quarterPicker" class="form-select form-select-sm" style="width: auto;">
+                <option value="1" <?= $default_q === 1 ? 'selected' : '' ?>>第1四半期（4-6月）</option>
+                <option value="2" <?= $default_q === 2 ? 'selected' : '' ?>>第2四半期（7-9月）</option>
+                <option value="3" <?= $default_q === 3 ? 'selected' : '' ?>>第3四半期（10-12月）</option>
+                <option value="4" <?= $default_q === 4 ? 'selected' : '' ?>>第4四半期（1-3月）</option>
+            </select>
+        </div>
         <button class="btn btn-primary" onclick="window.print()">
             <i class="fas fa-print me-1"></i>印刷 / PDF保存
         </button>
@@ -177,7 +215,7 @@ table.tt th.vertical-label {
             <i class="fas fa-eraser me-1"></i>入力クリア
         </button>
         <span class="toolbar-hint">
-            乗車料金（680〜570円）× 月別の枚数を入力すると、金額・合計が自動計算されます。
+            四半期を選ぶと請求対象の3か月が自動セットされます。枚数を入力すると金額・合計を自動計算します。
         </span>
     </div>
 
@@ -382,10 +420,27 @@ table.tt th.vertical-label {
         });
     }
 
+    function applyQuarter() {
+        const fy = parseInt(document.getElementById('fyPicker').value, 10);
+        const q = parseInt(document.getElementById('quarterPicker').value, 10);
+        const monthMap = { 1: [4,5,6], 2: [7,8,9], 3: [10,11,12], 4: [1,2,3] };
+        const months = monthMap[q] || [4,5,6];
+        const year = (q === 4) ? fy + 1 : fy; // Q4は翌年1-3月
+        months.forEach((m, idx) => {
+            const yearInput = document.querySelector(`.req-year[data-col="${idx}"]`);
+            const monthInput = document.querySelector(`.req-month[data-col="${idx}"]`);
+            if (yearInput) yearInput.value = year;
+            if (monthInput) monthInput.value = m;
+        });
+        syncMonthLabels();
+    }
+
     document.addEventListener('input', (e) => {
         if (e.target.matches('.count-input, .fare-other')) recalc();
         if (e.target.matches('.req-month')) syncMonthLabels();
     });
+    document.getElementById('fyPicker').addEventListener('change', applyQuarter);
+    document.getElementById('quarterPicker').addEventListener('change', applyQuarter);
 
     window.resetForm = function() {
         if (!confirm('入力内容をクリアしますか？')) return;
