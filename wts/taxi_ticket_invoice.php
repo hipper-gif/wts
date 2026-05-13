@@ -96,11 +96,19 @@ $page_data = renderCompletePage(
     position: sticky; top: 0; z-index: 10;
     background: #fff; padding: 12px 16px; margin-bottom: 16px;
     border: 1px solid #e2e8f0; border-radius: 8px;
-    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
     box-shadow: 0 2px 6px rgba(0,0,0,0.05);
 }
+.invoice-toolbar .toolbar-row {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+}
+.invoice-toolbar .toolbar-row + .toolbar-row { margin-top: 8px; }
+.invoice-toolbar .toolbar-group {
+    display: flex; gap: 8px; align-items: center;
+}
+.invoice-toolbar .toolbar-spacer { flex: 1 1 auto; }
 .invoice-toolbar .btn { white-space: nowrap; }
-.invoice-toolbar .toolbar-hint { color: #64748b; font-size: 0.85rem; margin-left: auto; }
+.invoice-toolbar .toolbar-hint { color: #64748b; font-size: 0.85rem; }
+.invoice-toolbar label.form-label { white-space: nowrap; }
 
 .invoice-page {
     background: #fff;
@@ -194,29 +202,36 @@ table.tt th.vertical-label {
 <div class="container-fluid mt-3">
 
     <div class="invoice-toolbar no-print">
-        <div class="d-flex align-items-center gap-2">
-            <label class="form-label mb-0 fw-bold"><i class="fas fa-calendar-alt me-1"></i>請求対象</label>
-            <select id="fyPicker" class="form-select form-select-sm" style="width: auto;">
-                <?php foreach ($fy_options as $fy): ?>
-                <option value="<?= $fy ?>" <?= $fy === $default_fy ? 'selected' : '' ?>><?= $fy ?>年度</option>
-                <?php endforeach; ?>
-            </select>
-            <select id="quarterPicker" class="form-select form-select-sm" style="width: auto;">
-                <option value="1" <?= $default_q === 1 ? 'selected' : '' ?>>第1四半期（4-6月）</option>
-                <option value="2" <?= $default_q === 2 ? 'selected' : '' ?>>第2四半期（7-9月）</option>
-                <option value="3" <?= $default_q === 3 ? 'selected' : '' ?>>第3四半期（10-12月）</option>
-                <option value="4" <?= $default_q === 4 ? 'selected' : '' ?>>第4四半期（1-3月）</option>
-            </select>
+        <div class="toolbar-row">
+            <div class="toolbar-group">
+                <label class="form-label mb-0 fw-bold"><i class="fas fa-calendar-alt me-1"></i>請求対象</label>
+                <select id="fyPicker" class="form-select form-select-sm" style="width: auto;">
+                    <?php foreach ($fy_options as $fy): ?>
+                    <option value="<?= $fy ?>" <?= $fy === $default_fy ? 'selected' : '' ?>><?= $fy ?>年度</option>
+                    <?php endforeach; ?>
+                </select>
+                <select id="quarterPicker" class="form-select form-select-sm" style="width: auto;">
+                    <option value="1" <?= $default_q === 1 ? 'selected' : '' ?>>第1四半期（4-6月）</option>
+                    <option value="2" <?= $default_q === 2 ? 'selected' : '' ?>>第2四半期（7-9月）</option>
+                    <option value="3" <?= $default_q === 3 ? 'selected' : '' ?>>第3四半期（10-12月）</option>
+                    <option value="4" <?= $default_q === 4 ? 'selected' : '' ?>>第4四半期（1-3月）</option>
+                </select>
+            </div>
+            <div class="toolbar-spacer"></div>
+            <div class="toolbar-group">
+                <button class="btn btn-primary" onclick="window.print()">
+                    <i class="fas fa-print me-1"></i>印刷 / PDF保存
+                </button>
+                <button class="btn btn-outline-secondary" onclick="resetForm()">
+                    <i class="fas fa-eraser me-1"></i>入力クリア
+                </button>
+            </div>
         </div>
-        <button class="btn btn-primary" onclick="window.print()">
-            <i class="fas fa-print me-1"></i>印刷 / PDF保存
-        </button>
-        <button class="btn btn-outline-secondary" onclick="resetForm()">
-            <i class="fas fa-eraser me-1"></i>入力クリア
-        </button>
-        <span class="toolbar-hint">
-            四半期を選ぶと請求対象の3か月が自動セットされます。枚数を入力すると金額・合計を自動計算します。
-        </span>
+        <div class="toolbar-row">
+            <span class="toolbar-hint">
+                <i class="fas fa-info-circle me-1"></i>四半期を選ぶと請求対象の3か月が自動セットされます。枚数を入力すると金額・合計を自動計算します。
+            </span>
+        </div>
     </div>
 
     <div class="invoice-page" id="invoicePage">
