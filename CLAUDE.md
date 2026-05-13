@@ -2,7 +2,20 @@
 
 ## プロジェクト概要
 
-<!-- TODO: 概要・スタック・DB設計等を記載 -->
+介護タクシー運行管理システム。Smiley自社運用 + Lino（他社事業者）提供。
+
+## デプロイ先
+
+- **使う人区分**:
+  - 🌐 顧客（Lino他社事業者向け）= **🔒 提供済・URL/パス恒久維持**
+  - 🏢 社内（Smiley運用）
+- **本番URL**: https://tw1nkle.com/Smiley/taxi/wts/
+- **テストURL**: https://twinklemark.xsrv.jp/Smiley/taxi/wts/
+- **本番パス**: `~/tw1nkle.com/public_html/Smiley/taxi/wts/`
+- **テストパス**: `~/twinklemark.xsrv.jp/public_html/Smiley/taxi/wts/`
+- **DB**: `twinklemark_wts` + `twinklemark_wtslino`（テナント分離）
+- **⚠️ 重要**: Lino提供済のため**URL構成変更不可**。新URL構造への物理移行はしない
+- **詳細ルール**: `clio/knowledge/deploy-layout.md` 参照
 
 ---
 
