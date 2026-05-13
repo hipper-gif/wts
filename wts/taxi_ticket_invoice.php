@@ -42,20 +42,20 @@ function quarterMonths($quarter) {
     return $base[$quarter] ?? [4,5,6];
 }
 
-// 現在日付から「直近の完了した四半期」を求める
+// 現在日付から年度・四半期を判定（暦上の月→年度／四半期）
 $cy = (int)$today->format('Y');
 $cm = (int)$today->format('n');
-// 暦上の月から年度・四半期を判定
 if ($cm >= 4 && $cm <= 6)        { $cur_fy = $cy;     $cur_q = 1; }
 elseif ($cm >= 7 && $cm <= 9)    { $cur_fy = $cy;     $cur_q = 2; }
 elseif ($cm >= 10 && $cm <= 12)  { $cur_fy = $cy;     $cur_q = 3; }
 else /* 1-3月 */                 { $cur_fy = $cy - 1; $cur_q = 4; }
-// 直近の完了四半期＝1つ前
-if ($cur_q == 1) { $default_fy = $cur_fy - 1; $default_q = 4; }
-else             { $default_fy = $cur_fy;     $default_q = $cur_q - 1; }
+// デフォルトは「現在の四半期」
+$default_fy = $cur_fy;
+$default_q  = $cur_q;
 
-// 年度選択肢（過去5年+今年度）
+// 年度選択肢（今年度＋過去5年＋翌年度1つ）
 $fy_options = [];
+$fy_options[] = $cur_fy + 1;
 for ($y = $cur_fy; $y >= $cur_fy - 5; $y--) {
     $fy_options[] = $y;
 }
@@ -205,12 +205,12 @@ table.tt th.vertical-label {
         <div class="toolbar-row">
             <div class="toolbar-group">
                 <label class="form-label mb-0 fw-bold"><i class="fas fa-calendar-alt me-1"></i>請求対象</label>
-                <select id="fyPicker" class="form-select form-select-sm" style="width: auto;">
+                <select id="fyPicker" class="form-select form-select-sm" style="min-width: 120px;">
                     <?php foreach ($fy_options as $fy): ?>
                     <option value="<?= $fy ?>" <?= $fy === $default_fy ? 'selected' : '' ?>><?= $fy ?>年度</option>
                     <?php endforeach; ?>
                 </select>
-                <select id="quarterPicker" class="form-select form-select-sm" style="width: auto;">
+                <select id="quarterPicker" class="form-select form-select-sm" style="min-width: 180px;">
                     <option value="1" <?= $default_q === 1 ? 'selected' : '' ?>>第1四半期（4-6月）</option>
                     <option value="2" <?= $default_q === 2 ? 'selected' : '' ?>>第2四半期（7-9月）</option>
                     <option value="3" <?= $default_q === 3 ? 'selected' : '' ?>>第3四半期（10-12月）</option>
