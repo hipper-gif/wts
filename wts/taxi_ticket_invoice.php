@@ -100,15 +100,16 @@ $page_data = renderCompletePage(
 }
 .invoice-toolbar .toolbar-row {
     display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    justify-content: space-between;
 }
 .invoice-toolbar .toolbar-row + .toolbar-row { margin-top: 8px; }
 .invoice-toolbar .toolbar-group {
-    display: flex; gap: 8px; align-items: center;
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
 }
-.invoice-toolbar .toolbar-spacer { flex: 1 1 auto; }
 .invoice-toolbar .btn { white-space: nowrap; }
 .invoice-toolbar .toolbar-hint { color: #64748b; font-size: 0.85rem; }
 .invoice-toolbar label.form-label { white-space: nowrap; }
+.invoice-toolbar select.form-select { width: auto; max-width: 100%; }
 
 .invoice-page {
     background: #fff;
@@ -205,19 +206,18 @@ table.tt th.vertical-label {
         <div class="toolbar-row">
             <div class="toolbar-group">
                 <label class="form-label mb-0 fw-bold"><i class="fas fa-calendar-alt me-1"></i>請求対象</label>
-                <select id="fyPicker" class="form-select form-select-sm" style="min-width: 120px;">
+                <select id="fyPicker" class="form-select form-select-sm">
                     <?php foreach ($fy_options as $fy): ?>
                     <option value="<?= $fy ?>" <?= $fy === $default_fy ? 'selected' : '' ?>><?= $fy ?>年度</option>
                     <?php endforeach; ?>
                 </select>
-                <select id="quarterPicker" class="form-select form-select-sm" style="min-width: 180px;">
-                    <option value="1" <?= $default_q === 1 ? 'selected' : '' ?>>第1四半期（4-6月）</option>
-                    <option value="2" <?= $default_q === 2 ? 'selected' : '' ?>>第2四半期（7-9月）</option>
-                    <option value="3" <?= $default_q === 3 ? 'selected' : '' ?>>第3四半期（10-12月）</option>
-                    <option value="4" <?= $default_q === 4 ? 'selected' : '' ?>>第4四半期（1-3月）</option>
+                <select id="quarterPicker" class="form-select form-select-sm">
+                    <option value="1" <?= $default_q === 1 ? 'selected' : '' ?>>第1四半期 4-6月</option>
+                    <option value="2" <?= $default_q === 2 ? 'selected' : '' ?>>第2四半期 7-9月</option>
+                    <option value="3" <?= $default_q === 3 ? 'selected' : '' ?>>第3四半期 10-12月</option>
+                    <option value="4" <?= $default_q === 4 ? 'selected' : '' ?>>第4四半期 1-3月</option>
                 </select>
             </div>
-            <div class="toolbar-spacer"></div>
             <div class="toolbar-group">
                 <button class="btn btn-primary" onclick="window.print()">
                     <i class="fas fa-print me-1"></i>印刷 / PDF保存
