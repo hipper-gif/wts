@@ -14,11 +14,28 @@ if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
 }
 session_start();
 require_once 'config/database.php';
+require_once 'includes/remember_me.php';
 
 // 既にログイン済みの場合はダッシュボードへリダイレクト
 if (isset($_SESSION['user_id'])) {
     header('Location: dashboard.php');
     exit;
+}
+
+// Remember Me Cookieによる自動ログイン（ログイン画面を表示する前に試行）
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && isset($_COOKIE[WTS_REMEMBER_COOKIE])) {
+    try {
+        $pdo = getDBConnection();
+        $rm_user = wtsAttemptRememberLogin($pdo);
+        if ($rm_user) {
+            wtsEstablishSession($rm_user);
+            session_write_close();
+            header('Location: dashboard.php');
+            exit;
+        }
+    } catch (Exception $e) {
+        error_log("[WTS-REMEMBER] auto-login on index failed: " . $e->getMessage());
+    }
 }
 
 $error_message = '';
@@ -96,6 +113,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // PWA対応：ログイン成功時の追跡
                 if (isset($_GET['utm_source']) && $_GET['utm_source'] === 'pwa') {
                     $_SESSION['pwa_login'] = true;
+                }
+
+                // Remember Me: ログイン状態を長期保持（チェック時のみ）
+                if (!empty($_POST['remember_me'])) {
+                    try {
+                        wtsIssueRememberToken($pdo, (int)$user['id']);
+                    } catch (Exception $e) {
+                        // トークン発行に失敗してもログインは継続
+                        error_log("[WTS-REMEMBER] issue failed: " . $e->getMessage());
+                    }
                 }
                 
                 // セッションを確実に書き込んでからリダイレクト（Android PWA対応）
@@ -206,6 +233,13 @@ $system_name = $settings['system_name'];
                     </label>
                 </div>
                 
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="remember_me" name="remember_me" value="1" checked>
+                    <label class="form-check-label" for="remember_me">
+                        ログイン状態を保持する（90日間）
+                    </label>
+                </div>
+
                 <button type="submit" class="btn btn-login">
                     <i class="fas fa-sign-in-alt me-2"></i>ログイン
                 </button>

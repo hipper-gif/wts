@@ -17,6 +17,16 @@ if (isset($_SESSION['user_id'])) {
     error_log("Logout: User {$user_name} logged out at " . date('Y-m-d H:i:s'));
 }
 
+// Remember Meトークンを無効化（この端末の自動ログインを解除）
+require_once 'config/database.php';
+require_once 'includes/remember_me.php';
+try {
+    wtsClearRememberToken(getDBConnection());
+} catch (Exception $e) {
+    error_log("[WTS-REMEMBER] logout clear failed: " . $e->getMessage());
+    wtsClearRememberToken(null); // DB接続不可でもCookieは削除する
+}
+
 // セッションの完全な破棄
 $_SESSION = array();
 

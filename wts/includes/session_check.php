@@ -42,24 +42,10 @@ function destroySessionFully() {
     session_destroy();
 }
 
-// ログインチェック（診断ログ付き）
-if (!isset($_SESSION['user_id'])) {
-    $diag = [
-        'reason' => 'no_user_id',
-        'session_id' => session_id(),
-        'session_data_keys' => implode(',', array_keys($_SESSION)),
-        'save_path' => session_save_path(),
-        'page' => $_SERVER['REQUEST_URI'] ?? 'unknown',
-        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-    ];
-    error_log("[WTS-SESSION-DIAG] Logout: " . json_encode($diag, JSON_UNESCAPED_UNICODE));
-    header('Location: ' . $_sc_base . 'index.php');
-    exit;
-}
-
 // セッションタイムアウトチェック（DB設定値をセッションにキャッシュ）
+$_sc_timed_out = false;
 $session_timeout = $_SESSION['session_timeout_seconds'] ?? 28800; // デフォルト8時間
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
+if (isset($_SESSION['user_id']) && isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
     $diag = [
         'reason' => 'timeout',
         'last_activity' => date('Y-m-d H:i:s', $_SESSION['last_activity']),
@@ -71,8 +57,34 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 
     ];
     error_log("[WTS-SESSION-DIAG] Logout: " . json_encode($diag, JSON_UNESCAPED_UNICODE));
     destroySessionFully();
-    header('Location: ' . $_sc_base . 'index.php?timeout=1');
-    exit;
+    session_start(); // Remember Meによる自動再ログイン用に新しいセッションを開始
+    $_sc_timed_out = true;
+}
+
+// ログインチェック（未ログインならRemember Me Cookieによる自動再ログインを試行）
+if (!isset($_SESSION['user_id'])) {
+    require_once __DIR__ . '/../config/database.php';
+    require_once __DIR__ . '/remember_me.php';
+    if (!isset($pdo)) {
+        $pdo = getDBConnection();
+    }
+    $_sc_rm_user = wtsAttemptRememberLogin($pdo);
+    if ($_sc_rm_user) {
+        wtsEstablishSession($_sc_rm_user);
+        error_log("[WTS-REMEMBER] auto re-login: user {$_sc_rm_user['name']} (" . ($_SERVER['REQUEST_URI'] ?? 'unknown') . ")");
+    } else {
+        $diag = [
+            'reason' => $_sc_timed_out ? 'timeout_no_remember' : 'no_user_id',
+            'session_id' => session_id(),
+            'session_data_keys' => implode(',', array_keys($_SESSION)),
+            'save_path' => session_save_path(),
+            'page' => $_SERVER['REQUEST_URI'] ?? 'unknown',
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+        ];
+        error_log("[WTS-SESSION-DIAG] Logout: " . json_encode($diag, JSON_UNESCAPED_UNICODE));
+        header('Location: ' . $_sc_base . 'index.php' . ($_sc_timed_out ? '?timeout=1' : ''));
+        exit;
+    }
 }
 $_SESSION['last_activity'] = time();
 
