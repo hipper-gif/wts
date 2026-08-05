@@ -2,8 +2,9 @@
 # ============================================================
 # WTS データベース自動バックアップスクリプト（マルチテナント対応）
 # 対象: tenants.conf に定義された全テナントのMySQL DB (Xserver)
-# 保存先: //LS220D679/share/06.情シス共有フォルダ/wts/backup/
-# 実行: C:\Program Files\Git\bin\bash.exe -c /c/projects/wts/scripts/backup_wts.sh
+# 保存先: //LS220D679/share/06.総務・経理・情シス共有フォルダ/wts/backup/
+# 実行: backup_wts.bat（schtasks WTS_DatabaseBackup・毎日2:00）から起動される
+# 注意: パスをハードコードしない（2026-04ワークスペース移設でC:\projects参照のまま4ヶ月無音停止した教訓）
 # ============================================================
 
 set -uo pipefail
@@ -12,10 +13,10 @@ set -uo pipefail
 SSH_HOST="sv16114.xserver.jp"
 SSH_PORT="10022"
 SSH_USER="twinklemark"
-SSH_KEY="C:/projects/wts/twinklemark.key"
+SSH_KEY="C:/Users/nikon/projects/SmartClock/twinklemark.key"
 DB_USER="twinklemark_taxi"
 DB_PASS="Smiley2525"
-NAS_DIR="//LS220D679/share/06.情シス共有フォルダ/wts/backup"
+NAS_DIR="//LS220D679/share/06.総務・経理・情シス共有フォルダ/wts/backup"
 KEEP_DAYS=30
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -65,7 +66,9 @@ SUCCESS_COUNT=0
 FAIL_COUNT=0
 
 # 各テナントをバックアップ
-while read -r TENANT_ID DB_NAME; do
+# fd3で読む: ループ内のssh/scpがstdinを食べて2件目以降が黙ってスキップされるのを防ぐ
+# （2026-08-05発覚: 合計=2なのに成功=1・失敗=0でlinoが一度も処理されていなかった）
+while read -r -u 3 TENANT_ID DB_NAME; do
     # 空行スキップ
     [ -z "${TENANT_ID}" ] && continue
 
@@ -116,7 +119,7 @@ while read -r TENANT_ID DB_NAME; do
 
     SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
 
-done <<< "${TENANT_LIST}"
+done 3<<< "${TENANT_LIST}"
 
 # ---- 古いバックアップ一括削除（全テナント対象） ----
 log "古いバックアップの削除 (${KEEP_DAYS}日超)..."
