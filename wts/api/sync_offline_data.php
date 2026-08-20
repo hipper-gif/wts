@@ -47,6 +47,8 @@ try {
             $coin_100     = max(0, (int)($entry['coin_100'] ?? 0));
             $coin_50      = max(0, (int)($entry['coin_50'] ?? 0));
             $coin_10      = max(0, (int)($entry['coin_10'] ?? 0));
+            $coin_5       = max(0, (int)($entry['coin_5'] ?? 0));
+            $coin_1       = max(0, (int)($entry['coin_1'] ?? 0));
             $total_amount = max(0, (int)($entry['total_amount'] ?? 0));
             $memo         = $entry['memo'] ?? '';
 
@@ -61,13 +63,13 @@ try {
                 $stmt = $pdo->prepare("
                     UPDATE cash_count_details SET
                         bill_10000 = ?, bill_5000 = ?, bill_1000 = ?,
-                        coin_500 = ?, coin_100 = ?, coin_50 = ?, coin_10 = ?,
+                        coin_500 = ?, coin_100 = ?, coin_50 = ?, coin_10 = ?, coin_5 = ?, coin_1 = ?,
                         total_amount = ?, memo = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE confirmation_date = ? AND driver_id = ?
                 ");
                 $stmt->execute([
                     $bill_10000, $bill_5000, $bill_1000,
-                    $coin_500, $coin_100, $coin_50, $coin_10,
+                    $coin_500, $coin_100, $coin_50, $coin_10, $coin_5, $coin_1,
                     $total_amount, $memo, $date, $driver_id
                 ]);
             } else {
@@ -77,12 +79,12 @@ try {
                         bill_10000, bill_5000, bill_2000, bill_1000,
                         coin_500, coin_100, coin_50, coin_10, coin_5, coin_1,
                         total_amount, memo, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 0, 0, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ");
                 $stmt->execute([
                     $date, $driver_id,
                     $bill_10000, $bill_5000, $bill_1000,
-                    $coin_500, $coin_100, $coin_50, $coin_10,
+                    $coin_500, $coin_100, $coin_50, $coin_10, $coin_5, $coin_1,
                     $total_amount, $memo
                 ]);
             }

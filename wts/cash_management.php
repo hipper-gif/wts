@@ -196,7 +196,7 @@ $cash_count_history = [];
 try {
     $hist_sql = "SELECT c.confirmation_date, c.driver_id, u.name as driver_name,
                         c.bill_10000, c.bill_5000, c.bill_1000,
-                        c.coin_500, c.coin_100, c.coin_50, c.coin_10,
+                        c.coin_500, c.coin_100, c.coin_50, c.coin_10, c.coin_5, c.coin_1,
                         c.total_amount, c.memo, c.created_at
                  FROM cash_count_details c
                  LEFT JOIN users u ON c.driver_id = u.id
@@ -935,6 +935,8 @@ echo $page_data['html_head'];
                         <th class="text-end">100</th>
                         <th class="text-end">50</th>
                         <th class="text-end">10</th>
+                        <th class="text-end">5</th>
+                        <th class="text-end">1</th>
                         <th class="text-end">合計</th>
                         <th class="text-end">入金額</th>
                         <th>メモ</th>
@@ -958,6 +960,8 @@ echo $page_data['html_head'];
                         <td class="text-end"><?php echo $ch['coin_100']; ?></td>
                         <td class="text-end"><?php echo $ch['coin_50']; ?></td>
                         <td class="text-end"><?php echo $ch['coin_10']; ?></td>
+                        <td class="text-end"><?php echo $ch['coin_5']; ?></td>
+                        <td class="text-end"><?php echo $ch['coin_1']; ?></td>
                         <td class="text-end"><strong>¥<?php echo number_format($ch['total_amount']); ?></strong></td>
                         <td class="text-end <?php echo $ch_deposit >= 0 ? 'text-success' : 'text-danger'; ?>">
                             ¥<?php echo number_format($ch_deposit); ?>

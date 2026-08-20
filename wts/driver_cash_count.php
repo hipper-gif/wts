@@ -58,7 +58,9 @@ $base_change = [
     'coin_500'  => ['count' => 3, 'value' => 500, 'name' => '500円玉'],
     'coin_100'  => ['count' => 11, 'value' => 100, 'name' => '100円玉'],
     'coin_50'   => ['count' => 5, 'value' => 50, 'name' => '50円玉'],
-    'coin_10'   => ['count' => 15, 'value' => 10, 'name' => '10円玉']
+    'coin_10'   => ['count' => 15, 'value' => 10, 'name' => '10円玉'],
+    'coin_5'    => ['count' => 0, 'value' => 5, 'name' => '5円玉'],
+    'coin_1'    => ['count' => 0, 'value' => 1, 'name' => '1円玉']
 ];
 $base_total = 18000;
 
@@ -66,7 +68,7 @@ $base_total = 18000;
 $existing_count = null;
 $ex_stmt = $pdo->prepare("
     SELECT id, bill_10000, bill_5000, bill_1000,
-           coin_500, coin_100, coin_50, coin_10,
+           coin_500, coin_100, coin_50, coin_10, coin_5, coin_1,
            total_amount, memo
     FROM cash_count_details
     WHERE confirmation_date = CURDATE() AND driver_id = ?
@@ -189,6 +191,7 @@ echo $page_data['html_head'];
     color: white; cursor: pointer; transition: background 0.15s;
 }
 .save-btn:hover { background: #43a047; }
+.save-btn:focus { outline: 3px solid #ffb300; outline-offset: 2px; }
 .save-btn:disabled { background: #bdbdbd; cursor: not-allowed; }
 .info-badge {
     background: #42a5f5; color: white; padding: 6px 12px;
@@ -258,8 +261,8 @@ echo $page_data['html_head'];
                        id="<?php echo $type; ?>"
                        class="count-input"
                        value="<?php echo $existing_count ? $existing_count->$type : $info['count']; ?>"
-                       min="0" inputmode="numeric"
-                       onchange="recalc()">
+                       min="0" inputmode="numeric" enterkeyhint="next"
+                       oninput="recalc()">
                 <button class="count-btn plus" onclick="adjustCount('<?php echo $type; ?>', 1)">
                     <i class="fas fa-plus"></i>
                 </button>
@@ -524,8 +527,33 @@ echo $page_data['html_head'];
         }, 3000);
     }
 
+    // ===== テンポ入力（PC向け）=====
+    // フォーカスで全選択（数字を打つだけで上書き）、Enterで次の金種へ、最後はEnterで保存ボタンへ
+    var countInputs = Array.prototype.slice.call(document.querySelectorAll('.count-input'));
+    countInputs.forEach(function(input, idx) {
+        input.addEventListener('focus', function() {
+            var self = this;
+            setTimeout(function() { self.select(); }, 0);
+        });
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                recalc();
+                if (idx + 1 < countInputs.length) {
+                    countInputs[idx + 1].focus();
+                } else {
+                    document.getElementById('saveBtn').focus();
+                }
+            }
+        });
+    });
+
     document.addEventListener('DOMContentLoaded', function() {
         recalc();
+        // PC（非タッチ環境）では先頭の金種に自動フォーカス（開いてすぐ打てる）
+        if (!('ontouchstart' in window) && countInputs.length > 0) {
+            countInputs[0].focus();
+        }
     });
 </script>
 

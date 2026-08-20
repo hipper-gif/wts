@@ -70,6 +70,8 @@ try {
     $coin_100 = max(0, (int)($data['coin_100'] ?? 0));
     $coin_50 = max(0, (int)($data['coin_50'] ?? 0));
     $coin_10 = max(0, (int)($data['coin_10'] ?? 0));
+    $coin_5 = max(0, (int)($data['coin_5'] ?? 0));
+    $coin_1 = max(0, (int)($data['coin_1'] ?? 0));
     $total_amount = max(0, (int)($data['total_amount'] ?? 0));
     $memo = $data['memo'] ?? '';
 
@@ -96,8 +98,8 @@ try {
                 coin_100 = ?,
                 coin_50 = ?,
                 coin_10 = ?,
-                coin_5 = 0,
-                coin_1 = 0,
+                coin_5 = ?,
+                coin_1 = ?,
                 total_amount = ?,
                 memo = ?,
                 updated_at = CURRENT_TIMESTAMP
@@ -106,7 +108,7 @@ try {
 
         $result = $update_stmt->execute([
             $bill_10000, $bill_5000, $bill_1000, $coin_500, $coin_100,
-            $coin_50, $coin_10, $total_amount, $memo,
+            $coin_50, $coin_10, $coin_5, $coin_1, $total_amount, $memo,
             $confirmation_date, $driver_id
         ]);
 
@@ -123,7 +125,7 @@ try {
                 total_amount, memo,
                 created_at, updated_at
             ) VALUES (
-                ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 0, 0, ?, ?,
+                ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             )
         ");
@@ -131,7 +133,7 @@ try {
         $result = $insert_stmt->execute([
             $confirmation_date, $driver_id,
             $bill_10000, $bill_5000, $bill_1000, $coin_500, $coin_100,
-            $coin_50, $coin_10, $total_amount, $memo
+            $coin_50, $coin_10, $coin_5, $coin_1, $total_amount, $memo
         ]);
 
         $message = 'データを正常に保存しました';
