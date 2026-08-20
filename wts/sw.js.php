@@ -23,7 +23,7 @@ header('Service-Worker-Allowed: ' . $basePath . '/');
 // 福祉輸送管理システム (WTS) - Service Worker
 // Version 1.0.0
 
-const CACHE_VERSION = 'wts-v1.2.0';
+const CACHE_VERSION = 'wts-v1.2.1';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_DYNAMIC = `${CACHE_VERSION}-dynamic`;
 const CACHE_API = `${CACHE_VERSION}-api`;
@@ -42,7 +42,6 @@ const STATIC_CACHE_URLS = [
     '<?= $basePath ?>/calendar/css/reservation.css',
 
     // JavaScript
-    '<?= $basePath ?>/js/cash-mobile.js',
     '<?= $basePath ?>/js/ui-interactions.js',
     '<?= $basePath ?>/calendar/js/calendar.js',
     '<?= $basePath ?>/calendar/js/reservation.js',

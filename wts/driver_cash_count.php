@@ -118,28 +118,37 @@ echo $page_data['html_head'];
     background: white; border: 1px solid #e0e0e0;
     border-radius: 8px; margin-bottom: 20px; padding: 20px;
 }
+/* 色システム(1色=1意味): 緑=一致・保存OK / アンバー=差額あり要説明 / 赤=不足
+   青=現在地・フォーカス / スレート=中立の増減操作 / グレー=参照・未着手 */
 .cash-type-row {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 0; border-bottom: 1px solid #f0f0f0;
+    padding: 10px 4px; border-bottom: 1px solid #f0f0f0;
+    transition: background 0.15s;
 }
 .cash-type-row:last-child { border-bottom: none; }
+.cash-type-row:focus-within {
+    background: #e3f2fd; box-shadow: inset 4px 0 0 #1976d2; border-radius: 4px;
+}
+.cash-type-row:focus-within .cash-name { color: #0d47a1; }
+.cash-type-row:focus-within .amount-display { color: #1976d2; }
 .cash-info { flex: 1; }
 .cash-name { font-weight: 600; font-size: 15px; color: #333; }
 .cash-base { font-size: 12px; color: #888; margin-top: 2px; }
-.count-controls { display: flex; align-items: center; gap: 10px; }
+.count-controls { display: flex; align-items: center; gap: 12px; }
 .count-btn {
-    width: 38px; height: 38px; border-radius: 50%; border: none;
-    font-size: 16px; font-weight: bold;
+    width: 48px; height: 48px; border-radius: 50%;
+    font-size: 18px; font-weight: bold;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; transition: opacity 0.15s;
 }
 .count-btn:active { opacity: 0.7; }
-.count-btn.minus { background: #ef5350; color: white; }
-.count-btn.plus  { background: #4caf50; color: white; }
+.count-btn.minus { background: #fff; color: #37474f; border: 2px solid #37474f; }
+.count-btn.plus  { background: #37474f; color: #fff; border: none; }
 .count-input {
-    width: 70px; text-align: center; font-size: 16px; font-weight: 600;
-    border: 2px solid #e0e0e0; border-radius: 6px; padding: 6px;
+    width: 72px; text-align: center; font-size: 18px; font-weight: 600;
+    border: 2px solid #e0e0e0; border-radius: 8px; padding: 9px 4px;
 }
+.count-input:focus { border-color: #1976d2; outline: none; }
 .amount-display {
     text-align: right; font-weight: 600; font-size: 15px;
     color: #333; min-width: 80px;
@@ -178,25 +187,53 @@ echo $page_data['html_head'];
     padding: 10px 14px; margin-top: 8px;
     font-size: 13px; line-height: 1.5;
 }
+.verify-card { transition: background 0.25s; }
+.verify-card.verify-neutral { background: linear-gradient(135deg, #90a4ae 0%, #78909c 100%); }
+.verify-card.verify-green   { background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%); }
+.verify-card.verify-amber   { background: linear-gradient(135deg, #ffb300 0%, #ff8f00 100%); }
+.verify-card.verify-red     { background: linear-gradient(135deg, #e53935 0%, #c62828 100%); }
 .difference {
-    padding: 6px 14px; border-radius: 16px;
-    font-weight: bold; font-size: 13px; display: inline-block;
+    padding: 8px 18px; border-radius: 14px;
+    font-weight: 800; font-size: 22px; display: inline-block;
+    background: rgba(255,255,255,0.22); color: #fff;
+    font-variant-numeric: tabular-nums;
 }
-.difference.positive { background: #4caf50; color: white; }
-.difference.negative { background: #ef5350; color: white; }
-.difference.zero     { background: #42a5f5; color: white; }
 .save-btn {
     width: 100%; padding: 14px; font-size: 16px; font-weight: 600;
-    border: none; border-radius: 8px; background: #4caf50;
-    color: white; cursor: pointer; transition: background 0.15s;
+    border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;
 }
-.save-btn:hover { background: #43a047; }
-.save-btn:focus { outline: 3px solid #ffb300; outline-offset: 2px; }
-.save-btn:disabled { background: #bdbdbd; cursor: not-allowed; }
-.info-badge {
-    background: #42a5f5; color: white; padding: 6px 12px;
-    border-radius: 16px; font-size: 12px; font-weight: 600;
+.save-btn:focus, #memo:focus { outline: 3px solid #1976d2; outline-offset: 2px; }
+.save-btn.save-ready, .bar-save.save-ready {
+    background: #2e7d32; color: #fff; border: none;
+    box-shadow: 0 4px 12px rgba(46,125,50,0.3);
 }
+.save-btn.save-wait, .bar-save.save-wait {
+    background: #fff; color: #90a4ae; border: 1.5px solid #90a4ae; box-shadow: none;
+}
+.save-btn.save-explained, .bar-save.save-explained {
+    background: #ffb300; color: #fff; border: none;
+    box-shadow: 0 3px 9px rgba(255,143,0,0.3);
+}
+.save-btn:disabled, .bar-save:disabled {
+    background: #bdbdbd; color: #fff; border: none;
+    cursor: not-allowed; box-shadow: none;
+}
+.info-cap {
+    font-size: 11px; letter-spacing: 0.08em; color: #78909c; font-weight: 700;
+}
+.sales-strip { padding: 12px 20px; }
+.sales-strip .h5 { font-size: 1rem; margin-bottom: 0; }
+.memo-card { transition: border-color 0.25s, background 0.25s, box-shadow 0.25s; }
+.memo-card.memo-required {
+    border: 2px solid #ffb300; box-shadow: inset 4px 0 0 #ffb300; background: #fff8e1;
+}
+.memo-card.memo-required textarea { border-color: #ffb300; background: #fffdf8; }
+.reset-ghost {
+    background: none; border: none; color: #90a4ae;
+    font-size: 14px; padding: 4px 10px; cursor: pointer;
+}
+.reset-ghost:hover { color: #546e7a; }
+.mobile-bar { display: none; }
 .back-link {
     display: inline-flex; align-items: center; gap: 6px;
     font-size: 0.875rem; color: #1976d2; text-decoration: none;
@@ -204,9 +241,49 @@ echo $page_data['html_head'];
 }
 .back-link:hover { text-decoration: underline; }
 @media (max-width: 768px) {
-    .cash-type-row { flex-wrap: wrap; gap: 8px; }
-    .count-controls { justify-content: center; }
-    .amount-display { width: 100%; text-align: center; margin-top: 4px; }
+    .cash-type-row {
+        display: grid; grid-template-columns: 1fr auto;
+        grid-template-areas: "info controls" "amount controls";
+        gap: 2px 8px; align-items: center;
+    }
+    .cash-info { grid-area: info; }
+    .count-controls { grid-area: controls; justify-content: flex-end; }
+    .amount-display {
+        grid-area: amount; text-align: left; min-width: 0;
+        font-size: 12px; color: #666;
+    }
+    .cash-base { display: none; }
+    body { padding-bottom: 100px; }
+    .mobile-bar {
+        display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
+        padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+        align-items: center; justify-content: space-between;
+        border-top: 3px solid #78909c; background: #eceff1;
+        box-shadow: 0 -4px 14px rgba(0,0,0,0.12);
+        transition: background 0.25s, border-color 0.25s, opacity 0.25s;
+    }
+    .mobile-bar.bar-hidden { opacity: 0; pointer-events: none; }
+    .mobile-bar.bar-neutral { background: #eceff1; border-top-color: #78909c; }
+    .mobile-bar.bar-green   { background: #e8f5e9; border-top-color: #2e7d32; }
+    .mobile-bar.bar-amber   { background: #fff8e1; border-top-color: #ffb300; }
+    .mobile-bar.bar-red     { background: #ffebee; border-top-color: #c62828; }
+    .bar-label {
+        display: block; font-size: 10px; font-weight: 700;
+        color: #78909c; letter-spacing: 0.06em;
+    }
+    .bar-deposit {
+        font-size: 20px; font-weight: 800; color: #333;
+        font-variant-numeric: tabular-nums; line-height: 1.2;
+    }
+    .bar-diff { font-size: 12px; font-weight: 700; margin-left: 6px; }
+    .bar-save {
+        border-radius: 8px; padding: 12px 26px; font-size: 14px;
+        font-weight: 700; cursor: pointer; min-height: 48px;
+        transition: all 0.2s;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .verify-card, .memo-card, .save-btn, .bar-save, .mobile-bar, .cash-type-row { transition: none; }
 }
 </style>
 
@@ -218,33 +295,37 @@ echo $page_data['html_head'];
         <i class="fas fa-arrow-left"></i> 売上金確認に戻る
     </a>
 
-    <!-- 今日の売上情報 -->
-    <div class="count-card">
-        <h6 class="mb-3"><i class="fas fa-chart-line" style="color:#42a5f5;"></i> 今日の売上実績</h6>
+    <!-- 今日の売上情報（参照帯・閲覧のみ） -->
+    <div class="count-card sales-strip">
         <div class="row text-center">
             <div class="col-3">
-                <div class="info-badge">回数</div>
-                <div class="h5 mt-2"><?php echo $today_sales->trip_count; ?>回</div>
+                <div class="info-cap">回数</div>
+                <div class="h5 mt-1"><?php echo $today_sales->trip_count; ?>回</div>
             </div>
             <div class="col-3">
-                <div class="info-badge">総売上</div>
-                <div class="h5 mt-2">¥<?php echo number_format($today_sales->total_sales); ?></div>
+                <div class="info-cap">総売上</div>
+                <div class="h5 mt-1">¥<?php echo number_format($today_sales->total_sales); ?></div>
             </div>
             <div class="col-3">
-                <div class="info-badge">現金</div>
-                <div class="h5 mt-2">¥<?php echo number_format($today_sales->cash_sales); ?></div>
+                <div class="info-cap">現金</div>
+                <div class="h5 mt-1">¥<?php echo number_format($today_sales->cash_sales); ?></div>
             </div>
             <div class="col-3">
-                <div class="info-badge">カード</div>
-                <div class="h5 mt-2">¥<?php echo number_format($today_sales->card_sales); ?></div>
+                <div class="info-cap">カード</div>
+                <div class="h5 mt-1">¥<?php echo number_format($today_sales->card_sales); ?></div>
             </div>
         </div>
     </div>
 
     <!-- 現金カウント入力 -->
     <div class="count-card">
-        <h6 class="mb-3"><i class="fas fa-coins" style="color:#ff9800;"></i> 現金カウント
-            <span style="font-size:0.8rem;font-weight:400;color:#888;margin-left:8px;">基準おつり: ¥18,000</span>
+        <h6 class="mb-3 d-flex align-items-center justify-content-between">
+            <span><i class="fas fa-coins" style="color:#ff9800;"></i> 現金カウント
+                <span style="font-size:0.8rem;font-weight:400;color:#888;margin-left:8px;">基準おつり: ¥18,000</span>
+            </span>
+            <button type="button" class="reset-ghost" onclick="resetToBase()" title="基準値にリセット" aria-label="基準値にリセット">
+                <i class="fas fa-undo"></i>
+            </button>
         </h6>
 
         <?php foreach ($base_change as $type => $info): ?>
@@ -273,11 +354,6 @@ echo $page_data['html_head'];
         </div>
         <?php endforeach; ?>
 
-        <div class="text-end mt-3">
-            <button class="btn btn-outline-secondary btn-sm" onclick="resetToBase()">
-                <i class="fas fa-undo"></i> 基準値にリセット
-            </button>
-        </div>
     </div>
 
     <!-- 入金額の計算 -->
@@ -315,7 +391,7 @@ echo $page_data['html_head'];
     </div>
 
     <!-- 売上実績との照合 -->
-    <div class="summary-card" style="background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);">
+    <div class="summary-card verify-card verify-neutral" id="verifyCard">
         <h6 style="margin-bottom:16px;"><i class="fas fa-check-circle"></i> 売上実績との照合</h6>
 
         <div class="summary-row">
@@ -345,21 +421,33 @@ echo $page_data['html_head'];
     </div>
 
     <!-- メモ入力 -->
-    <div class="count-card">
+    <div class="count-card memo-card" id="memoCard">
         <h6><i class="fas fa-sticky-note"></i> メモ</h6>
         <textarea id="memo" class="form-control" rows="3"
                   placeholder="差額がある場合は理由を記入してください"><?php echo $existing_count ? htmlspecialchars($existing_count->memo) : ''; ?></textarea>
     </div>
 
     <!-- 保存ボタン -->
-    <button class="save-btn" id="saveBtn" onclick="saveCashCount()">
+    <button class="save-btn save-wait" id="saveBtn" onclick="saveCashCount()">
         <i class="fas fa-save"></i> 現金カウント保存
     </button>
+
+    <!-- モバイル固定結果バー（カウント中も入金額と差額が常に見える） -->
+    <div class="mobile-bar bar-neutral" id="mobileBar">
+        <div>
+            <span class="bar-label">本日入金額</span>
+            <span class="bar-deposit" id="barDeposit">¥0</span>
+            <span class="bar-diff" id="barDiff"></span>
+        </div>
+        <button type="button" class="bar-save save-wait" id="barSaveBtn" onclick="saveCashCount()">
+            <i class="fas fa-save"></i> 保存
+        </button>
+    </div>
 
     <!-- 過去の履歴 -->
     <?php if (!empty($my_history)): ?>
     <div class="count-card" style="margin-top:24px;">
-        <h6 class="mb-3"><i class="fas fa-history" style="color:#7e57c2;"></i> 過去の記録</h6>
+        <h6 class="mb-3"><i class="fas fa-history" style="color:#90a4ae;"></i> 過去の記録</h6>
         <div style="overflow-x:auto;">
         <table class="table table-sm" style="font-size:0.85rem;margin-bottom:0;">
             <thead>
@@ -405,6 +493,8 @@ echo $page_data['html_head'];
         recalc();
     }
 
+    // 全信号（照合カード・メモ点灯・保存ボタン・固定バー）の同期をこの1関数に集約する。
+    // counted=false（入金額0以下＝数え途中）の間はニュートラルで騒がない。
     function recalc() {
         var totalCount = 0;
         var keys = Object.keys(baseChange);
@@ -418,20 +508,62 @@ echo $page_data['html_head'];
 
         var depositAmount = totalCount - baseTotal;
         var difference = totalCount - expectedAmount;
+        var counted = depositAmount > 0;
+        var memoFilled = document.getElementById('memo').value.trim().length > 0;
+        var state = !counted ? 'neutral'
+                  : difference === 0 ? 'green'
+                  : difference > 0 ? 'amber' : 'red';
 
         document.getElementById('totalCount').textContent = '¥' + totalCount.toLocaleString();
         document.getElementById('depositAmount').textContent = '¥' + depositAmount.toLocaleString();
         document.getElementById('depositAmount2').textContent = '¥' + depositAmount.toLocaleString();
 
+        // 差額（一致は符号なし¥0＋チェック）
         var diffDisplay = document.getElementById('differenceDisplay');
-        diffDisplay.textContent = (difference >= 0 ? '+' : '') + '¥' + difference.toLocaleString();
-        diffDisplay.className = 'difference ' + (difference > 0 ? 'positive' : difference < 0 ? 'negative' : 'zero');
+        if (difference === 0) {
+            diffDisplay.innerHTML = '<i class="fas fa-check"></i> ¥0';
+        } else {
+            diffDisplay.textContent = (difference > 0 ? '+' : '−') + '¥' + Math.abs(difference).toLocaleString();
+        }
+        diffDisplay.className = 'difference';
+
+        // 照合カード: カード全面が状態を語る
+        document.getElementById('verifyCard').className = 'summary-card verify-card verify-' + state;
 
         var alertEl = document.getElementById('differenceAlert');
-        alertEl.style.display = (difference !== 0) ? 'block' : 'none';
+        alertEl.style.display = (counted && difference !== 0) ? 'block' : 'none';
+
+        // メモ点灯: 差額あり かつ メモ空 のときだけアンバー
+        var memoRequired = counted && difference !== 0 && !memoFilled;
+        document.getElementById('memoCard').className = 'count-card memo-card' + (memoRequired ? ' memo-required' : '');
+
+        // 保存ボタン: 緑=保存OK / アンバー=理由付きで保存可 / アウトライン=まだ
+        var saveState = (counted && difference === 0) ? 'save-ready'
+                      : (counted && memoFilled) ? 'save-explained'
+                      : 'save-wait';
+        document.getElementById('saveBtn').className = 'save-btn ' + saveState;
+
+        // モバイル固定バー
+        var bar = document.getElementById('mobileBar');
+        bar.className = 'mobile-bar bar-' + state + (bar.dataset.hidden === '1' ? ' bar-hidden' : '');
+        document.getElementById('barDeposit').textContent = '¥' + depositAmount.toLocaleString();
+        var barDiff = document.getElementById('barDiff');
+        if (!counted) {
+            barDiff.textContent = '';
+        } else if (difference === 0) {
+            barDiff.textContent = '✓ 一致';
+            barDiff.style.color = '#2e7d32';
+        } else {
+            barDiff.textContent = '差額 ' + (difference > 0 ? '+' : '−') + '¥' + Math.abs(difference).toLocaleString();
+            barDiff.style.color = difference > 0 ? '#b26a00' : '#c62828';
+        }
+        document.getElementById('barSaveBtn').className = 'bar-save ' + saveState;
+
+        return { difference: difference, counted: counted, memoFilled: memoFilled };
     }
 
     function resetToBase() {
+        if (!confirm('カウントを基準値に戻しますか？（入力した枚数は消えます）')) return;
         var keys = Object.keys(baseChange);
         for (var i = 0; i < keys.length; i++) {
             document.getElementById(keys[i]).value = baseChange[keys[i]].count;
@@ -441,7 +573,9 @@ echo $page_data['html_head'];
 
     function saveCashCount() {
         var btn = document.getElementById('saveBtn');
+        var barBtn = document.getElementById('barSaveBtn');
         btn.disabled = true;
+        if (barBtn) barBtn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 保存中...';
 
         var data = {
@@ -487,6 +621,7 @@ echo $page_data['html_head'];
         })
         .finally(function() {
             btn.disabled = false;
+            if (barBtn) barBtn.disabled = false;
             btn.innerHTML = '<i class="fas fa-save"></i> 現金カウント保存';
         });
     }
@@ -538,15 +673,49 @@ echo $page_data['html_head'];
         input.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                recalc();
+                var st = recalc();
                 if (idx + 1 < countInputs.length) {
                     countInputs[idx + 1].focus();
+                } else if (st.counted && st.difference !== 0 && !st.memoFilled) {
+                    // 差額あり: 保存の前にメモへ（照合カードを通る動線）
+                    var memoEl = document.getElementById('memo');
+                    memoEl.focus();
+                    memoEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
                 } else {
                     document.getElementById('saveBtn').focus();
                 }
             }
         });
     });
+
+    // メモの記入で信号（メモ点灯・保存ボタン）を追従させる
+    document.getElementById('memo').addEventListener('input', recalc);
+
+    // モバイル: フォーカス行をキーボードの上（画面中央）へ / ±の触感フィードバック
+    if ('ontouchstart' in window) {
+        countInputs.forEach(function(input) {
+            input.addEventListener('focus', function() {
+                var self = this;
+                setTimeout(function() {
+                    self.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }, 250);
+            });
+        });
+        document.querySelectorAll('.count-btn').forEach(function(btn) {
+            btn.addEventListener('touchstart', function() {
+                if (navigator.vibrate) navigator.vibrate(10);
+            }, { passive: true });
+        });
+    }
+
+    // 本体の保存ボタンが見えている間は固定バーを引っ込める（二重表示回避）
+    if ('IntersectionObserver' in window) {
+        new IntersectionObserver(function(entries) {
+            var bar = document.getElementById('mobileBar');
+            bar.dataset.hidden = entries[0].isIntersecting ? '1' : '0';
+            bar.classList.toggle('bar-hidden', entries[0].isIntersecting);
+        }, { threshold: 0.4 }).observe(document.getElementById('saveBtn'));
+    }
 
     document.addEventListener('DOMContentLoaded', function() {
         recalc();

@@ -1,7 +1,7 @@
 // 福祉輸送管理システム (WTS) - Service Worker
 // Version 1.0.0
 
-const CACHE_VERSION = 'wts-v1.1.0';
+const CACHE_VERSION = 'wts-v1.1.1';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_DYNAMIC = `${CACHE_VERSION}-dynamic`;
 const CACHE_API = `${CACHE_VERSION}-api`;
@@ -20,7 +20,6 @@ const STATIC_CACHE_URLS = [
     '/Smiley/taxi/wts/calendar/css/reservation.css',
 
     // JavaScript
-    '/Smiley/taxi/wts/js/cash-mobile.js',
     '/Smiley/taxi/wts/js/ui-interactions.js',
     '/Smiley/taxi/wts/calendar/js/calendar.js',
     '/Smiley/taxi/wts/calendar/js/reservation.js',

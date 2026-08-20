@@ -183,6 +183,16 @@ function getRideBreakdown($pdo, $start_date, $end_date, $driver_id) {
 
 // --- パラメータ取得 ---
 $driver_list = getDriverList($pdo);
+
+// 現在ユーザーの運転者フラグ（現金カウント入口の出し分け用）
+$is_current_driver = false;
+try {
+    $drv_stmt = $pdo->prepare("SELECT is_driver FROM users WHERE id = ?");
+    $drv_stmt->execute([$user_id]);
+    $is_current_driver = (bool)$drv_stmt->fetchColumn();
+} catch (Exception $e) {
+    // 出し分けのみなので失敗時はfalse（控えめリンク表示）
+}
 $selected_driver_id = $_GET['driver_id'] ?? 'all';
 $start_date = $_GET['start_date'] ?? date('Y-m-d');
 $end_date = $_GET['end_date'] ?? date('Y-m-d');
@@ -449,6 +459,18 @@ echo $page_data['html_head'];
     border-top: 1px solid #ddd;
 }
 
+/* 現金カウント入口（運転者向け大型ボタン・遷移先の計算カードと同じ紫） */
+.count-entry-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; height: 52px; margin-bottom: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff; font-size: 16px; font-weight: 700; border-radius: 10px;
+    text-decoration: none; box-shadow: 0 4px 14px rgba(102,126,234,0.35);
+    transition: opacity 0.15s;
+}
+.count-entry-btn:hover { color: #fff; opacity: 0.92; }
+.count-entry-btn i { font-size: 18px; }
+
 /* カウントツールリンク */
 .tool-link {
     display: inline-flex; align-items: center; gap: 6px;
@@ -474,6 +496,13 @@ echo $page_data['html_head'];
 <main class="main-content" id="main-content" tabindex="-1">
 
 <div class="container-fluid mt-4">
+    <?php if ($is_current_driver): ?>
+    <!-- 運転者の主アクション: 現金カウントへの入口 -->
+    <a href="driver_cash_count.php" class="count-entry-btn">
+        <i class="fas fa-calculator"></i> 現金カウントをはじめる
+    </a>
+    <?php endif; ?>
+
     <!-- フィルター -->
     <div class="card filter-card">
         <div class="card-body">
@@ -525,9 +554,11 @@ echo $page_data['html_head'];
             ?>
             <strong class="ms-2">（<?php echo htmlspecialchars($selected_driver_name); ?>）</strong>
         <?php endif; ?>
+        <?php if (!$is_current_driver): ?>
         <a href="driver_cash_count.php" class="tool-link cash-count ms-3">
             <i class="fas fa-calculator"></i> 現金カウントツール
         </a>
+        <?php endif; ?>
     </div>
 
     <!-- ========== 全運転者ビュー ========== -->
