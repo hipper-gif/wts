@@ -134,7 +134,9 @@ $page_config = getPageConfiguration('driver_roster');
 
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => [],
+    'additional_css' => [
+        'css/wts-design-tokens.css'
+    ],
     'additional_js' => [
         'js/ui-interactions.js'
     ],
@@ -191,14 +193,15 @@ echo $page_data['page_header'];
     .driver-card .card-body {
         padding: 1rem;
     }
+    /* 期限状態（1色=1意味）: 赤=期限切れ / アンバー=要対応 / 緑=OK */
     .driver-card.status-expired {
-        border-left: 4px solid #dc3545;
+        border-left: 4px solid var(--wts-red);
     }
     .driver-card.status-warning {
-        border-left: 4px solid #ffc107;
+        border-left: 4px solid var(--wts-amber);
     }
     .driver-card.status-ok {
-        border-left: 4px solid #198754;
+        border-left: 4px solid var(--wts-green);
     }
     .badge-group {
         display: flex;
@@ -232,6 +235,32 @@ echo $page_data['page_header'];
         font-weight: 500;
         text-align: right;
     }
+
+    /* 統計数値: 要対応件数=アンバー / 0件=グレー（参照） */
+    .stat-number.stat-alert { color: var(--wts-amber-dark); }
+    .stat-number.stat-zero { color: var(--wts-gray); }
+
+    /* 注意テキストのコントラスト改善（アンバーは濃色で） */
+    main .text-warning, .modal .text-warning { color: var(--wts-amber-dark) !important; }
+
+    /* フォーカス可視化（青=現在地・フォーカス） */
+    .btn:focus-visible {
+        outline: 3px solid var(--wts-blue);
+        outline-offset: 2px;
+    }
+    .form-control:focus,
+    .form-select:focus {
+        outline: 3px solid var(--wts-blue);
+        outline-offset: 1px;
+    }
+
+    /* モバイル主要ボタンのタップターゲット確保 */
+    @media (max-width: 768px) {
+        .driver-card .btn,
+        .modal-footer .btn {
+            min-height: 44px;
+        }
+    }
 </style>
 
 <main class="container mt-4">
@@ -240,25 +269,25 @@ echo $page_data['page_header'];
     <div class="row mb-4">
         <div class="col-6 col-md-3 mb-3 mb-md-0">
             <div class="stat-card">
-                <div class="stat-number text-primary"><?= $total_drivers ?></div>
+                <div class="stat-number"><?= $total_drivers ?></div>
                 <div class="stat-label"><i class="fas fa-users me-1"></i>総乗務員数</div>
             </div>
         </div>
         <div class="col-6 col-md-3 mb-3 mb-md-0">
             <div class="stat-card">
-                <div class="stat-number text-danger"><?= $license_alert_count ?></div>
+                <div class="stat-number <?= $license_alert_count > 0 ? 'stat-alert' : 'stat-zero' ?>"><?= $license_alert_count ?></div>
                 <div class="stat-label"><i class="fas fa-id-card me-1"></i>免許期限注意</div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="stat-card">
-                <div class="stat-number text-warning"><?= $health_alert_count ?></div>
+                <div class="stat-number <?= $health_alert_count > 0 ? 'stat-alert' : 'stat-zero' ?>"><?= $health_alert_count ?></div>
                 <div class="stat-label"><i class="fas fa-heartbeat me-1"></i>健診期限注意</div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="stat-card">
-                <div class="stat-number text-info"><?= $aptitude_alert_count ?></div>
+                <div class="stat-number <?= $aptitude_alert_count > 0 ? 'stat-alert' : 'stat-zero' ?>"><?= $aptitude_alert_count ?></div>
                 <div class="stat-label"><i class="fas fa-brain me-1"></i>適性診断注意</div>
             </div>
         </div>
@@ -340,14 +369,14 @@ echo $page_data['page_header'];
                                 <td><?= getExpiryBadge($driver['aptitude_test_next']) ?></td>
                                 <td>
                                     <?php if ($driver['care_qualification']): ?>
-                                        <span class="badge bg-info"><?= htmlspecialchars($driver['care_qualification']) ?></span>
+                                        <span class="wts-cap"><?= htmlspecialchars($driver['care_qualification']) ?></span>
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-center">
                                     <div class="btn-group btn-group-sm" role="group">
-                                        <button type="button" class="btn btn-outline-info" title="詳細"
+                                        <button type="button" class="btn btn-outline-secondary" title="詳細"
                                                 onclick='showDetail(<?= json_encode($driver, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)'>
                                             <i class="fas fa-eye"></i>
                                         </button>
@@ -382,11 +411,11 @@ echo $page_data['page_header'];
                         <div>
                             <strong class="fs-6"><?= htmlspecialchars($driver['name']) ?></strong>
                             <?php if ($driver['driver_license_type']): ?>
-                                <span class="badge bg-primary ms-1"><?= htmlspecialchars($driver['driver_license_type']) ?></span>
+                                <span class="wts-cap ms-1"><?= htmlspecialchars($driver['driver_license_type']) ?></span>
                             <?php endif; ?>
                         </div>
                         <?php if ($driver['care_qualification']): ?>
-                            <span class="badge bg-info"><?= htmlspecialchars($driver['care_qualification']) ?></span>
+                            <span class="wts-cap"><?= htmlspecialchars($driver['care_qualification']) ?></span>
                         <?php endif; ?>
                     </div>
 
@@ -403,7 +432,7 @@ echo $page_data['page_header'];
                     </div>
 
                     <div class="d-flex gap-2 mt-3">
-                        <button class="btn btn-sm btn-outline-info flex-fill"
+                        <button class="btn btn-sm btn-outline-secondary flex-fill"
                                 onclick='showDetail(<?= json_encode($driver, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)'>
                             <i class="fas fa-eye me-1"></i>詳細
                         </button>

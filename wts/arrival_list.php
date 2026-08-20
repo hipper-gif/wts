@@ -119,6 +119,7 @@ $page_config = getPageConfiguration('arrival_list');
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [
+        'css/wts-design-tokens.css',
         'css/ui-unified-v3.css',
         'css/header-unified.css'
     ],
@@ -253,7 +254,7 @@ echo $page_data['page_header'];
                                             <div class="d-flex align-items-center mb-2">
                                                 <strong class="me-3 fs-5"><?php echo substr($arrival['arrival_time'], 0, 5); ?></strong>
                                                 <?php if ($has_edit_columns && isset($arrival['is_edited']) && $arrival['is_edited']): ?>
-                                                    <span class="badge badge-warning">
+                                                    <span class="wts-badge amber">
                                                         <i class="fas fa-edit me-1"></i>修正済み
                                                     </span>
                                                 <?php endif; ?>
@@ -335,7 +336,7 @@ echo $page_data['page_header'];
                             </div>
                             <div class="col-12">
                                 <div class="unified-stat-card text-center">
-                                    <div class="unified-stat-value text-danger">¥<?php echo number_format($summary['total_costs'] ?? 0); ?></div>
+                                    <div class="unified-stat-value">¥<?php echo number_format($summary['total_costs'] ?? 0); ?></div>
                                     <div class="unified-stat-label">総費用</div>
                                 </div>
                             </div>
@@ -492,7 +493,7 @@ echo $page_data['page_header'];
 }
 
 .unified-card-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--wts-purple-grad);
     color: white;
     padding: 1.25rem 1.5rem;
     border: none;
@@ -528,14 +529,14 @@ echo $page_data['page_header'];
 }
 
 .unified-record-item.edited-record {
-    border-left-color: #ffc107;
+    border-left-color: var(--wts-amber);
     background: linear-gradient(90deg, #fff9e6 0%, #f8f9fa 20%);
 }
 
 .unified-amount-display {
     font-size: 1.4rem;
     font-weight: 700;
-    color: #dc3545;
+    color: var(--wts-slate);
 }
 
 .unified-stat-card {
@@ -601,7 +602,7 @@ echo $page_data['page_header'];
 }
 
 .unified-modal-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--wts-purple-grad);
     color: white;
     border: none;
     padding: 1.5rem;
@@ -628,9 +629,15 @@ echo $page_data['page_header'];
 }
 
 .unified-input:focus, .unified-select:focus, .unified-textarea:focus {
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: var(--wts-blue);
+    box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.15);
     outline: none;
+}
+
+/* モバイル主要操作のタップターゲット（検索・モーダル保存/キャンセル） */
+.unified-card-body form .btn,
+.unified-modal-footer .btn {
+    min-height: 44px;
 }
 
 /* レスポンシブ対応 */

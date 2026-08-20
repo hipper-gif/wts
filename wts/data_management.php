@@ -269,6 +269,7 @@ function getDataStatistics($pdo) {
     <title>データ整理管理 - 福祉輸送管理システム</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/wts-design-tokens.css">
     <style>
         .action-card { 
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
@@ -287,8 +288,17 @@ function getDataStatistics($pdo) {
             border: 1px solid #f1aeb5;
         }
         .stats-table th { background-color: #f8f9fa; }
-        .sample-badge { background-color: #ffc107; }
-        .real-badge { background-color: #28a745; }
+        /* 1色=1意味: アンバー=サンプル(整理対象・要対応候補) / 緑=実務データ(保全対象) */
+        .sample-badge { background-color: var(--wts-amber); }
+        .real-badge { background-color: var(--wts-green); }
+        /* スレート=中立操作（エクスポート等） */
+        .btn-slate { background: var(--wts-slate); border-color: var(--wts-slate); color: #fff; }
+        .btn-slate:hover, .btn-slate:focus { background: #455a64; border-color: #455a64; color: #fff; }
+        /* フォーカス可視化（青=フォーカス） */
+        .btn:focus-visible { outline: 3px solid var(--wts-blue); outline-offset: 2px; }
+        .form-control:focus { border-color: var(--wts-blue); }
+        /* タップターゲット */
+        .action-card .btn:not(.btn-sm), .danger-zone .btn { min-height: 44px; }
     </style>
 </head>
 <body>
@@ -448,7 +458,7 @@ function getDataStatistics($pdo) {
                     <form method="POST" class="mb-2">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                         <input type="hidden" name="action" value="export_real_data">
-                        <button type="submit" class="btn btn-info">
+                        <button type="submit" class="btn btn-slate">
                             <i class="fas fa-file-export me-1"></i>実務データエクスポート
                         </button>
                     </form>

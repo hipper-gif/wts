@@ -200,6 +200,9 @@ $page_data = renderCompletePage(
     $page_config['subtitle'],
     $page_config['category'],
     [
+        'additional_css' => [
+            'css/wts-design-tokens.css'
+        ],
         'breadcrumb' => [
             ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
             ['text' => 'マスターメニュー', 'url' => 'master_menu.php'],
@@ -221,17 +224,18 @@ echo $page_data['page_header'];
     .stats-card:hover {
         transform: translateY(-2px);
     }
+    /* 1色=1意味: アンバー=注意(交通事故) / 赤=重大 / グレー=参照情報(その他) */
     .traffic-accident {
-        background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 100%);
-        color: #2d3436;
+        background: var(--wts-amber-grad);
+        color: white;
     }
     .serious-accident {
-        background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%);
+        background: var(--wts-red-grad);
         color: white;
     }
     .other-accident {
-        background: linear-gradient(135deg, #a8e6cf 0%, #7fcdcd 100%);
-        color: #2d3436;
+        background: var(--wts-gray-grad);
+        color: white;
     }
     .accident-row {
         cursor: pointer;
@@ -252,6 +256,12 @@ echo $page_data['page_header'];
         font-size: 2rem;
         font-weight: bold;
     }
+    /* フォーカス可視化（青=現在地・フォーカス） */
+    .btn:focus-visible, .form-control:focus, .form-select:focus, textarea.form-control:focus {
+        outline: 3px solid var(--wts-blue); outline-offset: 2px;
+    }
+    /* モバイル主要ボタンのタップターゲット確保 */
+    .search-section .btn, .modal-footer .btn { min-height: 44px; }
 </style>
 
 <!-- メインコンテンツ開始 -->
@@ -280,7 +290,7 @@ echo $page_data['page_header'];
                 <div class="search-section">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="mb-0"><i class="fas fa-search me-2"></i>検索・フィルター</h5>
-                        <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#addAccidentModal">
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAccidentModal">
                             <i class="fas fa-plus me-1"></i>事故記録追加
                         </button>
                     </div>
@@ -367,7 +377,7 @@ echo $page_data['page_header'];
                 </div>
             </div>
             <div class="col-md-2">
-                <div class="card stats-card" style="border-left:4px solid #ffc107;">
+                <div class="card stats-card" style="border-left:4px solid var(--wts-amber);">
                     <div class="card-body text-center">
                         <div class="stats-number"><?= $near_miss_count ?></div>
                         <div>ヒヤリハット</div>
@@ -430,12 +440,13 @@ echo $page_data['page_header'];
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
-                                                    <span class="badge 
+                                                    <span class="wts-badge status-badge
                                                         <?php
                                                         switch($accident['accident_type']) {
-                                                            case '交通事故': echo 'bg-warning text-dark'; break;
-                                                            case '重大事故': echo 'bg-danger'; break;
-                                                            case 'その他': echo 'bg-info'; break;
+                                                            case '交通事故': echo 'amber'; break;
+                                                            case '重大事故': echo 'red'; break;
+                                                            case 'ヒヤリハット': echo 'amber'; break;
+                                                            case 'その他': echo 'gray'; break;
                                                         }
                                                         ?>">
                                                         <?= htmlspecialchars($accident['accident_type']) ?>
@@ -454,12 +465,12 @@ echo $page_data['page_header'];
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
-                                                    <span class="badge status-badge
+                                                    <span class="wts-badge status-badge
                                                         <?php
                                                         switch($accident['status']) {
-                                                            case '発生': echo 'bg-danger'; break;
-                                                            case '調査中': echo 'bg-warning text-dark'; break;
-                                                            case '処理完了': echo 'bg-success'; break;
+                                                            case '発生': echo 'red'; break;
+                                                            case '調査中': echo 'amber'; break;
+                                                            case '処理完了': echo 'green'; break;
                                                         }
                                                         ?>">
                                                         <?= $accident['status'] ?>
@@ -696,7 +707,7 @@ echo $page_data['page_header'];
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                        <button type="submit" class="btn btn-danger" data-loading-text="保存中...">
+                        <button type="submit" class="btn btn-success" data-loading-text="保存中...">
                             <i class="fas fa-save me-1"></i>記録保存
                         </button>
                     </div>
@@ -738,7 +749,7 @@ echo $page_data['page_header'];
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                        <button type="submit" class="btn btn-warning" data-loading-text="保存中...">
+                        <button type="submit" class="btn btn-success" data-loading-text="保存中...">
                             <i class="fas fa-save me-1"></i>更新保存
                         </button>
                     </div>
@@ -766,7 +777,7 @@ echo $page_data['page_header'];
                         <h6><i class="fas fa-info-circle me-2"></i>基本情報</h6>
                         <table class="table table-sm">
                             <tr><td>発生日時</td><td>${accident.accident_date}${accident.accident_time ? ' ' + accident.accident_time : ''}</td></tr>
-                            <tr><td>事故種別</td><td><span class="badge bg-warning">${accident.accident_type}</span></td></tr>
+                            <tr><td>事故種別</td><td><span class="wts-badge gray">${accident.accident_type}</span></td></tr>
                             <tr><td>車両</td><td>${accident.vehicle_number}</td></tr>
                             <tr><td>運転者</td><td>${accident.driver_name}</td></tr>
                             <tr><td>場所</td><td>${accident.location || '-'}</td></tr>

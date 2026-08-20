@@ -301,7 +301,7 @@ $page_data = renderCompletePage(
     $page_config['category'],
     [
         'description' => $page_config['description'],
-        'additional_css' => ['css/dashboard.css?v=' . filemtime('css/dashboard.css')],
+        'additional_css' => ['css/wts-design-tokens.css', 'css/dashboard.css?v=' . filemtime('css/dashboard.css')],
         'breadcrumb' => [['text' => 'ダッシュボード', 'url' => 'dashboard.php']],
         'hide_headers' => true
     ]
@@ -310,13 +310,14 @@ $page_data = renderCompletePage(
 echo $page_data['html_head'];
 ?>
 <style>
+    /* 主操作の強調は青（1色=1意味: 緑=完了に予約。ナビ強調は青=主操作） */
     .ride-highlight {
-        border: 3px solid #28a745 !important;
-        background: rgba(40, 167, 69, 0.08) !important;
-        box-shadow: 0 2px 8px rgba(40, 167, 69, 0.25);
+        border: 3px solid var(--wts-blue, #1976d2) !important;
+        background: rgba(25, 118, 210, 0.08) !important;
+        box-shadow: 0 2px 8px rgba(25, 118, 210, 0.25);
     }
     .ride-highlight .workflow-icon {
-        background: #28a745 !important;
+        background: var(--wts-blue, #1976d2) !important;
         color: white !important;
         width: 60px !important;
         height: 60px !important;
@@ -324,7 +325,21 @@ echo $page_data['html_head'];
     }
     .ride-highlight strong {
         font-size: 1.05rem;
-        color: #28a745;
+        color: var(--wts-blue, #1976d2);
+    }
+    /* フォーカス可視化（青=現在地・フォーカス） */
+    .workflow-item:focus-visible,
+    .dashboard-mini-header .btn:focus-visible,
+    .alert-area .btn:focus-visible,
+    .admin-section .btn:focus-visible {
+        outline: 3px solid var(--wts-blue, #1976d2);
+        outline-offset: 2px;
+    }
+    /* アラート対応ボタン: モバイル実効タップ高さ44px以上 */
+    .alert-area .btn {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
     }
 </style>
 </head>

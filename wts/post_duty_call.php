@@ -262,7 +262,7 @@ $page_config = getPageConfiguration('post_duty_call');
 // 統一ヘッダーでページ生成
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => ['css/workflow-stepper.css'],
+    'additional_css' => ['css/wts-design-tokens.css', 'css/workflow-stepper.css'],
     'additional_js' => [
         'js/ui-interactions.js'
     ],
@@ -316,7 +316,7 @@ echo $page_data['page_header'];
             <?php elseif ($edit_check['can_edit'] && $edit_check['needs_reason']): ?>
                 <span class="badge bg-warning text-dark">ロック中（管理者解除可）</span>
             <?php else: ?>
-                <span class="badge bg-danger">ロック済み（変更不可）</span>
+                <span class="badge wts-ref">ロック済み（変更不可）</span>
             <?php endif; ?>
         </div>
         <?php endif; ?>
@@ -399,13 +399,13 @@ echo $page_data['page_header'];
                     'icon' => 'check-double',
                     'text' => '全てチェック',
                     'url' => 'javascript:checkAll()',
-                    'class' => 'btn-success btn-sm'
+                    'class' => 'wts-btn-slate btn-sm'
                 ];
                 $check_actions[] = [
                     'icon' => 'times',
                     'text' => '全て解除',
                     'url' => 'javascript:uncheckAll()',
-                    'class' => 'btn-warning btn-sm'
+                    'class' => 'wts-btn-slate-outline btn-sm'
                 ];
             }
             echo renderSectionHeader('tasks', '確認事項', '12項目の法定チェック', $check_actions);
@@ -480,7 +480,7 @@ echo $page_data['page_header'];
 
             <!-- アルコールチェックセクション -->
             <?= renderSectionHeader('wine-bottle', 'アルコールチェック', '法定義務', [
-                ['icon' => 'check', 'text' => '0.000設定', 'url' => 'javascript:setAlcoholZero()', 'class' => 'btn-success btn-sm']
+                ['icon' => 'check', 'text' => '0.000設定', 'url' => 'javascript:setAlcoholZero()', 'class' => 'wts-btn-slate-outline btn-sm']
             ]) ?>
 
             <div class="card shadow-sm mb-4">
@@ -569,6 +569,35 @@ echo $page_data['page_header'];
 </main>
 
 <style>
+/* WTSデザイントークン適用（1色=1意味: スレート=中立操作 / グレー=参照情報） */
+.wts-btn-slate {
+    background: var(--wts-slate); border: 1px solid var(--wts-slate); color: #fff;
+}
+.wts-btn-slate:hover, .wts-btn-slate:focus {
+    background: #263238; border-color: #263238; color: #fff;
+}
+.wts-btn-slate-outline {
+    background: #fff; border: 1px solid var(--wts-slate); color: var(--wts-slate);
+}
+.wts-btn-slate-outline:hover, .wts-btn-slate-outline:focus {
+    background: var(--wts-gray-bg); color: var(--wts-slate);
+}
+.badge.wts-ref { background-color: var(--wts-gray); }
+
+/* フォーカス可視化（青=現在地・フォーカス） */
+.form-control:focus, .form-select:focus {
+    outline: 3px solid var(--wts-blue); outline-offset: 1px;
+}
+.btn:focus-visible, .form-check-input:focus-visible {
+    outline: 3px solid var(--wts-blue); outline-offset: 2px;
+}
+
+/* モバイル主要ボタンのタップターゲット */
+@media (max-width: 768px) {
+    .section-actions .btn,
+    button[data-bs-target="#optionalPostCheckItems"] { min-height: 44px; }
+}
+
 @keyframes slideDown {
     from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
     to { opacity: 1; transform: translateX(-50%) translateY(0); }

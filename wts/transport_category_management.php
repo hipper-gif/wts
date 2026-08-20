@@ -92,6 +92,9 @@ $page_data = renderCompletePage(
     $user_name, $user_role, 'transport_category_management',
     'fas fa-tags', '輸送分類管理', '通院・外出等の輸送分類設定', 'master',
     [
+        'additional_css' => [
+            'css/wts-design-tokens.css'
+        ],
         'breadcrumb' => [
             ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
             ['text' => 'マスタ管理', 'url' => 'master_menu.php'],
@@ -113,10 +116,17 @@ $page_data = renderCompletePage(
 .drag-handle { cursor: grab; color: #adb5bd; font-size: 1.2rem; }
 .drag-handle:active { cursor: grabbing; }
 .category-name { font-weight: 600; font-size: 1rem; }
-.category-code { color: #6c757d; font-size: 0.85rem; font-family: monospace; }
-.category-desc { color: #6c757d; font-size: 0.85rem; }
+.category-code { color: var(--wts-gray); font-size: 0.85rem; font-family: monospace; }
+.category-desc { color: var(--wts-gray); font-size: 0.85rem; }
 .category-actions { margin-left: auto; display: flex; gap: 0.5rem; }
 .sortable-ghost { opacity: 0.3; }
+/* WTSデザイントークン適用（1色=1意味）: 有効/無効切替は中立操作＝スレート */
+.btn-wts-neutral { color: var(--wts-slate); border-color: var(--wts-slate); }
+.btn-wts-neutral:hover { background: var(--wts-slate); border-color: var(--wts-slate); color: #fff; }
+.wts-icon-ref { color: var(--wts-gray); }
+.form-control:focus { outline: 3px solid var(--wts-blue); outline-offset: 1px; }
+.btn:focus-visible { outline: 3px solid var(--wts-blue); outline-offset: 2px; }
+#formSubmitBtn { min-height: 44px; }
 </style>
 </head>
 <body>
@@ -160,7 +170,7 @@ $page_data = renderCompletePage(
                                 <span class="category-code">[<?= htmlspecialchars($cat['category_code']) ?>]</span>
                             <?php endif; ?>
                             <?php if (!$cat['is_active']): ?>
-                                <span class="badge bg-secondary">無効</span>
+                                <span class="wts-badge gray">無効</span>
                             <?php endif; ?>
                         </div>
                         <?php if ($cat['description']): ?>
@@ -175,7 +185,7 @@ $page_data = renderCompletePage(
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                             <input type="hidden" name="action" value="toggle">
                             <input type="hidden" name="category_id" value="<?= $cat['id'] ?>">
-                            <button type="submit" class="btn btn-outline-<?= $cat['is_active'] ? 'warning' : 'success' ?> btn-sm"
+                            <button type="submit" class="btn btn-wts-neutral btn-sm"
                                     title="<?= $cat['is_active'] ? '無効化' : '有効化' ?>">
                                 <i class="fas fa-<?= $cat['is_active'] ? 'ban' : 'check' ?>"></i>
                             </button>
@@ -232,7 +242,7 @@ $page_data = renderCompletePage(
 
             <div class="card mt-3">
                 <div class="card-body">
-                    <h6 class="mb-2"><i class="fas fa-info-circle text-info me-2"></i>使い方</h6>
+                    <h6 class="mb-2"><i class="fas fa-info-circle wts-icon-ref me-2"></i>使い方</h6>
                     <ul class="small mb-0">
                         <li>乗車記録の輸送目的として選択されます</li>
                         <li>事業報告書（第4号様式）の分類に使用</li>

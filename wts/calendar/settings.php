@@ -50,7 +50,11 @@ $cache_bust = function($path) {
 
 $page_options = [
     'description'    => $page_config['description'],
-    'additional_css' => [$cache_bust('css/calendar-custom.css')],
+    'additional_css' => [
+        // WTSデザイントークン（1色=1意味）
+        '../css/wts-design-tokens.css',
+        $cache_bust('css/calendar-custom.css')
+    ],
     'additional_js'  => ['../js/ui-interactions.js'],
     'breadcrumb'     => [
         ['text' => 'ダッシュボード', 'url' => '../dashboard.php'],
@@ -76,6 +80,16 @@ echo $page_data['system_header'];
 echo $page_data['page_header'];
 ?>
 
+<style>
+/* WTSデザイントークン適用: フォーカス可視化（青=現在地・フォーカス） */
+.btn-add-option:focus-visible, #confirmAddBtn:focus-visible,
+#addOptionValue:focus, #addOptionLabel:focus,
+.edit-value:focus, .edit-label:focus {
+    outline: 3px solid var(--wts-blue, #1976d2);
+    outline-offset: 2px;
+}
+</style>
+
 <main class="main-content">
     <div class="container-fluid py-4">
 
@@ -92,7 +106,7 @@ echo $page_data['page_header'];
                 <h5 class="mb-0">
                     <i class="fas fa-<?= $def['icon'] ?> me-2 text-primary"></i><?= htmlspecialchars($def['label']) ?>
                 </h5>
-                <button class="btn btn-sm btn-success btn-add-option" data-field="<?= $field_name ?>">
+                <button class="btn btn-sm btn-primary btn-add-option" data-field="<?= $field_name ?>">
                     <i class="fas fa-plus me-1"></i>追加
                 </button>
             </div>

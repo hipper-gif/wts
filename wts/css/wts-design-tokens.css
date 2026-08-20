@@ -1,0 +1,82 @@
+/* ============================================================
+   WTS デザイントークン v1（2026-08-20 集金リデザインで確立）
+   原則: 1色=1意味。文字案内でなく、サイズ・色・配置・状態変化で導く。
+   緑=完了・一致・保存OK / アンバー=要対応・注意 / 赤=エラー・不足・未処理
+   青=現在地・フォーカス・リンク / スレート=中立操作 / グレー=参照情報・未着手
+   ============================================================ */
+:root {
+    --wts-green: #2e7d32;
+    --wts-green-grad: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);
+    --wts-green-bg: #e8f5e9;
+    --wts-amber: #ffb300;
+    --wts-amber-dark: #ff8f00;
+    --wts-amber-grad: linear-gradient(135deg, #ffb300 0%, #ff8f00 100%);
+    --wts-amber-bg: #fff8e1;
+    --wts-red: #c62828;
+    --wts-red-grad: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+    --wts-red-bg: #ffebee;
+    --wts-blue: #1976d2;
+    --wts-blue-bg: #e3f2fd;
+    --wts-slate: #37474f;
+    --wts-gray: #78909c;
+    --wts-gray-bg: #eceff1;
+    --wts-gray-grad: linear-gradient(135deg, #90a4ae 0%, #78909c 100%);
+    --wts-purple-grad: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --wts-tap: 48px; /* モバイル主要操作の最小タップターゲット */
+}
+
+/* 参照ラベル: 押せない情報はピルにしない（キャプション体裁） */
+.wts-cap {
+    font-size: 11px; letter-spacing: 0.08em;
+    color: var(--wts-gray); font-weight: 700;
+}
+
+/* 状態バッジ */
+.wts-badge {
+    display: inline-block; padding: 4px 12px; border-radius: 14px;
+    font-weight: 700; font-size: 13px; color: #fff;
+    font-variant-numeric: tabular-nums;
+}
+.wts-badge.green { background: var(--wts-green); }
+.wts-badge.amber { background: var(--wts-amber); }
+.wts-badge.red   { background: var(--wts-red); }
+.wts-badge.gray  { background: var(--wts-gray); }
+
+/* 状態カード: カード全面が状態を語る */
+.wts-state-card { border-radius: 8px; color: #fff; transition: background 0.25s; }
+.wts-state-card.green   { background: var(--wts-green-grad); }
+.wts-state-card.amber   { background: var(--wts-amber-grad); }
+.wts-state-card.red     { background: var(--wts-red-grad); }
+.wts-state-card.neutral { background: var(--wts-gray-grad); }
+
+/* 現在地の点灯（入力中の行・アクティブ項目） */
+.wts-here, .wts-row:focus-within {
+    background: var(--wts-blue-bg);
+    box-shadow: inset 4px 0 0 var(--wts-blue);
+}
+
+/* 主要アクション: 押す準備の整い度を彩度と影で表す */
+.wts-action { min-height: var(--wts-tap); font-weight: 700; border-radius: 8px; transition: all 0.2s; }
+.wts-action.ready {
+    background: var(--wts-green); color: #fff; border: none;
+    box-shadow: 0 4px 12px rgba(46,125,50,0.3);
+}
+.wts-action.wait {
+    background: #fff; color: var(--wts-gray);
+    border: 1.5px solid var(--wts-gray); box-shadow: none;
+}
+.wts-action.attention {
+    background: var(--wts-amber); color: #fff; border: none;
+    box-shadow: 0 3px 9px rgba(255,143,0,0.3);
+}
+
+/* 破壊的操作は視線経路の外でゴースト表現 */
+.wts-ghost {
+    background: none; border: none; color: var(--wts-gray);
+    padding: 4px 10px; cursor: pointer;
+}
+.wts-ghost:hover { color: #546e7a; }
+
+@media (prefers-reduced-motion: reduce) {
+    .wts-state-card, .wts-action { transition: none; }
+}

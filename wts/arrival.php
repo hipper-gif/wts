@@ -170,7 +170,7 @@ $pageDescription = "入庫時刻・走行距離・費用記録";
 $page_config = getPageConfiguration('arrival');
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => ['css/workflow-stepper.css'],
+    'additional_css' => ['css/wts-design-tokens.css', 'css/workflow-stepper.css'],
     'workflow_stepper' => renderWorkflowStepper(
         'arrival',
         getWorkflowCompletionStatus($pdo, $user_id),
@@ -234,7 +234,7 @@ echo $page_data['page_header'];
         <div class="card mb-4">
             <div class="card-header">
                 <i class="fas fa-exclamation-triangle me-2"></i>未入庫車両一覧
-                <span class="badge bg-warning ms-2"><?= count($unreturned_departures) ?></span>
+                <span class="wts-badge amber ms-2"><?= count($unreturned_departures) ?></span>
             </div>
             <div class="card-body p-0">
                 <div style="max-height: 300px; overflow-y: auto;">
@@ -460,11 +460,28 @@ echo $page_data['page_header'];
 }
 
 .form-control.border-warning {
-    border-color: #ffc107 !important;
+    border-color: var(--wts-amber) !important;
 }
 
 .form-control.border-danger {
-    border-color: #dc3545 !important;
+    border-color: var(--wts-red) !important;
+}
+
+/* フォーカス可視化（青=現在地・フォーカス） */
+#arrivalForm .form-control:focus,
+#arrivalForm .form-select:focus {
+    border-color: var(--wts-blue);
+    box-shadow: 0 0 0 3px rgba(25,118,210,0.15);
+    outline: none;
+}
+#actionButtons .btn:focus-visible {
+    outline: 3px solid var(--wts-blue);
+    outline-offset: 2px;
+}
+
+/* モバイル主要操作のタップターゲット */
+[data-bs-target="#arrivalDetailFields"] {
+    min-height: 44px;
 }
 </style>
 

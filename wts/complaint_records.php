@@ -223,6 +223,9 @@ $page_data = renderCompletePage(
     $page_config['subtitle'],
     $page_config['category'],
     [
+        'additional_css' => [
+            'css/wts-design-tokens.css'
+        ],
         'breadcrumb' => [
             ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
             ['text' => 'マスターメニュー', 'url' => 'master_menu.php'],
@@ -254,10 +257,11 @@ $page_data = renderCompletePage(
         opacity: 0.9;
         margin-top: 0.25rem;
     }
-    .stats-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-    .stats-danger { background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); }
-    .stats-warning { background: linear-gradient(135deg, #f9ca24 0%, #f0932b 100%); color: #2d3436; }
-    .stats-success { background: linear-gradient(135deg, #00b894 0%, #00cec9 100%); }
+    /* 1色=1意味: 紫=今月サマリー / 赤=未対応 / アンバー=対応中(要対応) / 緑=対応完了 */
+    .stats-primary { background: var(--wts-purple-grad); }
+    .stats-danger { background: var(--wts-red-grad); }
+    .stats-warning { background: var(--wts-amber-grad); }
+    .stats-success { background: var(--wts-green-grad); }
 
     .filter-section {
         background: #f8f9fa;
@@ -293,6 +297,12 @@ $page_data = renderCompletePage(
         padding-bottom: 0.5rem;
         border-bottom: 2px solid #e9ecef;
     }
+    /* フォーカス可視化（青=現在地・フォーカス） */
+    .btn:focus-visible, .form-control:focus, .form-select:focus, textarea.form-control:focus {
+        outline: 3px solid var(--wts-blue); outline-offset: 2px;
+    }
+    /* モバイル主要ボタンのタップターゲット確保 */
+    .filter-section .btn, .modal-footer .btn { min-height: 44px; }
 
 </style>
 </head>
@@ -416,11 +426,11 @@ $page_data = renderCompletePage(
                                         <td><span class="badge bg-secondary"><?= htmlspecialchars($c['complaint_type']) ?></span></td>
                                         <td>
                                             <?php
-                                            $severity_class = 'bg-info';
-                                            if ($c['severity'] === '中程度') $severity_class = 'bg-warning text-dark';
-                                            if ($c['severity'] === '重度') $severity_class = 'bg-danger';
+                                            $severity_class = 'gray';
+                                            if ($c['severity'] === '中程度') $severity_class = 'amber';
+                                            if ($c['severity'] === '重度') $severity_class = 'red';
                                             ?>
-                                            <span class="badge severity-badge <?= $severity_class ?>"><?= htmlspecialchars($c['severity']) ?></span>
+                                            <span class="wts-badge severity-badge <?= $severity_class ?>"><?= htmlspecialchars($c['severity']) ?></span>
                                         </td>
                                         <td><?= htmlspecialchars($c['complainant_name']) ?></td>
                                         <td><?= htmlspecialchars($c['driver_name'] ?? '-') ?></td>
@@ -429,15 +439,15 @@ $page_data = renderCompletePage(
                                         </td>
                                         <td>
                                             <?php
-                                            $status_class = 'bg-secondary';
+                                            $status_class = 'gray';
                                             switch ($c['response_status']) {
-                                                case '未対応': $status_class = 'bg-danger'; break;
-                                                case '対応中': $status_class = 'bg-warning text-dark'; break;
-                                                case '対応完了': $status_class = 'bg-success'; break;
-                                                case '保留': $status_class = 'bg-secondary'; break;
+                                                case '未対応': $status_class = 'red'; break;
+                                                case '対応中': $status_class = 'amber'; break;
+                                                case '対応完了': $status_class = 'green'; break;
+                                                case '保留': $status_class = 'gray'; break;
                                             }
                                             ?>
-                                            <span class="badge <?= $status_class ?>"><?= htmlspecialchars($c['response_status']) ?></span>
+                                            <span class="wts-badge severity-badge <?= $status_class ?>"><?= htmlspecialchars($c['response_status']) ?></span>
                                         </td>
                                         <td>
                                             <div class="btn-group" role="group">

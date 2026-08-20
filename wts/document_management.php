@@ -101,6 +101,7 @@ $page_config = getPageConfiguration('document_management');
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [
+        'css/wts-design-tokens.css',
         'css/document_management.css'
     ],
     'additional_js' => [
@@ -129,6 +130,19 @@ echo $page_data['html_head'];
 echo $page_data['system_header'];
 echo $page_data['page_header'];
 ?>
+
+<style>
+/* 色システム(1色=1意味): 赤=期限切れ・削除 / アンバー=期限接近 / 青=主操作・リンク・フォーカス
+   スレート=中立操作(ダウンロード等) / グレー=参照情報(カテゴリ・ファイル種別) */
+.btn-outline-secondary { color: var(--wts-slate); border-color: var(--wts-slate); }
+.btn-outline-secondary:hover { background: var(--wts-slate); border-color: var(--wts-slate); color: #fff; }
+.text-warning { color: #b26a00 !important; } /* アンバー文字は視認性の高い濃色に */
+.btn:focus-visible { outline: 3px solid var(--wts-blue); outline-offset: 2px; }
+.form-control:focus, .form-select:focus { border-color: var(--wts-blue); }
+@media (max-width: 767.98px) {
+    .doc-card .btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+}
+</style>
 
 <main class="container mt-4">
 
@@ -213,12 +227,12 @@ echo $page_data['page_header'];
                             ?>
                             <tr class="<?= $row_class ?>">
                                 <td>
-                                    <i class="fas <?= ($doc['mime_type'] === 'application/pdf') ? 'fa-file-pdf text-danger' : 'fa-file-image text-info' ?> me-2"></i>
+                                    <i class="fas <?= ($doc['mime_type'] === 'application/pdf') ? 'fa-file-pdf' : 'fa-file-image' ?> text-muted me-2"></i>
                                     <strong><?= htmlspecialchars($doc['title']) ?></strong>
                                     <br><small class="text-muted"><?= htmlspecialchars($doc['original_filename']) ?></small>
                                 </td>
                                 <td>
-                                    <span class="badge bg-<?= $category_colors[$doc['category']] ?? 'light' ?>">
+                                    <span class="wts-cap">
                                         <?= htmlspecialchars($category_labels[$doc['category']] ?? 'その他') ?>
                                     </span>
                                 </td>
@@ -260,7 +274,7 @@ echo $page_data['page_header'];
                                                 onclick="previewDocument(<?= $doc['id'] ?>, '<?= htmlspecialchars($doc['title'], ENT_QUOTES) ?>', '<?= htmlspecialchars($doc['mime_type'], ENT_QUOTES) ?>')">
                                             <i class="fas fa-eye"></i>
                                         </button>
-                                        <a href="api/document_download.php?id=<?= $doc['id'] ?>" class="btn btn-outline-success" title="ダウンロード">
+                                        <a href="api/document_download.php?id=<?= $doc['id'] ?>" class="btn btn-outline-secondary" title="ダウンロード">
                                             <i class="fas fa-download"></i>
                                         </a>
                                         <button type="button" class="btn btn-outline-danger" title="削除"
@@ -302,9 +316,9 @@ echo $page_data['page_header'];
                 <div class="card-body py-3">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
-                            <i class="fas <?= ($doc['mime_type'] === 'application/pdf') ? 'fa-file-pdf text-danger' : 'fa-file-image text-info' ?> me-1"></i>
+                            <i class="fas <?= ($doc['mime_type'] === 'application/pdf') ? 'fa-file-pdf' : 'fa-file-image' ?> text-muted me-1"></i>
                             <strong><?= htmlspecialchars($doc['title']) ?></strong>
-                            <span class="badge bg-<?= $category_colors[$doc['category']] ?? 'light' ?> ms-1">
+                            <span class="wts-cap ms-1">
                                 <?= htmlspecialchars($category_labels[$doc['category']] ?? 'その他') ?>
                             </span>
                         </div>
@@ -345,7 +359,7 @@ echo $page_data['page_header'];
                                 onclick="previewDocument(<?= $doc['id'] ?>, '<?= htmlspecialchars($doc['title'], ENT_QUOTES) ?>', '<?= htmlspecialchars($doc['mime_type'], ENT_QUOTES) ?>')">
                             <i class="fas fa-eye me-1"></i>プレビュー
                         </button>
-                        <a href="api/document_download.php?id=<?= $doc['id'] ?>" class="btn btn-sm btn-outline-success flex-fill">
+                        <a href="api/document_download.php?id=<?= $doc['id'] ?>" class="btn btn-sm btn-outline-secondary flex-fill">
                             <i class="fas fa-download me-1"></i>DL
                         </a>
                         <button class="btn btn-sm btn-outline-danger"

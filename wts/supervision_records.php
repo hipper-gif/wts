@@ -170,6 +170,9 @@ $result_options = ['良好', '概ね良好', '要改善', '要再指導'];
 
 // ページ生成（統一ヘッダーシステム）
 $page_options = [
+    'additional_css' => [
+        'css/wts-design-tokens.css'
+    ],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
         ['text' => 'マスターメニュー', 'url' => 'master_menu.php'],
@@ -219,6 +222,12 @@ $page_data = renderCompletePage(
     .record-row:hover {
         background-color: #f8f9fa;
     }
+    /* フォーカス可視化（青=現在地・フォーカス） */
+    .btn:focus-visible, .form-control:focus, .form-select:focus, textarea.form-control:focus {
+        outline: 3px solid var(--wts-blue); outline-offset: 2px;
+    }
+    /* モバイル主要ボタンのタップターゲット確保 */
+    .search-section .btn, .modal-footer .btn { min-height: 44px; }
     .type-badge {
         font-size: 0.8rem;
         padding: 3px 8px;
@@ -257,7 +266,7 @@ $page_data = renderCompletePage(
         <!-- 統計カード -->
         <div class="row mb-4">
             <div class="col-md-3 mb-3">
-                <div class="card stats-card text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="card stats-card text-white" style="background: var(--wts-purple-grad);">
                     <div class="card-body text-center">
                         <div class="stats-number"><?= $month_count ?></div>
                         <div>今月の指導回数</div>
@@ -266,7 +275,7 @@ $page_data = renderCompletePage(
                 </div>
             </div>
             <div class="col-md-3 mb-3">
-                <div class="card stats-card text-white" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
+                <div class="card stats-card text-white" style="background: var(--wts-gray-grad);">
                     <div class="card-body text-center">
                         <div class="stats-number"><?= $year_count ?></div>
                         <div>今年の指導回数</div>
@@ -275,7 +284,7 @@ $page_data = renderCompletePage(
                 </div>
             </div>
             <div class="col-md-3 mb-3">
-                <div class="card stats-card text-white" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">
+                <div class="card stats-card text-white" style="background: var(--wts-red-grad);">
                     <div class="card-body text-center">
                         <div class="stats-number"><?= $redo_count ?></div>
                         <div>要再指導</div>
@@ -284,7 +293,7 @@ $page_data = renderCompletePage(
                 </div>
             </div>
             <div class="col-md-3 mb-3">
-                <div class="card stats-card text-dark" style="background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);">
+                <div class="card stats-card text-white" style="background: var(--wts-amber-grad);">
                     <div class="card-body text-center">
                         <div class="stats-number"><?= $followup_count ?></div>
                         <div>フォローアップ予定</div>
@@ -372,7 +381,7 @@ $page_data = renderCompletePage(
                                             <tr class="record-row">
                                                 <td><?= date('Y/m/d', strtotime($record['supervision_date'])) ?></td>
                                                 <td>
-                                                    <span class="badge type-badge bg-info text-white">
+                                                    <span class="wts-badge type-badge gray">
                                                         <?= htmlspecialchars($record['supervision_type']) ?>
                                                     </span>
                                                 </td>
@@ -382,15 +391,16 @@ $page_data = renderCompletePage(
                                                 <td><?= (int)$record['duration_minutes'] ?>分</td>
                                                 <td>
                                                     <?php
+                                                    // 1色=1意味: 緑=OK / アンバー=要対応 / 赤=要再指導
                                                     $result_colors = [
-                                                        '良好' => 'bg-success',
-                                                        '概ね良好' => 'bg-primary',
-                                                        '要改善' => 'bg-warning text-dark',
-                                                        '要再指導' => 'bg-danger'
+                                                        '良好' => 'green',
+                                                        '概ね良好' => 'green',
+                                                        '要改善' => 'amber',
+                                                        '要再指導' => 'red'
                                                     ];
-                                                    $badge_class = $result_colors[$record['result']] ?? 'bg-secondary';
+                                                    $badge_class = $result_colors[$record['result']] ?? 'gray';
                                                     ?>
-                                                    <span class="badge result-badge <?= $badge_class ?>">
+                                                    <span class="wts-badge result-badge <?= $badge_class ?>">
                                                         <?= htmlspecialchars($record['result']) ?>
                                                     </span>
                                                 </td>

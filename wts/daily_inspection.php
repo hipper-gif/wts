@@ -380,7 +380,7 @@ $page_config = getPageConfiguration('daily_inspection');
 <!DOCTYPE html>
 <?= renderCompleteHTMLHead($page_config['title'], [
     'description' => $page_config['description'],
-    'additional_css' => [],
+    'additional_css' => ['css/wts-design-tokens.css'],
     'additional_js' => []
 ]) ?>
 <body>
@@ -459,10 +459,10 @@ $page_config = getPageConfiguration('daily_inspection');
             <?php elseif ($is_locked && $can_edit): ?>
                 <span class="badge bg-warning text-dark"><i class="fas fa-lock me-1"></i>ロック中</span>
             <?php else: ?>
-                <span class="badge bg-danger"><i class="fas fa-lock me-1"></i>変更不可</span>
+                <span class="badge wts-ref"><i class="fas fa-lock me-1"></i>変更不可</span>
             <?php endif; ?>
             <?php if ($edit_count > 0): ?>
-                <span class="badge bg-info ms-1">修正<?= $edit_count ?>回</span>
+                <span class="badge wts-ref ms-1">修正<?= $edit_count ?>回</span>
             <?php endif; ?>
         </div>
         <?php endif; ?>
@@ -497,7 +497,7 @@ $page_config = getPageConfiguration('daily_inspection');
                 </div>
                 <small class="fw-bold text-nowrap" id="progressText">0/7</small>
                 <?php if (!$is_edit_mode): ?>
-                <button type="button" class="btn btn-success btn-sm" onclick="setAllOk()">全て可</button>
+                <button type="button" class="btn wts-btn-slate btn-sm" onclick="setAllOk()">全て可</button>
                 <?php endif; ?>
             </div>
             
@@ -614,7 +614,7 @@ $page_config = getPageConfiguration('daily_inspection');
                                 <?php if ($item['required']): ?>
                                     <span class="badge bg-danger ms-2">必須</span>
                                 <?php else: ?>
-                                    <span class="badge bg-warning ms-2">省略可</span>
+                                    <span class="badge wts-ref ms-2">省略可</span>
                                 <?php endif; ?>
                             </div>
                             <div class="col-md-6 text-end">
@@ -633,7 +633,7 @@ $page_config = getPageConfiguration('daily_inspection');
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="省略" id="<?= $key ?>_skip"
                                            <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>
                                            <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                    <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略（対象外）</label>
+                                    <label class="btn btn-outline-secondary" for="<?= $key ?>_skip">省略（対象外）</label>
                                     <?php endif; ?>
                                 </div>
                                 <span class="print-result-text" data-print-for="<?= $key ?>"></span>
@@ -667,7 +667,7 @@ $page_config = getPageConfiguration('daily_inspection');
                                 <?php if ($item['required']): ?>
                                     <span class="badge bg-danger ms-2">必須</span>
                                 <?php else: ?>
-                                    <span class="badge bg-warning ms-2">省略可</span>
+                                    <span class="badge wts-ref ms-2">省略可</span>
                                 <?php endif; ?>
                             </div>
                             <div class="col-md-6 text-end">
@@ -686,7 +686,7 @@ $page_config = getPageConfiguration('daily_inspection');
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="省略" id="<?= $key ?>_skip"
                                            <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>
                                            <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                    <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略（対象外）</label>
+                                    <label class="btn btn-outline-secondary" for="<?= $key ?>_skip">省略（対象外）</label>
                                     <?php endif; ?>
                                 </div>
                                 <span class="print-result-text" data-print-for="<?= $key ?>"></span>
@@ -719,7 +719,7 @@ $page_config = getPageConfiguration('daily_inspection');
                                 <?php if ($item['required']): ?>
                                     <span class="badge bg-danger ms-2">必須</span>
                                 <?php else: ?>
-                                    <span class="badge bg-warning ms-2">省略可</span>
+                                    <span class="badge wts-ref ms-2">省略可</span>
                                 <?php endif; ?>
                             </div>
                             <div class="col-md-6 text-end">
@@ -738,7 +738,7 @@ $page_config = getPageConfiguration('daily_inspection');
                                     <input type="radio" class="btn-check" name="<?= $key ?>" value="省略" id="<?= $key ?>_skip"
                                            <?= (!$existing_inspection || $existing_inspection[$key] == '省略') ? 'checked' : '' ?>
                                            <?= $is_edit_mode ? 'disabled' : '' ?>>
-                                    <label class="btn btn-outline-warning" for="<?= $key ?>_skip">省略（対象外）</label>
+                                    <label class="btn btn-outline-secondary" for="<?= $key ?>_skip">省略（対象外）</label>
                                     <?php endif; ?>
                                 </div>
                                 <span class="print-result-text" data-print-for="<?= $key ?>"></span>
@@ -960,7 +960,7 @@ $page_config = getPageConfiguration('daily_inspection');
                                             <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> 要確認</span>
                                         <?php endif; ?>
                                         <?php if (($ri['edit_count'] ?? 0) > 0): ?>
-                                            <span class="badge bg-info ms-1"><i class="fas fa-pen"></i> <?= $ri['edit_count'] ?></span>
+                                            <span class="badge wts-ref ms-1"><i class="fas fa-pen"></i> <?= $ri['edit_count'] ?></span>
                                         <?php endif; ?>
                                     </td>
                                     <td class="text-end pe-3">
@@ -1016,6 +1016,34 @@ $page_config = getPageConfiguration('daily_inspection');
     </div>
 
     <style>
+    /* WTSデザイントークン適用（1色=1意味: スレート=中立操作 / グレー=参照情報・対象外） */
+    .wts-btn-slate {
+        background: var(--wts-slate); border: 1px solid var(--wts-slate); color: #fff;
+    }
+    .wts-btn-slate:hover, .wts-btn-slate:focus {
+        background: #263238; border-color: #263238; color: #fff;
+    }
+    .badge.wts-ref { background-color: var(--wts-gray); }
+
+    /* 省略（対象外）選択行の点灯を中立グレーへ（js/daily_inspection.js が付ける
+       bg-warning/border-warning の描画色のみ差し替え。クラス名・JSは不変更） */
+    .inspection-item.bg-warning, .inspection-item.border-warning {
+        --bs-warning-rgb: 120, 144, 156;
+    }
+
+    /* フォーカス可視化（青=現在地・フォーカス） */
+    .form-control:focus, .form-select:focus {
+        outline: 3px solid var(--wts-blue); outline-offset: 1px;
+    }
+    .btn:focus-visible, .btn-check:focus-visible + .btn {
+        outline: 3px solid var(--wts-blue); outline-offset: 2px;
+    }
+
+    /* モバイル主要ボタンのタップターゲット */
+    @media (max-width: 768px) {
+        #progressCard .btn { min-height: 44px; }
+    }
+
     @keyframes slideDown {
         from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
         to { opacity: 1; transform: translateX(-50%) translateY(0); }

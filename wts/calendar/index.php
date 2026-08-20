@@ -63,6 +63,8 @@ $cache_bust = function($path) {
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [
+        // WTSデザイントークン（1色=1意味）
+        '../css/wts-design-tokens.css',
         // FullCalendar CDN (v6.1.11)
         'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css',
         // カレンダー専用CSS
@@ -109,6 +111,18 @@ echo $page_data['system_header'];
 
 <!-- ページヘッダー分のpadding除去 -->
 <script>document.body.classList.add('calendar-page');</script>
+<style>
+/* WTSデザイントークン適用: フォーカス可視化（青=現在地・フォーカス） */
+.cal-row .btn:focus-visible,
+.cal-row .form-select:focus,
+#reservationModal .modal-footer .btn:focus-visible,
+#reservationDetailModal .modal-footer .btn:focus-visible {
+    outline: 3px solid var(--wts-blue, #1976d2);
+    outline-offset: 2px;
+}
+/* 日常の主操作はタップターゲット44px以上 */
+#createReservationBtn { min-height: 44px; }
+</style>
 <!-- メインコンテンツ開始 -->
 <main class="main-content" id="main-content" tabindex="-1">
     <div class="container-fluid px-1 px-md-3 py-0">
@@ -120,7 +134,7 @@ echo $page_data['system_header'];
             <span class="cal-toolbar-title" id="calToolbarTitle"></span>
             <button type="button" class="btn btn-outline-secondary" id="nextBtn"><i class="fas fa-chevron-right"></i></button>
             <button type="button" class="btn btn-outline-primary" id="todayBtn">今日</button>
-            <button type="button" class="btn btn-success ms-auto" id="createReservationBtn">
+            <button type="button" class="btn btn-primary ms-auto" id="createReservationBtn">
                 <i class="fas fa-plus me-1"></i>新規予約
             </button>
         </div>

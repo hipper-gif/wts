@@ -142,6 +142,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ページ設定
 $page_config = getPageConfiguration('periodic_inspection');
 $page_options = [
+    'additional_css' => [
+        'css/wts-design-tokens.css'
+    ],
     'additional_js' => [
         'js/ui-interactions.js'
     ],
@@ -194,7 +197,7 @@ echo $page_data['page_header'];
                 'icon' => 'check-circle',
                 'text' => '自動入力',
                 'url' => 'javascript:updateMileage()',
-                'class' => 'btn-info btn-sm'
+                'class' => 'btn-slate btn-sm'
             ]
         ];
         echo renderSectionHeader('info-circle', '基本情報', '必須項目を入力してください', $basic_info_actions);
@@ -539,7 +542,7 @@ echo $page_data['page_header'];
 </div>
 
 <!-- 保存ボタン（画面下部固定） -->
-<div style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 1050; background: #fff; padding: 12px 20px; border-top: 2px solid #198754;">
+<div style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 1050; background: #fff; padding: 12px 20px; border-top: 2px solid var(--wts-green);">
     <button type="submit" form="inspectionForm" class="btn btn-success btn-lg w-100" data-loading-text="保存中..." style="font-size: 1.1rem; font-weight: 600; padding: 14px;">
         <i class="fas fa-save me-2"></i>登録する
     </button>
@@ -565,10 +568,10 @@ echo $page_data['page_header'];
     border-color: #d1d5db;
 }
 
-/* 結果ボタンのスタイル（3段階評価） */
+/* 結果ボタンのスタイル（3段階評価・タップターゲット44px以上） */
 .result-btn {
     min-width: 80px;
-    height: 36px;
+    min-height: 44px;
     border-radius: 8px;
     font-weight: 600;
     font-size: 0.875rem;
@@ -587,43 +590,54 @@ echo $page_data['page_header'];
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
-/* 3段階評価の色設定 */
-.result-btn-good { 
-    background: #f0fdf4; 
-    color: #16a34a; 
-    border-color: #16a34a;
+/* 3段階評価の色設定（1色=1意味: 緑=良好 / アンバー=要注意 / 赤=不良） */
+.result-btn-good {
+    background: var(--wts-green-bg);
+    color: var(--wts-green);
+    border-color: var(--wts-green);
 }
-.result-btn-good.active { 
-    background: #16a34a; 
+.result-btn-good.active {
+    background: var(--wts-green);
     color: white;
 }
 
-.result-btn-caution { 
-    background: #fefce8; 
-    color: #ca8a04; 
-    border-color: #ca8a04;
+.result-btn-caution {
+    background: var(--wts-amber-bg);
+    color: #b26a00;
+    border-color: var(--wts-amber-dark);
 }
-.result-btn-caution.active { 
-    background: #ca8a04; 
+.result-btn-caution.active {
+    background: var(--wts-amber-dark);
     color: white;
 }
 
-.result-btn-bad { 
-    background: #fef2f2; 
-    color: #dc2626; 
-    border-color: #dc2626;
+.result-btn-bad {
+    background: var(--wts-red-bg);
+    color: var(--wts-red);
+    border-color: var(--wts-red);
 }
-.result-btn-bad.active { 
-    background: #dc2626; 
+.result-btn-bad.active {
+    background: var(--wts-red);
     color: white;
 }
 
 /* フォーム必須マーク */
 .required::after {
     content: " *";
-    color: #dc2626;
+    color: var(--wts-red);
     font-weight: bold;
 }
+
+/* スレート=中立操作（自動入力） */
+.btn-slate { background: var(--wts-slate); border-color: var(--wts-slate); color: #fff; }
+.btn-slate:hover, .btn-slate:focus { background: #455a64; border-color: #455a64; color: #fff; }
+
+/* アンバー文字は視認性の高い濃色に */
+.text-warning { color: #b26a00 !important; }
+
+/* フォーカス可視化（青=現在地・フォーカス） */
+.btn:focus-visible, .result-btn:focus-visible { outline: 3px solid var(--wts-blue); outline-offset: 2px; }
+.form-control:focus, .form-select:focus { border-color: var(--wts-blue); }
 
 /* カード統一スタイル */
 .card {
@@ -646,8 +660,8 @@ echo $page_data['page_header'];
     
     .result-btn {
         min-width: 64px;
-        height: 32px;
-        font-size: 0.75rem;
+        min-height: 44px;
+        font-size: 0.8rem;
         padding: 0.25rem 0.5rem;
     }
     

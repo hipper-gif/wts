@@ -1432,7 +1432,9 @@ $page_config = getPageConfiguration('annual_report');
 // 統一ヘッダーでページ生成
 $page_options = [
     'description' => '陸運局第4号様式（輸送実績報告書）の作成・管理',
-    'additional_css' => [],
+    'additional_css' => [
+        'css/wts-design-tokens.css',
+    ],
     'additional_js' => [],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
@@ -1665,7 +1667,7 @@ echo $page_data['page_header'];
 
 /* Buttons */
 .ar-btn {
-    height: 42px; padding: 0 18px; border-radius: 10px;
+    height: 44px; padding: 0 18px; border-radius: 10px;
     font-family: var(--ar-jp); font-size: 14px; font-weight: 700;
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     border: 1.5px solid transparent; transition: transform .1s, box-shadow .1s;
@@ -1679,6 +1681,10 @@ echo $page_data['page_header'];
 .ar-btn-ghost { background: #fff; color: var(--ar-ink-soft); border-color: var(--ar-line); }
 .ar-btn-ghost:hover { background: var(--ar-line-soft); border-color: var(--ar-muted-soft); }
 .ar-btn-sm { height: 34px; padding: 0 12px; font-size: 13px; }
+/* WTSデザイントークン適用: フォーカス可視化（青=現在地・フォーカス） */
+.ar-btn:focus-visible, .ar-yearbar a:focus-visible, .ar-yearbar button:focus-visible {
+    outline: 3px solid var(--wts-blue, #1976d2); outline-offset: 2px;
+}
 
 /* History table */
 .ar-history { background: #fff; border: 1px solid var(--ar-line); border-radius: 16px; overflow: hidden; box-shadow: var(--ar-shadow); }

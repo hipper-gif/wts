@@ -147,6 +147,9 @@ $page_data = renderCompletePage(
     'コンプライアンス状況確認・監査資料作成',
     $page_config['category'],
     [
+        'additional_css' => [
+            'css/wts-design-tokens.css'
+        ],
         'breadcrumb' => [
             ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
             ['text' => 'マスターメニュー', 'url' => 'master_menu.php'],
@@ -521,10 +524,11 @@ function rateIcon($rate) {
     font-size: 0.85rem;
     font-weight: 600;
 }
-.badge-success { background: #d1e7dd; color: #0f5132; }
-.badge-warning { background: #fff3cd; color: #664d03; }
-.badge-danger { background: #f8d7da; color: #842029; }
-.badge-muted { background: #e9ecef; color: #6c757d; }
+/* 状態バッジ(1色=1意味): 緑=良好 / アンバー=注意 / 赤=要対応(期限切れ・不足) / グレー=データなし */
+.badge-success { background: var(--wts-green-bg); color: var(--wts-green); }
+.badge-warning { background: var(--wts-amber-bg); color: #b26a00; }
+.badge-danger { background: var(--wts-red-bg); color: var(--wts-red); }
+.badge-muted { background: var(--wts-gray-bg); color: var(--wts-gray); }
 .compliance-details {
     list-style: none;
     padding: 0;
@@ -566,6 +570,16 @@ function rateIcon($rate) {
 /* チェックリストテーブル */
 .table th { font-size: 0.85rem; white-space: nowrap; }
 .table td { vertical-align: middle; }
+
+/* アンバー文字は視認性の高い濃色に */
+.text-warning { color: #b26a00 !important; }
+
+/* フォーカス可視化（青=現在地・フォーカス） */
+.btn:focus-visible, .doc-card:focus-visible { outline: 3px solid var(--wts-blue); outline-offset: 2px; }
+.form-control:focus, .form-select:focus { border-color: var(--wts-blue); }
+
+/* タップターゲット（カード下の主要導線ボタン） */
+.compliance-card .btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
 </style>
 
 <script>

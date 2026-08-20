@@ -30,7 +30,10 @@ $page_config = getPageConfiguration('customer_management');
 
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => [],
+    'additional_css' => [
+        // WTSデザイントークン（1色=1意味）
+        '../css/wts-design-tokens.css'
+    ],
     'additional_js' => [],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => '../dashboard.php'],
@@ -408,10 +411,10 @@ echo $page_data['page_header'];
                             </div>
                         </div>
                         <div class="col-6 col-md-3">
-                            <div class="card text-center border-danger">
+                            <div class="card text-center border-secondary">
                                 <div class="card-body py-2">
                                     <div class="text-muted small">キャンセル</div>
-                                    <div class="fs-4 fw-bold text-danger" id="statCancelled">-</div>
+                                    <div class="fs-4 fw-bold text-secondary" id="statCancelled">-</div>
                                 </div>
                             </div>
                         </div>
@@ -521,8 +524,17 @@ echo $page_data['page_header'];
 </div>
 
 <style>
+/* WTSデザイントークン適用: フォーカス可視化（青=現在地・フォーカス） */
+#searchText:focus,
+#btnAddNew:focus-visible, #btnImport:focus-visible,
+#btnSaveCustomer:focus-visible, #btnDeleteCustomer:focus-visible {
+    outline: 3px solid var(--wts-blue, #1976d2);
+    outline-offset: 2px;
+}
+/* 日常の主操作はタップターゲット44px以上 */
+#btnAddNew, #btnImport, #btnSaveCustomer { min-height: 44px; }
 .sortable:hover { background-color: #e9ecef; }
-.sortable .fa-sort-up, .sortable .fa-sort-down { color: #0d6efd; }
+.sortable .fa-sort-up, .sortable .fa-sort-down { color: var(--wts-blue, #1976d2); }
 #customerTable tbody tr { cursor: pointer; }
 .status-badge { font-size: 0.75rem; }
 .mobility-badge { font-size: 0.75rem; }
@@ -545,11 +557,12 @@ echo $page_data['page_header'];
         stretcher: 'ストレッチャー',
         walker: '歩行器'
     };
+    // 移動形態は参照情報（グレー）。緑=完了/赤=エラー等の状態色と混同させない（1色=1意味）
     const MOBILITY_COLORS = {
-        independent: 'success',
-        wheelchair: 'primary',
-        stretcher: 'danger',
-        walker: 'warning'
+        independent: 'secondary',
+        wheelchair: 'secondary',
+        stretcher: 'secondary',
+        walker: 'secondary'
     };
     const LOCATION_TYPE_LABELS = {
         hospital: '病院',

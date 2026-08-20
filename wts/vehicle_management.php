@@ -283,7 +283,9 @@ $vehicle_types = [
 // ページオプション設定
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => [],
+    'additional_css' => [
+        'css/wts-design-tokens.css'
+    ],
     'additional_js' => [
         'js/ui-interactions.js'
     ],
@@ -312,6 +314,37 @@ echo $page_data['system_header'];
 echo $page_data['page_header'];
 ?>
 
+<style>
+/* 色システム(1色=1意味): 緑=運用中・正常 / アンバー=要対応・注意 / 赤=期限切れ・危険操作
+   青=主操作・リンク / グレー=参照情報 */
+
+/* アンバー統計カード: トークングラデで白文字のコントラストを確保 */
+main .card.bg-warning { background: var(--wts-amber-grad) !important; }
+
+/* バッジ・注意テキストのコントラスト改善（アンバーは濃色で） */
+main .badge.bg-warning { color: #333 !important; }
+main .text-warning { color: var(--wts-amber-dark) !important; }
+
+/* フォーカス可視化（青=現在地・フォーカス） */
+.btn:focus-visible,
+.form-check-input:focus-visible {
+    outline: 3px solid var(--wts-blue);
+    outline-offset: 2px;
+}
+.form-control:focus,
+.form-select:focus {
+    outline: 3px solid var(--wts-blue);
+    outline-offset: 1px;
+}
+
+/* モバイル主要ボタンのタップターゲット確保 */
+@media (max-width: 768px) {
+    .modal-footer .btn {
+        min-height: 44px;
+    }
+}
+</style>
+
 <main class="container mt-4">
     <!-- アラート（統一パターン） -->
     <?php if ($success_message): ?>
@@ -338,7 +371,7 @@ echo $page_data['page_header'];
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="card bg-primary text-white">
+            <div class="card bg-success text-white">
                 <div class="card-body py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
@@ -364,7 +397,7 @@ echo $page_data['page_header'];
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="card bg-info text-white">
+            <div class="card bg-warning text-white">
                 <div class="card-body py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
@@ -447,15 +480,14 @@ echo $page_data['page_header'];
                                 <td><?= htmlspecialchars($vehicle['vehicle_name']) ?></td>
                                 <td class="d-none d-md-table-cell text-muted"><?= htmlspecialchars($vehicle['model'] ?? '-') ?></td>
                                 <td>
-                                    <span class="badge bg-<?= $vehicle['vehicle_type'] === 'welfare' ? 'info' : ($vehicle['vehicle_type'] === 'taxi' ? 'warning' : 'secondary') ?>">
+                                    <span class="wts-cap">
                                         <?= $vehicle_types[$vehicle['vehicle_type']] ?? 'その他' ?>
                                     </span>
                                 </td>
                                 <td>
                                     <span class="badge bg-<?=
                                         $vehicle['status'] === 'active' ? 'success' :
-                                        ($vehicle['status'] === 'maintenance' ? 'warning' :
-                                        ($vehicle['status'] === 'reserved' ? 'info' : 'secondary'))
+                                        ($vehicle['status'] === 'maintenance' ? 'warning' : 'secondary')
                                     ?>">
                                         <?= $statuses[$vehicle['status']] ?? $vehicle['status'] ?>
                                     </span>
@@ -468,8 +500,7 @@ echo $page_data['page_header'];
                                         <div class="d-flex align-items-center gap-1">
                                             <span class="badge bg-<?=
                                                 $vehicle['inspection_status'] === 'ok' ? 'success' :
-                                                ($vehicle['inspection_status'] === 'warning' ? 'warning' :
-                                                ($vehicle['inspection_status'] === 'urgent' ? 'danger' : 'dark'))
+                                                ($vehicle['inspection_status'] === 'overdue' ? 'danger' : 'warning')
                                             ?>">
                                                 <?= $vehicle['next_inspection_date'] ?>
                                             </span>

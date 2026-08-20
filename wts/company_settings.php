@@ -84,6 +84,9 @@ $page_data = renderCompletePage(
     $user_name, $user_role, 'company_settings',
     'fas fa-building', '会社情報設定', '事業者基本情報の管理', 'master',
     [
+        'additional_css' => [
+            'css/wts-design-tokens.css'
+        ],
         'breadcrumb' => [
             ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
             ['text' => 'マスタ管理', 'url' => 'master_menu.php'],
@@ -95,9 +98,15 @@ $page_data = renderCompletePage(
 <?= $page_data['html_head'] ?>
 <style>
 .info-card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.06); }
-.info-label { font-weight: 600; color: #6c757d; font-size: 0.85rem; margin-bottom: 0.25rem; }
+.info-label { font-weight: 600; color: var(--wts-gray); font-size: 0.85rem; margin-bottom: 0.25rem; }
 .info-value { font-size: 1rem; margin-bottom: 1rem; }
 .info-value:empty::after { content: '未設定'; color: #adb5bd; font-style: italic; }
+/* WTSデザイントークン適用（1色=1意味）: 閲覧カードの見出しアイコンは参照情報＝グレー */
+.wts-icon-ref { color: var(--wts-gray); }
+.form-control:focus, .form-select:focus { outline: 3px solid var(--wts-blue); outline-offset: 1px; }
+.btn:focus-visible { outline: 3px solid var(--wts-blue); outline-offset: 2px; }
+.text-end .btn { min-height: 44px; }
+.text-end a.btn { display: inline-flex; align-items: center; }
 </style>
 </head>
 <body>
@@ -124,7 +133,7 @@ $page_data = renderCompletePage(
         <!-- 表示モード -->
         <div class="col-lg-6 mb-4">
             <div class="info-card h-100">
-                <h5 class="mb-3"><i class="fas fa-id-card me-2 text-primary"></i>基本情報</h5>
+                <h5 class="mb-3"><i class="fas fa-id-card me-2 wts-icon-ref"></i>基本情報</h5>
                 <div class="info-label">事業者名</div>
                 <div class="info-value"><?= htmlspecialchars($company['company_name']) ?></div>
                 <div class="info-label">代表者名</div>
@@ -140,7 +149,7 @@ $page_data = renderCompletePage(
 
         <div class="col-lg-6 mb-4">
             <div class="info-card h-100">
-                <h5 class="mb-3"><i class="fas fa-phone-alt me-2 text-success"></i>連絡先・管理者</h5>
+                <h5 class="mb-3"><i class="fas fa-phone-alt me-2 wts-icon-ref"></i>連絡先・管理者</h5>
                 <div class="info-label">電話番号</div>
                 <div class="info-value"><?= htmlspecialchars($company['phone']) ?></div>
                 <div class="info-label">FAX番号</div>
@@ -157,7 +166,7 @@ $page_data = renderCompletePage(
         <!-- 第4号様式（陸運局提出）専用情報 -->
         <div class="col-12 mb-4">
             <div class="info-card">
-                <h5 class="mb-3"><i class="fas fa-file-alt me-2 text-info"></i>第4号様式（陸運局提出）専用項目</h5>
+                <h5 class="mb-3"><i class="fas fa-file-alt me-2 wts-icon-ref"></i>第4号様式（陸運局提出）専用項目</h5>
                 <div class="row">
                     <div class="col-md-4">
                         <div class="info-label">事業者番号</div>
@@ -179,7 +188,7 @@ $page_data = renderCompletePage(
     <!-- 編集フォーム -->
     <div class="info-card mb-4">
         <h5 class="mb-3">
-            <i class="fas fa-edit me-2 text-warning"></i>情報を編集
+            <i class="fas fa-edit me-2 text-primary"></i>情報を編集
         </h5>
         <form method="POST">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
@@ -258,7 +267,7 @@ $page_data = renderCompletePage(
             </div>
 
             <hr class="my-3">
-            <h6 class="mb-3"><i class="fas fa-file-alt me-2 text-info"></i>第4号様式（陸運局提出）専用項目</h6>
+            <h6 class="mb-3"><i class="fas fa-file-alt me-2 wts-icon-ref"></i>第4号様式（陸運局提出）専用項目</h6>
             <div class="row">
                 <div class="col-lg-4">
                     <div class="mb-3">
@@ -290,7 +299,7 @@ $page_data = renderCompletePage(
             </div>
 
             <hr class="my-3">
-            <h6 class="mb-3"><i class="fas fa-wheelchair me-2 text-info"></i>第21号様式（移動等円滑化実績等報告書 福祉タクシー車両）専用項目</h6>
+            <h6 class="mb-3"><i class="fas fa-wheelchair me-2 wts-icon-ref"></i>第21号様式（移動等円滑化実績等報告書 福祉タクシー車両）専用項目</h6>
             <p class="text-muted small">前年度3月31日時点の車両数を入力。年度末車両数は車両管理画面のフラグから自動集計。</p>
             <div class="row">
                 <div class="col-lg-2 col-md-4">

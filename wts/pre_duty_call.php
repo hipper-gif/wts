@@ -250,7 +250,7 @@ $page_config = getPageConfiguration('pre_duty_call');
 // 統一ヘッダーでページ生成
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => ['css/workflow-stepper.css'],
+    'additional_css' => ['css/wts-design-tokens.css', 'css/workflow-stepper.css'],
     'additional_js' => [
         'js/ui-interactions.js'
     ],
@@ -303,7 +303,7 @@ echo $page_data['page_header'];
             <?php elseif ($is_locked && $can_edit): ?>
                 <span class="badge bg-warning text-dark fs-6"><i class="fas fa-lock me-1"></i>ロック中（管理者解除可）</span>
             <?php else: ?>
-                <span class="badge bg-danger fs-6"><i class="fas fa-lock me-1"></i>ロック済み（変更不可）</span>
+                <span class="badge wts-ref fs-6"><i class="fas fa-lock me-1"></i>ロック済み（変更不可）</span>
             <?php endif; ?>
         </div>
         <?php endif; ?>
@@ -371,13 +371,13 @@ echo $page_data['page_header'];
                             'icon' => 'check-double',
                             'text' => '全てチェック',
                             'url' => 'javascript:checkAll()',
-                            'class' => 'btn-success btn-sm'
+                            'class' => 'wts-btn-slate btn-sm'
                         ];
                         $check_actions[] = [
                             'icon' => 'times',
                             'text' => '全て解除',
                             'url' => 'javascript:uncheckAll()',
-                            'class' => 'btn-warning btn-sm'
+                            'class' => 'wts-btn-slate-outline btn-sm'
                         ];
                     }
                     echo renderSectionHeader('tasks', '確認事項', '16項目の法定確認事項', $check_actions);
@@ -473,7 +473,7 @@ echo $page_data['page_header'];
                                             <?= $is_edit_mode ? 'readonly' : '' ?> required>
                                         <span class="input-group-text">mg/L</span>
                                         <?php if (!$is_edit_mode): ?>
-                                        <button type="button" class="btn btn-outline-success" onclick="setAlcoholZero()">
+                                        <button type="button" class="btn wts-btn-slate-outline" onclick="setAlcoholZero()">
                                             0.000設定
                                         </button>
                                         <?php endif; ?>
@@ -582,7 +582,7 @@ echo $page_data['page_header'];
                                 <i class="fas fa-tools me-2"></i>日常点検
                             </a>
                             <?php if ($existing_call && $existing_call['is_completed']): ?>
-                            <a href="departure.php?driver_id=<?= $existing_call['driver_id'] ?>" class="btn btn-outline-success btn-sm">
+                            <a href="departure.php?driver_id=<?= $existing_call['driver_id'] ?>" class="btn btn-outline-primary btn-sm">
                                 <i class="fas fa-car me-2"></i>出庫処理
                             </a>
                             <?php endif; ?>
@@ -598,6 +598,35 @@ echo $page_data['page_header'];
 </main>
 
 <style>
+/* WTSデザイントークン適用（1色=1意味: スレート=中立操作 / グレー=参照情報） */
+.wts-btn-slate {
+    background: var(--wts-slate); border: 1px solid var(--wts-slate); color: #fff;
+}
+.wts-btn-slate:hover, .wts-btn-slate:focus {
+    background: #263238; border-color: #263238; color: #fff;
+}
+.wts-btn-slate-outline {
+    background: #fff; border: 1px solid var(--wts-slate); color: var(--wts-slate);
+}
+.wts-btn-slate-outline:hover, .wts-btn-slate-outline:focus {
+    background: var(--wts-gray-bg); color: var(--wts-slate);
+}
+.badge.wts-ref { background-color: var(--wts-gray); }
+
+/* フォーカス可視化（青=現在地・フォーカス） */
+.form-control:focus, .form-select:focus {
+    outline: 3px solid var(--wts-blue); outline-offset: 1px;
+}
+.btn:focus-visible, .form-check-input:focus-visible {
+    outline: 3px solid var(--wts-blue); outline-offset: 2px;
+}
+
+/* モバイル主要ボタンのタップターゲット */
+@media (max-width: 768px) {
+    .section-actions .btn,
+    button[data-bs-target="#optionalCheckItems"] { min-height: 44px; }
+}
+
 .check-item-clickable {
     cursor: pointer;
     transition: all 0.3s ease;
@@ -714,7 +743,7 @@ function enableEditMode() {
     // ボタンを変更
     var actionButtons = document.getElementById('actionButtons');
     if (actionButtons) {
-        actionButtons.innerHTML = '<button type="submit" class="btn btn-primary btn-lg" data-loading-text="保存中..."><i class="fas fa-save me-2"></i>変更を保存</button>' +
+        actionButtons.innerHTML = '<button type="submit" class="btn btn-success btn-lg" data-loading-text="保存中..."><i class="fas fa-save me-2"></i>変更を保存</button>' +
             '<button type="button" class="btn btn-secondary" onclick="location.reload()"><i class="fas fa-times me-2"></i>キャンセル</button>';
     }
 }

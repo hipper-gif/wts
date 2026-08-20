@@ -198,7 +198,7 @@ $page_config = getPageConfiguration('departure');
 // 統一ヘッダーでページ生成
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => ['css/workflow-stepper.css'],
+    'additional_css' => ['css/wts-design-tokens.css', 'css/workflow-stepper.css'],
     'additional_js' => [
         'js/ui-interactions.js'
     ],
@@ -266,11 +266,11 @@ echo $page_data['page_header'];
         <?php if ($edit_mode && $edit_record): ?>
         <div class="mb-3">
             <?php if (!$is_locked): ?>
-                <span class="badge bg-success fs-6"><i class="fas fa-unlock me-1"></i>編集可能（本日中）</span>
+                <span class="wts-badge green"><i class="fas fa-unlock me-1"></i>編集可能（本日中）</span>
             <?php elseif ($is_locked && $can_edit): ?>
-                <span class="badge bg-warning text-dark fs-6"><i class="fas fa-lock me-1"></i>ロック中（管理者解除可）</span>
+                <span class="wts-badge amber"><i class="fas fa-lock me-1"></i>ロック中（管理者解除可）</span>
             <?php else: ?>
-                <span class="badge bg-danger fs-6"><i class="fas fa-lock me-1"></i>ロック済み（変更不可）</span>
+                <span class="wts-badge gray"><i class="fas fa-lock me-1"></i>ロック済み（変更不可）</span>
             <?php endif; ?>
         </div>
         <?php endif; ?>
@@ -480,12 +480,12 @@ echo $page_data['page_header'];
                                                 <?= substr($departure['departure_time'], 0, 5) ?>
                                             </div>
                                             <?php if ($departure['arrival_id']): ?>
-                                                <span class="badge bg-success">
+                                                <span class="wts-badge green">
                                                     <i class="fas fa-check me-1"></i>入庫済み
                                                     <?= substr($departure['arrival_time'], 0, 5) ?>
                                                 </span>
                                             <?php else: ?>
-                                                <span class="badge bg-warning text-dark">
+                                                <span class="wts-badge amber">
                                                     <i class="fas fa-clock me-1"></i>出庫中
                                                 </span>
                                             <?php endif; ?>
@@ -519,13 +519,13 @@ echo $page_data['page_header'];
                             <a href="pre_duty_call.php" class="btn btn-outline-primary btn-sm">
                                 <i class="fas fa-clipboard-check me-1"></i>乗務前点呼
                             </a>
-                            <a href="daily_inspection.php" class="btn btn-outline-success btn-sm">
+                            <a href="daily_inspection.php" class="btn btn-outline-primary btn-sm">
                                 <i class="fas fa-tools me-1"></i>日常点検
                             </a>
-                            <a href="ride_records.php" class="btn btn-outline-info btn-sm">
+                            <a href="ride_records.php" class="btn btn-outline-primary btn-sm">
                                 <i class="fas fa-users me-1"></i>乗車記録
                             </a>
-                            <a href="arrival.php" class="btn btn-outline-warning btn-sm">
+                            <a href="arrival.php" class="btn btn-outline-primary btn-sm">
                                 <i class="fas fa-sign-in-alt me-1"></i>入庫処理
                             </a>
                         </div>
@@ -561,7 +561,7 @@ echo $page_data['page_header'];
 .section-title {
     font-size: 1.1rem;
     font-weight: 600;
-    color: #37474f;
+    color: var(--wts-slate);
     margin-bottom: 15px;
     padding-bottom: 8px;
     border-bottom: 2px solid #e3f2fd;
@@ -578,6 +578,10 @@ echo $page_data['page_header'];
     padding: 8px 16px;
     font-size: 0.9rem;
     transition: all 0.3s;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .weather-option .btn:hover {
@@ -598,12 +602,12 @@ echo $page_data['page_header'];
     padding: 16px;
     margin-bottom: 12px;
     border-radius: 12px;
-    border-left: 4px solid #28a745;
+    border-left: 4px solid var(--wts-gray);
     transition: all 0.3s;
 }
 
 .departure-record:hover {
-    background: #e8f5e8;
+    background: var(--wts-gray-bg);
     transform: translateX(3px);
     box-shadow: 0 2px 12px rgba(0,0,0,0.1);
 }
@@ -611,7 +615,7 @@ echo $page_data['page_header'];
 .time-display {
     font-size: 1.1em;
     font-weight: 600;
-    color: #37474f;
+    color: var(--wts-slate);
 }
 
 .gradient-primary {
@@ -631,7 +635,7 @@ echo $page_data['page_header'];
 }
 
 #autoSetBtn:hover {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--wts-purple-grad);
     color: white;
 }
 
@@ -640,6 +644,20 @@ echo $page_data['page_header'];
     font-size: 1.1rem;
     font-weight: 600;
     border-radius: 25px;
+}
+
+/* フォーカス可視化（青=現在地・フォーカス） */
+#departureForm .form-control:focus,
+#departureForm .form-select:focus,
+#editReasonSection textarea:focus {
+    border-color: var(--wts-blue);
+    box-shadow: 0 0 0 3px rgba(25,118,210,0.15);
+    outline: none;
+}
+#actionButtons .btn:focus-visible,
+.weather-option .btn-check:focus-visible + .btn {
+    outline: 3px solid var(--wts-blue);
+    outline-offset: 2px;
 }
 
 @keyframes slideDown {

@@ -107,6 +107,7 @@ $page_data = renderCompletePage(
     $page_config['subtitle'],
     $page_config['category'],
     [
+        'additional_css' => ['css/wts-design-tokens.css'],
         'breadcrumb' => [
             ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
             ['text' => $page_config['title'], 'url' => 'master_menu.php']
@@ -151,6 +152,7 @@ $page_data = renderCompletePage(
         font-size: 1.75rem;
         font-weight: 700;
         margin-bottom: 0.25rem;
+        color: var(--wts-slate, #37474f); /* 参照数値は中立色（装飾色の意味衝突を回避） */
     }
     .stats-label {
         color: #6c757d;
@@ -189,6 +191,13 @@ $page_data = renderCompletePage(
         margin-bottom: 1rem;
         padding-bottom: 0.5rem;
         border-bottom: 2px solid #667eea;
+    }
+    /* フォーカス可視化（青=現在地・フォーカス） */
+    .master-card:focus-visible,
+    .btn:focus-visible,
+    .form-select:focus-visible {
+        outline: 3px solid var(--wts-blue, #1976d2);
+        outline-offset: 2px;
     }
 </style>
 </head>
@@ -231,7 +240,7 @@ $page_data = renderCompletePage(
                             システムユーザーの追加・編集・削除<br>
                             権限設定とアカウント管理
                         </p>
-                        <div class="stats-number text-primary"><?= $user_count ?></div>
+                        <div class="stats-number"><?= $user_count ?></div>
                         <div class="stats-label">登録ユーザー数</div>
                     </div>
                 <?php if ($is_admin): ?>
@@ -251,7 +260,7 @@ $page_data = renderCompletePage(
                             車両情報の登録・編集・削除<br>
                             点検期限管理と稼働状況
                         </p>
-                        <div class="stats-number text-primary"><?= $vehicle_count ?></div>
+                        <div class="stats-number"><?= $vehicle_count ?></div>
                         <div class="stats-label">登録車両数</div>
                     </div>
                 </a>
@@ -285,7 +294,7 @@ $page_data = renderCompletePage(
                 <?php else: ?>
                 <div class="master-card user-only" onclick="showPermissionAlert()">
                     <div class="position-relative">
-                        <span class="status-badge bg-secondary">Admin限定</span>
+                        <span class="status-badge bg-warning text-dark">Admin限定</span>
                         <i class="fas fa-cog master-icon icon-settings"></i>
                         <h6 class="fw-bold">システム設定</h6>
                         <p class="card-description">
@@ -306,7 +315,7 @@ $page_data = renderCompletePage(
                 <?php if ($is_admin): ?>
                 <a href="company_settings.php" class="master-card">
                     <div class="position-relative">
-                        <span class="status-badge bg-success text-white">利用可能</span>
+                        <span class="status-badge wts-cap">利用可能</span>
                         <i class="fas fa-building master-icon icon-building"></i>
                         <h6 class="fw-bold">会社情報設定</h6>
                         <p class="card-description">
@@ -314,7 +323,7 @@ $page_data = renderCompletePage(
                             運行管理者・事業種別の設定
                         </p>
                         <?php if ($company_info_exists): ?>
-                        <div class="stats-number text-info"><i class="fas fa-check-circle"></i></div>
+                        <div class="stats-number" style="color:var(--wts-green, #2e7d32);"><i class="fas fa-check-circle"></i></div>
                         <div class="stats-label">設定済み</div>
                         <?php else: ?>
                         <div class="stats-number text-warning"><i class="fas fa-exclamation-circle"></i></div>
@@ -341,14 +350,14 @@ $page_data = renderCompletePage(
                 <?php if ($is_admin): ?>
                 <a href="transport_category_management.php" class="master-card">
                     <div class="position-relative">
-                        <span class="status-badge bg-success text-white">利用可能</span>
+                        <span class="status-badge wts-cap">利用可能</span>
                         <i class="fas fa-tags master-icon icon-categories"></i>
                         <h6 class="fw-bold">輸送分類管理</h6>
                         <p class="card-description mb-2">
                             通院・外出等の輸送分類<br>
                             分類の追加・編集・並び順設定
                         </p>
-                        <div class="stats-number text-warning"><?= $category_count ?></div>
+                        <div class="stats-number"><?= $category_count ?></div>
                         <div class="stats-label">登録分類数</div>
                     </div>
                 </a>
@@ -376,7 +385,7 @@ $page_data = renderCompletePage(
                             よく使う場所の登録管理<br>
                             病院・施設・駅などの情報
                         </p>
-                        <div class="stats-number text-danger"><?= $location_count ?></div>
+                        <div class="stats-number"><?= $location_count ?></div>
                         <div class="stats-label">登録場所数</div>
                     </div>
                 </a>
@@ -392,7 +401,7 @@ $page_data = renderCompletePage(
                 <?php if ($is_admin): ?>
                 <div class="master-card" style="cursor:pointer;" onclick="performBackup()">
                     <div class="position-relative">
-                        <span class="status-badge bg-success text-white">利用可能</span>
+                        <span class="status-badge wts-cap">利用可能</span>
                         <i class="fas fa-database master-icon icon-backup"></i>
                         <h6 class="fw-bold">データベースバックアップ</h6>
                         <p class="card-description">
@@ -426,7 +435,7 @@ $page_data = renderCompletePage(
                 <a href="data_management.php" class="text-decoration-none">
                 <div class="master-card">
                     <div class="position-relative">
-                        <span class="status-badge bg-success text-white">利用可能</span>
+                        <span class="status-badge wts-cap">利用可能</span>
                         <i class="fas fa-cogs master-icon text-secondary"></i>
                         <h6 class="fw-bold">データ管理</h6>
                         <p class="card-description">
@@ -457,7 +466,7 @@ $page_data = renderCompletePage(
                 <a href="document_management.php" class="text-decoration-none">
                 <div class="master-card">
                     <div class="position-relative">
-                        <span class="status-badge bg-success text-white">利用可能</span>
+                        <span class="status-badge wts-cap">利用可能</span>
                         <i class="fas fa-folder-open master-icon" style="color:#e67e22;"></i>
                         <h6 class="fw-bold">書類管理</h6>
                         <p class="card-description">

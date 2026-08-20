@@ -426,6 +426,7 @@ $page_config = getPageConfiguration('ride_records');
 $page_options = [
     'description' => $page_config['description'],
     'additional_css' => [
+        'css/wts-design-tokens.css',
         'css/ui-unified-v3.css',
         'css/header-unified.css',
         'css/workflow-stepper.css'
@@ -585,7 +586,7 @@ echo $page_data['page_header'];
                                                 <?php if (!empty($ride['waypoints'])): ?>
                                                     <?php foreach ($ride['waypoints'] as $wp): ?>
                                                         <i class="fas fa-arrow-right mx-1 text-muted" style="font-size:0.7em;"></i>
-                                                        <span class="text-info"><?php echo htmlspecialchars($wp); ?></span>
+                                                        <span class="text-secondary"><?php echo htmlspecialchars($wp); ?></span>
                                                     <?php endforeach; ?>
                                                 <?php endif; ?>
                                                 <i class="fas fa-arrow-right mx-2 text-muted"></i>
@@ -607,7 +608,7 @@ echo $page_data['page_header'];
                                             </div>
                                             <div class="btn-group" role="group">
                                                 <?php if (!$ride['is_return_trip']): ?>
-                                                    <button type="button" class="btn btn-success btn-sm"
+                                                    <button type="button" class="btn btn-sm wts-btn-slate"
                                                             onclick="createReturnTrip(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
                                                             title="復路作成">
                                                         <i class="fas fa-route me-1"></i>復路作成
@@ -660,7 +661,7 @@ echo $page_data['page_header'];
                             </div>
                             <div class="col-12">
                                 <div class="unified-stat-card text-center">
-                                    <div class="unified-stat-value text-success">¥<?php echo number_format($summary['total_revenue'] ?? 0); ?></div>
+                                    <div class="unified-stat-value">¥<?php echo number_format($summary['total_revenue'] ?? 0); ?></div>
                                     <div class="unified-stat-label">売上合計</div>
                                 </div>
                             </div>
@@ -673,14 +674,14 @@ echo $page_data['page_header'];
                                 <div class="unified-payment-stat">
                                     <strong>現金</strong>
                                     <div class="mt-1"><?php echo $summary['cash_count'] ?? 0; ?>回</div>
-                                    <div class="text-success fw-bold">¥<?php echo number_format($summary['cash_total'] ?? 0); ?></div>
+                                    <div class="fw-bold">¥<?php echo number_format($summary['cash_total'] ?? 0); ?></div>
                                 </div>
                             </div>
                             <div class="col-6">
                                 <div class="unified-payment-stat">
                                     <strong>カード</strong>
                                     <div class="mt-1"><?php echo $summary['card_count'] ?? 0; ?>回</div>
-                                    <div class="text-info fw-bold">¥<?php echo number_format($summary['card_total'] ?? 0); ?></div>
+                                    <div class="fw-bold">¥<?php echo number_format($summary['card_total'] ?? 0); ?></div>
                                 </div>
                             </div>
                         </div>
@@ -703,7 +704,7 @@ echo $page_data['page_header'];
                                         <small class="text-muted"><?php echo $category['count']; ?>回 / <?php echo $category['passengers']; ?>名</small>
                                     </div>
                                     <div class="text-end">
-                                        <strong class="text-success">¥<?php echo number_format($category['revenue']); ?></strong>
+                                        <strong>¥<?php echo number_format($category['revenue']); ?></strong>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -743,6 +744,26 @@ echo $page_data['page_header'];
     transition: all 0.2s;
 }
 .ride-fab:active { transform: scale(0.92); }
+/* ==== WTSデザイントークン適用（1色=1意味）====
+   緑=完了・保存OK / 赤=削除・危険 / 青=主操作・フォーカス / スレート=中立操作 / グレー=参照情報 */
+.wts-btn-slate {
+    background: var(--wts-slate, #37474f); color: #fff; border: 1.5px solid var(--wts-slate, #37474f);
+}
+.wts-btn-slate:hover { background: #263238; border-color: #263238; color: #fff; }
+.wts-btn-slate-outline {
+    background: #fff; color: var(--wts-slate, #37474f);
+    border: 1.5px solid var(--wts-slate, #37474f);
+}
+.wts-btn-slate-outline:hover { background: var(--wts-gray-bg, #eceff1); color: #263238; }
+/* 金額は参照情報（完了の緑と混同しない中立色） */
+.unified-amount-display { color: #333; }
+/* フォーカス可視化（青=現在地・フォーカス） */
+.btn:focus-visible, .ride-fab:focus-visible,
+.unified-input:focus-visible, .unified-select:focus-visible, .unified-textarea:focus-visible {
+    outline: 3px solid var(--wts-blue, #1976d2); outline-offset: 2px;
+}
+/* モバイルで日常的に押す主要ボタンのタップターゲット */
+.passenger-btn, #rideForm .modal-footer .btn { min-height: 44px; }
 </style>
 
 <!-- 乗車記録入力・編集モーダル -->

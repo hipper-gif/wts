@@ -296,7 +296,9 @@ $page_config = getPageConfiguration('user_management');
 // ページオプション
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => [],
+    'additional_css' => [
+        'css/wts-design-tokens.css'
+    ],
     'additional_js' => [
         'js/ui-interactions.js'
     ],
@@ -368,7 +370,7 @@ echo $page_data['page_header'];
         .user-avatar {
             width: 50px;
             height: 50px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--wts-purple-grad);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -400,13 +402,14 @@ echo $page_data['page_header'];
             font-weight: 500;
         }
         
+        /* 権限レベル=属性情報（赤=エラー・危険の専用色のため不使用。Admin=スレート/一般=グレー） */
         .permission-badge.admin {
-            background: #dc3545;
+            background: var(--wts-slate);
             color: white;
         }
-        
+
         .permission-badge.user {
-            background: #6c757d;
+            background: var(--wts-gray);
             color: white;
         }
         
@@ -419,12 +422,11 @@ echo $page_data['page_header'];
             font-weight: 500;
         }
         
-        .role-badge.driver { background: #28a745; color: white; }
-        .role-badge.caller { background: #ffc107; color: #333; }
-        .role-badge.inspector { background: #17a2b8; color: white; }
-        .role-badge.admin { background: #dc3545; color: white; }
-        .role-badge.manager { background: #6f42c1; color: white; }
-        .role-badge.mechanic { background: #fd7e14; color: white; }
+        /* 職務タグ=参照情報（1色=1意味: 状態色の緑/アンバー/赤は状態表示専用のためグレー系に統一） */
+        .role-badge.driver, .role-badge.caller, .role-badge.inspector,
+        .role-badge.admin, .role-badge.manager, .role-badge.mechanic {
+            background: var(--wts-gray-bg); color: #455a64;
+        }
         
         .user-contact span {
             display: block;
@@ -440,14 +442,15 @@ echo $page_data['page_header'];
             text-align: center;
         }
         
+        /* 有効=緑（正常稼働）/ 無効=グレー（未稼働。赤=エラー専用のため不使用） */
         .status-indicator.active {
-            background: #d1e7dd;
-            color: #0f5132;
+            background: var(--wts-green-bg);
+            color: var(--wts-green);
         }
-        
+
         .status-indicator.inactive {
-            background: #f8d7da;
-            color: #842029;
+            background: var(--wts-gray-bg);
+            color: #546e7a;
         }
         
         .last-login {
@@ -498,7 +501,7 @@ echo $page_data['page_header'];
         }
         
         .action-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--wts-purple-grad);
             color: white;
             padding: 2rem;
             border-radius: 15px;
@@ -581,6 +584,26 @@ echo $page_data['page_header'];
         .empty-state i {
             color: #ddd;
             margin-bottom: 1rem;
+        }
+
+        /* フォーカス可視化（青=現在地・フォーカス） */
+        .btn:focus-visible,
+        .form-check-input:focus-visible {
+            outline: 3px solid var(--wts-blue);
+            outline-offset: 2px;
+        }
+        .form-control:focus,
+        .form-select:focus {
+            outline: 3px solid var(--wts-blue);
+            outline-offset: 1px;
+        }
+
+        /* モバイル主要ボタンのタップターゲット確保 */
+        @media (max-width: 768px) {
+            .action-card .btn,
+            .modal-footer .btn {
+                min-height: 44px;
+            }
         }
         </style>
     <div class="container-fluid">
@@ -723,7 +746,7 @@ echo $page_data['page_header'];
                                     title="編集">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-warning" 
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
                                     onclick="changePassword(<?= $user['id'] ?>, '<?= htmlspecialchars($user['name']) ?>')"
                                     title="パスワード変更">
                                 <i class="fas fa-key"></i>
@@ -1011,7 +1034,7 @@ echo $page_data['page_header'];
                 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="submit" class="btn btn-warning" data-loading-text="保存中...">
+                    <button type="submit" class="btn btn-success" data-loading-text="保存中...">
                         <i class="fas fa-key me-2"></i>パスワード変更
                     </button>
                 </div>

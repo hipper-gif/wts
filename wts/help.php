@@ -21,6 +21,7 @@ $page_data = renderCompletePage(
     $page_config['subtitle'],
     $page_config['category'],
     [
+        'additional_css' => ['css/wts-design-tokens.css'],
         'breadcrumb' => [
             ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
             ['text' => $page_config['title'], 'url' => 'help.php']
@@ -48,7 +49,7 @@ echo $page_data['page_header'];
         color: #2c3e50;
         margin-bottom: 1rem;
         padding-bottom: 0.5rem;
-        border-bottom: 2px solid #0d6efd;
+        border-bottom: 2px solid var(--wts-blue, #1976d2);
     }
     .help-section h4 {
         font-size: 0.95rem;
@@ -67,7 +68,7 @@ echo $page_data['page_header'];
     .flow-phase {
         font-weight: 700;
         font-size: 0.95rem;
-        color: #0d6efd;
+        color: var(--wts-blue, #1976d2);
         margin: 1rem 0 0.5rem;
     }
     .flow-phase:first-child { margin-top: 0; }
@@ -76,6 +77,7 @@ echo $page_data['page_header'];
         align-items: center;
         gap: 10px;
         padding: 8px 12px;
+        min-height: 48px; /* モバイル主要ナビのタップターゲット */
         margin: 4px 0;
         background: white;
         border-radius: 8px;
@@ -91,7 +93,7 @@ echo $page_data['page_header'];
         text-decoration: none;
     }
     .flow-num {
-        background: #0d6efd;
+        background: var(--wts-blue, #1976d2);
         color: white;
         font-weight: 700;
         font-size: 0.8rem;
@@ -115,7 +117,7 @@ echo $page_data['page_header'];
     }
     .help-accordion .accordion-button:not(.collapsed) {
         background: #e8f0fe;
-        color: #0d6efd;
+        color: var(--wts-blue, #1976d2);
         box-shadow: none;
     }
     .help-accordion .accordion-body {
@@ -140,7 +142,7 @@ echo $page_data['page_header'];
         font-weight: 900;
         position: absolute;
         left: 0;
-        color: #43a047;
+        color: var(--wts-green, #2e7d32);
         font-size: 0.8rem;
     }
 
@@ -167,7 +169,7 @@ echo $page_data['page_header'];
 
     /* バッジ */
     .badge-required {
-        background: #dc3545;
+        background: var(--wts-red, #c62828);
         color: white;
         font-size: 0.7rem;
         padding: 1px 6px;
@@ -175,20 +177,20 @@ echo $page_data['page_header'];
         font-weight: 600;
     }
 
-    /* ヒントボックス */
+    /* ヒントボックス（参照情報=グレー。緑は完了・保存OKに予約） */
     .hint-box {
-        background: #e8f5e9;
-        border-left: 4px solid #43a047;
+        background: var(--wts-gray-bg, #eceff1);
+        border-left: 4px solid var(--wts-gray, #78909c);
         padding: 10px 14px;
         border-radius: 0 6px 6px 0;
         margin: 0.75rem 0;
         font-size: 0.85rem;
     }
-    .hint-box strong { color: #2e7d32; }
+    .hint-box strong { color: var(--wts-slate, #37474f); }
 
     .warn-box {
-        background: #fff3e0;
-        border-left: 4px solid #ef6c00;
+        background: var(--wts-amber-bg, #fff8e1);
+        border-left: 4px solid var(--wts-amber-dark, #ff8f00);
         padding: 10px 14px;
         border-radius: 0 6px 6px 0;
         margin: 0.75rem 0;
@@ -199,7 +201,7 @@ echo $page_data['page_header'];
     /* FAQ */
     .faq-q {
         font-weight: 700;
-        color: #0d6efd;
+        color: var(--wts-blue, #1976d2);
         font-size: 0.95rem;
         margin-bottom: 4px;
     }
@@ -213,12 +215,19 @@ echo $page_data['page_header'];
         padding: 0.5rem 0.8rem;
     }
     .help-nav .nav-link.active {
-        color: #0d6efd;
-        border-color: #0d6efd;
+        color: var(--wts-blue, #1976d2);
+        border-color: var(--wts-blue, #1976d2);
     }
     @media (max-width: 576px) {
         .help-nav { overflow-x: auto; flex-wrap: nowrap; white-space: nowrap; }
         .help-nav .nav-link { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
+    }
+    /* フォーカス可視化（青=現在地・フォーカス） */
+    .flow-step:focus-visible,
+    .help-nav .nav-link:focus-visible,
+    .help-accordion .accordion-button:focus-visible {
+        outline: 3px solid var(--wts-blue, #1976d2);
+        outline-offset: 2px;
     }
 </style>
 
@@ -569,9 +578,9 @@ echo $page_data['page_header'];
                                 <h4>差異の見方</h4>
                                 <table class="op-table">
                                     <tbody>
-                                        <tr><td><span class="badge bg-primary">0</span></td><td>ぴったり一致</td></tr>
-                                        <tr><td><span class="badge bg-success">+</span></td><td>現金が多い</td></tr>
-                                        <tr><td><span class="badge bg-danger">-</span></td><td>現金が足りない</td></tr>
+                                        <tr><td><span class="badge" style="background:var(--wts-green, #2e7d32);color:#fff;">0</span></td><td>ぴったり一致</td></tr>
+                                        <tr><td><span class="badge" style="background:var(--wts-amber, #ffb300);color:#fff;">+</span></td><td>現金が多い</td></tr>
+                                        <tr><td><span class="badge" style="background:var(--wts-red, #c62828);color:#fff;">-</span></td><td>現金が足りない</td></tr>
                                     </tbody>
                                 </table>
                             </div>

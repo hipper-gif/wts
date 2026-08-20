@@ -139,6 +139,9 @@ foreach ($records as $record) {
 
 // ページ生成（統一ヘッダーシステム）
 $page_options = [
+    'additional_css' => [
+        'css/wts-design-tokens.css'
+    ],
     'breadcrumb' => [
         ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
         ['text' => 'マスターメニュー', 'url' => 'master_menu.php'],
@@ -183,6 +186,12 @@ $page_data = renderCompletePage(
     .record-row:hover {
         background-color: #f8f9fa;
     }
+    /* フォーカス可視化（青=現在地・フォーカス） */
+    .btn:focus-visible, .form-control:focus, .form-select:focus, textarea.form-control:focus {
+        outline: 3px solid var(--wts-blue); outline-offset: 2px;
+    }
+    /* モバイル主要ボタンのタップターゲット確保 */
+    .search-section .btn, .modal-footer .btn { min-height: 44px; }
     @keyframes slideDown {
         from { opacity: 0; transform: translate(-50%, -20px); }
         to { opacity: 1; transform: translate(-50%, 0); }
@@ -216,7 +225,7 @@ $page_data = renderCompletePage(
         <!-- 統計カード -->
         <div class="row mb-4">
             <div class="col-md-6 mb-3">
-                <div class="card stats-card text-white" style="background: linear-gradient(135deg, #20c997 0%, #0ca678 100%);">
+                <div class="card stats-card text-white" style="background: var(--wts-purple-grad);">
                     <div class="card-body text-center">
                         <div class="stats-number"><?= $month_count ?></div>
                         <div>今月の記録数</div>
@@ -225,7 +234,7 @@ $page_data = renderCompletePage(
                 </div>
             </div>
             <div class="col-md-6 mb-3">
-                <div class="card stats-card text-white" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
+                <div class="card stats-card text-white" style="background: var(--wts-gray-grad);">
                     <div class="card-body text-center">
                         <div class="stats-number"><?= $year_count ?></div>
                         <div>今年の記録数</div>
@@ -286,7 +295,7 @@ $page_data = renderCompletePage(
                     <h6 class="mb-0">
                         <i class="fas fa-user me-2 text-primary"></i><?= htmlspecialchars($customer_name) ?>
                     </h6>
-                    <span class="badge bg-primary"><?= count($customer_records) ?>件</span>
+                    <span class="badge bg-secondary"><?= count($customer_records) ?>件</span>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">

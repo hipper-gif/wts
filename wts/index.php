@@ -175,6 +175,18 @@ $system_name = $settings['system_name'];
     <!-- ログインページ専用CSS -->
     <link rel="stylesheet" href="css/login.css">
 
+    <!-- WTSデザイントークン -->
+    <link rel="stylesheet" href="css/wts-design-tokens.css">
+    <style>
+        /* フォーカス可視化（青=現在地・フォーカス） */
+        .form-control:focus-visible,
+        .form-check-input:focus-visible,
+        .btn-login:focus-visible,
+        #install-button:focus-visible {
+            outline: 3px solid var(--wts-blue, #1976d2);
+            outline-offset: 2px;
+        }
+    </style>
 </head>
 <body>
     <div class="login-container">

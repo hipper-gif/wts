@@ -231,7 +231,9 @@ $type_badge_colors = [
 // ページオプション設定
 $page_options = [
     'description' => $page_config['description'],
-    'additional_css' => [],
+    'additional_css' => [
+        'css/wts-design-tokens.css'
+    ],
     'additional_js' => [
         'js/ui-interactions.js'
     ],
@@ -256,6 +258,17 @@ $page_data = renderCompletePage(
 );
 
 echo $page_data['html_head'];
+?>
+
+<style>
+/* WTSデザイントークン適用（1色=1意味）: 統計・種別は参照情報＝無彩色 */
+.wts-stat-card i { color: var(--wts-gray); }
+.form-control:focus, .form-select:focus { outline: 3px solid var(--wts-blue); outline-offset: 1px; }
+.btn:focus-visible { outline: 3px solid var(--wts-blue); outline-offset: 2px; }
+.modal-footer .btn { min-height: 44px; }
+</style>
+
+<?php
 echo $page_data['system_header'];
 echo $page_data['page_header'];
 ?>
@@ -273,11 +286,11 @@ echo $page_data['page_header'];
     <!-- 統計情報ダッシュボード -->
     <div class="row mb-4 g-2">
         <div class="col-6 col-md-3">
-            <div class="card bg-primary text-white">
+            <div class="card wts-stat-card">
                 <div class="card-body py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="small opacity-75">総場所数</div>
+                            <div class="wts-cap">総場所数</div>
                             <h3 class="mb-0"><?= $stats['total_locations'] ?></h3>
                         </div>
                         <i class="fas fa-map-marker-alt fa-2x opacity-50"></i>
@@ -286,11 +299,11 @@ echo $page_data['page_header'];
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="card bg-danger text-white">
+            <div class="card wts-stat-card">
                 <div class="card-body py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="small opacity-75">病院・クリニック</div>
+                            <div class="wts-cap">病院・クリニック</div>
                             <h3 class="mb-0"><?= $stats['hospital_clinic_count'] ?></h3>
                         </div>
                         <i class="fas fa-hospital fa-2x opacity-50"></i>
@@ -299,11 +312,11 @@ echo $page_data['page_header'];
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="card bg-info text-white">
+            <div class="card wts-stat-card">
                 <div class="card-body py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="small opacity-75">介護施設</div>
+                            <div class="wts-cap">介護施設</div>
                             <h3 class="mb-0"><?= $stats['care_facility_count'] ?></h3>
                         </div>
                         <i class="fas fa-hands-helping fa-2x opacity-50"></i>
@@ -312,11 +325,11 @@ echo $page_data['page_header'];
             </div>
         </div>
         <div class="col-6 col-md-3">
-            <div class="card bg-secondary text-white">
+            <div class="card wts-stat-card">
                 <div class="card-body py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="small opacity-75">その他</div>
+                            <div class="wts-cap">その他</div>
                             <h3 class="mb-0"><?= $stats['other_count'] ?></h3>
                         </div>
                         <i class="fas fa-building fa-2x opacity-50"></i>
@@ -402,7 +415,7 @@ echo $page_data['page_header'];
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <span class="badge bg-<?= $type_badge_colors[$location['location_type']] ?? 'dark' ?>">
+                                    <span class="wts-cap">
                                         <?= $location_types[$location['location_type']] ?? 'その他' ?>
                                     </span>
                                 </td>

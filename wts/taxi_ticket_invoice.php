@@ -81,6 +81,9 @@ $page_data = renderCompletePage(
     $page_config['subtitle'],
     $page_config['category'],
     [
+        'additional_css' => [
+            'css/wts-design-tokens.css',
+        ],
         'breadcrumb' => [
             ['text' => 'ダッシュボード', 'url' => 'dashboard.php'],
             ['text' => 'マスターメニュー', 'url' => 'master_menu.php'],
@@ -183,6 +186,16 @@ table.tt th.vertical-label {
 .company-table td { min-height: 8mm; }
 .company-table input { width: 100%; border: none; background: transparent; font-family: inherit; font-size: 10pt; padding: 0; }
 
+/* WTSデザイントークン適用: フォーカス可視化（青=現在地・フォーカス）＋タップターゲット */
+.invoice-toolbar .btn { min-height: 44px; }
+.invoice-toolbar .btn:focus-visible, .invoice-toolbar .form-select:focus-visible {
+    outline: 3px solid var(--wts-blue, #1976d2); outline-offset: 2px;
+}
+table.tt input:focus, .company-table input:focus, .date-line input:focus {
+    outline: 2px solid var(--wts-blue, #1976d2); outline-offset: -1px;
+    background: var(--wts-blue-bg, #e3f2fd);
+}
+
 /* 印刷モード */
 @media print {
     @page { size: A4 portrait; margin: 0; }
@@ -193,6 +206,7 @@ table.tt th.vertical-label {
     .container, .container-fluid { padding: 0 !important; margin: 0 !important; max-width: none !important; }
     .invoice-page { box-shadow: none; margin: 0; width: 210mm; min-height: 297mm; padding: 12mm 12mm; }
     table.tt input, .company-table input, .date-line input { color: #000; }
+    table.tt input:focus, .company-table input:focus, .date-line input:focus { outline: none; background: transparent; }
 }
 </style>
 </head>
