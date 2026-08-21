@@ -143,7 +143,7 @@ echo $page_data['html_head'];
 }
 .count-btn:active { opacity: 0.7; }
 .count-btn.minus { background: #fff; color: #37474f; border: 2px solid #37474f; }
-.count-btn.plus  { background: #37474f; color: #fff; border: none; }
+.count-btn.plus  { background: #1976d2; color: #fff; border: none; }
 .count-input {
     width: 72px; text-align: center; font-size: 18px; font-weight: 600;
     border: 2px solid #e0e0e0; border-radius: 8px; padding: 9px 4px;

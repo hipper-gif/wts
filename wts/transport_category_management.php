@@ -185,7 +185,7 @@ $page_data = renderCompletePage(
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                             <input type="hidden" name="action" value="toggle">
                             <input type="hidden" name="category_id" value="<?= $cat['id'] ?>">
-                            <button type="submit" class="btn btn-wts-neutral btn-sm"
+                            <button type="submit" class="btn btn-outline-secondary btn-sm"
                                     title="<?= $cat['is_active'] ? '無効化' : '有効化' ?>">
                                 <i class="fas fa-<?= $cat['is_active'] ? 'ban' : 'check' ?>"></i>
                             </button>

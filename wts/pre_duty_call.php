@@ -371,7 +371,7 @@ echo $page_data['page_header'];
                             'icon' => 'check-double',
                             'text' => '全てチェック',
                             'url' => 'javascript:checkAll()',
-                            'class' => 'wts-btn-slate btn-sm'
+                            'class' => 'wts-btn-blue btn-sm'
                         ];
                         $check_actions[] = [
                             'icon' => 'times',

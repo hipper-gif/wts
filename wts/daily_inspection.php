@@ -590,7 +590,7 @@ $page_config = getPageConfiguration('daily_inspection');
 
             <?php if (!$is_edit_mode): ?>
             <!-- 全て可: この画面の基本操作。基準ルート＝全て可→例外だけ直す→登録 -->
-            <button type="button" class="btn wts-btn-slate all-ok-btn" onclick="setAllOkAndGo()">
+            <button type="button" class="btn wts-btn-blue all-ok-btn" onclick="setAllOkAndGo()">
                 <i class="fas fa-check-double me-2"></i>全て可
             </button>
             <?php endif; ?>
@@ -1029,11 +1029,11 @@ $page_config = getPageConfiguration('daily_inspection');
     }
     .badge.wts-ref { background-color: var(--wts-gray); }
 
-    /* 全て可: この画面の基本操作なので最大のタップ面にする */
+    /* 全て可: この画面の基本操作なので最大のタップ面にする（基本操作=青塗り） */
     .all-ok-btn {
         width: 100%; min-height: 52px; margin-bottom: 24px;
         font-size: 17px; font-weight: 700; border-radius: 10px;
-        box-shadow: 0 3px 10px rgba(55,71,79,0.25);
+        box-shadow: 0 3px 10px rgba(25,118,210,0.3);
     }
     /* 全て可の直後、sticky登録ボタンに緑リングが一瞬点灯して「次はここ」を示す */
     #actionButtons .btn-success.pulse-ready {

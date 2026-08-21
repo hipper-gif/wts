@@ -458,7 +458,7 @@ function getDataStatistics($pdo) {
                     <form method="POST" class="mb-2">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                         <input type="hidden" name="action" value="export_real_data">
-                        <button type="submit" class="btn btn-slate">
+                        <button type="submit" class="btn btn-outline-primary">
                             <i class="fas fa-file-export me-1"></i>実務データエクスポート
                         </button>
                     </form>

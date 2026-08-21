@@ -608,7 +608,7 @@ echo $page_data['page_header'];
                                             </div>
                                             <div class="btn-group" role="group">
                                                 <?php if (!$ride['is_return_trip']): ?>
-                                                    <button type="button" class="btn btn-sm wts-btn-slate"
+                                                    <button type="button" class="btn btn-sm btn-outline-primary"
                                                             onclick="createReturnTrip(<?php echo htmlspecialchars(json_encode($ride)); ?>)"
                                                             title="復路作成">
                                                         <i class="fas fa-route me-1"></i>復路作成
