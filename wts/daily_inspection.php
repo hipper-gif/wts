@@ -496,9 +496,6 @@ $page_config = getPageConfiguration('daily_inspection');
                     </div>
                 </div>
                 <small class="fw-bold text-nowrap" id="progressText">0/7</small>
-                <?php if (!$is_edit_mode): ?>
-                <button type="button" class="btn wts-btn-slate btn-sm" onclick="setAllOk()">全て可</button>
-                <?php endif; ?>
             </div>
             
             <div class="card mb-4">
@@ -590,7 +587,14 @@ $page_config = getPageConfiguration('daily_inspection');
                     </div>
                 </div>
             </div>
-            
+
+            <?php if (!$is_edit_mode): ?>
+            <!-- 全て可: この画面の基本操作。基準ルート＝全て可→例外だけ直す→登録 -->
+            <button type="button" class="btn wts-btn-slate all-ok-btn" onclick="setAllOkAndGo()">
+                <i class="fas fa-check-double me-2"></i>全て可
+            </button>
+            <?php endif; ?>
+
             <!-- 運転室内点検 -->
             <?= renderSectionHeader('car', '運転室内点検', '必須項目含む6項目') ?>
             <div class="card mb-4">
@@ -1025,6 +1029,18 @@ $page_config = getPageConfiguration('daily_inspection');
     }
     .badge.wts-ref { background-color: var(--wts-gray); }
 
+    /* 全て可: この画面の基本操作なので最大のタップ面にする */
+    .all-ok-btn {
+        width: 100%; min-height: 52px; margin-bottom: 24px;
+        font-size: 17px; font-weight: 700; border-radius: 10px;
+        box-shadow: 0 3px 10px rgba(55,71,79,0.25);
+    }
+    /* 全て可の直後、sticky登録ボタンに緑リングが一瞬点灯して「次はここ」を示す */
+    #actionButtons .btn-success.pulse-ready {
+        box-shadow: 0 0 0 6px rgba(46,125,50,0.35);
+        transition: box-shadow 0.3s;
+    }
+
     /* 省略（対象外）選択行の点灯を中立グレーへ（js/daily_inspection.js が付ける
        bg-warning/border-warning の描画色のみ差し替え。クラス名・JSは不変更） */
     .inspection-item.bg-warning, .inspection-item.border-warning {
@@ -1070,6 +1086,16 @@ $page_config = getPageConfiguration('daily_inspection');
         }, 8000);
     }
     window.showToast = showToast;
+
+    // 全て可（基本操作）: 全必須項目を可にし、sticky登録ボタンを点灯させて次の操作を示す
+    function setAllOkAndGo() {
+        setAllOk();
+        var submitBtn = document.querySelector('#actionButtons button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.classList.add('pulse-ready');
+            setTimeout(function() { submitBtn.classList.remove('pulse-ready'); }, 1600);
+        }
+    }
     </script>
 
     </main>
