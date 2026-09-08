@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // バリデーション
         if (!$driver_id || !$vehicle_id || !$arrival_date || !$arrival_time || !$arrival_mileage) {
-            throw new Exception('必須項目が入力されていません。');
+            throw new InvalidArgumentException('必須項目が入力されていません。');
         }
 
         // 前提条件チェック
@@ -78,14 +78,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $warning_message = "⚠️ この運転者の出庫記録が見つかりません。出庫処理を先に完了してください。";
         }
 
-        // 出庫メーターを取得して走行距離を計算
+        // 出庫記録を取得して走行距離を計算（入庫日時が出庫日時より前でないことも検証）
         $departure_mileage = 0;
         if ($departure_record_id) {
-            $stmt = $pdo->prepare("SELECT departure_mileage FROM departure_records WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT departure_date, departure_time, departure_mileage FROM departure_records WHERE id = ?");
             $stmt->execute([$departure_record_id]);
             $departure_record = $stmt->fetch(PDO::FETCH_OBJ);
             if ($departure_record) {
                 $departure_mileage = $departure_record->departure_mileage;
+                // 過去の出庫を後日入庫する際に、入庫日が「今日」のまま登録されて日付が逆転する事故を防ぐ
+                $departure_at = strtotime($departure_record->departure_date . ' ' . $departure_record->departure_time);
+                $arrival_at = strtotime($arrival_date . ' ' . $arrival_time);
+                if ($departure_at && $arrival_at && $arrival_at < $departure_at) {
+                    throw new InvalidArgumentException(
+                        '入庫日時（' . $arrival_date . ' ' . substr($arrival_time, 0, 5) . '）が出庫日時（'
+                        . $departure_record->departure_date . ' ' . substr($departure_record->departure_time, 0, 5)
+                        . '）より前になっています。実際に入庫した日付と時刻を入力してください。'
+                    );
+                }
             }
         }
 
@@ -93,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // 走行距離の妥当性チェック
         if ($total_distance < 0) {
-            throw new Exception('入庫メーターが出庫メーターより小さくなっています。確認してください。');
+            throw new InvalidArgumentException('入庫メーターが出庫メーターより小さくなっています。確認してください。');
         }
 
         // トランザクション開始
@@ -148,6 +158,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header("Location: arrival.php?success=1&driver_id=" . $driver_id);
         exit;
         
+    } catch (InvalidArgumentException $e) {
+        // 入力値の検証エラーは内容をそのまま表示して入力し直してもらう
+        $error_message = $e->getMessage();
     } catch (Exception $e) {
         error_log("Arrival record error: " . $e->getMessage());
         $error_message = "エラーが発生しました。管理者にお問い合わせください。";
@@ -239,11 +252,15 @@ echo $page_data['page_header'];
             <div class="card-body p-0">
                 <div style="max-height: 300px; overflow-y: auto;">
                     <?php foreach ($unreturned_departures as $departure): ?>
-                    <div class="unreturned-item border-bottom" onclick="selectDeparture(<?= $departure->id ?>, '<?= htmlspecialchars($departure->driver_name) ?>', '<?= htmlspecialchars($departure->vehicle_number) ?>', <?= $departure->departure_mileage ?>, <?= $departure->vehicle_id ?>, <?= $departure->driver_id ?>)">
+                    <?php $is_past_departure = ($departure->departure_date < date('Y-m-d')); ?>
+                    <div class="unreturned-item border-bottom" onclick="selectDeparture(<?= $departure->id ?>, '<?= htmlspecialchars($departure->driver_name) ?>', '<?= htmlspecialchars($departure->vehicle_number) ?>', <?= $departure->departure_mileage ?>, <?= $departure->vehicle_id ?>, <?= $departure->driver_id ?>, '<?= $departure->departure_date ?>', '<?= substr($departure->departure_time, 0, 5) ?>')">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <strong class="d-block"><?= htmlspecialchars($departure->driver_name) ?></strong>
                                 <span class="text-primary fw-bold"><?= htmlspecialchars($departure->vehicle_number) ?></span>
+                                <?php if ($is_past_departure): ?>
+                                <span class="wts-badge red ms-1">入庫処理漏れ</span>
+                                <?php endif; ?>
                             </div>
                             <div class="text-end">
                                 <div class="fw-bold"><?= $departure->departure_date ?> <?= $departure->departure_time ?></div>
@@ -488,11 +505,27 @@ echo $page_data['page_header'];
 <!-- JavaScript -->
 <script>
     // 未入庫項目選択時の処理
-    function selectDeparture(departureId, driverName, vehicleNumber, departureMileage, vehicleId, driverId) {
+    function selectDeparture(departureId, driverName, vehicleNumber, departureMileage, vehicleId, driverId, departureDate, departureTime) {
         // フォームに値を設定
         document.getElementById('departure_record_id').value = departureId;
         document.getElementById('driver_id').value = driverId;
         document.getElementById('vehicle_id').value = vehicleId;
+
+        // 入庫日は出庫日に合わせる（過去の出庫を後日入庫するとき「今日」で登録される事故を防ぐ）
+        const now = new Date();
+        const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const isPastDeparture = !!departureDate && departureDate < todayStr;
+        const dateField = document.getElementById('arrival_date');
+        const timeField = document.getElementById('arrival_time');
+        if (departureDate) {
+            dateField.value = departureDate;
+        }
+        if (isPastDeparture) {
+            // 過去の出庫: 現在時刻は無意味なので空にして、実際の入庫時刻を入力してもらう
+            timeField.value = '';
+        } else {
+            timeField.value = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        }
 
         // 出庫メーターを保存（数値として明示的に変換）
         window.departureMileage = Number(departureMileage);
@@ -507,7 +540,12 @@ echo $page_data['page_header'];
         event.currentTarget.classList.add('selected');
         
         // 通知表示
-        showNotification(`${driverName} (${vehicleNumber}) を選択しました`, 'success');
+        if (isPastDeparture) {
+            showNotification(`${driverName} (${vehicleNumber}) ${departureDate} ${departureTime} 出庫分を選択しました。実際に入庫した時刻とメーターを入力してください。`, 'warning');
+            timeField.focus();
+        } else {
+            showNotification(`${driverName} (${vehicleNumber}) を選択しました`, 'success');
+        }
     }
 
     // 走行距離自動計算

@@ -168,6 +168,32 @@ try {
         }
     }
 
+    // High: 前日以前の未入庫（入庫処理漏れ）— 出庫記録に対応する入庫記録が無いもの。時刻に関係なく表示
+    $stmt = $pdo->prepare("
+        SELECT d.departure_date, v.vehicle_number, u.name AS driver_name
+        FROM departure_records d
+        JOIN vehicles v ON v.id = d.vehicle_id
+        JOIN users u ON u.id = d.driver_id
+        LEFT JOIN arrival_records a ON a.departure_record_id = d.id
+        WHERE a.id IS NULL AND d.departure_date < ? AND COALESCE(d.is_sample_data, 0) = 0
+        ORDER BY d.departure_date DESC, d.departure_time DESC
+    ");
+    $stmt->execute([$today]);
+    $unreturned_past = $stmt->fetchAll();
+    if (!empty($unreturned_past)) {
+        $labels = [];
+        foreach (array_slice($unreturned_past, 0, 3) as $row) {
+            $labels[] = date('n/j', strtotime($row['departure_date'])) . ' ' . $row['vehicle_number'] . '（' . $row['driver_name'] . '）';
+        }
+        $more = count($unreturned_past) > 3 ? ' ほか' . (count($unreturned_past) - 3) . '件' : '';
+        $alerts[] = [
+            'type' => 'danger', 'priority' => 'high',
+            'icon' => 'fas fa-sign-in-alt', 'title' => '入庫処理漏れ',
+            'message' => '入庫処理が完了していない出庫記録が' . count($unreturned_past) . '件あります: ' . implode('、', $labels) . $more . '。入庫画面の「未入庫車両一覧」から登録してください。',
+            'action' => 'arrival.php'
+        ];
+    }
+
     // 書類期限切れチェック
     try {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM documents WHERE is_active = 1 AND expiry_date IS NOT NULL AND expiry_date < CURDATE()");

@@ -91,6 +91,41 @@ try {
         ];
     }
     
+    // 前日以前の未入庫チェック（出庫記録に対応する入庫記録が無い＝入庫処理漏れ）。時刻に関係なく表示。
+    // 自分の分は常に表示、管理者は全乗務員分を表示。
+    $sql = "
+        SELECT d.departure_date, d.departure_time, u.name AS driver_name, v.vehicle_number
+        FROM departure_records d
+        JOIN users u ON u.id = d.driver_id
+        JOIN vehicles v ON v.id = d.vehicle_id
+        LEFT JOIN arrival_records a ON a.departure_record_id = d.id
+        WHERE a.id IS NULL AND d.departure_date < ? AND COALESCE(d.is_sample_data, 0) = 0
+    ";
+    $params = [$today];
+    if ($user_role !== 'Admin') {
+        $sql .= " AND d.driver_id = ?";
+        $params[] = $user_id;
+    }
+    $sql .= " ORDER BY d.departure_date DESC, d.departure_time DESC";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $unreturned_past = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (!empty($unreturned_past)) {
+        $labels = [];
+        foreach (array_slice($unreturned_past, 0, 3) as $row) {
+            $labels[] = date('n/j', strtotime($row['departure_date'])) . ' ' . $row['vehicle_number'] . '（' . $row['driver_name'] . '）';
+        }
+        $more = count($unreturned_past) > 3 ? ' ほか' . (count($unreturned_past) - 3) . '件' : '';
+        $alerts[] = [
+            'type' => 'danger',
+            'priority' => 'high',
+            'icon' => 'fas fa-sign-in-alt',
+            'message' => '入庫処理が完了していない出庫記録が' . count($unreturned_past) . '件あります: ' . implode('、', $labels) . $more . '。入庫画面の「未入庫車両一覧」から登録してください。',
+            'action' => 'arrival.php',
+            'action_text' => '入庫処理を実施'
+        ];
+    }
+
     // 18時以降の終業チェック
     if ($current_hour >= 18) {
         if ($flow_status['departure'] && !$flow_status['arrival']) {
