@@ -70,7 +70,28 @@ try {
     if ($confirmation_date > date('Y-m-d')) {
         throw new Exception('未来日の登録はできません');
     }
-    $driver_id = $_SESSION['user_id'];
+    // 対象の運転者（既定=自分 / 画面で選んだ他の運転者の分も保存できる）
+    // 保存できるのは画面に入れる人（運転者 or Admin）だけ。対象は運転者フラグのある人に限る
+    $user_id = (int)$_SESSION['user_id'];
+    $driver_id = (int)($data['driver_id'] ?? $user_id);
+
+    $me_stmt = $pdo->prepare("SELECT is_driver, permission_level FROM users WHERE id = ?");
+    $me_stmt->execute([$user_id]);
+    $me = $me_stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$me || (!$me['is_driver'] && $me['permission_level'] !== 'Admin')) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => '現金カウントを保存する権限がありません']);
+        exit;
+    }
+
+    $target_stmt = $pdo->prepare("SELECT id FROM users WHERE id = ? AND is_driver = 1");
+    $target_stmt->execute([$driver_id]);
+    if (!$target_stmt->fetchColumn()) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => '対象の運転者が見つかりません']);
+        exit;
+    }
+
     $bill_10000 = max(0, (int)($data['bill_10000'] ?? 0));
     $bill_5000 = max(0, (int)($data['bill_5000'] ?? 0));
     $bill_1000 = max(0, (int)($data['bill_1000'] ?? 0));

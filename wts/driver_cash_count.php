@@ -4,6 +4,7 @@
  * 集金管理システムの分割実装 - 運転者専用画面
  */
 require_once 'config/database.php';
+require_once 'functions.php';
 require_once 'includes/unified-header.php';
 require_once 'includes/session_check.php';
 
@@ -38,6 +39,25 @@ if (!$parsed_date || $parsed_date->format('Y-m-d') !== $target_date || $target_d
     $target_date = $today;
 }
 $is_today = ($target_date === $today);
+
+// 対象の運転者（既定=自分 / ?driver_id= で他の運転者の分も入力できる）
+// 候補は在籍中の運転者のみ。一覧に無いIDは無視して既定へフォールバックする
+$driver_list = getDriverList($pdo);
+$target_driver = null;
+$requested_driver_id = (int)($_GET['driver_id'] ?? 0);
+foreach ($driver_list as $d) {
+    if ((int)$d['id'] === $requested_driver_id) {
+        $target_driver = ['id' => (int)$d['id'], 'name' => $d['name']];
+        break;
+    }
+}
+if (!$target_driver && $current_user->is_driver) {
+    $target_driver = ['id' => (int)$current_user->id, 'name' => $current_user->name];
+}
+// 運転者でない管理者は、選ぶまで入力欄を出さない（自分のIDで保存させない）
+$is_self = $target_driver && $target_driver['id'] === (int)$current_user->id;
+$driver_query = ($target_driver && !$is_self) ? 'driver_id=' . $target_driver['id'] : '';
+$target_id = $target_driver ? $target_driver['id'] : 0;
 $target_ts = strtotime($target_date);
 $weekday = ['日','月','火','水','木','金','土'][date('w', $target_ts)];
 // 見出し用ラベル: 当日は「本日」、過去日は日付を出して取り違えを防ぐ
@@ -62,7 +82,7 @@ $today_stmt = $pdo->prepare("
     AND driver_id = ?
     AND COALESCE(is_sample_data, 0) = 0
 ");
-$today_stmt->execute([$target_date, $current_user->id]);
+$today_stmt->execute([$target_date, $target_id]);
 $today_sales = $today_stmt->fetch(PDO::FETCH_OBJ);
 
 // 基準おつり構成（固定）
@@ -88,10 +108,10 @@ $ex_stmt = $pdo->prepare("
     FROM cash_count_details
     WHERE confirmation_date = ? AND driver_id = ?
 ");
-$ex_stmt->execute([$target_date, $current_user->id]);
+$ex_stmt->execute([$target_date, $target_id]);
 $existing_count = $ex_stmt->fetch(PDO::FETCH_OBJ);
 
-// 過去の履歴取得（自分のデータのみ、最新10件）
+// 過去の履歴取得（対象の運転者のデータのみ、最新10件）
 $history_stmt = $pdo->prepare("
     SELECT
         c.confirmation_date,
@@ -103,7 +123,7 @@ $history_stmt = $pdo->prepare("
     ORDER BY c.confirmation_date DESC
     LIMIT 10
 ");
-$history_stmt->execute([$current_user->id]);
+$history_stmt->execute([$target_id]);
 $my_history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // --- ページ設定 ---
@@ -297,9 +317,10 @@ echo $page_data['html_head'];
         transition: all 0.2s;
     }
 }
-/* 対象日の選択。過去日を開いている間はアンバー帯で取り違えを防ぐ */
+/* 対象（運転者・日付）の選択。他人の分・過去日を開いている間はアンバー帯で取り違えを防ぐ */
 .date-card { padding: 14px 16px; }
-.date-form { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.date-form { display: flex; align-items: center; gap: 12px 24px; flex-wrap: wrap; }
+.date-field { display: flex; align-items: center; gap: 12px; }
 .date-label { font-size: 0.9rem; font-weight: 700; color: #37474f; margin: 0; white-space: nowrap; }
 .date-input { max-width: 190px; font-size: 1rem; font-weight: 600; }
 .date-today-link {
@@ -313,6 +334,8 @@ echo $page_data['html_head'];
     font-size: 0.85rem; font-weight: 600;
 }
 @media (max-width: 768px) {
+    .date-field { flex: 1 1 100%; }
+    .date-label { min-width: 4.6em; }
     .date-input { flex: 1; max-width: none; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -328,18 +351,40 @@ echo $page_data['html_head'];
         <i class="fas fa-arrow-left"></i> 売上金確認に戻る
     </a>
 
-    <!-- 対象日の選択（既定=当日・入力し忘れた過去日もここから登録できる） -->
+    <!-- 対象の選択（だれの・いつの）。既定=自分・当日。他の運転者の分や入力し忘れた過去日もここから登録できる -->
     <div class="count-card date-card">
         <form method="GET" class="date-form">
-            <label for="date" class="date-label"><i class="fas fa-calendar-day"></i> 対象日</label>
-            <input type="date" id="date" name="date" class="form-control date-input"
-                   value="<?php echo htmlspecialchars($target_date); ?>"
-                   max="<?php echo $today; ?>"
-                   onchange="this.form.submit()">
-            <?php if (!$is_today): ?>
-            <a href="driver_cash_count.php" class="date-today-link">本日に戻す</a>
-            <?php endif; ?>
+            <div class="date-field">
+                <label for="driver_id" class="date-label"><i class="fas fa-user"></i> 運転者</label>
+                <select id="driver_id" name="driver_id" class="form-select date-input"
+                        onchange="this.form.submit()">
+                    <?php if (!$target_driver): ?>
+                    <option value="" selected>選択してください</option>
+                    <?php endif; ?>
+                    <?php foreach ($driver_list as $d): ?>
+                    <option value="<?php echo (int)$d['id']; ?>" <?php echo ((int)$d['id'] === $target_id) ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($d['name']); ?><?php echo ((int)$d['id'] === (int)$current_user->id) ? '（自分）' : ''; ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="date-field">
+                <label for="date" class="date-label"><i class="fas fa-calendar-day"></i> 対象日</label>
+                <input type="date" id="date" name="date" class="form-control date-input"
+                       value="<?php echo htmlspecialchars($target_date); ?>"
+                       max="<?php echo $today; ?>"
+                       onchange="this.form.submit()">
+                <?php if (!$is_today): ?>
+                <a href="driver_cash_count.php<?php echo $driver_query ? '?' . $driver_query : ''; ?>" class="date-today-link">本日に戻す</a>
+                <?php endif; ?>
+            </div>
         </form>
+        <?php if ($target_driver && !$is_self): ?>
+        <div class="date-past-note">
+            <i class="fas fa-user-edit"></i>
+            <?php echo htmlspecialchars($target_driver['name']); ?>さんの記録を入力しています（あなたの分ではありません）
+        </div>
+        <?php endif; ?>
         <?php if (!$is_today): ?>
         <div class="date-past-note">
             <i class="fas fa-exclamation-triangle"></i>
@@ -347,6 +392,14 @@ echo $page_data['html_head'];
         </div>
         <?php endif; ?>
     </div>
+
+    <?php if (!$target_driver): ?>
+    <!-- 運転者でない管理者: 対象を選ぶまで入力欄を出さない -->
+    <div class="count-card text-center" style="color:#546e7a;">
+        <i class="fas fa-hand-point-up" style="font-size:1.6rem;color:#90a4ae;"></i>
+        <p class="mt-2 mb-0">現金カウントを入力する運転者を選んでください</p>
+    </div>
+    <?php else: ?>
 
     <!-- 対象日の売上情報（参照帯・閲覧のみ） -->
     <div class="count-card sales-strip">
@@ -500,7 +553,7 @@ echo $page_data['html_head'];
     <!-- 過去の履歴 -->
     <?php if (!empty($my_history)): ?>
     <div class="count-card" style="margin-top:24px;">
-        <h6 class="mb-3"><i class="fas fa-history" style="color:#90a4ae;"></i> 過去の記録</h6>
+        <h6 class="mb-3"><i class="fas fa-history" style="color:#90a4ae;"></i> <?php echo $is_self ? '' : htmlspecialchars($target_driver['name']) . 'さんの'; ?>過去の記録</h6>
         <div style="overflow-x:auto;">
         <table class="table table-sm" style="font-size:0.85rem;margin-bottom:0;">
             <thead>
@@ -531,13 +584,17 @@ echo $page_data['html_head'];
         </div>
     </div>
     <?php endif; ?>
+    <?php endif; /* $target_driver */ ?>
 </div>
 
+<?php if ($target_driver): ?>
 <script>
     var baseChange = <?php echo json_encode($base_change); ?>;
     var baseTotal = <?php echo $base_total; ?>;
     var expectedAmount = <?php echo $base_total + $today_sales->cash_sales; ?>;
-    var driverId = <?php echo $current_user->id; ?>;
+    var driverId = <?php echo $target_id; ?>;
+    var driverName = <?php echo json_encode($target_driver ? $target_driver['name'] : ''); ?>;
+    var isSelf = <?php echo $is_self ? 'true' : 'false'; ?>;
     var targetDate = <?php echo json_encode($target_date); ?>;
 
     function adjustCount(type, change) {
@@ -662,7 +719,7 @@ echo $page_data['html_head'];
         })
         .then(function(result) {
             if (result.success) {
-                showToast('現金カウントを保存しました', 'success');
+                showToast((isSelf ? '' : driverName + 'さんの') + '現金カウントを保存しました', 'success');
                 // トーストが見えるよう1.4秒遅延してリロード
                 setTimeout(function() { window.location.reload(); }, 1400);
             } else {
@@ -779,6 +836,7 @@ echo $page_data['html_head'];
         }
     });
 </script>
+<?php endif; ?>
 
 <?php echo $page_data['html_footer'] ?? ''; ?>
 </body>

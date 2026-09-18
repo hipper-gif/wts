@@ -554,7 +554,18 @@ echo $page_data['html_head'];
             ?>
             <strong class="ms-2">（<?php echo htmlspecialchars($selected_driver_name); ?>）</strong>
         <?php endif; ?>
-        <?php if (!$is_current_driver): ?>
+        <?php if (($is_current_driver || $is_admin) && $selected_driver_id !== 'all'
+                  && (int)$selected_driver_id !== (int)$user_id && $selected_driver_name !== ''):
+            // 選択中の運転者の現金カウントへ直行（1日だけ表示中ならその日を開く）
+            $count_params = ['driver_id' => (int)$selected_driver_id];
+            if ($start_date === $end_date && $start_date <= date('Y-m-d')) {
+                $count_params['date'] = $start_date;
+            }
+        ?>
+        <a href="driver_cash_count.php?<?php echo htmlspecialchars(http_build_query($count_params)); ?>" class="tool-link cash-count ms-3">
+            <i class="fas fa-calculator"></i> <?php echo htmlspecialchars($selected_driver_name); ?>さんの現金カウント
+        </a>
+        <?php elseif (!$is_current_driver): ?>
         <a href="driver_cash_count.php" class="tool-link cash-count ms-3">
             <i class="fas fa-calculator"></i> 現金カウントツール
         </a>
