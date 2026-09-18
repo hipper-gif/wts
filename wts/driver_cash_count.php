@@ -29,7 +29,22 @@ if (!$current_user->is_driver && $current_user->permission_level !== 'Admin') {
     exit;
 }
 
-// 今日の売上データ取得（dashboard.php の calculateRevenue と同じロジック）
+// 対象日の決定（既定=当日 / ?date=YYYY-MM-DD で過去日も入力できる）
+// 不正な形式と未来日は当日へフォールバックする
+$today = date('Y-m-d');
+$target_date = $_GET['date'] ?? $today;
+$parsed_date = DateTime::createFromFormat('Y-m-d', $target_date);
+if (!$parsed_date || $parsed_date->format('Y-m-d') !== $target_date || $target_date > $today) {
+    $target_date = $today;
+}
+$is_today = ($target_date === $today);
+$target_ts = strtotime($target_date);
+$weekday = ['日','月','火','水','木','金','土'][date('w', $target_ts)];
+// 見出し用ラベル: 当日は「本日」、過去日は日付を出して取り違えを防ぐ
+$date_label = $is_today ? '本日' : date('n月j日', $target_ts) . '（' . $weekday . '）';
+$date_short = $is_today ? '本日' : date('n/j', $target_ts);
+
+// 対象日の売上データ取得（dashboard.php の calculateRevenue と同じロジック）
 $today_stmt = $pdo->prepare("
     SELECT
         COUNT(*) as trip_count,
@@ -43,11 +58,11 @@ $today_stmt = $pdo->prepare("
         COALESCE(SUM(cash_amount), 0) as cash_sales,
         COALESCE(SUM(card_amount), 0) as card_sales
     FROM ride_records
-    WHERE ride_date = CURDATE()
+    WHERE ride_date = ?
     AND driver_id = ?
     AND COALESCE(is_sample_data, 0) = 0
 ");
-$today_stmt->execute([$current_user->id]);
+$today_stmt->execute([$target_date, $current_user->id]);
 $today_sales = $today_stmt->fetch(PDO::FETCH_OBJ);
 
 // 基準おつり構成（固定）
@@ -64,16 +79,16 @@ $base_change = [
 ];
 $base_total = 18000;
 
-// 既存の今日のカウントデータ取得
+// 既存の対象日のカウントデータ取得
 $existing_count = null;
 $ex_stmt = $pdo->prepare("
     SELECT id, bill_10000, bill_5000, bill_1000,
            coin_500, coin_100, coin_50, coin_10, coin_5, coin_1,
            total_amount, memo
     FROM cash_count_details
-    WHERE confirmation_date = CURDATE() AND driver_id = ?
+    WHERE confirmation_date = ? AND driver_id = ?
 ");
-$ex_stmt->execute([$current_user->id]);
+$ex_stmt->execute([$target_date, $current_user->id]);
 $existing_count = $ex_stmt->fetch(PDO::FETCH_OBJ);
 
 // 過去の履歴取得（自分のデータのみ、最新10件）
@@ -282,6 +297,24 @@ echo $page_data['html_head'];
         transition: all 0.2s;
     }
 }
+/* 対象日の選択。過去日を開いている間はアンバー帯で取り違えを防ぐ */
+.date-card { padding: 14px 16px; }
+.date-form { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.date-label { font-size: 0.9rem; font-weight: 700; color: #37474f; margin: 0; white-space: nowrap; }
+.date-input { max-width: 190px; font-size: 1rem; font-weight: 600; }
+.date-today-link {
+    font-size: 0.85rem; font-weight: 600; color: #1565c0; text-decoration: none;
+    background: #fff; border: 1.5px solid #1565c0; border-radius: 8px; padding: 7px 14px;
+}
+.date-today-link:hover { background: #e3f2fd; color: #1565c0; }
+.date-past-note {
+    margin-top: 12px; padding: 10px 12px; border-radius: 8px;
+    background: #fff8e1; border-left: 4px solid #f9a825; color: #6d4c41;
+    font-size: 0.85rem; font-weight: 600;
+}
+@media (max-width: 768px) {
+    .date-input { flex: 1; max-width: none; }
+}
 @media (prefers-reduced-motion: reduce) {
     .verify-card, .memo-card, .save-btn, .bar-save, .mobile-bar, .cash-type-row { transition: none; }
 }
@@ -295,7 +328,27 @@ echo $page_data['html_head'];
         <i class="fas fa-arrow-left"></i> 売上金確認に戻る
     </a>
 
-    <!-- 今日の売上情報（参照帯・閲覧のみ） -->
+    <!-- 対象日の選択（既定=当日・入力し忘れた過去日もここから登録できる） -->
+    <div class="count-card date-card">
+        <form method="GET" class="date-form">
+            <label for="date" class="date-label"><i class="fas fa-calendar-day"></i> 対象日</label>
+            <input type="date" id="date" name="date" class="form-control date-input"
+                   value="<?php echo htmlspecialchars($target_date); ?>"
+                   max="<?php echo $today; ?>"
+                   onchange="this.form.submit()">
+            <?php if (!$is_today): ?>
+            <a href="driver_cash_count.php" class="date-today-link">本日に戻す</a>
+            <?php endif; ?>
+        </form>
+        <?php if (!$is_today): ?>
+        <div class="date-past-note">
+            <i class="fas fa-exclamation-triangle"></i>
+            <?php echo $date_label; ?>の記録を入力しています（本日ではありません）
+        </div>
+        <?php endif; ?>
+    </div>
+
+    <!-- 対象日の売上情報（参照帯・閲覧のみ） -->
     <div class="count-card sales-strip">
         <div class="row text-center">
             <div class="col-3">
@@ -358,7 +411,7 @@ echo $page_data['html_head'];
 
     <!-- 入金額の計算 -->
     <div class="summary-card">
-        <h6 style="margin-bottom:16px;"><i class="fas fa-calculator"></i> 本日の入金額</h6>
+        <h6 style="margin-bottom:16px;"><i class="fas fa-calculator"></i> <?php echo $date_short; ?>の入金額</h6>
 
         <div class="summary-row">
             <span class="summary-label">カウント合計</span>
@@ -383,7 +436,7 @@ echo $page_data['html_head'];
 
         <div class="summary-row result-row">
             <div>
-                <span class="summary-label" style="font-size:16px;">本日入金額</span>
+                <span class="summary-label" style="font-size:16px;"><?php echo $date_short; ?>の入金額</span>
                 <span class="summary-note">銀行に預ける金額</span>
             </div>
             <span class="summary-value" id="depositAmount" style="font-size:22px;">¥0</span>
@@ -396,14 +449,14 @@ echo $page_data['html_head'];
 
         <div class="summary-row">
             <div>
-                <span class="summary-label">本日の現金売上</span>
+                <span class="summary-label"><?php echo $date_short; ?>の現金売上</span>
                 <span class="summary-note">乗車記録から自動集計</span>
             </div>
             <span class="summary-value">¥<?php echo number_format($today_sales->cash_sales); ?></span>
         </div>
 
         <div class="summary-row">
-            <span class="summary-label">本日入金額</span>
+            <span class="summary-label"><?php echo $date_short; ?>の入金額</span>
             <span class="summary-value" id="depositAmount2">¥0</span>
         </div>
 
@@ -435,7 +488,7 @@ echo $page_data['html_head'];
     <!-- モバイル固定結果バー（カウント中も入金額と差額が常に見える） -->
     <div class="mobile-bar bar-neutral" id="mobileBar">
         <div>
-            <span class="bar-label">本日入金額</span>
+            <span class="bar-label"><?php echo $date_short; ?>の入金額</span>
             <span class="bar-deposit" id="barDeposit">¥0</span>
             <span class="bar-diff" id="barDiff"></span>
         </div>
@@ -485,6 +538,7 @@ echo $page_data['html_head'];
     var baseTotal = <?php echo $base_total; ?>;
     var expectedAmount = <?php echo $base_total + $today_sales->cash_sales; ?>;
     var driverId = <?php echo $current_user->id; ?>;
+    var targetDate = <?php echo json_encode($target_date); ?>;
 
     function adjustCount(type, change) {
         var input = document.getElementById(type);
@@ -580,7 +634,7 @@ echo $page_data['html_head'];
 
         var data = {
             driver_id: driverId,
-            confirmation_date: new Date().toISOString().split('T')[0],
+            confirmation_date: targetDate,
             memo: document.getElementById('memo').value
         };
 

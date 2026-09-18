@@ -62,6 +62,14 @@ try {
 
     // データを安全に取得（デフォルト値設定）
     $confirmation_date = $data['confirmation_date'];
+    // 日付の妥当性検証（形式不正・未来日を拒否）
+    $parsed_date = DateTime::createFromFormat('Y-m-d', $confirmation_date);
+    if (!$parsed_date || $parsed_date->format('Y-m-d') !== $confirmation_date) {
+        throw new Exception('日付の形式が不正です');
+    }
+    if ($confirmation_date > date('Y-m-d')) {
+        throw new Exception('未来日の登録はできません');
+    }
     $driver_id = $_SESSION['user_id'];
     $bill_10000 = max(0, (int)($data['bill_10000'] ?? 0));
     $bill_5000 = max(0, (int)($data['bill_5000'] ?? 0));
