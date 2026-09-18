@@ -28,7 +28,8 @@ CONF_FILE="${SCRIPT_DIR}/tenants.conf"
 SSH_HOST="sv16114.xserver.jp"
 SSH_PORT="10022"
 SSH_USER="twinklemark"
-SSH_KEY="C:/projects/wts/twinklemark.key"
+# 鍵の場所は backup_wts.sh と揃える（このマシンでの実パス）。環境変数 WTS_SSH_KEY で上書き可。
+SSH_KEY="${WTS_SSH_KEY:-C:/Users/nikon/projects/SmartClock/twinklemark.key}"
 
 # ---- パス設定 ----
 LOCAL_CODE_DIR="$(cd "${SCRIPT_DIR}/../wts" && pwd)"

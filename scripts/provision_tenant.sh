@@ -24,8 +24,9 @@
 # 前提条件:
 #   - XserverでDB（DB名）を管理パネルから事前作成済み
 #   - Git Bash (Windows) で実行
-#   - DB_PASS は環境変数 WTS_DB_PASS で渡す（未設定時はフォールバック値を使用）
-#   - DB_USER は環境変数 WTS_DB_USER で渡す（未設定時はフォールバック値を使用）
+#   - DB認証は環境変数 WTS_DB_USER / WTS_DB_PASS で渡す
+#     （未設定ならサーバー上のSmiley本番 .env から自動取得。スクリプトに直書きしない）
+#   - SSH鍵は WTS_SSH_KEY で上書き可
 # ============================================================
 
 set -euo pipefail
@@ -47,13 +48,16 @@ COMPANY_JSON="${5:-}"
 SSH_HOST="sv16114.xserver.jp"
 SSH_PORT="10022"
 SSH_USER="twinklemark"
-SSH_KEY="C:/projects/wts/twinklemark.key"
+# 鍵の場所は backup_wts.sh と揃える（このマシンでの実パス）。環境変数 WTS_SSH_KEY で上書き可。
+SSH_KEY="${WTS_SSH_KEY:-C:/Users/nikon/projects/SmartClock/twinklemark.key}"
 
 # ---- DB接続情報 ----
-# 環境変数を優先し、未設定時はフォールバック値を使用
-DB_USER="${WTS_DB_USER:-twinklemark_taxi}"
-DB_PASS="${WTS_DB_PASS:-Smiley2525}"
+# 秘匿情報はこのファイルに書かない（社内規約の禁止リスト）。
+# 環境変数 WTS_DB_USER / WTS_DB_PASS が最優先。未設定なら
+# 稼働中Smiley本番の .env（サーバー上の正本）から読む。
 DB_HOST="localhost"
+DB_USER="${WTS_DB_USER:-}"
+DB_PASS="${WTS_DB_PASS:-}"
 
 # ---- パス設定 ----
 REMOTE_BASE="/home/twinklemark/tw1nkle.com/public_html"
@@ -64,6 +68,19 @@ TENANT_DIR="${REMOTE_BASE}${BASE_PATH}"
 SSH_OPTS="-p ${SSH_PORT} -i ${SSH_KEY} -o StrictHostKeyChecking=no -o ConnectTimeout=30"
 SSH_CMD="ssh ${SSH_OPTS} ${SSH_USER}@${SSH_HOST}"
 
+# ---- DB認証情報の解決（環境変数が無ければサーバー上の .env から取得）----
+if [ -z "${DB_USER}" ] || [ -z "${DB_PASS}" ]; then
+    echo "DB認証情報を Smiley本番の .env から取得します"
+    SRC_ENV="/home/twinklemark/tw1nkle.com/public_html/Smiley/taxi/wts/.env"
+    DB_USER="${DB_USER:-$(${SSH_CMD} "grep '^DB_USER=' ${SRC_ENV} | cut -d= -f2-" | tr -d '\r')}"
+    DB_PASS="${DB_PASS:-$(${SSH_CMD} "grep '^DB_PASS=' ${SRC_ENV} | cut -d= -f2-" | tr -d '\r')}"
+fi
+if [ -z "${DB_USER}" ] || [ -z "${DB_PASS}" ]; then
+    echo "エラー: DB認証情報を取得できません。WTS_DB_USER / WTS_DB_PASS を設定してください。" >&2
+    echo "  正本: python scripts/mneme_api.py get credentials \"service_name=eq.ssh-sv16114.xserver.jp\"" >&2
+    exit 1
+fi
+
 # ---- ログ関数 ----
 log() {
     local ts
@@ -72,7 +89,15 @@ log() {
 }
 
 # ---- 初期パスワード生成（ランダム12文字）----
-INIT_PASSWORD=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 12)
+# head -c で途中打ち切りするとパイプ前段がSIGPIPEで落ち、set -o pipefail と
+# 相まってスクリプトごと終了コード141で死ぬ。入力側を先に打ち切り、
+# 切り出しはbashの文字列展開で行う（パイプの早期クローズを作らない）。
+INIT_PASSWORD_RAW=$(head -c 96 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9')
+INIT_PASSWORD="${INIT_PASSWORD_RAW:0:12}"
+if [ ${#INIT_PASSWORD} -ne 12 ]; then
+    echo "エラー: 初期パスワードを生成できませんでした" >&2
+    exit 1
+fi
 
 log "=========================================="
 log "WTS テナントプロビジョニング開始"
@@ -144,11 +169,22 @@ log "Step 4: SQLマイグレーション実行"
 ${SSH_CMD} bash -s <<REMOTE_SCRIPT
 set -euo pipefail
 
-if [ -f "${TENANT_DIR}/sql/run_migration.php" ]; then
-    cd "${TENANT_DIR}"
-    php sql/run_migration.php
+cd "${TENANT_DIR}"
+
+# 空のDBかどうかを判定する
+TABLE_COUNT=\$(mysql -u "${DB_USER}" -p'${DB_PASS}' -N -B -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='${DB_NAME}'" 2>/dev/null || echo 0)
+
+if [ "\$TABLE_COUNT" -eq 0 ]; then
+    # 空DB: 基盤スキーマ→初期データ→マイグレーションを適用済み登録、の順で流す。
+    # sql/ の連番SQLは003始まりで土台のテーブルを作れないため、この順でないと失敗する。
+    echo "空のDBを検出。基盤スキーマを適用します。"
+    mysql -u "${DB_USER}" -p'${DB_PASS}' "${DB_NAME}" < sql/tenant_base/000_schema.sql
+    mysql -u "${DB_USER}" -p'${DB_PASS}' "${DB_NAME}" < sql/tenant_base/001_seed.sql
+    php sql/run_migration.php --baseline
+    echo "基盤スキーマ + 初期データ + baseline登録 完了"
 else
-    echo "警告: run_migration.php が見つかりません。マイグレーションをスキップします。"
+    echo "既存テーブルを検出（\${TABLE_COUNT}件）。未適用マイグレーションのみ実行します。"
+    php sql/run_migration.php
 fi
 
 echo "マイグレーション完了"
