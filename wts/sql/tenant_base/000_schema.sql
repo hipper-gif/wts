@@ -2,7 +2,8 @@
 -- WTS テナント基盤スキーマ（新テナント用・構造のみ / データなし）
 --
 -- 生成元: 稼働中の twinklemark_wts（Smiley本番）を 2026-09-18 に mysqldump
--- 収録:   37テーブル。Smiley専用の配車機能 dispatch_* 8テーブルは除外済み
+-- 収録:   37テーブル + トリガー4件（arrival_records の走行距離・車両積算距離の自動計算）。
+--         Smiley専用の配車機能 dispatch_* 8テーブルは除外済み
 --         （Linoテナントにも配っていないため。必要になったら別途追加する）
 --
 -- なぜ必要か:
@@ -12,13 +13,25 @@
 --   履歴に無いまま本番に存在）、マイグレーションの積み上げでは現行スキーマ
 --   を再現できない。空のDBから新テナントを立てる土台はこのファイルが正本。
 --
+-- ⚠️ DEFINER句は必ず削る:
+--   mysqldump が出すトリガーには DEFINER=`twinklemark_app`@`localhost` 等が付く。
+--   これを残したまま流すと ERROR 1227 (SUPER/SET USER 権限が要る) で
+--   **途中で止まり、テーブルが3つだけ出来た半端なDBが残る**。
+--   共有サーバーのDBユーザーにその権限は無い。下の再生成コマンドの sed が該当処理。
+--
 -- 使い方（空のDBに対して・先頭で流す）:
 --   mysql -u <user> -p <DB名> < 000_schema.sql
 --   mysql -u <user> -p <DB名> < 001_seed.sql
 --   php sql/run_migration.php --baseline    # 連番SQLを適用済みとして登録
 --
 -- 更新のしかた: 本番スキーマを変えたら、このファイルも取り直す。
---   mysqldump --no-data --skip-add-drop-table --skip-comments --     --ignore-table=<DB>.dispatch_* ... <DB> | sed -E 's/ AUTO_INCREMENT=[0-9]+//'
+--   (1) mysqldump --no-data --skip-add-drop-table --skip-comments --triggers
+--       --default-character-set=utf8mb4 --ignore-table=<DB>.dispatch_<各表> <DB>
+--   (2) その出力を sed -E 's/ AUTO_INCREMENT=[0-9]+//' に通す
+--   (3) さらに sed -E 's|/\*!50017 DEFINER=[^*]*\*/ ||g' に通してDEFINERを削る
+--
+-- 検証記録: 2026-09-18 に空DB(twinklemark_wtsverify)へ実投入し、雛形元と
+--   テーブル37・列構成・トリガー4・外部キー54がすべて一致することを確認済み。
 -- ============================================================
 
 /*M!999999\- enable the sandbox mode */ 
@@ -140,7 +153,7 @@ CREATE TABLE `arrival_records` (
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`twinklemark_app`@`localhost`*/ /*!50003 TRIGGER calculate_distance_on_arrival
+/*!50003 CREATE*/ /*!50003 TRIGGER calculate_distance_on_arrival
 BEFORE INSERT ON arrival_records 
 FOR EACH ROW 
 BEGIN
@@ -173,7 +186,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`twinklemark_taxi`@`localhost`*/ /*!50003 TRIGGER update_vehicle_mileage_on_arrival
+/*!50003 CREATE*/ /*!50003 TRIGGER update_vehicle_mileage_on_arrival
     AFTER INSERT ON arrival_records
     FOR EACH ROW
     BEGIN
@@ -206,7 +219,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`twinklemark_app`@`localhost`*/ /*!50003 TRIGGER calculate_distance_on_arrival_update
+/*!50003 CREATE*/ /*!50003 TRIGGER calculate_distance_on_arrival_update
 BEFORE UPDATE ON arrival_records 
 FOR EACH ROW 
 BEGIN
@@ -239,7 +252,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`twinklemark_taxi`@`localhost`*/ /*!50003 TRIGGER update_vehicle_mileage_on_arrival_update
+/*!50003 CREATE*/ /*!50003 TRIGGER update_vehicle_mileage_on_arrival_update
     AFTER UPDATE ON arrival_records
     FOR EACH ROW
     BEGIN

@@ -16,6 +16,7 @@ WTS を新しい事業者に提供するときの手順書。**この文書が�
 | 記入済シート → JSON 変換 | `scripts/parse_hearing_sheet.py` | |
 | テナント基盤スキーマ（37テーブル） | `wts/sql/tenant_base/000_schema.sql` | 2026-09-18 に本番から取得 |
 | テナント初期データ | `wts/sql/tenant_base/001_seed.sql` | 会社固有の値は空 |
+| DB作成（XServer API） | `scripts/create_tenant_db.py` | 2026-09-18 実地確認済 |
 | 構築スクリプト | `scripts/provision_tenant.sh` | |
 | テナント登録簿 | `scripts/tenants.conf` | |
 | 全テナント一括デプロイ | `scripts/deploy_all_tenants.sh` | |
@@ -49,19 +50,27 @@ WTS を新しい事業者に提供するときの手順書。**この文書が�
 
 ---
 
-## 3. 人手でしかできない前提作業（★ここが唯一の手作業）
+## 3. DB を作る（XServer API・スクリプト1本）
 
-**Xserver のサーバーパネルで、先に DB を作る。**
+サーバーパネルを人手で触る必要はない。**XServer API** で作成から権限付与まで終わる。
 
-SSH 経由では作れない。DB ユーザー `twinklemark_taxi` の権限は
-`GRANT USAGE ON *.*` のみで、`CREATE DATABASE` を持たない（2026-09-18 確認）。
+```bash
+python scripts/create_tenant_db.py <テナントID>           # 計画表示のみ（既定）
+python scripts/create_tenant_db.py <テナントID> --apply   # 実際に作成
+python scripts/create_tenant_db.py --list                 # 既存DBの一覧
+```
 
-パネルでやること:
+やること: `twinklemark_wts<テナントID>` を utf8mb4 で作り、
+**既存の共有DBユーザー `twinklemark_taxi` に権限を足す**。
+テナントごとに新しいDBユーザーは作らない（パスワードが増えると Mneme への登録漏れが起きるため）。
+同名のDBが既にあるときは作成せず中止する。
 
-1. MySQL データベースを追加する（名前は §2 の規則どおり）
-2. そのDBに **MySQLユーザー `twinklemark_taxi` のアクセス権を付与する**
+> **APIキーはこのリポジトリに無い。** 解決順は Mneme credentials → `clio/.env`。
+> 鍵を叩くのは**ローカルの開発ツールだけ**で、サーバー上のアプリからは呼ばない
+> （`clio/knowledge/external_tools.md` の方針。Web配信されるファイルには絶対に置かない）。
 
-この2つが終わっていないと、次の構築スクリプトは Step 4 で失敗する。
+> **SSH経由のDBユーザーでは作れない。** `twinklemark_taxi` の権限は
+> `GRANT USAGE ON *.*` のみで `CREATE DATABASE` を持たない。だからAPIを使う。
 
 ---
 
@@ -121,6 +130,6 @@ bash scripts/provision_tenant.sh <テナントID> <DB名> <ベースパス> "<�
 
 | 件 | 内容 |
 |---|---|
-| 基盤スキーマの実地検証 | 空DBに対して `000_schema.sql` + `001_seed.sql` を流す試験は**未実施**。DBを作れるのがパネルだけのため。最初の1社で通す |
+| 検証用DBの後始末 | 実地検証に使った `twinklemark_wtsverify` を残してある。不要なら削除する（削除もAPIにある: `DELETE /db/{db_name}`） |
 | 平文パスワード | `scripts/backup_wts.sh` と `scripts/setup_lino_data.php` にDBパスワードが直書きされたまま（社内規約の禁止事項）。バックアップ定時実行を壊す恐れがあるため未修正 |
 | Lino のスキーマ差分 | 上記 §6 |

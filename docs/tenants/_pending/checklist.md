@@ -23,7 +23,7 @@
 | 1 | ヒアリングシート送付 | 杉原氏 | 未着手 |
 | 2 | 回収した内容を `facts.md` へ転記 | Claude Code | 未着手 |
 | 3 | 記入済シート → JSON（`parse_hearing_sheet.py`） | Claude Code | 未着手 |
-| 4 | **Xserverパネルで DB 作成 + `twinklemark_taxi` に権限付与** | 杉原氏（手作業・代行不可） | 未着手 |
+| 4 | DB作成 + 権限付与（`create_tenant_db.py --apply`・XServer API） | Claude Code | 未着手 |
 | 5 | `provision_tenant.sh` 実行 | Claude Code | 未着手 |
 | 6 | 動作確認（ログイン・会社情報・車両・利用者） | Claude Code | 未着手 |
 | 7 | 初期パスワード変更 | 杉原氏 | 未着手 |
@@ -33,8 +33,6 @@
 
 ## 引っかかりそうな点
 
-- **手順4は代行できない。** Xserver のDB作成はサーバーパネルからしか行えず、SSHの
-  DBユーザーに `CREATE DATABASE` 権限が無い（2026-09-18 確認）。ここで必ず一度止まる。
 - **URLは開設後に変えられない。** 手順4より前にテナントIDを確定させる。
-- 空DBへの基盤スキーマ投入は**この会社が初回**になる。手順5で想定外が出たら
-  `docs/tenants/README.md` の §7 に書き足す。
+- 空DBへの基盤スキーマ投入は 2026-09-18 に検証済み（`twinklemark_wtsverify`）。
+  想定外が出たら `docs/tenants/README.md` の §7 に書き足す。

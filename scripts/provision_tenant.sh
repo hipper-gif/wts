@@ -22,7 +22,8 @@
 # parse_hearing_sheet.py の出力から生成できる。
 #
 # 前提条件:
-#   - XserverでDB（DB名）を管理パネルから事前作成済み
+#   - DBが作成済みであること。作成は python scripts/create_tenant_db.py <ID> --apply
+#     （XServer API。サーバーパネルの手作業は不要）
 #   - Git Bash (Windows) で実行
 #   - DB認証は環境変数 WTS_DB_USER / WTS_DB_PASS で渡す
 #     （未設定ならサーバー上のSmiley本番 .env から自動取得。スクリプトに直書きしない）
@@ -274,5 +275,5 @@ log "  login_id: admin"
 log "  password: ${INIT_PASSWORD}"
 log ""
 log "重要: 初期パスワードを安全な場所に記録し、初回ログイン後に変更してください。"
-log "注意: DBはXserver管理パネルで事前に作成済みである必要があります。"
+log "注意: DBは事前に scripts/create_tenant_db.py で作成しておくこと。"
 log "=========================================="
