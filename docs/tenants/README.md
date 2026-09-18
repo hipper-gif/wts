@@ -122,7 +122,10 @@ bash scripts/provision_tenant.sh <テナントID> <DB名> <ベースパス> "<�
 - **Lino は実際に古い。** 2026-09-18 時点で `driver_cash_count.php` が Smiley版と
   301行違い、DBにも `vehicles` の form21 系4列が無い。新テナントを足すときに
   まとめて揃えるかどうかは別途判断する。
-- 配車機能（`dispatch_*` 8テーブル）は Smiley 専用。テナントには配っていない。
+- `dispatch_*` 8テーブルは **HaiGO（配車PWA）のテーブル**で、WTSのDBに同居している
+  （HaiGO ADR-0001 D1「B案＝WTSのDBを正本として共有」）。HaiGO はまだ Smiley 専用で
+  マルチテナント化は未決（HaiGO ADR-0001 D12 が `proposed`）のため、基盤スキーマから外してある。
+  **HaiGO も一緒に渡すことになったら、この除外を見直す。**
 
 ---
 
@@ -130,6 +133,6 @@ bash scripts/provision_tenant.sh <テナントID> <DB名> <ベースパス> "<�
 
 | 件 | 内容 |
 |---|---|
-| 検証用DBの後始末 | 実地検証に使った `twinklemark_wtsverify` を残してある。不要なら削除する（削除もAPIにある: `DELETE /db/{db_name}`） |
+| 検証用DB | 実地検証に使った `twinklemark_wtsverify` は**保持**（2026-09-18 杉原氏「今後も使うかも」）。削除しない |
 | 平文パスワード | `scripts/backup_wts.sh` と `scripts/setup_lino_data.php` にDBパスワードが直書きされたまま（社内規約の禁止事項）。バックアップ定時実行を壊す恐れがあるため未修正 |
 | Lino のスキーマ差分 | 上記 §6 |
