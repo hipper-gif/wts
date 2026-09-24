@@ -2,6 +2,7 @@
 -- WTS テナント基盤スキーマ（新テナント用・構造のみ / データなし）
 --
 -- 生成元: 稼働中の twinklemark_wts（Smiley本番）を 2026-09-18 に mysqldump
+--         ＋ 2026-09-24 sql/021（users の配車4列）を手で反映
 -- 収録:   37テーブル + トリガー4件（arrival_records の走行距離・車両積算距離の自動計算）。
 --         dispatch_* 8テーブルは除外済み。これは HaiGO（配車PWA）のテーブルで、
 --         WTSのDBに同居している。HaiGO がまだ Smiley 専用なので外してある。
@@ -1171,6 +1172,10 @@ CREATE TABLE `users` (
   `permissions` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`permissions`)),
   `is_manager` tinyint(1) NOT NULL DEFAULT 0,
   `is_mechanic` tinyint(1) DEFAULT 0,
+  `dispatch_color` varchar(7) DEFAULT NULL COMMENT '配車ボードの担当色 #RRGGBB（HaiGO。NULL=自動）',
+  `dispatch_priority` int(11) DEFAULT NULL COMMENT '自動振り分けの優先順位（小さいほど先。NULL=順位なし・ID順）（HaiGO）',
+  `default_vehicle_id` int(11) DEFAULT NULL COMMENT 'いつもの担当車 vehicles.id（HaiGO。NULL=車両担当なし＝自動振り分けの対象外）',
+  `dispatch_shift` text DEFAULT NULL COMMENT '曜日シフト JSON {"0".."6":"main|sub|off","holiday":"off"}（HaiGO。0=日..6=土）',
   PRIMARY KEY (`id`),
   UNIQUE KEY `login_id` (`login_id`),
   KEY `idx_login_id` (`login_id`),

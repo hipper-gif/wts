@@ -76,6 +76,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // パスワードハッシュ化
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
+            // 配車（HaiGO）設定（新規でも入れられる。台帳項目は従来どおり編集で入れる）
+            [$dispatch_color, $dispatch_priority, $default_vehicle_id, $dispatch_shift] = wts_parse_dispatch_fields($_POST, $is_driver);
+
             // ユーザー追加（最適化済みテーブル構造対応）
             $pdo->beginTransaction();
             try {
@@ -83,13 +86,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     INSERT INTO users (
                         name, login_id, password, permission_level,
                         is_driver, is_caller, is_inspector, is_admin, is_manager, is_mechanic,
-                        phone, email, is_active, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
+                        phone, email, is_active, created_at,
+                        dispatch_color, dispatch_priority, default_vehicle_id, dispatch_shift
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), ?, ?, ?, ?)
                 ");
                 $stmt->execute([
                     $name, $login_id, $hashed_password, $permission_level,
                     $is_driver, $is_caller, $is_inspector, $is_admin, $is_manager, $is_mechanic,
-                    $phone, $email
+                    $phone, $email,
+                    $dispatch_color, $dispatch_priority, $default_vehicle_id, $dispatch_shift
                 ]);
                 logUserManagementAudit($pdo, $user_id, $user_name, 'ユーザー追加', "name={$name}, login_id={$login_id}");
                 $pdo->commit();
@@ -134,6 +139,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $aptitude_test_date = trim($_POST['aptitude_test_date'] ?? '') ?: null;
             $aptitude_test_next = trim($_POST['aptitude_test_next'] ?? '') ?: null;
             $notes = trim($_POST['notes'] ?? '') ?: null;
+            // 配車（HaiGO）設定。運転者でなければ空にする
+            [$dispatch_color, $dispatch_priority, $default_vehicle_id, $dispatch_shift] = wts_parse_dispatch_fields($_POST, $is_driver);
 
             // バリデーション
             if (empty($name) || empty($login_id)) {
@@ -166,7 +173,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         care_qualification = ?, care_qualification_date = ?,
                         health_check_date = ?, health_check_next = ?,
                         aptitude_test_date = ?, aptitude_test_next = ?,
-                        notes = ?, updated_at = NOW()
+                        notes = ?,
+                        dispatch_color = ?, dispatch_priority = ?, default_vehicle_id = ?, dispatch_shift = ?,
+                        updated_at = NOW()
                     WHERE id = ?
                 ");
                 $stmt->execute([
@@ -179,7 +188,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $care_qualification, $care_qualification_date,
                     $health_check_date, $health_check_next,
                     $aptitude_test_date, $aptitude_test_next,
-                    $notes, $edit_user_id
+                    $notes,
+                    $dispatch_color, $dispatch_priority, $default_vehicle_id, $dispatch_shift,
+                    $edit_user_id
                 ]);
                 logUserManagementAudit($pdo, $user_id, $user_name, 'ユーザー編集', "target_id={$edit_user_id}, name={$name}");
                 $pdo->commit();
@@ -253,7 +264,8 @@ try {
                care_qualification, care_qualification_date,
                health_check_date, health_check_next,
                aptitude_test_date, aptitude_test_next,
-               notes
+               notes,
+               dispatch_color, dispatch_priority, default_vehicle_id, dispatch_shift
         FROM users
         WHERE login_id NOT LIKE 'sysop%'
         ORDER BY is_active DESC, permission_level, name
@@ -263,6 +275,40 @@ try {
 } catch (Exception $e) {
     $error_message = 'ユーザー一覧の取得に失敗しました: ' . $e->getMessage();
     $users = [];
+}
+
+// 配車（HaiGO）の「いつもの車」候補
+try {
+    $vehicle_options = $pdo->query("SELECT id, vehicle_number, vehicle_name FROM vehicles WHERE is_active = 1 ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $vehicle_options = [];
+}
+
+/**
+ * 配車（HaiGO）設定を POST から取り出す（sql/021 の4列）。
+ * 運転者でなければ全部 NULL。色は #RRGGBB のみ、優先順位は正の整数、曜日シフトは main/sub/off だけを残した JSON。
+ */
+function wts_parse_dispatch_fields(array $post, int $is_driver): array
+{
+    if (!$is_driver) {
+        return [null, null, null, null];
+    }
+    $color = strtolower(trim($post['dispatch_color'] ?? ''));
+    if (!empty($post['dispatch_color_auto']) || !preg_match('/^#[0-9a-f]{6}$/', $color)) {
+        $color = null;
+    }
+    $prio = trim((string)($post['dispatch_priority'] ?? ''));
+    $prio = ($prio !== '' && ctype_digit($prio) && (int)$prio > 0) ? (int)$prio : null;
+    $vehicle = (int)($post['default_vehicle_id'] ?? 0) ?: null;
+    $shift = [];
+    $posted = is_array($post['dispatch_shift'] ?? null) ? $post['dispatch_shift'] : [];
+    foreach (['0', '1', '2', '3', '4', '5', '6', 'holiday'] as $k) {
+        $v = $posted[$k] ?? '';
+        if (in_array($v, ['main', 'sub', 'off'], true)) {
+            $shift[$k] = $v;
+        }
+    }
+    return [$color, $prio, $vehicle, $shift ? json_encode($shift, JSON_UNESCAPED_UNICODE) : null];
 }
 
 // 権限表示用の関数
@@ -991,6 +1037,61 @@ echo $page_data['page_header'];
                             </div>
                         </div>
 
+                        <!-- 配車（HaiGO）: 担当色・優先順位・いつもの車・曜日シフト（sql/021） -->
+                        <hr>
+                        <h6 class="mb-3"><i class="fas fa-shuttle-van me-2"></i>配車（HaiGO）</h6>
+                        <div class="row">
+                            <div class="col-lg-3">
+                                <div class="mb-3">
+                                    <label for="modalDispatchColor" class="form-label">配車ボードの担当色</label>
+                                    <input type="color" class="form-control form-control-color" id="modalDispatchColor" name="dispatch_color" value="#2f80ed">
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input" type="checkbox" id="modalDispatchColorAuto" name="dispatch_color_auto" value="1">
+                                        <label class="form-check-label" for="modalDispatchColorAuto">自動（指定しない）</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3">
+                                <div class="mb-3">
+                                    <label for="modalDispatchPriority" class="form-label">自動振り分けの優先順位</label>
+                                    <input type="number" class="form-control" id="modalDispatchPriority" name="dispatch_priority" min="1" placeholder="1が最優先">
+                                    <div class="form-text">空＝順位なし</div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="mb-3">
+                                    <label for="modalDefaultVehicle" class="form-label">いつもの担当車</label>
+                                    <select class="form-select" id="modalDefaultVehicle" name="default_vehicle_id">
+                                        <option value="">なし（自動振り分けの対象外）</option>
+                                        <?php foreach ($vehicle_options as $v): ?>
+                                            <option value="<?= (int)$v['id'] ?>"><?= htmlspecialchars(($v['vehicle_name'] ?: '') . ' ' . $v['vehicle_number']) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">曜日シフト（メイン＝その曜日の主担当・サブ＝控え・休み＝配車しない）</label>
+                            <div class="row g-2">
+                                <?php foreach (['1' => '月', '2' => '火', '3' => '水', '4' => '木', '5' => '金', '6' => '土', '0' => '日', 'holiday' => '祝日'] as $k => $label): ?>
+                                <div class="col-6 col-md-3">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text" style="min-width:3.2em"><?= $label ?></span>
+                                        <select class="form-select" id="modalShift_<?= $k ?>" name="dispatch_shift[<?= $k ?>]">
+                                            <option value="">—</option>
+                                            <?php if ($k !== 'holiday'): ?>
+                                            <option value="main">メイン</option>
+                                            <option value="sub">サブ</option>
+                                            <?php endif; ?>
+                                            <option value="off">休み</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="form-text">全部「—」なら曜日シフトは使わない（従来どおり全員が対象）</div>
+                        </div>
+
                         <!-- 備考 -->
                         <div class="mb-3">
                             <label for="modalNotes" class="form-label">備考・メモ</label>
@@ -1118,6 +1219,7 @@ function showAddModal() {
     
     // フォームリセット
     document.getElementById('userForm').reset();
+    document.getElementById('modalDispatchColorAuto').checked = true; // 新規は色を自動に
     toggleDriverProfileSection();
 
     // Bootstrap使用可能かチェック
@@ -1195,6 +1297,19 @@ function editUser(user) {
     document.getElementById('modalAptitudeTestDate').value = user.aptitude_test_date || '';
     document.getElementById('modalAptitudeTestNext').value = user.aptitude_test_next || '';
     document.getElementById('modalNotes').value = user.notes || '';
+
+    // 配車（HaiGO）
+    const dispatchColor = user.dispatch_color || '';
+    document.getElementById('modalDispatchColorAuto').checked = !dispatchColor;
+    document.getElementById('modalDispatchColor').value = dispatchColor || '#2f80ed';
+    document.getElementById('modalDispatchPriority').value = user.dispatch_priority ?? '';
+    document.getElementById('modalDefaultVehicle').value = user.default_vehicle_id || '';
+    let shift = {};
+    try { shift = user.dispatch_shift ? JSON.parse(user.dispatch_shift) : {}; } catch (e) { shift = {}; }
+    ['0', '1', '2', '3', '4', '5', '6', 'holiday'].forEach((k) => {
+        const el = document.getElementById('modalShift_' + k);
+        if (el) el.value = shift[k] || '';
+    });
 
     // 運転者の場合に台帳セクション表示
     toggleDriverProfileSection();
