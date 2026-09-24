@@ -129,7 +129,7 @@ def main():
     after = list_dbs(xs)
     ok = db_full in after
     _say(f"  確認: 一覧に {db_full} が{'ある → OK' if ok else '無い → 要確認★'}")
-    _say()
+    _say("")
     _say("次の手順:")
     _say(f"  bash scripts/provision_tenant.sh {tenant_id} {db_full} /wts-tenants/{tenant_id} \"<表示名>\"")
     return 0 if ok else 1

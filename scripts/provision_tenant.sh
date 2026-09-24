@@ -135,6 +135,19 @@ REMOTE_SCRIPT
 
 log "Step 1 完了"
 
+# ---- Step 1.5: 基盤スキーマ（repo の正本）を送る ----
+# Smiley本番のコピー元には sql/tenant_base/ が無いことがある（repo に足しても本番へ配っていなければ無い。
+# 2026-09-24 の通し稽古で発覚）。空DBの土台は repo の wts/sql/tenant_base/ が正本なので、ここから直接送る。
+log "Step 1.5: 基盤スキーマ（sql/tenant_base/）を repo から転送"
+LOCAL_BASE="$(cd "$(dirname "$0")/../wts/sql/tenant_base" && pwd)"
+if [ ! -f "${LOCAL_BASE}/000_schema.sql" ]; then
+    echo "エラー: ${LOCAL_BASE}/000_schema.sql がありません" >&2
+    exit 1
+fi
+${SSH_CMD} "mkdir -p ${TENANT_DIR}/sql/tenant_base"
+scp -P "${SSH_PORT}" -i "${SSH_KEY}" -o StrictHostKeyChecking=no "${LOCAL_BASE}"/*.sql "${SSH_USER}@${SSH_HOST}:${TENANT_DIR}/sql/tenant_base/"
+log "Step 1.5 完了"
+
 # ---- Step 2: .env 生成 ----
 log "Step 2: .env ファイル生成"
 

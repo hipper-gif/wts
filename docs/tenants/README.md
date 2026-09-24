@@ -136,3 +136,13 @@ bash scripts/provision_tenant.sh <テナントID> <DB名> <ベースパス> "<�
 | 検証用DB | 実地検証に使った `twinklemark_wtsverify` は**保持**（2026-09-18 杉原氏「今後も使うかも」）。削除しない |
 | 平文パスワード | `scripts/backup_wts.sh` と `scripts/setup_lino_data.php` にDBパスワードが直書きされたまま（社内規約の禁止事項）。バックアップ定時実行を壊す恐れがあるため未修正 |
 | Lino のスキーマ差分 | 上記 §6 |
+| `sql/006` が MariaDB で通らない | `ADD CONSTRAINT IF NOT EXISTS` をこのサーバーの MariaDB が受け付けない（2026-09-24 稽古で発覚）。**空DB経路（baseline）では実行されないので新規テナントには影響しない**が、既存DBに未適用として流すと止まる。kinki/lino は baseline 登録で success 扱い |
+| `twinklemark_wtsverify` は空ではない | 9/18 の検証テーブル37個＋テストユーザーが残っている。空DB経路の稽古には使えない → 2026-09-24 は `twinklemark_wtsverify2` を API で新規作成して通した |
+
+## 8. 通し稽古の記録（2026-09-24・テナント `verify2`）
+
+`create_tenant_db.py verify2 --apply` → `provision_tenant.sh` → HaiGO `provision_tenant.sh verify2` → シミュレーター `deploy_tenant.sh verify2` を**空DBから最後まで通した**。
+`https://tw1nkle.com/wts-tenants/verify2/`（admin でログイン→ダッシュボード表示）・`.../verify2/haigo/`（同じ admin でログイン・利用者登録・Xenia に流れない）・`.../verify2/simulation/`。
+
+見つけて直したもの: ①Smiley本番のコピー元に `sql/tenant_base/` が無く空DB経路が止まる → Step 1.5 で repo から転送する形に ②`create_tenant_db.py` が成功後に `_say()` で落ちる → 修正 ③上表の 006・verify。
+残置: `verify2` の dir・DB・tenants.conf 行は**本物の1社目が立つまで置いておく**（比較用）。消すときは dir 3つ＋`~/private/env/prod/haigo-verify2/`＋`~/private/haigo_tenants.txt` の行＋DB。
