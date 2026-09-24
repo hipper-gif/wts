@@ -137,6 +137,7 @@ bash scripts/provision_tenant.sh <テナントID> <DB名> <ベースパス> "<�
 | 平文パスワード | `scripts/backup_wts.sh` と `scripts/setup_lino_data.php` にDBパスワードが直書きされたまま（社内規約の禁止事項）。バックアップ定時実行を壊す恐れがあるため未修正 |
 | Lino のスキーマ差分 | 上記 §6 |
 | `sql/006` が MariaDB で通らない | `ADD CONSTRAINT IF NOT EXISTS` をこのサーバーの MariaDB が受け付けない（2026-09-24 稽古で発覚）。**空DB経路（baseline）では実行されないので新規テナントには影響しない**が、既存DBに未適用として流すと止まる。kinki/lino は baseline 登録で success 扱い |
+| **`deploy_all_tenants.sh` は migration_history に無いSQLを全部流す** | 手で当てて記録しなかったSQLがあると配布時にもう一度走る。2026-09-24 に `015_fix_fiscal_year_off_by_one.sql`（年度 −1・非冪等）が Smiley で二重適用され、年次報告書の年度がずれて未提出アラートが出た（同日 +1 で復旧・015 に二重適用ガードを追加）。**配布前に `SELECT filename FROM migration_history` と `sql/` の差を見る**。データを変えるSQLは必ず冪等に書く |
 | 開設スクリプトの再実行が破壊的 | `provision_tenant.sh` は既存 dir があっても警告だけで進み、`.env` を書き直し、admin のパスワードを新しい乱数に上書きする（2026-04-08 から）。**運用中のテナントに再実行しない**。コード更新は `deploy_all_tenants.sh` |
 | `twinklemark_wtsverify` は空ではない | 9/18 の検証テーブル37個＋テストユーザーが残っている。空DB経路の稽古には使えない → 2026-09-24 は `twinklemark_wtsverify2` を API で新規作成して通した |
 

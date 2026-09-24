@@ -11,7 +11,14 @@
 -- UNIQUE(fiscal_year, report_type) があるため、衝突しないかは事前確認必要
 -- （新旧両方の年度レコードが共存していた場合は衝突する）
 
-UPDATE annual_reports SET fiscal_year = fiscal_year - 1;
+-- ⚠ 二重適用ガード（2026-09-24 追加）:
+--   このSQLは冪等でない。Smiley本番では 2026-05-08 に手で当てて migration_history に記録が無く、
+--   2026-09-24 の deploy_all_tenants.sh がもう一度流して年度が二重に引かれた（2025年度の提出済み報告書が
+--   「2024年度」になり、ダッシュボードに未提出アラートが出た）。system_settings の印が無いときだけ動く。
+UPDATE annual_reports a
+JOIN (SELECT 1 AS ok FROM system_settings WHERE setting_key = 'migration_015_fiscal_shift' HAVING COUNT(*) = 0) g
+SET a.fiscal_year = a.fiscal_year - 1;
+INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('migration_015_fiscal_shift', 'done');
 
 -- 確認用クエリ:
 -- SELECT fiscal_year, report_type, status, updated_at FROM annual_reports ORDER BY fiscal_year DESC, report_type;
