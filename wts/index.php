@@ -1,17 +1,7 @@
 <?php
-// セッションセキュリティ設定（主設定は.user.ini、ここはフォールバック）
-$wts_session_dir = '/home/twinklemark/twinklemark.xsrv.jp/xserver_php/session_wts';
-if (is_dir($wts_session_dir)) {
-    ini_set('session.save_path', $wts_session_dir);
-}
-ini_set('session.gc_maxlifetime', 28800);
-ini_set('session.cookie_lifetime', 0);
-ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_samesite', 'Lax');
-ini_set('session.use_strict_mode', 1);
-if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
-    ini_set('session.cookie_secure', 1);
-}
+// セッションはテナントごとに分ける（cookie名・path・保存先。includes/session_boot.php）
+require_once __DIR__ . '/includes/session_boot.php';
+wts_session_boot();
 session_start();
 require_once 'config/database.php';
 require_once 'includes/remember_me.php';

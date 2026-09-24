@@ -10,8 +10,8 @@ require_once __DIR__ . '/../functions.php';
 
 // セッション開始・認証チェック
 if (session_status() == PHP_SESSION_NONE) {
-    ini_set('session.cookie_httponly', 1);
-    ini_set('session.cookie_samesite', 'Lax');
+    require_once __DIR__ . '/../includes/session_boot.php';
+    wts_session_boot();
     session_start();
 }
 
