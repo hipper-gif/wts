@@ -17,7 +17,7 @@
 | 7 | スコープ正本 | 何を作るか（Must/Won't・データモデル） | `SPEC.md` | ✅ |
 | 8 | **調査依頼** | 未解決の疑義と、その切り分け手順 | `docs/investigations/` | ✅ |
 | 9 | **テナント台帳** | 他社提供テナントの開設手順・会社ごとの事実と進捗 | `docs/tenants/` | ✅ |
-| 10 | **Clio引き継ぎ** | 3製品（WTS・HaiGO・料金シミュレーター）のセット提供の調査結果と論点 | `docs/tenants/bundle-handoff.md` | ✅ |
+| 10 | **Clio引き継ぎ** | 3製品（WTS・HaiGO・料金シミュレーター）のセット提供の調査結果と論点（2026-09-24 処理済・経緯として残置。現行の手順は Clio `knowledge/taxi-bundle-tenant-runbook.md`） | `docs/tenants/bundle-handoff.md` | ✅ |
 
 <!-- この案件固有の一次記録（別スレッド・外部ツール・PDF原本等）があれば行を足す。repo外に一次記録を置くと照合対象外になり事故のもとなので、原則 repo 内へ集約する。 -->
 

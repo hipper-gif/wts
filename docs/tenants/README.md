@@ -123,9 +123,9 @@ bash scripts/provision_tenant.sh <テナントID> <DB名> <ベースパス> "<�
   301行違い、DBにも `vehicles` の form21 系4列が無い。新テナントを足すときに
   まとめて揃えるかどうかは別途判断する。
 - `dispatch_*` 8テーブルは **HaiGO（配車PWA）のテーブル**で、WTSのDBに同居している
-  （HaiGO ADR-0001 D1「B案＝WTSのDBを正本として共有」）。HaiGO はまだ Smiley 専用で
-  マルチテナント化は未決（HaiGO ADR-0001 D12 が `proposed`）のため、基盤スキーマから外してある。
-  **HaiGO も一緒に渡すことになったら、この除外を見直す。**
+  （HaiGO ADR-0001 D1「B案＝WTSのDBを正本として共有」）。**基盤スキーマからは外したまま**＝HaiGO も渡す会社には
+  WTS 開設の後に `haigo/scripts/provision_tenant.sh <ID>` が HaiGO 自身の SQL で足す（2026-09-24 決定・ADR-0006／HaiGO ADR-0004）。
+  WTS 単体の会社に配車用の表を作らない。手順は `haigo/docs/tenants.md`、3製品の順番は Clio `knowledge/taxi-bundle-tenant-runbook.md`
 
 ---
 

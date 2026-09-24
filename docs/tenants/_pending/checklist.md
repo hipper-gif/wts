@@ -32,6 +32,8 @@
 | 8 | `scripts/tenants.conf` に行追加 | Claude Code | 未着手 |
 | 9 | 導入ガイドを作って渡す（`lino-startup-guide.html` を流用） | Claude Code | 未着手 |
 | 10 | 運転者向けマニュアルを渡す（`driver-guide.html`） | 杉原氏 | 未着手 |
+| 11 | **HaiGO**（渡す場合）: `haigo/scripts/provision_tenant.sh <ID> --build` → ログイン・配車ボード・push 確認（`haigo/docs/tenants.md`） | Claude Code | 未着手 |
+| 12 | **料金シミュレーター**（渡す場合）: `taxi-simulation/docs/tenant-hearing.md` の項目を聞く → `tenants/<ID>.json` → `build.py` → `deploy_tenant.sh` | 杉原氏（聞く）／Claude Code（作る） | 未着手 |
 
 ## 引っかかりそうな点
 

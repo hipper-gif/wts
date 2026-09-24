@@ -4,6 +4,10 @@
 **続きの場所**: Clio のセッション（杉原氏「Clioでつづきするわ」）
 **なぜこの文書があるか**: 調査と判断の経緯は WTS 側の会話にしか無く、Clio からは見えない。これが唯一の引き継ぎ。
 
+> **2026-09-24 追記（Clio セッションで処理済み）**: §2 の「まだ」は解消した。HaiGO は他社に配れる形に改修（HaiGO ADR-0004・`haigo/docs/tenants.md`）、
+> シミュレーターは会社ごとの値を `tenants/<ID>.json` に分離（`taxi-simulation/docs/tenant-hearing.md`）。
+> 3製品の順番の正本は **Clio `knowledge/taxi-bundle-tenant-runbook.md`**。この文書は経緯の記録として残す（更新しない）。§7 の別件は未処理。
+
 ---
 
 ## 1. やりたいこと
