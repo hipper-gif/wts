@@ -10,8 +10,8 @@
 
 | 項目 | 値 | 状態 |
 |---|---|---|
-| 会社名 | | 未着手 |
-| テナントID | | 未着手 |
+| 会社名 | Fire Mountain Brothers 株式会社（facts F1） | 完了 |
+| テナントID | 案: `fmb`（杉原氏の決定待ち・URLは後から変えられない） | 進行中 |
 | DB名 `twinklemark_wts<ID>` | | 未着手 |
 | ベースパス `/wts-tenants/<ID>` | | 未着手 |
 | 画面の表示名（system_name） | | 未着手 |
