@@ -2,7 +2,7 @@
 -- WTS テナント基盤スキーマ（新テナント用・構造のみ / データなし）
 --
 -- 生成元: 稼働中の twinklemark_wts（Smiley本番）を 2026-09-18 に mysqldump
---         ＋ 2026-09-24 sql/021（users の配車4列）を手で反映
+--         ＋ 2026-09-24 sql/021（users の配車4列）・2026-09-25 sql/022（customers.residence_location_id）を手で反映
 -- 収録:   37テーブル + トリガー4件（arrival_records の走行距離・車両積算距離の自動計算）。
 --         dispatch_* 8テーブルは除外済み。これは HaiGO（配車PWA）のテーブルで、
 --         WTSのDBに同居している。HaiGO がまだ Smiley 専用なので外してある。
@@ -499,6 +499,7 @@ CREATE TABLE `customers` (
   `created_at` datetime NOT NULL DEFAULT current_timestamp() COMMENT '作成日時',
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() COMMENT '更新日時',
   `created_by` int(11) DEFAULT NULL COMMENT '作成者ユーザーID',
+  `residence_location_id` int(11) DEFAULT NULL COMMENT '入居先 location_master.id（施設・病院。NULL=自宅）（HaiGO）',
   PRIMARY KEY (`id`),
   KEY `idx_customers_name_kana` (`name_kana`),
   KEY `idx_customers_phone` (`phone`),
