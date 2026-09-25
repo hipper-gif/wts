@@ -224,9 +224,13 @@ log "Step 5 完了"
 if [ -n "${COMPANY_JSON}" ] && [ -f "${COMPANY_JSON}" ]; then
     log "Step 5.5: 事業者情報登録（${COMPANY_JSON}）"
 
-    # JSONからPHPで読み取ってDB投入
+    # JSONからPHPで読み取ってDB投入。
+    # JSON はローカルのファイルなので、中身を base64 にしてサーバーへ渡す（2026-09-25 修正: 以前は
+    # リモート側で「< ローカルのパス」を読もうとしてファイルが無く、Step 5.5 で止まり管理者も作られなかった）
+    COMPANY_B64="$(base64 -w0 "${COMPANY_JSON}")"
     ${SSH_CMD} bash -s <<REMOTE_SCRIPT
-    php -r "
+    set -e
+    echo '${COMPANY_B64}' | base64 -d | php -r "
     \\\$json = json_decode(file_get_contents('php://stdin'), true);
     if (!\\\$json) { echo 'JSONパースエラー'; exit(1); }
     \\\$pdo = new PDO('mysql:host=${DB_HOST};dbname=${DB_NAME};charset=utf8mb4', '${DB_USER}', '${DB_PASS}');
@@ -248,7 +252,7 @@ if [ -n "${COMPANY_JSON}" ] && [ -f "${COMPANY_JSON}" ]; then
         \\\$json['license_number'] ?? ''
     ]);
     echo '事業者情報登録完了';
-    " < "${COMPANY_JSON}"
+    "
 REMOTE_SCRIPT
 
     log "Step 5.5 完了"

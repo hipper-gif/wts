@@ -29,11 +29,11 @@ WTS を新しい事業者に提供するときの手順書。**この文書が�
 
 1. **ヒアリングシートを送る** — `docs/hearing-sheet.xlsx` をそのまま送付する。
    会社名・代表者・住所・許可番号・車両・利用者・営業時間までこれ1枚で揃う。
-2. **聞いた内容を `docs/tenants/_pending/facts.md` に書く。**
+2. **聞いた内容を `docs/tenants/fmb/facts.md` に書く。**
    会話やチャットで先に分かったことは、シートの返送を待たずにここへ入れる。
 3. テナントIDとURLの案を決めておく（下の §2 の規則に従う）。
 
-> 会社名が決まったら `docs/tenants/_pending/` を `docs/tenants/<テナントID>/` にリネームする。
+> 会社名が決まったら `docs/tenants/fmb/` を `docs/tenants/<テナントID>/` にリネームする。
 
 ---
 
