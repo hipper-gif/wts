@@ -237,6 +237,17 @@ try {
         $deadline_dt = new DateTime(($target_fy + 1) . '-05-31');
         $days_left = (int)$today_dt->diff($deadline_dt)->format('%r%a');
 
+        // WTS の利用開始より前に終わった年度は対象外（その年度の報告は WTS の外で済んでいる／まだ事業をしていない）。
+        // 2026-09-25: 新しく開設したテナント（fmb）が開いた瞬間に「2025年度 期限超過」と出た。Lino（2026-04 開始）も同じ。
+        // 利用開始日 = system_settings.wts_start_date → 最初の乗務記録の日 → 最初のユーザー作成日 の順
+        $start = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'wts_start_date'")->fetchColumn()
+            ?: $pdo->query("SELECT MIN(ride_date) FROM ride_records")->fetchColumn()
+            ?: $pdo->query("SELECT DATE(MIN(created_at)) FROM users")->fetchColumn();
+        $fy_end = ($target_fy + 1) . '-03-31';
+        if ($start && $start > $fy_end) {
+            throw new Exception('skip: 利用開始（' . $start . '）が対象年度の終わりより後');
+        }
+
         // 提出状態を取得
         $stmt = $pdo->prepare("
             SELECT report_type, status FROM annual_reports

@@ -214,6 +214,8 @@ mysql -u "${DB_USER}" -p'${DB_PASS}' "${DB_NAME}" <<'SQLEOF'
 INSERT INTO system_settings (setting_key, setting_value)
 VALUES ('system_name', '${SYSTEM_NAME}')
 ON DUPLICATE KEY UPDATE setting_value = '${SYSTEM_NAME}';
+-- 利用開始日（これより前に終わった年度の陸運局提出を警告しない。dashboard.php）。再実行では上書きしない
+INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('wts_start_date', CURDATE());
 SQLEOF
 echo "system_name 設定完了"
 REMOTE_SCRIPT
