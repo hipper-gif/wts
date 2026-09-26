@@ -2,7 +2,7 @@
 -- WTS テナント基盤スキーマ（新テナント用・構造のみ / データなし）
 --
 -- 生成元: 稼働中の twinklemark_wts（Smiley本番）を 2026-09-18 に mysqldump
---         ＋ 2026-09-24 sql/021（users の配車4列）・2026-09-25 sql/022（customers.residence_location_id）を手で反映
+--         ＋ 2026-09-24 sql/021（users の配車4列）・2026-09-25 sql/022（customers.residence_location_id）・2026-09-26 sql/023（vehicles.shaken_expiry_date）を手で反映
 -- 収録:   37テーブル + トリガー4件（arrival_records の走行距離・車両積算距離の自動計算）。
 --         dispatch_* 8テーブルは除外済み。これは HaiGO（配車PWA）のテーブルで、
 --         WTSのDBに同居している。HaiGO がまだ Smiley 専用なので外してある。
@@ -1202,6 +1202,7 @@ CREATE TABLE `vehicles` (
   `vehicle_type` enum('welfare','taxi') DEFAULT 'welfare' COMMENT '車両種別',
   `capacity` int(11) DEFAULT 4 COMMENT '定員',
   `next_inspection_date` date DEFAULT NULL COMMENT '次回定期点検日',
+  `shaken_expiry_date` date DEFAULT NULL COMMENT '車検の満了日（車検証「有効期間の満了する日」）',
   `inspection_mileage` int(11) DEFAULT NULL COMMENT '点検時走行距離',
   `current_mileage` int(11) DEFAULT 0 COMMENT '現在の走行距離',
   `is_active` tinyint(1) DEFAULT 1 COMMENT '使用中フラグ',

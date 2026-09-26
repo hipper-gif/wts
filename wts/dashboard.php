@@ -147,6 +147,31 @@ try {
         ];
     }
 
+    // 車検の満了（sql/023 shaken_expiry_date）: 超過=critical / 30日以内=high / 60日以内=normal
+    try {
+        $stmt = $pdo->query("
+            SELECT vehicle_number, shaken_expiry_date, DATEDIFF(shaken_expiry_date, CURDATE()) AS d
+            FROM vehicles WHERE is_active = 1 AND shaken_expiry_date IS NOT NULL
+              AND DATEDIFF(shaken_expiry_date, CURDATE()) <= 60
+            ORDER BY shaken_expiry_date
+        ");
+        foreach ($stmt->fetchAll() as $v) {
+            $d = (int)$v['d'];
+            $alerts[] = [
+                'type' => $d < 0 ? 'danger' : ($d <= 30 ? 'warning' : 'info'),
+                'priority' => $d < 0 ? 'critical' : ($d <= 30 ? 'high' : 'normal'),
+                'icon' => 'fas fa-id-card',
+                'title' => $d < 0 ? '車検 期限切れ' : "車検 満了まで{$d}日",
+                'message' => $d < 0
+                    ? "車両「{$v['vehicle_number']}」の車検が{$v['shaken_expiry_date']}に切れています（" . abs($d) . "日超過）。この車両で運行しないでください。"
+                    : "車両「{$v['vehicle_number']}」の車検は{$v['shaken_expiry_date']}に満了します。予約を早めに。",
+                'action' => 'vehicle_management.php'
+            ];
+        }
+    } catch (Exception $e) {
+        // 023 未適用のテナントでは列が無い＝スキップ
+    }
+
     // High: 18時以降の未入庫
     if ($current_hour >= 18) {
         $stmt = $pdo->prepare("

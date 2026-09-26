@@ -41,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $capacity = intval($_POST['capacity']) ?: 4;
             $current_mileage = intval($_POST['current_mileage']) ?: 0;
             $next_inspection_date = $_POST['next_inspection_date'] ?: null;
+            $shaken_expiry_date = ($_POST['shaken_expiry_date'] ?? '') ?: null; // 車検の満了日（sql/023）
             $status = in_array($_POST['status'] ?? '', $valid_statuses) ? $_POST['status'] : 'active';
 
             if (empty($vehicle_number) || empty($vehicle_name)) {
@@ -62,15 +63,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("
                     INSERT INTO vehicles (
                         vehicle_number, vehicle_name, model, registration_date,
-                        vehicle_type, capacity, current_mileage, next_inspection_date,
+                        vehicle_type, capacity, current_mileage, next_inspection_date, shaken_expiry_date,
                         status, is_active,
                         accessibility_category, is_universal_design_taxi,
                         created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, NOW())
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, NOW())
                 ");
                 $stmt->execute([
                     $vehicle_number, $vehicle_name, $model, $registration_date,
-                    $vehicle_type, $capacity, $current_mileage, $next_inspection_date,
+                    $vehicle_type, $capacity, $current_mileage, $next_inspection_date, $shaken_expiry_date,
                     $status,
                     $accessibility_category, $is_udt
                 ]);
@@ -95,6 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $capacity = intval($_POST['capacity']) ?: 4;
             $current_mileage = intval($_POST['current_mileage']) ?: 0;
             $next_inspection_date = $_POST['next_inspection_date'] ?: null;
+            $shaken_expiry_date = ($_POST['shaken_expiry_date'] ?? '') ?: null; // 車検の満了日（sql/023）
             $status = in_array($_POST['status'] ?? '', $valid_statuses) ? $_POST['status'] : 'active';
             $is_active = isset($_POST['is_active']) ? 1 : 0;
 
@@ -123,6 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'model' => $model, 'registration_date' => $registration_date,
                 'vehicle_type' => $vehicle_type, 'capacity' => $capacity,
                 'current_mileage' => $current_mileage, 'next_inspection_date' => $next_inspection_date,
+                'shaken_expiry_date' => $shaken_expiry_date,
                 'status' => $status, 'is_active' => $is_active
             ];
             foreach ($field_map as $field => $new_val) {
@@ -142,6 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     UPDATE vehicles SET
                         vehicle_number = ?, vehicle_name = ?, model = ?, registration_date = ?,
                         vehicle_type = ?, capacity = ?, current_mileage = ?, next_inspection_date = ?,
+                        shaken_expiry_date = ?,
                         status = ?, is_active = ?,
                         accessibility_category = ?, is_universal_design_taxi = ?,
                         updated_at = NOW()
@@ -150,6 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([
                     $vehicle_number, $vehicle_name, $model, $registration_date,
                     $vehicle_type, $capacity, $current_mileage, $next_inspection_date,
+                    $shaken_expiry_date,
                     $status, $is_active,
                     $accessibility_category, $is_udt,
                     $vehicle_id
@@ -245,7 +250,8 @@ $stmt = $pdo->prepare("
                WHEN DATEDIFF(v.next_inspection_date, CURDATE()) <= 7 THEN 'urgent'
                WHEN DATEDIFF(v.next_inspection_date, CURDATE()) <= 30 THEN 'warning'
                ELSE 'ok'
-           END as inspection_status
+           END as inspection_status,
+           DATEDIFF(v.shaken_expiry_date, CURDATE()) as days_to_shaken
     FROM vehicles v
     WHERE v.is_active = 1
     ORDER BY v.vehicle_number
@@ -465,6 +471,7 @@ main .text-warning { color: var(--wts-amber-dark) !important; }
                                 <th>ステータス</th>
                                 <th class="text-end">走行距離</th>
                                 <th>次回点検</th>
+                                <th>車検満了</th>
                                 <th class="text-center">操作</th>
                             </tr>
                         </thead>
@@ -522,6 +529,16 @@ main .text-warning { color: var(--wts-amber-dark) !important; }
                                                 title="点検日設定">
                                             <i class="fas fa-calendar-plus" style="font-size:11px;"></i>
                                         </button>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($vehicle['shaken_expiry_date'])): $ds = (int)$vehicle['days_to_shaken']; ?>
+                                        <span class="badge bg-<?= $ds < 0 ? 'danger' : ($ds <= 60 ? 'warning' : 'success') ?>"><?= htmlspecialchars($vehicle['shaken_expiry_date']) ?></span>
+                                        <?php if ($ds <= 60): ?>
+                                            <small class="text-<?= $ds < 0 ? 'danger' : 'warning' ?>"><?= $ds < 0 ? abs($ds) . '日超過' : $ds . '日' ?></small>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <span class="badge bg-secondary">未設定</span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-center">
@@ -629,6 +646,14 @@ main .text-warning { color: var(--wts-amber-dark) !important; }
                             </label>
                             <input type="date" class="form-control unified-input" id="modalNextInspectionDate"
                                    name="next_inspection_date">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="modalShakenExpiryDate" class="form-label unified-label">
+                                <i class="fas fa-id-card me-1"></i>車検満了日
+                            </label>
+                            <input type="date" class="form-control unified-input" id="modalShakenExpiryDate"
+                                   name="shaken_expiry_date">
+                            <div class="form-text">車検証の「有効期間の満了する日」。満了60日前からダッシュボードに警告</div>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="modalStatus" class="form-label unified-label">
@@ -778,6 +803,7 @@ function editVehicle(vehicle) {
     document.getElementById('modalCapacity').value = vehicle.capacity || 4;
     document.getElementById('modalCurrentMileage').value = vehicle.current_mileage || 0;
     document.getElementById('modalNextInspectionDate').value = vehicle.next_inspection_date || '';
+    document.getElementById('modalShakenExpiryDate').value = vehicle.shaken_expiry_date || '';
     document.getElementById('modalStatus').value = vehicle.status || 'active';
     document.getElementById('modalIsActive').checked = vehicle.is_active == 1;
     // 排他カテゴリ
