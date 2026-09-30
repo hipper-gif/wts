@@ -1,0 +1,12 @@
+{
+  "_comment": "Fire Mountain Brothers 株式会社（2026-09-25 開設）。URLは開設時のもの＝変えない。パスワードは書かない（別紙）",
+  "company_name": "Fire Mountain Brothers 株式会社",
+  "wts_name": "Fire Mountain Brothers 運行管理",
+  "wts_url": "https://tw1nkle.com/wts-tenants/fmb/",
+  "haigo_url": "https://tw1nkle.com/wts-tenants/fmb/haigo/",
+  "simulator_url": "https://tw1nkle.com/wts-tenants/fmb/simulation/",
+  "manual_url": "https://tw1nkle.com/wts-tenants/fmb/manual/",
+  "support_contact": "株式会社Smiley 杉原（072-396-9038）",
+  "manual_version": "2026年10月版",
+  "products": ["wts", "haigo", "simulator"]
+}

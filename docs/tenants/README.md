@@ -115,6 +115,19 @@ bash scripts/provision_tenant.sh <テナントID> <DB名> <ベースパス> "<�
 
 ---
 
+## 5b. 導入先向けマニュアルを置く
+
+導入先の会社の人（管理者・受付/配車・運転者）向けの使い方マニュアル。原稿は会社に依らず、会社名・URL・連絡先だけ差し替える。
+
+```bash
+cp docs/manual/tenants/_example.json docs/manual/tenants/<ID>.json   # 値を埋める（パスワードは書かない）
+bash docs/manual/deploy.sh <ID>      # → https://tw1nkle.com/wts-tenants/<ID>/manual/
+```
+
+- 原稿: `docs/manual/pages/*.md`（はじめて／運転者／受付・配車（HaiGO）／管理者／料金シミュレーター）。`{{#haigo}}…{{/haigo}}` は渡していない製品の説明を消す
+- **ID・初期パスワードは別紙で渡す**（マニュアルは誰に見られてもよい内容にする。旧 `lino-startup-guide.html` はパスワード入りなので配り直さない）
+- 画面を変えたら原稿も直して全社に配り直す（`python docs/manual/build.py --all` → 各社 deploy）
+
 ## 6. 開設後の運用で気をつけること
 
 - **テナントのコードは自動では更新されない。** Smiley本番に修正を入れても、

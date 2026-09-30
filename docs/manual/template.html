@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>{{page_title}} ｜ {{company_name}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1f2a2e; --sub: #55646a; --line: #dde5e3; --bg: #f6f8f7; --panel: #ffffff;
+    --accent: #0d9488; --accent-pale: #e6f4f2; --warn: #b45309; --warn-pale: #fff7e6;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: "Noto Sans JP", system-ui, sans-serif; font-size: 16px; line-height: 1.75; }
+  header.top { background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  .top-inner { max-width: 920px; margin: 0 auto; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+  .brand { font-weight: 700; font-size: 15px; }
+  .brand small { display: block; font-weight: 500; font-size: 12px; color: var(--sub); }
+  nav.pages { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+  nav.pages a { font-size: 13px; color: var(--accent); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; background: var(--panel); }
+  nav.pages a:hover { background: var(--accent-pale); }
+  main { max-width: 920px; margin: 0 auto; padding: 20px 16px 60px; }
+  article { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px 22px 28px; }
+  h1 { font-size: 26px; margin: 18px 0 6px; }
+  h2 { font-size: 20px; margin: 30px 0 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+  h3 { font-size: 17px; margin: 20px 0 6px; }
+  p, li { max-width: 72ch; }
+  a { color: var(--accent); }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0 16px; font-size: 15px; display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--accent-pale); white-space: nowrap; }
+  blockquote { margin: 12px 0; padding: 10px 14px; background: var(--warn-pale); border-left: 4px solid var(--warn); border-radius: 6px; }
+  blockquote p { margin: 4px 0; }
+  code { background: #eef2f1; padding: 1px 5px; border-radius: 4px; font-size: 0.92em; word-break: break-all; }
+  .url { font-size: 17px; font-weight: 700; word-break: break-all; }
+  footer { max-width: 920px; margin: 0 auto; padding: 0 16px 30px; color: var(--sub); font-size: 12px; }
+  @media print {
+    header.top { position: static; }
+    nav.pages { display: none; }
+    body { background: #fff; }
+    article { border: none; padding: 0; }
+    h2 { break-after: avoid; }
+    table, blockquote { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">{{company_name}}<small>運行管理・配車 使い方マニュアル</small></div>
+    <nav class="pages">{{nav}}</nav>
+  </div>
+</header>
+<main><article>
+{{body}}
+</article></main>
+<footer>{{company_name}} 様向け ｜ 提供: 株式会社Smiley ｜ お問い合わせ: {{support_contact}} ｜ 版: {{manual_version}}</footer>
+</body>
+</html>

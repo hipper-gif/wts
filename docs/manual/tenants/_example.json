@@ -1,0 +1,12 @@
+{
+  "_comment": "テナントごとにコピーして値を埋める。URLは開設時のもの。products で渡していない製品の説明は消える",
+  "company_name": "○○介護タクシー株式会社",
+  "wts_name": "○○ 運行管理",
+  "wts_url": "https://tw1nkle.com/wts-tenants/<ID>/",
+  "haigo_url": "https://tw1nkle.com/wts-tenants/<ID>/haigo/",
+  "simulator_url": "https://tw1nkle.com/wts-tenants/<ID>/simulation/",
+  "manual_url": "https://tw1nkle.com/wts-tenants/<ID>/manual/",
+  "support_contact": "株式会社Smiley 杉原（072-396-9038）",
+  "manual_version": "2026年10月版",
+  "products": ["wts", "haigo", "simulator"]
+}
