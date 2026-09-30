@@ -31,6 +31,8 @@
 
 ログイン後に表示されるホーム画面です。
 
+<div class="shots"><figure class="shot"><img src="img/wts-dashboard.png" alt="ダッシュボード。期限が近いものは「今すぐ対応が必要です」に出ます" loading="lazy"><figcaption>ダッシュボード。期限が近いものは「今すぐ対応が必要です」に出ます</figcaption></figure></div>
+
 ### 画面の見方
 
 | エリア | 内容 |
@@ -74,6 +76,8 @@
 ## 5. 日常点検
 
 車両の安全状態を確認する17項目の点検です。
+
+<div class="shots"><figure class="shot"><img src="img/wts-inspection.png" alt="日常点検" loading="lazy"><figcaption>日常点検</figcaption></figure></div>
 
 ### 操作手順
 
@@ -137,6 +141,8 @@
 
 出発前に、運転者の状態と持ち物を確認する点呼です。
 
+<div class="shots"><figure class="shot"><img src="img/wts-pre-call.png" alt="乗務前点呼" loading="lazy"><figcaption>乗務前点呼</figcaption></figure></div>
+
 ### 操作手順
 
 1. ダッシュボードから **「乗務前点呼」** をタップ
@@ -179,6 +185,8 @@
 
 営業所を出発する際の記録です。
 
+<div class="shots"><figure class="shot"><img src="img/wts-departure.png" alt="出庫処理" loading="lazy"><figcaption>出庫処理</figcaption></figure></div>
+
 ### 操作手順
 
 1. ダッシュボードから **「出庫処理」** をタップ
@@ -202,6 +210,8 @@
 ## 8. 乗車記録
 
 お客様を乗せるたびに記録します。1日の中で最も使う画面です。
+
+<div class="shots"><figure class="shot"><img src="img/wts-ride.png" alt="乗車記録" loading="lazy"><figcaption>乗車記録</figcaption></figure></div>
 
 ### 新しい乗車記録の追加
 
@@ -274,6 +284,8 @@
 ## 9. 入庫処理
 
 1日の業務を終えて営業所に戻った際の記録です。
+
+<div class="shots"><figure class="shot"><img src="img/wts-arrival.png" alt="入庫処理" loading="lazy"><figcaption>入庫処理</figcaption></figure></div>
 
 ### 操作手順
 
@@ -357,6 +369,8 @@
 
 業務終了後の最終確認です。
 
+<div class="shots"><figure class="shot"><img src="img/wts-post-call.png" alt="乗務後点呼" loading="lazy"><figcaption>乗務後点呼</figcaption></figure></div>
+
 ### 操作手順
 
 1. ダッシュボードから **「乗務後点呼」** をタップ
@@ -394,6 +408,8 @@
 ## 12. 売上金確認・現金カウント
 
 1日の売上金を確認し、現金を数えて差異がないかチェックします。
+
+<div class="shots"><figure class="shot"><img src="img/wts-cash.png" alt="現金カウント" loading="lazy"><figcaption>現金カウント</figcaption></figure></div>
 
 ### 操作手順
 
@@ -498,6 +514,8 @@
 2. 「乗務」タブに「配車通知を受け取る設定がまだです」と出たら **「通知を受け取る」** を押す
 3. スマホに「通知を許可しますか」と出たら **「許可」**
 4. 「通知を受け取れるようになりました」と出れば完了
+
+<div class="shots"><figure class="shot"><img src="img/haigo-myday.png" alt="「乗務」タブ。最初に「通知を受け取る」を押します" loading="lazy"><figcaption>「乗務」タブ。最初に「通知を受け取る」を押します</figcaption></figure></div>
 
 うまくいかないとき：「通知が許可されませんでした」と出たら、スマホの **設定 → 通知** でHaiGO（またはブラウザ）の通知をオンにしてください。
 

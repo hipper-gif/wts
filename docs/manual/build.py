@@ -30,6 +30,10 @@ def load(tid: str) -> dict:
         sys.exit(f"tenants/{tid}.json がありません（tenants/_example.json をコピー）")
     cfg = json.loads(p.read_text(encoding="utf-8"))
     cfg.setdefault("products", ["wts", "haigo", "simulator"])
+    cfg["tenant_id"] = tid
+    # 料金シミュレーターの画面は会社ごとに違う（社名・電話・料金）→ その会社のスクショがある時だけ載せる
+    if "simulator" in cfg["products"] and (ROOT / "img" / f"sim-{tid}.png").exists():
+        cfg["products"] = cfg["products"] + ["sim_shot"]
     return cfg
 
 
@@ -69,6 +73,10 @@ def build(tid: str) -> Path:
         html = (tpl.replace("{{page_title}}", title).replace("{{nav}}", nav).replace("{{body}}", body))
         html = render_text(html, cfg)
         (out / f"{slug}.html").write_text(html, encoding="utf-8", newline="\n")
+    # スクショ（img/）をそのまま添える。見本会社 verify2 の架空データで撮る＝実在の利用者を載せない
+    import shutil
+    if (ROOT / "img").is_dir():
+        shutil.copytree(ROOT / "img", out / "img", dirs_exist_ok=True)
     # index = 最初のページ（はじめてガイド）
     (out / "index.html").write_text((out / f"{pages[0][0]}.html").read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
     print(f"build: {tid} → {out.relative_to(ROOT)}  {len(pages)}ページ（{cfg['company_name']}）")

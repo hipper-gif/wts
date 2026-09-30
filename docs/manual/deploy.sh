@@ -9,4 +9,8 @@ python "${DIR}/build.py" "${TID}"
 REMOTE="tw1nkle.com/public_html/wts-tenants/${TID}/manual"
 ssh -p 10022 -i "${KEY}" -o StrictHostKeyChecking=no twinklemark@sv16114.xserver.jp "mkdir -p ~/${REMOTE}"
 scp -q -P 10022 -i "${KEY}" -o StrictHostKeyChecking=no "${DIR}/dist/${TID}/"*.html "twinklemark@sv16114.xserver.jp:~/${REMOTE}/"
+if [ -d "${DIR}/dist/${TID}/img" ]; then
+  ssh -p 10022 -i "${KEY}" -o StrictHostKeyChecking=no twinklemark@sv16114.xserver.jp "mkdir -p ~/${REMOTE}/img"
+  scp -q -P 10022 -i "${KEY}" -o StrictHostKeyChecking=no "${DIR}/dist/${TID}/img/"*.png "twinklemark@sv16114.xserver.jp:~/${REMOTE}/img/"
+fi
 echo "完了: https://tw1nkle.com/wts-tenants/${TID}/manual/"

@@ -32,6 +32,8 @@
 5. **空き状況** の帯（7時〜19時）で、運転者ごと・車ごとの予定の詰まり具合が見えます。指定した時刻に赤い縦線が入ります
 6. 時刻を入れると、その前後の予約が並びます。「時間調整OK」の方がいると「電話」ボタンが出るので、ずらしてもらえるか頼めます
 
+<div class="shots"><figure class="shot"><img src="img/haigo-quick-when.png" alt="日付を選ぶと空き時間帯が出ます" loading="lazy"><figcaption>日付を選ぶと空き時間帯が出ます</figcaption></figure></div>
+
 ### ② お客様（利用者名）
 
 1. お名前を **ひらがなで** 打つ（例: 「たな」）→ 候補が出る
@@ -42,6 +44,8 @@
    - **「逆区間（お帰り）」** … 行きと帰りを入れ替えて入ります
    - 「お久しぶり」と出たら、行き先や機材が変わっていないか確かめてください
 4. メモがある方は「📌」で表示されます（例: 玄関に段差あり）
+
+<div class="shots"><figure class="shot"><img src="img/haigo-quick-customer.png" alt="ひらがなで打つと候補が出ます" loading="lazy"><figcaption>ひらがなで打つと候補が出ます</figcaption></figure><figure class="shot"><img src="img/haigo-quick-previous.png" alt="選ぶと「前回のご利用」が出ます" loading="lazy"><figcaption>選ぶと「前回のご利用」が出ます</figcaption></figure></div>
 
 **はじめてのお客様**：候補から選ばずにお名前を打ち、**住所か電話番号のどちらかを必ず入れて** ください。保存したときに利用者として登録されます。住所も電話も無いと、予約だけが入って利用者としては登録されません（次から候補に出ません）。
 
@@ -70,6 +74,8 @@
    - まだ細かいことが決まっていないときは **「仮押さえ」**（日時とお名前だけで押せます。後で続きを入れる）
 3. 空きが無いのに受けるときは「⚠ 空いていませんが確定」→ もう一度押すと確定します
 
+<div class="shots"><figure class="shot"><img src="img/haigo-quick-readback.png" alt="読み上げる文が出ます" loading="lazy"><figcaption>読み上げる文が出ます</figcaption></figure></div>
+
 保存しても **日付だけは残る** ので、同じ日の予約を続けて入れられます。
 
 ### 同じ予約を別の日にも入れる（定期の通院など）
@@ -87,6 +93,8 @@
 
 前日に、次の日の予約に担当を割り振って確定します。上のタブで日付を選び、「担当別」か「時間順」で見ます。
 
+<div class="shots"><figure class="shot"><img src="img/haigo-board.png" alt="配車ボード（担当別）" loading="lazy"><figcaption>配車ボード（担当別）</figcaption></figure></div>
+
 ### 手で割り振る
 
 1. **「未割当」** の予約カードを押す → 詳しい内容が開く
@@ -102,6 +110,8 @@
 2. 上に **運転者の優先順位といつもの車** が出ます。「↑」「↓」で順番を、右で車を変えられます（変えると案が計算し直されます。この順番は次から{{wts_name}}の設定にも残ります）
 3. 予約ごとの案が出ます。違うものは「→」で選び直す（直したものには「手動」の印）
 4. **「○件を割り当てる」** で確定
+
+<div class="shots"><figure class="shot"><img src="img/haigo-auto.png" alt="自動振り分け。上で優先順位といつもの車を変えられます" loading="lazy"><figcaption>自動振り分け。上で優先順位といつもの車を変えられます</figcaption></figure></div>
 
 > 自動振り分けは、{{wts_name}}の **ユーザー管理 → 運転者 → 「配車（HaiGO）」欄** の設定（優先順位・いつもの車・曜日シフト）を使います。「いつもの担当車」が「なし」の運転者は、自動では割り当てられません。
 
@@ -129,6 +139,8 @@
 
 - 月の表示で、日ごとの予約の件数が見えます。**赤い点** はまだ担当の決まっていない予約がある日です
 - 日を押すとその日の時間割（「ドライバー別」「車両別」）が出ます。「ボードで開く ›」でその日の配車ボードへ
+
+<div class="shots"><figure class="shot"><img src="img/haigo-schedule.png" alt="予定カレンダー。赤い点＝未割当あり" loading="lazy"><figcaption>予定カレンダー。赤い点＝未割当あり</figcaption></figure></div>
 
 ## 4. 色の見方
 
