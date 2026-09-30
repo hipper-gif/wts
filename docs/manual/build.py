@@ -69,6 +69,74 @@ def expand_shots(text: str) -> str:
     return SHOT.sub(lambda m: '<div class="shots">' + "".join(fig(n) for n in m.group(1).split(",")) + "</div>", text)
 
 
+MARK = re.compile(r"^\{\{[#/][a-z_]+\}\}$")
+
+
+def fold(src: str) -> str:
+    """大見出し（##）ごとに「見出し＋最初の1文＋スクショ」だけ見せ、残りは1つの「くわしく見る」に畳む。
+
+    スクショを持つ小見出し（###）は見出しとスクショを見せる。原稿（pages/*.md）は全部書いたまま。
+    {{#製品}} {{/製品}} だけの行は畳みの外に出す（入れ子を壊さない）。<!--show--> がある大見出しは畳まない。
+    """
+    lines = src.split("\n")
+    out: list[str] = []
+    i = 0
+    while i < len(lines) and not lines[i].startswith("## "):
+        out.append(lines[i])
+        i += 1
+    sections: list[list[str]] = []
+    for ln in lines[i:]:
+        if ln.startswith("## "):
+            sections.append([])
+        sections[-1].append(ln)
+
+    def is_plain(ln: str) -> bool:
+        return bool(ln.strip()) and not ln.lstrip().startswith(("|", "-", "*", "1.", ">", "`", "<", "{{", "#"))
+
+    for sec in sections:
+        head, body = sec[0], sec[1:]
+        pre, post = [], []
+        while body and (not body[0].strip() or MARK.match(body[0].strip())):
+            pre.append(body.pop(0))
+        while body and (not body[-1].strip() or MARK.match(body[-1].strip())):
+            post.insert(0, body.pop())
+        if any(ln.strip() == "<!--show-->" for ln in body):
+            out.extend([head, *pre, *(ln for ln in body if ln.strip() != "<!--show-->"), *post])
+            continue
+        subs: list[list[str]] = [[]]
+        for ln in body:
+            if ln.startswith("### "):
+                subs.append([])
+            subs[-1].append(ln)
+        show: list[str] = [head, *pre, ""]
+        rest: list[str] = []
+        for n, sub in enumerate(subs):
+            has_shot = any(ln.strip().startswith(("{{shot:", '<div class="flow"')) for ln in sub)
+            if n > 0 and not has_shot:
+                rest.extend(sub)
+                continue
+            sub = list(sub)
+            if n > 0:
+                show.append(sub.pop(0))
+                rest.append(show[-1])
+            while sub and not sub[0].strip():
+                sub.pop(0)
+            if sub and is_plain(sub[0]):
+                while sub and sub[0].strip():
+                    show.append(sub.pop(0))
+            show.append("")
+            for ln in sub:
+                if ln.strip().startswith(("{{shot:", '<div class="flow"')):
+                    show.extend([ln, ""])
+                else:
+                    rest.append(ln)
+        rest = [r for r in rest if r.strip() != "---"]
+        out.extend(show)
+        if any(r.strip() and not r.startswith("### ") for r in rest):
+            out.extend(['<details markdown="1"><summary>くわしく見る</summary>', "", *rest, "", "</details>", ""])
+        out.extend(post)
+    return "\n".join(out)
+
 def title_of(md_text: str) -> str:
     m = re.search(r"^# (.+)$", md_text, re.M)
     return m.group(1).strip() if m else "マニュアル"
@@ -81,7 +149,9 @@ def build(tid: str) -> Path:
     tpl = (ROOT / "template.html").read_text(encoding="utf-8")
     pages = []
     for p in PAGES:
-        src = expand_shots(render_text(p.read_text(encoding="utf-8"), cfg))
+        src = render_text(p.read_text(encoding="utf-8"), cfg)
+        src = fold(src)
+        src = expand_shots(src)
         if not src.strip():
             continue
         slug = p.stem.split("-", 1)[1] if "-" in p.stem else p.stem

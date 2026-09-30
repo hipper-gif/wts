@@ -45,6 +45,17 @@
   figure.shot figcaption li { margin: 3px 0; max-width: none; }
   figure.shot figcaption b { color: #e53935; font-size: 16px; margin-right: 2px; }
   @media (max-width: 520px) { figure.shot { width: 100%; max-width: 330px; } }
+  details { margin: 4px 0 14px; }
+  details > summary { display: inline-block; cursor: pointer; font-size: 14px; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 2px 12px; list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::before { content: "▶ "; font-size: 11px; }
+  details[open] > summary::before { content: "▼ "; }
+  details[open] { background: #fafcfb; border-left: 3px solid var(--line); padding: 2px 0 2px 12px; }
+  .flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0 14px; }
+  .flow span { background: var(--accent-pale); border: 1px solid var(--accent); border-radius: 8px; padding: 4px 10px; font-weight: 700; font-size: 15px; }
+  .flow span + span::before { content: "→ "; color: var(--sub); font-weight: 400; }
+  .flow span.loop { background: #fff7e6; border-color: var(--warn); }
+  @media (max-width: 640px) { header.top { position: static; } }
   footer { max-width: 920px; margin: 0 auto; padding: 0 16px 30px; color: var(--sub); font-size: 12px; }
   @media print {
     header.top { position: static; }
