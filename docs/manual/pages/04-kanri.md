@@ -14,7 +14,7 @@
 | 書類管理 | 許可証・保険証券などのPDFを保管 |
 | データ管理 | 試しに入れた記録の削除など |
 
-<div class="shots"><figure class="shot"><img src="img/wts-master.png" alt="マスタ管理メニュー" loading="lazy"><figcaption>マスタ管理メニュー</figcaption></figure></div>
+{{shot:wts-master}}
 
 ## 1. ユーザー管理
 
@@ -32,7 +32,7 @@
 
 運転者の編集画面の下のほうに **「配車（HaiGO）」** 欄があります。HaiGOの配車ボード・自動振り分けはこの設定を見て動きます。
 
-<div class="shots"><figure class="shot"><img src="img/wts-user-haigo.png" alt="運転者の編集画面の「配車（HaiGO）」欄" loading="lazy"><figcaption>運転者の編集画面の「配車（HaiGO）」欄</figcaption></figure></div>
+{{shot:wts-user-haigo}}
 
 | 項目 | 意味 | 入れ方 |
 |---|---|---|
@@ -51,7 +51,7 @@
 3. **福祉車両の区分**（車椅子・寝台・兼用・回転シート）を選ぶ（陸運局への第21号様式に使われます）
 4. **次回点検日**（3か月点検）と **車検満了日**（車検証の「有効期間の満了する日」）を入れる
 
-<div class="shots"><figure class="shot"><img src="img/wts-vehicle.png" alt="車両管理" loading="lazy"><figcaption>車両管理</figcaption></figure></div>
+{{shot:wts-vehicle}}
 
 | 期限 | お知らせ |
 |---|---|

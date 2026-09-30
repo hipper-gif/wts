@@ -50,6 +50,25 @@ def render_text(text: str, cfg: dict) -> str:
     return PH.sub(sub, text)
 
 
+SHOT = re.compile(r"\{\{shot:([a-z0-9,\-]+)\}\}")
+NUMS = "①②③④⑤⑥⑦⑧⑨"
+
+
+def expand_shots(text: str) -> str:
+    """{{shot:名前[,名前]}} → 赤枠つきスクショ＋「①説明 ②説明」。枠と説明の正本は annotations.json"""
+    spec = json.loads((ROOT / "annotations.json").read_text(encoding="utf-8"))
+
+    def fig(name: str) -> str:
+        if not (ROOT / "img" / f"{name}.png").exists():
+            sys.exit(f"img/{name}.png がありません（annotate.py を実行）")
+        items = "".join(f"<li><b>{NUMS[i]}</b> {b[4]}</li>" for i, b in enumerate(spec.get(name, [])))
+        cap = f"<figcaption><ol>{items}</ol></figcaption>" if items else ""
+        v = int((ROOT / "img" / f"{name}.png").stat().st_mtime)  # 画像を描き直したら古いキャッシュを使わせない
+        return f'<figure class="shot"><img src="img/{name}.png?v={v}" alt="" loading="lazy">{cap}</figure>'
+
+    return SHOT.sub(lambda m: '<div class="shots">' + "".join(fig(n) for n in m.group(1).split(",")) + "</div>", text)
+
+
 def title_of(md_text: str) -> str:
     m = re.search(r"^# (.+)$", md_text, re.M)
     return m.group(1).strip() if m else "マニュアル"
@@ -62,7 +81,7 @@ def build(tid: str) -> Path:
     tpl = (ROOT / "template.html").read_text(encoding="utf-8")
     pages = []
     for p in PAGES:
-        src = render_text(p.read_text(encoding="utf-8"), cfg)
+        src = expand_shots(render_text(p.read_text(encoding="utf-8"), cfg))
         if not src.strip():
             continue
         slug = p.stem.split("-", 1)[1] if "-" in p.stem else p.stem

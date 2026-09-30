@@ -14,7 +14,7 @@
 5. 右（スマホでは下）に **料金の目安** と内訳が出ます。そのまま電話ボタンから予約の電話ができます
 
 {{#sim_shot}}
-<div class="shots"><figure class="shot"><img src="img/sim-{{tenant_id}}.png" alt="料金シミュレーター" loading="lazy"><figcaption>距離と機材を選ぶと、上に料金の目安が出ます</figcaption></figure></div>
+{{shot:sim-{{tenant_id}}}}
 {{/sim_shot}}
 
 > 表示されるのは目安です。道路状況や経路で実際の料金は変わります。
