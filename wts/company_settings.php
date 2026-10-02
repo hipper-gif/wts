@@ -54,6 +54,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_POST['form21_target_vehicles'] ?? '', $_POST['form21_plan_content'] ?? '', $_POST['form21_change_content'] ?? '',
             $target_id
         ]);
+        // 提出先の運輸支局（第4号様式の「○○運輸支局」）。system_settings に保存
+        $branch = trim($_POST['transport_branch'] ?? '');
+        $branch = preg_replace('/運輸支局$/u', '', $branch);
+        if ($branch !== '') {
+            $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('transport_branch', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")
+                ->execute([$branch]);
+        }
         logAudit($pdo, 0, '[会社情報] 事業者情報更新', $user_id, 'company_settings', [], "company_name={$_POST['company_name']}");
         $pdo->commit();
         $message = "事業者情報を更新しました。";
@@ -276,6 +283,17 @@ $page_data = renderCompletePage(
                                value="<?= htmlspecialchars($company['business_number'] ?? '') ?>"
                                placeholder="261">
                         <small class="text-muted">第4号様式右上の「事業者番号」欄に出力</small>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="mb-3">
+                        <label class="form-label">提出先の運輸支局</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="transport_branch"
+                                   value="<?= htmlspecialchars(getTransportBranch($pdo)) ?>" placeholder="大阪">
+                            <span class="input-group-text">運輸支局</span>
+                        </div>
+                        <small class="text-muted">陸運局提出（第4号様式）の「○○運輸支局」欄に出力（例: 大阪／東京）</small>
                     </div>
                 </div>
                 <div class="col-lg-4">

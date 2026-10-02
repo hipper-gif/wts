@@ -56,3 +56,18 @@ function getAppBasePath() {
 function getAppBasePathNoSlash() {
     return APP_BASE_PATH;
 }
+
+/**
+ * 陸運局提出（第4号様式・第21号様式）の提出先「○○運輸支局」の○○。
+ * 様式自体は全国共通（関東・近畿の配布ファイルで一字一句同じ・2026-10-02確認）＝会社ごとに変わるのはここだけ。
+ * system_settings.transport_branch（会社情報画面で設定）。未設定は Smiley/Lino の「大阪」。
+ */
+function getTransportBranch(PDO $pdo): string {
+    try {
+        $v = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'transport_branch'")->fetchColumn();
+        if (is_string($v) && trim($v) !== '') return trim($v);
+    } catch (Exception $e) {
+        // 取れなければ既定
+    }
+    return '大阪';
+}

@@ -195,7 +195,7 @@ function getCompanyInfo($pdo) {
             'business_type' => '一般乗用旅客自動車運送事業（福祉）'
         ];
     }
-    
+    $result['transport_branch'] = getTransportBranch($pdo); // 提出先「○○運輸支局」
     return $result;
 }
 
@@ -578,7 +578,7 @@ body {
 </div>
 
 <!-- 運輸支局 -->
-<div class="shikyu-line"><span class="shikyu-name">大阪</span>運輸支局</div>
+<div class="shikyu-line"><span class="shikyu-name">' . htmlspecialchars($company['transport_branch'] ?? '大阪') . '</span>運輸支局</div>
 
 <!-- タイトル -->
 <div class="report-title">一般乗用旅客自動車運送事業　（限定）　輸送実績報告書　（令和' . $reiwa . '年度）</div>
@@ -769,7 +769,7 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
     $writer->writeSheetRow($sheet, ['','','','','','','',''], $S_NORMAL);
 
     // 行3: 大阪 運輸支局
-    $writer->writeSheetRow($sheet, ['大阪','','運輸支局','','','','',''], ['font'=>'ＭＳ Ｐ明朝','font-size'=>10,'halign'=>'center','border'=>'bottom','border-style'=>'thin']);
+    $writer->writeSheetRow($sheet, [($company['transport_branch'] ?? '大阪'),'','運輸支局','','','','',''], ['font'=>'ＭＳ Ｐ明朝','font-size'=>10,'halign'=>'center','border'=>'bottom','border-style'=>'thin']);
     $writer->markMergedCell($sheet, 2, 0, 2, 1);
 
     // 空行
@@ -937,7 +937,7 @@ function generateForm4Excel($company, $business, $transport, $accident, $year) {
 // 第21号様式（移動等円滑化実績等報告書 福祉タクシー車両）
 // 参照見本: NAS \\LS220D679\share\…\2024年度\2024年度移動等円滑化実績等報告書（福祉タクシー車両）.xlsx
 // 根拠: バリアフリー法施行規則第23条
-// 提出期限: 翌年度5月31日 / 提出先: 大阪運輸支局 輸送部門
+// 提出期限: 6月30日（バリアフリー法施行規則第23条・近畿運輸局案内 2026-10-02確認） / 提出先: 管轄の運輸支局
 // ============================================================
 
 function getForm21Data($pdo) {
@@ -1811,7 +1811,7 @@ $reiwa_year = toReiwaYear($selected_year);
                 <?php endif; ?>
             </div>
             <h2><?= $selected_year ?>年度（令和<?= $reiwa_year ?>年度）の提出を準備しましょう</h2>
-            <p>提出先：大阪運輸支局　／　提出期限：<b><?= htmlspecialchars($deadline_str) ?></b><br>
+            <p>提出先：<?= htmlspecialchars(getTransportBranch($pdo)) ?>運輸支局　／　輸送実績報告書の提出期限：<b><?= htmlspecialchars($deadline_str) ?></b><br>
                 スマルトのデータから自動集計済み。内容を確認したらPDF/Excelで書き出して、郵送または窓口へ提出してください。</p>
         </div>
         <div class="ar-hero-progress">
@@ -1861,7 +1861,7 @@ $reiwa_year = toReiwaYear($selected_year);
         <div class="ar-step <?= $completed_steps == 3 ? 'done' : ($completed_steps == 2 ? '' : 'current') ?>">
             <div class="ar-step-num"><?= $completed_steps >= 3 ? '✓' : '3' ?></div>
             <h3>3. ダウンロードして提出</h3>
-            <p class="ar-step-desc">PDFまたはExcelで書き出して、運輸支局へ郵送または窓口提出。書式は近畿運輸局の公式様式に準拠しています。</p>
+            <p class="ar-step-desc">PDFまたはExcelで書き出して、運輸支局へ郵送または窓口提出。書式は国の様式（第4号様式・第21号様式）に準拠しています。</p>
             <div class="ar-step-stat">
                 <?php if ($completed_steps >= 3): ?>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 7"/></svg>
@@ -1959,7 +1959,7 @@ $reiwa_year = toReiwaYear($selected_year);
 
     <div class="ar-exports">
         <h3>📥 <?= $selected_year ?>年度（令和<?= $reiwa_year ?>年度）の書類を書き出す</h3>
-        <p class="ar-exports-sub">A4縦・近畿運輸局の公式書式に準拠。印刷してそのまま提出できます。出力するとこの画面の「過去の提出履歴」にも自動記録されます。</p>
+        <p class="ar-exports-sub">A4縦・国の様式に準拠（提出先の運輸支局名は会社情報で設定）。印刷してそのまま提出できます。出力するとこの画面の「過去の提出履歴」にも自動記録されます。</p>
 
         <!-- 第4号様式 -->
         <div class="ar-export-row">
@@ -1997,7 +1997,7 @@ $reiwa_year = toReiwaYear($selected_year);
             <div class="ar-info">
                 <h4>第21号様式 — 移動等円滑化実績等報告書（福祉タクシー車両）</h4>
                 <div class="ar-meta">
-                    <span>提出期限：5月31日</span>
+                    <span>提出期限：6月30日</span>
                     <span>バリアフリー法施行規則 第23条</span>
                 </div>
             </div>
