@@ -28,7 +28,7 @@
 | 4 | DB作成 + 権限付与（`create_tenant_db.py --apply`・XServer API） | Claude Code | 完了（2026-09-25） |
 | 5 | `provision_tenant.sh` 実行 | Claude Code | 完了（2026-09-25） |
 | 6 | 動作確認（ログイン・会社情報・車両・利用者） | Claude Code | 完了（2026-09-25） |
-| 7 | 初期パスワード変更 | 杉原氏 | 未着手 |
+| 7 | 初期パスワード変更 | 杉原氏 | 完了（2026-10-02 Claude Codeが仮パスワードへ変更・値はリポに書かない。相手には初回ログイン後に自分で変えてもらう） |
 | 8 | `scripts/tenants.conf` に行追加 | Claude Code | 完了（2026-09-25） |
 | 9 | 導入ガイドを作って渡す（`lino-startup-guide.html` を流用） | Claude Code | 未着手 |
 | 10 | 運転者向けマニュアルを渡す（`driver-guide.html`） | 杉原氏 | 未着手 |
