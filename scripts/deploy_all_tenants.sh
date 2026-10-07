@@ -84,8 +84,18 @@ fi
 # ---- テナント一覧読み込み ----
 declare -a TENANTS=()
 while IFS=$'\t' read -r tid tdb tpath tname; do
+    # tenants.conf は CRLF のことがある。\r が残ると空行が「\rだけのテナント」になり、
+    # パス空=公開ディレクトリ直下へ展開しかねない（2026-10-07 dry-run で空行6件が対象に出て発覚）
+    tid="${tid%$'\r'}"; tdb="${tdb%$'\r'}"; tpath="${tpath%$'\r'}"; tname="${tname%$'\r'}"
+
     # コメント・空行をスキップ
-    [[ -z "${tid}" || "${tid}" =~ ^# ]] && continue
+    [[ -z "${tid//[[:space:]]/}" || "${tid}" =~ ^[[:space:]]*# ]] && continue
+
+    # 列が欠けた行は黙って飛ばさず全体を止める（配置先を取り違えないため）
+    if [[ -z "${tdb}" || ! "${tpath}" =~ ^/[^[:space:]]+$ ]]; then
+        echo "エラー: tenants.conf の行が不正です（タブ区切り4列・パスは/始まり）: ${tid}" >&2
+        exit 1
+    fi
 
     # 特定テナント指定時はフィルタ
     if [ -n "${TARGET_TENANT}" ] && [ "${tid}" != "${TARGET_TENANT}" ]; then
@@ -151,6 +161,12 @@ FAIL_COUNT=0
 for entry in "${TENANTS[@]}"; do
     IFS='|' read -r tid tdb tpath tname <<< "${entry}"
     TENANT_DIR="${REMOTE_BASE}${tpath}"
+
+    # 最後の砦: 公開ディレクトリ直下には絶対に展開しない
+    if [[ "${TENANT_DIR%/}" == "${REMOTE_BASE%/}" ]]; then
+        log "エラー: ${tid} の配置先が公開ディレクトリ直下です。中止します"
+        exit 1
+    fi
 
     log "デプロイ中: ${tid} (${tname}) → ${TENANT_DIR}"
 
