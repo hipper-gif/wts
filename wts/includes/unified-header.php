@@ -760,8 +760,8 @@ function getWorkflowCompletionStatus($pdo, $user_id, $date = null) {
         $stmt->execute([$user_id, $date]);
         if ($stmt->fetchColumn() > 0) $completed[] = 'post_duty';
 
-        // 7.売上金確認
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM cash_count_details WHERE driver_id = ? AND confirmation_date = ?");
+        // 7.売上金確認（複数日まとめて数えた記録は、期間内のどの日も完了扱い）
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM cash_count_details WHERE driver_id = ? AND ? BETWEEN COALESCE(period_start_date, confirmation_date) AND confirmation_date");
         $stmt->execute([$user_id, $date]);
         if ($stmt->fetchColumn() > 0) $completed[] = 'cash';
     } catch (Exception $e) {

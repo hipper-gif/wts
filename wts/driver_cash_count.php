@@ -60,11 +60,56 @@ $driver_query = ($target_driver && !$is_self) ? 'driver_id=' . $target_driver['i
 $target_id = $target_driver ? $target_driver['id'] : 0;
 $target_ts = strtotime($target_date);
 $weekday = ['日','月','火','水','木','金','土'][date('w', $target_ts)];
-// 見出し用ラベル: 当日は「本日」、過去日は日付を出して取り違えを防ぐ
-$date_label = $is_today ? '本日' : date('n月j日', $target_ts) . '（' . $weekday . '）';
-$date_short = $is_today ? '本日' : date('n/j', $target_ts);
 
-// 対象日の売上データ取得（dashboard.php の calculateRevenue と同じロジック）
+// 既存の対象日のカウントデータ取得（対象日=まとめて数えた期間の最終日）
+$existing_count = null;
+$ex_stmt = $pdo->prepare("
+    SELECT id, period_start_date, bill_10000, bill_5000, bill_1000,
+           coin_500, coin_100, coin_50, coin_10, coin_5, coin_1,
+           total_amount, memo
+    FROM cash_count_details
+    WHERE confirmation_date = ? AND driver_id = ?
+");
+$ex_stmt->execute([$target_date, $target_id]);
+$existing_count = $ex_stmt->fetch(PDO::FETCH_OBJ);
+
+// まとめて数える期間の開始日（?from=YYYY-MM-DD / 未指定なら保存済みの期間 / どちらも無ければ1日分）
+// 形式不正・対象日より後・31日を超える期間は無視して1日分に戻す
+$max_period_days = 31;
+$min_from = date('Y-m-d', strtotime($target_date . ' -' . ($max_period_days - 1) . ' days'));
+$period_start = $target_date;
+$requested_from = $_GET['from'] ?? ($existing_count->period_start_date ?? '');
+$parsed_from = DateTime::createFromFormat('Y-m-d', $requested_from);
+if ($parsed_from && $parsed_from->format('Y-m-d') === $requested_from
+    && $requested_from <= $target_date && $requested_from >= $min_from) {
+    $period_start = $requested_from;
+}
+$is_period = ($period_start < $target_date);
+$period_ts = strtotime($period_start);
+$period_days = (int)round(($target_ts - $period_ts) / 86400) + 1;
+
+// 見出し用ラベル: 当日は「本日」、過去日は日付を出して取り違えを防ぐ。期間なら「10/1〜10/3」
+if ($is_period) {
+    $date_label = date('n月j日', $period_ts) . '〜' . date('n月j日', $target_ts) . '（' . $period_days . '日分）';
+    $date_short = date('n/j', $period_ts) . '〜' . date('n/j', $target_ts);
+} else {
+    $date_label = $is_today ? '本日' : date('n月j日', $target_ts) . '（' . $weekday . '）';
+    $date_short = $is_today ? '本日' : date('n/j', $target_ts);
+}
+
+// 期間が重なる別の記録（同じ日の売上を二重に数えないため。保存はAPI側でも拒否する）
+$overlap_stmt = $pdo->prepare("
+    SELECT confirmation_date, period_start_date
+    FROM cash_count_details
+    WHERE driver_id = ? AND confirmation_date <> ?
+      AND COALESCE(period_start_date, confirmation_date) <= ?
+      AND confirmation_date >= ?
+    ORDER BY confirmation_date
+");
+$overlap_stmt->execute([$target_id, $target_date, $target_date, $period_start]);
+$overlaps = $overlap_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// 対象期間の売上データ取得（dashboard.php の calculateRevenue と同じロジック）
 $today_stmt = $pdo->prepare("
     SELECT
         COUNT(*) as trip_count,
@@ -78,11 +123,11 @@ $today_stmt = $pdo->prepare("
         COALESCE(SUM(cash_amount), 0) as cash_sales,
         COALESCE(SUM(card_amount), 0) as card_sales
     FROM ride_records
-    WHERE ride_date = ?
+    WHERE ride_date BETWEEN ? AND ?
     AND driver_id = ?
     AND COALESCE(is_sample_data, 0) = 0
 ");
-$today_stmt->execute([$target_date, $target_id]);
+$today_stmt->execute([$period_start, $target_date, $target_id]);
 $today_sales = $today_stmt->fetch(PDO::FETCH_OBJ);
 
 // 基準おつり構成（固定）
@@ -99,22 +144,10 @@ $base_change = [
 ];
 $base_total = 18000;
 
-// 既存の対象日のカウントデータ取得
-$existing_count = null;
-$ex_stmt = $pdo->prepare("
-    SELECT id, bill_10000, bill_5000, bill_1000,
-           coin_500, coin_100, coin_50, coin_10, coin_5, coin_1,
-           total_amount, memo
-    FROM cash_count_details
-    WHERE confirmation_date = ? AND driver_id = ?
-");
-$ex_stmt->execute([$target_date, $target_id]);
-$existing_count = $ex_stmt->fetch(PDO::FETCH_OBJ);
-
 // 過去の履歴取得（対象の運転者のデータのみ、最新10件）
 $history_stmt = $pdo->prepare("
     SELECT
-        c.confirmation_date,
+        c.confirmation_date, c.period_start_date,
         c.bill_10000, c.bill_5000, c.bill_1000,
         c.coin_500, c.coin_100, c.coin_50, c.coin_10,
         c.total_amount, c.memo, c.created_at
@@ -328,6 +361,7 @@ echo $page_data['html_head'];
     background: #fff; border: 1.5px solid #1565c0; border-radius: 8px; padding: 7px 14px;
 }
 .date-today-link:hover { background: #e3f2fd; color: #1565c0; }
+.date-overlap-note { background: #ffebee; border-left-color: #c62828; color: #b71c1c; }
 .date-past-note {
     margin-top: 12px; padding: 10px 12px; border-radius: 8px;
     background: #fff8e1; border-left: 4px solid #f9a825; color: #6d4c41;
@@ -368,8 +402,17 @@ echo $page_data['html_head'];
                     <?php endforeach; ?>
                 </select>
             </div>
+            <!-- まとめて数える期間の開始日。1日分のときは無効化して送らない（対象日を変えても期間に化けない） -->
+            <div class="date-field" id="fromField"<?php echo $is_period ? '' : ' style="display:none;"'; ?>>
+                <label for="from" class="date-label"><i class="fas fa-calendar-week"></i> 開始日</label>
+                <input type="date" id="from" name="from" class="form-control date-input"
+                       value="<?php echo htmlspecialchars($period_start); ?>"
+                       min="<?php echo $min_from; ?>" max="<?php echo htmlspecialchars($target_date); ?>"
+                       <?php echo $is_period ? '' : 'disabled'; ?>
+                       onchange="this.form.submit()">
+            </div>
             <div class="date-field">
-                <label for="date" class="date-label"><i class="fas fa-calendar-day"></i> 対象日</label>
+                <label for="date" class="date-label"><i class="fas fa-calendar-day"></i> <?php echo $is_period ? '最終日' : '対象日'; ?></label>
                 <input type="date" id="date" name="date" class="form-control date-input"
                        value="<?php echo htmlspecialchars($target_date); ?>"
                        max="<?php echo $today; ?>"
@@ -378,14 +421,42 @@ echo $page_data['html_head'];
                 <a href="driver_cash_count.php<?php echo $driver_query ? '?' . $driver_query : ''; ?>" class="date-today-link">本日に戻す</a>
                 <?php endif; ?>
             </div>
+            <?php if ($target_driver): ?>
+            <div class="date-field">
+                <?php if ($is_period): ?>
+                <a href="driver_cash_count.php?<?php echo htmlspecialchars(http_build_query(array_filter(['driver_id' => $is_self ? null : $target_id, 'date' => $target_date, 'from' => $target_date]))); ?>" class="date-today-link">1日分に戻す</a>
+                <?php else: ?>
+                <button type="button" class="date-today-link" onclick="openPeriod()">
+                    <i class="fas fa-layer-group"></i> 複数日まとめて数える
+                </button>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
         </form>
+        <?php if ($is_period): ?>
+        <div class="date-past-note">
+            <i class="fas fa-layer-group"></i>
+            <?php echo $date_label; ?>の売上をまとめて数えています（基準おつりは1回分だけ差し引きます）
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($overlaps)): ?>
+        <div class="date-past-note date-overlap-note">
+            <i class="fas fa-ban"></i>
+            この期間には、すでに現金カウントの記録があります（<?php
+                echo implode('、', array_map(function ($o) {
+                    $end = date('n/j', strtotime($o['confirmation_date']));
+                    return $o['period_start_date'] ? date('n/j', strtotime($o['period_start_date'])) . '〜' . $end : $end;
+                }, $overlaps));
+            ?>）。同じ日の売上を二重に数えないよう、期間が重ならないように選び直してください
+        </div>
+        <?php endif; ?>
         <?php if ($target_driver && !$is_self): ?>
         <div class="date-past-note">
             <i class="fas fa-user-edit"></i>
             <?php echo htmlspecialchars($target_driver['name']); ?>さんの記録を入力しています（あなたの分ではありません）
         </div>
         <?php endif; ?>
-        <?php if (!$is_today): ?>
+        <?php if (!$is_today && !$is_period): ?>
         <div class="date-past-note">
             <i class="fas fa-exclamation-triangle"></i>
             <?php echo $date_label; ?>の記録を入力しています（本日ではありません）
@@ -569,7 +640,7 @@ echo $page_data['html_head'];
                     $deposit = $h['total_amount'] - $base_total;
                 ?>
                 <tr>
-                    <td><?php echo date('m/d', strtotime($h['confirmation_date'])); ?>
+                    <td><?php if ($h['period_start_date']): ?><?php echo date('m/d', strtotime($h['period_start_date'])); ?>〜<?php endif; ?><?php echo date('m/d', strtotime($h['confirmation_date'])); ?>
                         <span style="color:#999;font-size:0.75rem;">(<?php echo ['日','月','火','水','木','金','土'][date('w', strtotime($h['confirmation_date']))]; ?>)</span>
                     </td>
                     <td class="text-end">¥<?php echo number_format($h['total_amount']); ?></td>
@@ -596,6 +667,22 @@ echo $page_data['html_head'];
     var driverName = <?php echo json_encode($target_driver ? $target_driver['name'] : ''); ?>;
     var isSelf = <?php echo $is_self ? 'true' : 'false'; ?>;
     var targetDate = <?php echo json_encode($target_date); ?>;
+    var periodStart = <?php echo json_encode($period_start); ?>;
+    var overlapCount = <?php echo count($overlaps); ?>;
+
+    // 「複数日まとめて数える」: 開始日の欄を出し、前日〜対象日で開き直す
+    function openPeriod() {
+        var field = document.getElementById('fromField');
+        var input = document.getElementById('from');
+        var d = new Date(targetDate + 'T00:00:00');
+        d.setDate(d.getDate() - 1);
+        var prev = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+        input.disabled = false;
+        input.value = prev;
+        field.style.display = '';
+        // ひとまず「前日〜対象日」で開き、開始日は開いた後に選び直してもらう
+        input.form.submit();
+    }
 
     function adjustCount(type, change) {
         var input = document.getElementById(type);
@@ -683,6 +770,10 @@ echo $page_data['html_head'];
     }
 
     function saveCashCount() {
+        if (overlapCount > 0) {
+            showToast('期間が既存の記録と重なっています。期間を選び直してください', 'danger');
+            return;
+        }
         var btn = document.getElementById('saveBtn');
         var barBtn = document.getElementById('barSaveBtn');
         btn.disabled = true;
@@ -692,6 +783,7 @@ echo $page_data['html_head'];
         var data = {
             driver_id: driverId,
             confirmation_date: targetDate,
+            period_start_date: periodStart,
             memo: document.getElementById('memo').value
         };
 

@@ -70,6 +70,20 @@ try {
     if ($confirmation_date > date('Y-m-d')) {
         throw new Exception('未来日の登録はできません');
     }
+    // まとめて数えた期間の開始日（省略・対象日と同じ＝1日分。NULLで保存する）
+    $period_start_date = $data['period_start_date'] ?? '';
+    if ($period_start_date === '' || $period_start_date === $confirmation_date) {
+        $period_start_date = null;
+    } else {
+        $parsed_from = DateTime::createFromFormat('Y-m-d', $period_start_date);
+        if (!$parsed_from || $parsed_from->format('Y-m-d') !== $period_start_date
+            || $period_start_date > $confirmation_date
+            || $parsed_from->diff($parsed_date)->days > 30) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => '期間の開始日が不正です（最終日以前・31日以内）']);
+            exit;
+        }
+    }
     // 対象の運転者（既定=自分 / 画面で選んだ他の運転者の分も保存できる）
     // 保存できるのは画面に入れる人（運転者 or Admin）だけ。対象は運転者フラグのある人に限る
     $user_id = (int)$_SESSION['user_id'];
@@ -107,6 +121,22 @@ try {
     // トランザクション開始
     $pdo->beginTransaction();
 
+    // 期間が重なる別の記録があれば拒否（同じ日の売上を二重に数えない）
+    $overlap_stmt = $pdo->prepare("
+        SELECT confirmation_date FROM cash_count_details
+        WHERE driver_id = ? AND confirmation_date <> ?
+          AND COALESCE(period_start_date, confirmation_date) <= ?
+          AND confirmation_date >= ?
+        LIMIT 1
+    ");
+    $overlap_stmt->execute([$driver_id, $confirmation_date, $confirmation_date, $period_start_date ?? $confirmation_date]);
+    if ($overlap_stmt->fetchColumn()) {
+        $pdo->rollBack();
+        http_response_code(409);
+        echo json_encode(['success' => false, 'message' => '期間が既存の現金カウントと重なっています']);
+        exit;
+    }
+
     // 既存データの確認
     $check_stmt = $pdo->prepare("
         SELECT id FROM cash_count_details
@@ -119,6 +149,7 @@ try {
         // 既存データを更新
         $update_stmt = $pdo->prepare("
             UPDATE cash_count_details SET
+                period_start_date = ?,
                 bill_10000 = ?,
                 bill_5000 = ?,
                 bill_2000 = 0,
@@ -136,6 +167,7 @@ try {
         ");
 
         $result = $update_stmt->execute([
+            $period_start_date,
             $bill_10000, $bill_5000, $bill_1000, $coin_500, $coin_100,
             $coin_50, $coin_10, $coin_5, $coin_1, $total_amount, $memo,
             $confirmation_date, $driver_id
@@ -148,19 +180,19 @@ try {
         // 新規データを挿入
         $insert_stmt = $pdo->prepare("
             INSERT INTO cash_count_details (
-                confirmation_date, driver_id,
+                confirmation_date, period_start_date, driver_id,
                 bill_10000, bill_5000, bill_2000, bill_1000,
                 coin_500, coin_100, coin_50, coin_10, coin_5, coin_1,
                 total_amount, memo,
                 created_at, updated_at
             ) VALUES (
-                ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             )
         ");
 
         $result = $insert_stmt->execute([
-            $confirmation_date, $driver_id,
+            $confirmation_date, $period_start_date, $driver_id,
             $bill_10000, $bill_5000, $bill_1000, $coin_500, $coin_100,
             $coin_50, $coin_10, $coin_5, $coin_1, $total_amount, $memo
         ]);
@@ -183,6 +215,7 @@ try {
         'record_id' => $record_id,
         'data' => [
             'confirmation_date' => $confirmation_date,
+            'period_start_date' => $period_start_date,
             'driver_id' => $driver_id,
             'total_amount' => $total_amount
         ]

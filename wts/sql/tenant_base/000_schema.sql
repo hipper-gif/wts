@@ -2,7 +2,7 @@
 -- WTS テナント基盤スキーマ（新テナント用・構造のみ / データなし）
 --
 -- 生成元: 稼働中の twinklemark_wts（Smiley本番）を 2026-09-18 に mysqldump
---         ＋ 2026-09-24 sql/021（users の配車4列）・2026-09-25 sql/022（customers.residence_location_id）・2026-09-26 sql/023（vehicles.shaken_expiry_date）を手で反映
+--         ＋ 2026-09-24 sql/021（users の配車4列）・2026-09-25 sql/022（customers.residence_location_id）・2026-09-26 sql/023（vehicles.shaken_expiry_date）・2026-10-07 sql/024（cash_count_details.period_start_date）を手で反映
 -- 収録:   37テーブル + トリガー4件（arrival_records の走行距離・車両積算距離の自動計算）。
 --         dispatch_* 8テーブルは除外済み。これは HaiGO（配車PWA）のテーブルで、
 --         WTSのDBに同居している。HaiGO がまだ Smiley 専用なので外してある。
@@ -346,6 +346,7 @@ CREATE TABLE `cash_confirmations` (
 CREATE TABLE `cash_count_details` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `confirmation_date` date NOT NULL,
+  `period_start_date` date DEFAULT NULL COMMENT 'まとめて数えた期間の開始日（NULL=confirmation_dateの1日分）',
   `driver_id` int(11) NOT NULL,
   `bill_10000` int(11) DEFAULT 0,
   `bill_5000` int(11) DEFAULT 0,

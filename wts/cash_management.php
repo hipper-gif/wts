@@ -204,14 +204,15 @@ $collection_checks = getCollectionChecks($pdo, $start_date, $end_date, $selected
 // 現金カウント履歴取得（管理者用: 選択期間内の全運転者 / 個別運転者）
 $cash_count_history = [];
 try {
-    $hist_sql = "SELECT c.confirmation_date, c.driver_id, u.name as driver_name,
+    // まとめて数えた記録（period_start_date〜confirmation_date）は、期間が少しでも重なれば出す
+    $hist_sql = "SELECT c.confirmation_date, c.period_start_date, c.driver_id, u.name as driver_name,
                         c.bill_10000, c.bill_5000, c.bill_1000,
                         c.coin_500, c.coin_100, c.coin_50, c.coin_10, c.coin_5, c.coin_1,
                         c.total_amount, c.memo, c.created_at
                  FROM cash_count_details c
                  LEFT JOIN users u ON c.driver_id = u.id
-                 WHERE c.confirmation_date BETWEEN ? AND ?";
-    $hist_params = [$start_date, $end_date];
+                 WHERE COALESCE(c.period_start_date, c.confirmation_date) <= ? AND c.confirmation_date >= ?";
+    $hist_params = [$end_date, $start_date];
     if ($selected_driver_id && $selected_driver_id !== 'all') {
         $hist_sql .= " AND c.driver_id = ?";
         $hist_params[] = $selected_driver_id;
@@ -989,7 +990,7 @@ echo $page_data['html_head'];
                         $ch_deposit = $ch['total_amount'] - 18000;
                     ?>
                     <tr>
-                        <td style="white-space:nowrap;"><?php echo date('m/d', strtotime($ch['confirmation_date'])); ?>
+                        <td style="white-space:nowrap;"><?php if ($ch['period_start_date']): ?><?php echo date('m/d', strtotime($ch['period_start_date'])); ?>〜<?php endif; ?><?php echo date('m/d', strtotime($ch['confirmation_date'])); ?>
                             <span style="color:#999;font-size:0.7rem;">(<?php echo ['日','月','火','水','木','金','土'][date('w', strtotime($ch['confirmation_date']))]; ?>)</span>
                         </td>
                         <?php if ($selected_driver_id === 'all'): ?>
