@@ -28,6 +28,23 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && isset($_COOKIE[WTS_REMEMBER_COOKIE]
     }
 }
 
+// 公開デモ（.env に DEMO_LOGIN_ID がある時だけ）: ログイン画面を出さず、そのユーザーで入れる。
+// 本番・他社テナントの .env には書かないので動かない。デモに渡すのは一般ユーザー（Admin は拒否）。
+$demo_login_id = getenv('DEMO_LOGIN_ID');
+if ($demo_login_id && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $pdo = getDBConnection();
+    $stmt = $pdo->prepare("SELECT id, name, login_id, permission_level, is_driver, is_caller, is_manager, is_mechanic, is_inspector
+                           FROM users WHERE login_id = ? AND is_active = 1 AND permission_level = 'User'");
+    $stmt->execute([$demo_login_id]);
+    $demo_user = $stmt->fetch();
+    if ($demo_user) {
+        wtsEstablishSession($demo_user);
+        session_write_close();
+        header('Location: dashboard.php');
+        exit;
+    }
+}
+
 $error_message = '';
 
 if (isset($_GET['timeout']) && $_GET['timeout'] == '1') {
