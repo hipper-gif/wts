@@ -1,0 +1,2 @@
+# サーバーで動くシェルは LF 固定（CRLF だと bash が構文エラーで止まる）
+*.sh text eol=lf
