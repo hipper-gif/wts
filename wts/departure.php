@@ -122,25 +122,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $pdo->beginTransaction();
 
             // 複数出庫対応：入庫済みの場合は再出庫を許可（FOR UPDATEで競合防止）
+            // 前日以前の入庫漏れも対象にする（入庫漏れのまま次の出庫をすると、入庫メーターが後から分からなくなる）
             $duplicate_check_sql = "
-                SELECT dr.id, ar.id as arrival_id
+                SELECT dr.id, dr.departure_date, u.name AS driver_name, ar.id as arrival_id
                 FROM departure_records dr
+                JOIN users u ON u.id = dr.driver_id
                 LEFT JOIN arrival_records ar ON dr.id = ar.departure_record_id
-                WHERE dr.vehicle_id = ? AND dr.departure_date = ?
+                WHERE dr.vehicle_id = ? AND dr.departure_date <= ?
+                  AND ar.id IS NULL AND COALESCE(dr.is_sample_data, 0) = 0
+                ORDER BY dr.departure_date
                 FOR UPDATE
             ";
             $duplicate_stmt = $pdo->prepare($duplicate_check_sql);
             $duplicate_stmt->execute([$vehicle_id, $departure_date]);
-            $existing_records = $duplicate_stmt->fetchAll(PDO::FETCH_ASSOC);
+            $unfinished = $duplicate_stmt->fetch(PDO::FETCH_ASSOC);
 
-            // 入庫していない出庫記録があるかチェック
-            $unfinished_departures = array_filter($existing_records, function($record) {
-                return !$record['arrival_id']; // arrival_idがnullの場合は未入庫
-            });
-
-            if (!empty($unfinished_departures)) {
+            if ($unfinished) {
                 $pdo->rollBack();
-                throw new Exception('この車両は本日まだ入庫されていません。先に入庫処理を完了してください。');
+                if ($unfinished['departure_date'] === $departure_date) {
+                    throw new InvalidArgumentException('この車両は本日まだ入庫されていません。先に入庫処理を完了してください。');
+                }
+                throw new InvalidArgumentException(
+                    'この車両は ' . date('n/j', strtotime($unfinished['departure_date'])) . '（' . $unfinished['driver_name']
+                    . '）の入庫が登録されていません。先に入庫画面の「未入庫車両一覧」から入庫を登録してください。'
+                    . '入庫メーターは今朝の日常点検のメーター値を入れてください。'
+                );
+            }
+
+            // 日常点検した車両と違う車両で出庫しようとしていないか（車両の選び間違い防止）
+            $insp_stmt = $pdo->prepare("
+                SELECT
+                    EXISTS(SELECT 1 FROM daily_inspections WHERE vehicle_id = ? AND inspection_date = ?) AS this_inspected,
+                    (SELECT v.vehicle_number FROM daily_inspections di JOIN vehicles v ON v.id = di.vehicle_id
+                      WHERE di.driver_id = ? AND di.inspection_date = ? ORDER BY di.id DESC LIMIT 1) AS inspected_vehicle
+            ");
+            $insp_stmt->execute([$vehicle_id, $departure_date, $driver_id, $departure_date]);
+            $insp = $insp_stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$insp['this_inspected'] && $insp['inspected_vehicle']) {
+                $pdo->rollBack();
+                throw new InvalidArgumentException(
+                    '本日の日常点検は ' . $insp['inspected_vehicle'] . ' で登録されています。'
+                    . '出庫する車両が合っているか確認してください（別の車両で出る場合は、その車両の日常点検を先に登録してください）。'
+                );
             }
 
             // データ保存
@@ -149,19 +172,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 VALUES (?, ?, ?, ?, ?, ?, NOW())";
             $insert_stmt = $pdo->prepare($insert_sql);
             $insert_stmt->execute([$driver_id, $vehicle_id, $departure_date, $departure_time, $weather, $departure_mileage]);
+            // INSERT直後に取る（後続のUPDATEを挟むと 0 が返る）
+            $new_id = (int)$pdo->lastInsertId();
 
             // 車両の走行距離を更新（楽観的ロック：メーターが逆行しないことを保証）
             $update_sql = "UPDATE vehicles SET current_mileage = ?, updated_at = NOW() WHERE id = ? AND current_mileage <= ?";
             $update_stmt = $pdo->prepare($update_sql);
             $update_stmt->execute([$departure_mileage, $vehicle_id, $departure_mileage]);
 
-            $new_id = $pdo->lastInsertId();
+            // 当日の乗務前点呼の車両を出庫の車両に揃える（点呼は出庫前に車両を推定して記録するため）
+            // 乗り換えで2回目以降の出庫なら、点呼は最初の車両のままにする
+            $first_stmt = $pdo->prepare("SELECT COUNT(*) FROM departure_records WHERE driver_id = ? AND departure_date = ? AND id <> ?");
+            $first_stmt->execute([$driver_id, $departure_date, $new_id]);
+            if ((int)$first_stmt->fetchColumn() === 0) {
+                $sync_stmt = $pdo->prepare("UPDATE pre_duty_calls SET vehicle_id = ? WHERE driver_id = ? AND call_date = ? AND (vehicle_id IS NULL OR vehicle_id <> ?)");
+                $sync_stmt->execute([$vehicle_id, $driver_id, $departure_date, $vehicle_id]);
+                // 出庫より先に入力された当日の乗車記録（後追い入力・HaiGOの完了操作）を、この出庫に紐づけて車両を揃える
+                $ride_sync_stmt = $pdo->prepare("UPDATE ride_records SET departure_record_id = ?, vehicle_id = ? WHERE driver_id = ? AND ride_date = ? AND departure_record_id IS NULL");
+                $ride_sync_stmt->execute([$new_id, $vehicle_id, $driver_id, $departure_date]);
+            }
+
             logAudit($pdo, $new_id, 'create', $user_id, 'departure');
             $pdo->commit();
 
             $success_message = '出庫処理が完了しました。';
         }
 
+    } catch (InvalidArgumentException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        $error_message = $e->getMessage();
     } catch (Exception $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         error_log("Departure record error: " . $e->getMessage());
@@ -174,6 +213,19 @@ $drivers = getActiveDrivers($pdo);
 
 // 車両一覧取得
 $vehicles = getActiveVehicles($pdo, 'with_name');
+
+// 初期選択の車両＝ログイン者が本日日常点検した車両（点検と出庫で車両が食い違う事故の防止）
+// メーターの初期値も点検の実測値を優先する（入庫漏れがあると current_mileage が古いまま）
+$default_vehicle_stmt = $pdo->prepare("SELECT vehicle_id, mileage FROM daily_inspections WHERE driver_id = ? AND inspection_date = ? ORDER BY id DESC LIMIT 1");
+$default_vehicle_stmt->execute([$user_id, $today]);
+$default_inspection = $default_vehicle_stmt->fetch(PDO::FETCH_ASSOC);
+$default_vehicle_id = $default_inspection['vehicle_id'] ?? null;
+foreach ($vehicles as &$vehicle) {
+    if ($default_inspection && $vehicle['id'] == $default_vehicle_id && (int)$default_inspection['mileage'] > 0) {
+        $vehicle['current_mileage'] = (int)$default_inspection['mileage'];
+    }
+}
+unset($vehicle);
 
 // 本日の出庫記録一覧取得（入庫状態も含む）
 $today_departures_sql = "
@@ -324,6 +376,8 @@ echo $page_data['page_header'];
                                                         data-mileage="<?= $vehicle['current_mileage'] ?>"
                                                     <?php if ($edit_mode): ?>
                                                         <?= ($vehicle['id'] == $edit_record['vehicle_id']) ? 'selected' : '' ?>
+                                                    <?php else: ?>
+                                                        <?= ($vehicle['id'] == $default_vehicle_id) ? 'selected' : '' ?>
                                                     <?php endif; ?>>
                                                     <?= htmlspecialchars($vehicle['vehicle_number'] . ' - ' . $vehicle['vehicle_name']) ?>
                                                 </option>

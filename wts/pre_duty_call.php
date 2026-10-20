@@ -119,20 +119,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     }
 
     if (empty($error_message)) {
-    // 使用予定車両を取得（前回使用車両から推定）
+    // 使用予定車両を取得: 当日の出庫 → 当日の日常点検 → 前回入庫の車両 の順
+    // （前回入庫だけで推定すると、車両を替えた日に必ずずれていた。出庫時にも当日の点呼の車両を揃え直す）
     $stmt = $pdo->prepare("
-        SELECT v.id 
-        FROM vehicles v 
-        WHERE v.is_active = TRUE 
-        AND v.id = (
-            SELECT ar.vehicle_id 
-            FROM arrival_records ar 
-            WHERE ar.driver_id = ? 
-            ORDER BY ar.arrival_date DESC 
-            LIMIT 1
+        SELECT v.id
+        FROM vehicles v
+        WHERE v.is_active = TRUE
+        AND v.id = COALESCE(
+            (SELECT dr.vehicle_id FROM departure_records dr
+              WHERE dr.driver_id = ? AND dr.departure_date = ?
+              ORDER BY dr.departure_time DESC, dr.id DESC LIMIT 1),
+            (SELECT di.vehicle_id FROM daily_inspections di
+              WHERE di.driver_id = ? AND di.inspection_date = ?
+              ORDER BY di.id DESC LIMIT 1),
+            (SELECT ar.vehicle_id FROM arrival_records ar
+              WHERE ar.driver_id = ?
+              ORDER BY ar.arrival_date DESC, ar.id DESC LIMIT 1)
         )
     ");
-    $stmt->execute([$driver_id]);
+    $stmt->execute([$driver_id, $today, $driver_id, $today, $driver_id]);
     $vehicle_record = $stmt->fetch();
 
     if (!$vehicle_record) {

@@ -126,6 +126,41 @@ try {
         ];
     }
 
+    // 前日以前の乗務後点呼漏れ（乗務した日＝出庫がある日に乗務後点呼が無い）。直近30日。
+    // 入庫が漏れた日は点呼も漏れていた（2026-10 の入庫漏れ2件とも）ため、入庫の有無に関係なく見る。
+    $sql = "
+        SELECT d.departure_date, u.name AS driver_name
+        FROM departure_records d
+        JOIN users u ON u.id = d.driver_id
+        WHERE d.departure_date < ? AND d.departure_date >= DATE_SUB(?, INTERVAL 30 DAY)
+          AND COALESCE(d.is_sample_data, 0) = 0
+          AND NOT EXISTS (SELECT 1 FROM post_duty_calls p WHERE p.driver_id = d.driver_id AND p.call_date = d.departure_date)
+    ";
+    $params = [$today, $today];
+    if ($user_role !== 'Admin') {
+        $sql .= " AND d.driver_id = ?";
+        $params[] = $user_id;
+    }
+    $sql .= " GROUP BY d.departure_date, d.driver_id, u.name ORDER BY d.departure_date DESC";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $missing_post_duty = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (!empty($missing_post_duty)) {
+        $labels = [];
+        foreach (array_slice($missing_post_duty, 0, 3) as $row) {
+            $labels[] = date('n/j', strtotime($row['departure_date'])) . '（' . $row['driver_name'] . '）';
+        }
+        $more = count($missing_post_duty) > 3 ? ' ほか' . (count($missing_post_duty) - 3) . '件' : '';
+        $alerts[] = [
+            'type' => 'danger',
+            'priority' => 'high',
+            'icon' => 'fas fa-user-clock',
+            'message' => '乗務後点呼が登録されていない乗務日が' . count($missing_post_duty) . '件あります: ' . implode('、', $labels) . $more . '。点呼の実施を確認し、過去日の登録はシステム管理者へ依頼してください。',
+            'action' => 'post_duty_call.php',
+            'action_text' => '乗務後点呼を確認'
+        ];
+    }
+
     // 18時以降の終業チェック
     if ($current_hour >= 18) {
         if ($flow_status['departure'] && !$flow_status['arrival']) {

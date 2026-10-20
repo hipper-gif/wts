@@ -12,6 +12,9 @@ $today = date('Y-m-d');
 $current_time = date('H:i');
 
 $success_message = '';
+if (($_GET['from'] ?? '') === 'arrival' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $success_message = '入庫記録を保存しました。続けて乗務後点呼を登録してください。';
+}
 $error_message = '';
 $is_edit_mode = false;
 
@@ -117,7 +120,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     $call_time = $_POST['call_time'];
 
     // 今日の出庫記録から車両IDを取得（出庫記録がない場合はNULL）
-    $stmt = $pdo->prepare("SELECT vehicle_id FROM departure_records WHERE driver_id = ? AND departure_date = ? LIMIT 1");
+    // その日最後の出庫（車両を乗り換えた日は最後に乗った車両）
+    $stmt = $pdo->prepare("SELECT vehicle_id FROM departure_records WHERE driver_id = ? AND departure_date = ? ORDER BY departure_time DESC, id DESC LIMIT 1");
     $stmt->execute([$driver_id, $today]);
     $departure_record = $stmt->fetch();
 

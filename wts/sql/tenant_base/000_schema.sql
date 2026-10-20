@@ -201,7 +201,7 @@ DELIMITER ;;
         
         -- 車両情報を更新
         UPDATE vehicles 
-        SET current_mileage = NEW.arrival_mileage,
+        SET current_mileage = GREATEST(COALESCE(current_mileage, 0), NEW.arrival_mileage),
             total_distance = total_distance + (NEW.arrival_mileage - IFNULL(dep_mileage, 0)),
             updated_at = NOW()
         WHERE id = NEW.vehicle_id;
@@ -273,7 +273,7 @@ DELIMITER ;;
         
         -- 車両情報を更新
         UPDATE vehicles 
-        SET current_mileage = NEW.arrival_mileage,
+        SET current_mileage = GREATEST(COALESCE(current_mileage, 0), NEW.arrival_mileage),
             total_distance = total_distance - (OLD.arrival_mileage - IFNULL(old_dep_mileage, 0)) + (NEW.arrival_mileage - IFNULL(new_dep_mileage, 0)),
             updated_at = NOW()
         WHERE id = NEW.vehicle_id;

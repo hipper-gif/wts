@@ -89,10 +89,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $card_amount = ($payment_method === 'カード') ? $total_fare : 0;
 
             // 出庫記録との紐付け
-            $departure_record_sql = "SELECT id FROM departure_records WHERE driver_id = ? AND departure_date = ? ORDER BY created_at DESC LIMIT 1";
+            $departure_record_sql = "SELECT id, vehicle_id FROM departure_records WHERE driver_id = ? AND departure_date = ? ORDER BY created_at DESC LIMIT 1";
             $departure_record_stmt = $pdo->prepare($departure_record_sql);
             $departure_record_stmt->execute([$driver_id, $ride_date]);
-            $departure_record_id = $departure_record_stmt->fetchColumn() ?: null;
+            $linked_departure = $departure_record_stmt->fetch(PDO::FETCH_ASSOC);
+            $departure_record_id = $linked_departure['id'] ?? null;
+            // 出庫がある日の車両は出庫に従う（初期選択のまま別車両で登録される事故が続いていた）
+            if ($linked_departure) {
+                $vehicle_id = $linked_departure['vehicle_id'];
+            }
 
             $pdo->beginTransaction();
             try {
@@ -176,6 +181,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($edit_check['needs_reason'] && empty($edit_reason)) {
                 throw new Exception('過去日の記録を修正するには修正理由の入力が必要です。');
+            }
+
+            // 出庫に紐づく記録の車両は出庫に従う（車両を直すときは出庫記録の側を直す）
+            if (!empty($existing_record['departure_record_id'])) {
+                $dep_vehicle_stmt = $pdo->prepare("SELECT vehicle_id FROM departure_records WHERE id = ?");
+                $dep_vehicle_stmt->execute([$existing_record['departure_record_id']]);
+                $dep_vehicle_id = $dep_vehicle_stmt->fetchColumn();
+                if ($dep_vehicle_id) {
+                    $vehicle_id = $dep_vehicle_id;
+                }
             }
 
             // 料金システム統一仕様に準拠

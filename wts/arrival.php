@@ -81,11 +81,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 出庫記録を取得して走行距離を計算（入庫日時が出庫日時より前でないことも検証）
         $departure_mileage = 0;
         if ($departure_record_id) {
-            $stmt = $pdo->prepare("SELECT departure_date, departure_time, departure_mileage FROM departure_records WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT driver_id, vehicle_id, departure_date, departure_time, departure_mileage FROM departure_records WHERE id = ?");
             $stmt->execute([$departure_record_id]);
             $departure_record = $stmt->fetch(PDO::FETCH_OBJ);
             if ($departure_record) {
                 $departure_mileage = $departure_record->departure_mileage;
+                // 入庫の運転者・車両は出庫記録に従う（画面の選択違いで車両の記録が分かれるのを防ぐ）
+                $driver_id = (int)$departure_record->driver_id;
+                $vehicle_id = (int)$departure_record->vehicle_id;
                 // 過去の出庫を後日入庫する際に、入庫日が「今日」のまま登録されて日付が逆転する事故を防ぐ
                 $departure_at = strtotime($departure_record->departure_date . ' ' . $departure_record->departure_time);
                 $arrival_at = strtotime($arrival_date . ' ' . $arrival_time);
@@ -153,6 +156,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $success_message = "入庫記録を保存しました。";
         $saved_driver_id = $driver_id;
+
+        // 当日の入庫で乗務後点呼がまだなら、そのまま点呼へ進める（入庫漏れの日は点呼も漏れていた）
+        if ($arrival_date === date('Y-m-d')) {
+            $pd_stmt = $pdo->prepare("SELECT COUNT(*) FROM post_duty_calls WHERE driver_id = ? AND call_date = ?");
+            $pd_stmt->execute([$driver_id, $arrival_date]);
+            if ((int)$pd_stmt->fetchColumn() === 0) {
+                header("Location: post_duty_call.php?from=arrival&driver_id=" . (int)$driver_id);
+                exit;
+            }
+        }
 
         // リダイレクトしてフォーム再送信を防ぐ
         header("Location: arrival.php?success=1&driver_id=" . $driver_id);
