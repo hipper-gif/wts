@@ -290,8 +290,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
                 // 車両の走行距離を更新
                 if ($mileage) {
-                    $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ?");
-                    $stmt->execute([$mileage, $vehicle_id]);
+                    // 巻き戻さない（打ち間違い・事後登録で現在メーターが下がるのを防ぐ。departure.php と同じ）
+                    $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ? AND current_mileage <= ?");
+                    $stmt->execute([$mileage, $vehicle_id, $mileage]);
                 }
             }
 
@@ -1111,4 +1112,4 @@ $page_config = getPageConfiguration('daily_inspection');
             lockReason: <?= json_encode($lock_reason ?? '') ?>
         };
     </script>
-    <script src="js/daily_inspection.js" defer></script>
+    <script src="js/daily_inspection.js?v=<?= filemtime(__DIR__ . '/js/daily_inspection.js') ?>" defer></script>

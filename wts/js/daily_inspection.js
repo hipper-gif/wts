@@ -76,6 +76,32 @@ function updateMileage() {
     }
 }
 
+// 送信前のメーター確認。前回より小さい・前回から300km超・他の車両の前回値に近い場合は確認を出す
+function confirmMileage(vehicleField) {
+    const mileageInput = document.getElementById('mileage');
+    if (!vehicleField || vehicleField.tagName !== 'SELECT' || !mileageInput || mileageInput.readOnly) return true;
+    const entered = Number(mileageInput.value);
+    const selected = vehicleField.options[vehicleField.selectedIndex];
+    const prev = Number(selected.getAttribute('data-mileage'));
+    if (!entered || !prev) return true;
+
+    const diff = entered - prev;
+    if (diff >= 0 && diff <= 300) return true;
+
+    let msg = diff < 0
+        ? '入力したメーター（' + entered.toLocaleString() + 'km）が、この車両の前回（' + prev.toLocaleString() + 'km）より小さくなっています。'
+        : '入力したメーター（' + entered.toLocaleString() + 'km）が、この車両の前回（' + prev.toLocaleString() + 'km）から' + diff.toLocaleString() + 'km 増えています。';
+    for (const opt of vehicleField.options) {
+        const other = Number(opt.getAttribute('data-mileage'));
+        if (opt === selected || !other) continue;
+        if (entered >= other && entered - other <= 600) {
+            msg += '\n\n「' + opt.textContent.trim() + '」の前回（' + other.toLocaleString() + 'km）に近い数値です。車両の選び間違いではありませんか？';
+            break;
+        }
+    }
+    return confirm(msg + '\n\n車両とメーターを確認してください。このまま保存しますか？');
+}
+
 // 点検結果の変更時にスタイル更新
 function updateInspectionItemStyle(itemName, value) {
     const item = document.querySelector(`[data-item="${itemName}"]`);
@@ -242,6 +268,12 @@ document.getElementById('inspectionForm').addEventListener('submit', function(e)
             safetyReason.focus();
             return;
         }
+    }
+
+    // メーターが前回と大きく違う場合の確認（車両の選び間違い・打ち間違い対策）
+    if (!confirmMileage(vehicleField)) {
+        e.preventDefault();
+        return;
     }
 
     // 「否」の項目がある場合の確認
