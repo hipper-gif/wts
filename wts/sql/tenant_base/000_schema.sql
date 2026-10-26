@@ -712,7 +712,8 @@ CREATE TABLE `hospital_assistance_logs` (
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `inspection_audit_logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `inspection_id` int(11) NOT NULL COMMENT '対象の点検レコードID',
+  `inspection_id` int(11) NOT NULL COMMENT '対象レコードID（record_type の表の id。旧名のまま）',
+  `record_type` varchar(30) DEFAULT NULL COMMENT 'レコード種別（inspection/arrival/departure/ride_record/…・026）',
   `action` enum('create','edit','delete','admin_unlock') NOT NULL COMMENT '操作種別（作成/編集/削除/管理者ロック解除）',
   `edited_by` int(11) NOT NULL COMMENT '操作実行ユーザーID',
   `edited_at` datetime NOT NULL DEFAULT current_timestamp() COMMENT '操作日時',
@@ -726,8 +727,8 @@ CREATE TABLE `inspection_audit_logs` (
   KEY `idx_audit_inspection_id` (`inspection_id`),
   KEY `idx_audit_edited_by` (`edited_by`),
   KEY `idx_audit_edited_at` (`edited_at`),
-  CONSTRAINT `fk_audit_inspection` FOREIGN KEY (`inspection_id`) REFERENCES `daily_inspections` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='日常点検 監査証跡ログ';
+  KEY `idx_audit_type_record` (`record_type`,`inspection_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='監査証跡ログ（全レコード種別・026 で汎用化）';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;

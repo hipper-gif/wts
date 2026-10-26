@@ -330,6 +330,7 @@ if ($existing_inspection) {
             FROM inspection_audit_logs al
             LEFT JOIN users u ON al.edited_by = u.id
             WHERE al.inspection_id = ?
+              AND (al.record_type = 'inspection' OR al.record_type IS NULL)
             ORDER BY al.edited_at DESC
         ");
         $stmt_logs->execute([$existing_inspection['id']]);

@@ -157,15 +157,16 @@ function logAudit($pdo, $record_id, $action, $user_id, $type = 'record', $change
     try {
         $ip = $_SERVER['REMOTE_ADDR'] ?? '';
         $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        // record_type に種別を持つ（026: 点検専用の外部キーを外し全種別を記録できるようにした・Issue #78）
         $stmt = $pdo->prepare("INSERT INTO inspection_audit_logs
-            (inspection_id, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            (inspection_id, record_type, action, edited_by, field_changed, old_value, new_value, reason, ip_address, user_agent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         if (empty($changes)) {
-            $stmt->execute([$record_id, $action, $user_id, $type, null, null, $reason, $ip, $ua]);
+            $stmt->execute([$record_id, $type, $action, $user_id, $type, null, null, $reason, $ip, $ua]);
         } else {
             foreach ($changes as $change) {
                 $stmt->execute([
-                    $record_id, $action, $user_id,
+                    $record_id, $type, $action, $user_id,
                     $change['field'] ?? $type,
                     $change['old'] ?? null,
                     $change['new'] ?? null,

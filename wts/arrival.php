@@ -52,7 +52,7 @@ $warning_message = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validateCsrfToken();
     try {
-        $departure_record_id = $_POST['departure_record_id'] ?? null;
+        $departure_record_id = filter_var($_POST['departure_record_id'] ?? null, FILTER_VALIDATE_INT) ?: null;
         $driver_id = filter_var($_POST['driver_id'], FILTER_VALIDATE_INT);
         $vehicle_id = filter_var($_POST['vehicle_id'], FILTER_VALIDATE_INT);
         $arrival_date = $_POST['arrival_date'];
@@ -84,6 +84,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("SELECT driver_id, vehicle_id, departure_date, departure_time, departure_mileage FROM departure_records WHERE id = ?");
             $stmt->execute([$departure_record_id]);
             $departure_record = $stmt->fetch(PDO::FETCH_OBJ);
+            if (!$departure_record) {
+                // 古い画面からの送信（別端末で入庫済み・出庫が削除済み）＝外部キー違反を一般エラーにしない（Issue #79）
+                throw new InvalidArgumentException('選んだ出庫記録が見つかりません（別の端末で入庫済みか、出庫記録が削除されています）。画面を開き直して、未入庫の出庫を選び直してください。');
+            }
             if ($departure_record) {
                 $departure_mileage = $departure_record->departure_mileage;
                 // 入庫の運転者・車両は出庫記録に従う（画面の選択違いで車両の記録が分かれるのを防ぐ）
