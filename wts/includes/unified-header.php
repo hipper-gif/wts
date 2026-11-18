@@ -881,6 +881,14 @@ function renderCompleteHTMLFooter($additional_js = []) {
     <script src="' . $js_safe . '" defer></script>';
     }
     
+    // 開いたままの画面で保存した時に入力が消えないよう、ログインを保ちトークンを入れ直す（全画面共通）
+    $keepalive_file = dirname(__DIR__) . '/js/session-keepalive.js';
+    if (is_file($keepalive_file)) {
+        $html .= '
+    <script src="' . htmlspecialchars(APP_BASE_PATH . '/js/session-keepalive.js?v=' . filemtime($keepalive_file), ENT_QUOTES, 'UTF-8') . '"'
+            . ' data-ping-url="' . htmlspecialchars(APP_BASE_PATH . '/api/session_ping.php', ENT_QUOTES, 'UTF-8') . '"></script>';
+    }
+
     $html .= '
     <script>
     // v3.1.1初期化処理

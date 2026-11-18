@@ -20,6 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $driver_id = (int)($data['driver_id'] ?? 0);
         $collection_date = $data['collection_date'] ?? '';
+        // 画面が「したい状態」を送る（今の値の反転だと、古い画面や二人同時の操作で意図と逆になっていた）。
+        // 送られてこない時（古い画面が端末に残っている間）は、従来どおり反転する
+        $desired = array_key_exists('is_collected', $data) ? ($data['is_collected'] ? 1 : 0) : null;
 
         if (!$driver_id || !$collection_date) {
             throw new Exception('driver_id と collection_date は必須です');
@@ -35,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->beginTransaction();
         try {
             if ($existing) {
-                $new_status = $existing['is_collected'] ? 0 : 1;
+                $new_status = ($desired !== null) ? $desired : ($existing['is_collected'] ? 0 : 1);
                 $update_stmt = $pdo->prepare("
                     UPDATE cash_collections
                     SET is_collected = ?, collected_by = ?, updated_at = CURRENT_TIMESTAMP
@@ -44,15 +47,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $update_stmt->execute([$new_status, $user_id, $existing['id']]);
                 $action = $new_status ? '集金済みに変更' : '未集金に変更';
             } else {
-                $new_status = 1;
+                $new_status = ($desired !== null) ? $desired : 1;
                 $insert_stmt = $pdo->prepare("
                     INSERT INTO cash_collections (driver_id, collection_date, is_collected, collected_by)
-                    VALUES (?, ?, 1, ?)
+                    VALUES (?, ?, ?, ?)
                 ");
-                $insert_stmt->execute([$driver_id, $collection_date, $user_id]);
-                $action = '集金済みに登録';
+                $insert_stmt->execute([$driver_id, $collection_date, $new_status, $user_id]);
+                $action = $new_status ? '集金済みに登録' : '未集金で登録';
             }
-            logAudit($pdo, $driver_id, '[売上金] ' . $action, $user_id, 'cash', [], "driver_id={$driver_id}, date={$collection_date}");
+            // 操作種別は create/edit/delete のみ（それ以外は記録されない）。何をしたかは理由欄に書く
+            logAudit($pdo, $driver_id, 'edit', $user_id, 'cash', [], "[売上金] {$action} driver_id={$driver_id}, date={$collection_date}");
             $pdo->commit();
         } catch (Exception $e) {
             $pdo->rollBack();
@@ -1024,7 +1028,8 @@ function toggleCollection(checkbox) {
 
     checkbox.disabled = true;
 
-    var payload = JSON.stringify({ driver_id: parseInt(driverId), collection_date: date });
+    // 押した後のチェックの状態＝したい状態を送る（サーバーは反転ではなく、この値にする）
+    var payload = JSON.stringify({ driver_id: parseInt(driverId), collection_date: date, is_collected: checkbox.checked ? 1 : 0 });
     console.log('集金チェック送信:', payload);
 
     var csrfMeta = document.querySelector('meta[name="csrf-token"]');

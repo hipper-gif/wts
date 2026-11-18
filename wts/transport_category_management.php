@@ -14,7 +14,7 @@ if ($user_role !== 'Admin') {
     exit;
 }
 
-$message = '';
+$message = takeFlashMessage(); // 保存後に出し直した時の知らせ
 $error = '';
 
 // POST処理
@@ -62,9 +62,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             case 'toggle':
                 $id = (int)$_POST['category_id'];
-                $stmt = $pdo->prepare("UPDATE transport_categories SET is_active = NOT is_active WHERE id = ?");
+                // 反転ではなく、画面が送った「したい状態」にする（再読込や二人続けての操作で元に戻らないように）
+                $set_active = !empty($_POST['set_active']) ? 1 : 0;
+                $stmt = $pdo->prepare("SELECT category_name FROM transport_categories WHERE id = ?");
                 $stmt->execute([$id]);
-                $message = "状態を変更しました。";
+                $target_name = $stmt->fetchColumn();
+                if ($target_name === false) throw new Exception('この分類は見つかりません。');
+                $stmt = $pdo->prepare("UPDATE transport_categories SET is_active = ? WHERE id = ?");
+                $stmt->execute([$set_active, $id]);
+                $message = "「{$target_name}」を" . ($set_active ? '有効' : '無効') . "にしました。";
                 break;
 
             case 'reorder':
@@ -82,6 +88,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = $e->getMessage();
     }
 }
+
+// 保存が通った後は画面を出し直す（再読込で同じ操作がもう1回走らないように。決まりは functions.php）
+redirectAfterSuccessfulPost($message, $error);
 
 // データ取得
 $categories = $pdo->query("SELECT * FROM transport_categories ORDER BY sort_order, id")->fetchAll(PDO::FETCH_ASSOC);
@@ -181,10 +190,11 @@ $page_data = renderCompletePage(
                         <button class="btn btn-outline-secondary btn-sm" onclick="editCategory(<?= htmlspecialchars(json_encode($cat)) ?>)" title="編集">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <form method="POST" style="display:inline;" onsubmit="return confirm('状態を変更しますか？')">
+                        <form method="POST" style="display:inline;" onsubmit="return confirm(<?= htmlspecialchars(json_encode('「' . $cat['category_name'] . '」を' . ($cat['is_active'] ? '無効' : '有効') . 'にしますか？', JSON_UNESCAPED_UNICODE)) ?>)">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                             <input type="hidden" name="action" value="toggle">
                             <input type="hidden" name="category_id" value="<?= $cat['id'] ?>">
+                            <input type="hidden" name="set_active" value="<?= $cat['is_active'] ? 0 : 1 ?>">
                             <button type="submit" class="btn btn-outline-secondary btn-sm"
                                     title="<?= $cat['is_active'] ? '無効化' : '有効化' ?>">
                                 <i class="fas fa-<?= $cat['is_active'] ? 'ban' : 'check' ?>"></i>
