@@ -82,15 +82,11 @@ function getRevenueByDateRange($pdo, $start_date, $end_date, $driver_id = null) 
     $sql = "SELECT
                 COUNT(*) as ride_count,
                 SUM(passenger_count) as total_passengers,
-                COALESCE(SUM(total_fare), SUM(fare + COALESCE(charge, 0))) as total_revenue,
-                COALESCE(SUM(cash_amount),
-                    SUM(CASE WHEN payment_method = '現金'
-                        THEN fare + COALESCE(charge, 0) ELSE 0 END)) as cash_total,
-                COALESCE(SUM(card_amount),
-                    SUM(CASE WHEN payment_method = 'カード'
-                        THEN fare + COALESCE(charge, 0) ELSE 0 END)) as card_total
+                SUM(" . wtsSqlRideRevenue() . ") as total_revenue,
+                SUM(" . wtsSqlRideCash() . ") as cash_total,
+                SUM(" . wtsSqlRideCard() . ") as card_total
             FROM ride_records
-            WHERE DATE(ride_date) BETWEEN ? AND ?";
+            WHERE DATE(ride_date) BETWEEN ? AND ? AND " . wtsSqlRideNotSample();
     $params = [$start_date, $end_date];
     if ($driver_id && $driver_id !== 'all') {
         $sql .= " AND driver_id = ?";
@@ -107,16 +103,12 @@ function getRevenueByDriver($pdo, $start_date, $end_date) {
                 u.name,
                 COUNT(r.id) as ride_count,
                 SUM(r.passenger_count) as total_passengers,
-                COALESCE(SUM(r.total_fare), SUM(r.fare + COALESCE(r.charge, 0))) as total_revenue,
-                COALESCE(SUM(r.cash_amount),
-                    SUM(CASE WHEN r.payment_method = '現金'
-                        THEN r.fare + COALESCE(r.charge, 0) ELSE 0 END)) as cash_total,
-                COALESCE(SUM(r.card_amount),
-                    SUM(CASE WHEN r.payment_method = 'カード'
-                        THEN r.fare + COALESCE(r.charge, 0) ELSE 0 END)) as card_total
+                SUM(" . wtsSqlRideRevenue('r') . ") as total_revenue,
+                SUM(" . wtsSqlRideCash('r') . ") as cash_total,
+                SUM(" . wtsSqlRideCard('r') . ") as card_total
             FROM users u
             LEFT JOIN ride_records r ON u.id = r.driver_id
-                AND DATE(r.ride_date) BETWEEN ? AND ?
+                AND DATE(r.ride_date) BETWEEN ? AND ? AND " . wtsSqlRideNotSample('r') . "
             WHERE u.is_driver = 1 AND u.is_active = 1
             GROUP BY u.id, u.name
             ORDER BY u.name";
@@ -987,7 +979,7 @@ echo $page_data['html_head'];
                 </thead>
                 <tbody>
                     <?php foreach ($cash_count_history as $ch):
-                        $ch_deposit = $ch['total_amount'] - 18000;
+                        $ch_deposit = $ch['total_amount'] - getCashBaseTotal(); // 基準おつりの決まりは functions.php
                     ?>
                     <tr>
                         <td style="white-space:nowrap;"><?php if ($ch['period_start_date']): ?><?php echo date('m/d', strtotime($ch['period_start_date'])); ?>〜<?php endif; ?><?php echo date('m/d', strtotime($ch['confirmation_date'])); ?>

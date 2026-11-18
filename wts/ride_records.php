@@ -402,12 +402,12 @@ unset($ride);
 $summary_sql = "SELECT 
     COUNT(*) as total_rides,
     SUM(r.passenger_count) as total_passengers,
-    COALESCE(SUM(r.total_fare), SUM(r.fare + COALESCE(r.charge, 0))) as total_revenue,
-    COALESCE(AVG(r.total_fare), AVG(r.fare + COALESCE(r.charge, 0))) as avg_fare,
+    SUM(" . wtsSqlRideRevenue('r') . ") as total_revenue,
+    AVG(" . wtsSqlRideRevenue('r') . ") as avg_fare,
     SUM(CASE WHEN r.payment_method = '現金' THEN 1 ELSE 0 END) as cash_count,
     SUM(CASE WHEN r.payment_method = 'カード' THEN 1 ELSE 0 END) as card_count,
-    COALESCE(SUM(r.cash_amount), SUM(CASE WHEN r.payment_method = '現金' THEN r.fare + COALESCE(r.charge, 0) ELSE 0 END)) as cash_total,
-    COALESCE(SUM(r.card_amount), SUM(CASE WHEN r.payment_method = 'カード' THEN r.fare + COALESCE(r.charge, 0) ELSE 0 END)) as card_total
+    SUM(" . wtsSqlRideCash('r') . ") as cash_total,
+    SUM(" . wtsSqlRideCard('r') . ") as card_total
     FROM ride_records r 
     WHERE " . implode(' AND ', $where_conditions);
 $summary_stmt = $pdo->prepare($summary_sql);
@@ -419,7 +419,7 @@ $category_sql = "SELECT
     r.transportation_type,
     COUNT(*) as count,
     SUM(r.passenger_count) as passengers,
-    COALESCE(SUM(r.total_fare), SUM(r.fare + COALESCE(r.charge, 0))) as revenue
+    SUM(" . wtsSqlRideRevenue('r') . ") as revenue
     FROM ride_records r 
     WHERE " . implode(' AND ', $where_conditions) . "
     GROUP BY r.transportation_type 

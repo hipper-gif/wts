@@ -247,6 +247,36 @@ function takeFlashMessage() {
 }
 
 /**
+ * 乗車記録の売上の式（SQL の断片）。売上・現金売上・カード売上の決まりはここ1か所。
+ * 売上金確認・現金カウント・乗車記録の日次集計・ダッシュボードが同じ式を使う
+ * （以前は4か所に別々に書かれていて、片方だけ直すと画面ごとに金額が違い得た）。
+ * @param string $alias 表の別名（'r' など。無ければ空）
+ */
+function wtsSqlRideRevenue($alias = '') {
+    $a = $alias !== '' ? $alias . '.' : '';
+    return "(CASE WHEN {$a}total_fare IS NOT NULL AND {$a}total_fare > 0 THEN {$a}total_fare"
+         . " ELSE COALESCE({$a}fare, 0) + COALESCE({$a}charge, 0) END)";
+}
+
+/** 現金で受け取った額。現金額の欄が空の古い記録は、支払方法が現金なら売上の全額とみなす */
+function wtsSqlRideCash($alias = '') {
+    $a = $alias !== '' ? $alias . '.' : '';
+    return "COALESCE({$a}cash_amount, CASE WHEN {$a}payment_method = '現金' THEN " . wtsSqlRideRevenue($alias) . " ELSE 0 END)";
+}
+
+/** カードで受け取った額（考え方は現金と同じ） */
+function wtsSqlRideCard($alias = '') {
+    $a = $alias !== '' ? $alias . '.' : '';
+    return "COALESCE({$a}card_amount, CASE WHEN {$a}payment_method = 'カード' THEN " . wtsSqlRideRevenue($alias) . " ELSE 0 END)";
+}
+
+/** サンプル扱いの記録を集計から外す条件 */
+function wtsSqlRideNotSample($alias = '') {
+    $a = $alias !== '' ? $alias . '.' : '';
+    return "COALESCE({$a}is_sample_data, 0) = 0";
+}
+
+/**
  * 現金カウントの金種（額面）と、基準おつりの枚数。決まりはここ1か所。
  * 現金カウントの画面と保存API（合計の計算）の両方がこれを使う。
  */

@@ -113,19 +113,13 @@ $overlaps = $overlap_stmt->fetchAll(PDO::FETCH_ASSOC);
 $today_stmt = $pdo->prepare("
     SELECT
         COUNT(*) as trip_count,
-        COALESCE(SUM(
-            CASE
-                WHEN total_fare IS NOT NULL AND total_fare > 0 THEN total_fare
-                WHEN (fare IS NOT NULL OR charge IS NOT NULL) THEN (COALESCE(fare, 0) + COALESCE(charge, 0))
-                ELSE 0
-            END
-        ), 0) as total_sales,
-        COALESCE(SUM(cash_amount), 0) as cash_sales,
-        COALESCE(SUM(card_amount), 0) as card_sales
+        COALESCE(SUM(" . wtsSqlRideRevenue() . "), 0) as total_sales,
+        COALESCE(SUM(" . wtsSqlRideCash() . "), 0) as cash_sales,
+        COALESCE(SUM(" . wtsSqlRideCard() . "), 0) as card_sales
     FROM ride_records
     WHERE ride_date BETWEEN ? AND ?
     AND driver_id = ?
-    AND COALESCE(is_sample_data, 0) = 0
+    AND " . wtsSqlRideNotSample() . "
 ");
 $today_stmt->execute([$period_start, $target_date, $target_id]);
 $today_sales = $today_stmt->fetch(PDO::FETCH_OBJ);

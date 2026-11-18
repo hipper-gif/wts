@@ -437,8 +437,10 @@
             totalDisplay.textContent = `¥${total.toLocaleString()}`;
         }
         
-        // 入金額を計算（合計 - 基準おつり18,000円）
-        const depositAmount = total - 18000;
+        // 入金額を計算（合計 - 基準おつり）。基準おつりは画面が data-base-total で渡す（決まりは functions.php の1か所）
+        const baseHolder = document.querySelector('[data-base-total]');
+        const baseTotal = baseHolder ? (parseInt(baseHolder.getAttribute('data-base-total'), 10) || 0) : 0;
+        const depositAmount = total - baseTotal;
         const depositDisplay = document.querySelector('.deposit-amount');
         if (depositDisplay) {
             depositDisplay.textContent = `¥${depositAmount.toLocaleString()}`;

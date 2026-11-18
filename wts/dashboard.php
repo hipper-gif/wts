@@ -52,22 +52,10 @@ function calculateRevenue($pdo, $date_condition, $params = []) {
         SELECT
             COUNT(*) as ride_count,
             SUM(COALESCE(passenger_count, 0)) as total_passengers,
-            SUM(
-                CASE
-                    WHEN total_fare IS NOT NULL AND total_fare > 0 THEN total_fare
-                    WHEN (fare IS NOT NULL OR charge IS NOT NULL) THEN (COALESCE(fare, 0) + COALESCE(charge, 0))
-                    ELSE 0
-                END
-            ) as total_revenue,
-            ROUND(AVG(
-                CASE
-                    WHEN total_fare IS NOT NULL AND total_fare > 0 THEN total_fare
-                    WHEN (fare IS NOT NULL OR charge IS NOT NULL) THEN (COALESCE(fare, 0) + COALESCE(charge, 0))
-                    ELSE 0
-                END
-            ), 0) as avg_fare
+            SUM(" . wtsSqlRideRevenue() . ") as total_revenue,
+            ROUND(AVG(" . wtsSqlRideRevenue() . "), 0) as avg_fare
         FROM ride_records
-        WHERE {$date_condition} AND COALESCE(is_sample_data, 0) = 0
+        WHERE {$date_condition} AND " . wtsSqlRideNotSample() . "
     ";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
