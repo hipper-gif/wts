@@ -129,7 +129,7 @@ try {
     // 前日以前の乗務後点呼漏れ（乗務した日＝出庫がある日に乗務後点呼が無い）。直近30日。
     // 入庫が漏れた日は点呼も漏れていた（2026-10 の入庫漏れ2件とも）ため、入庫の有無に関係なく見る。
     $sql = "
-        SELECT d.departure_date, u.name AS driver_name
+        SELECT d.departure_date, d.driver_id, u.name AS driver_name
         FROM departure_records d
         JOIN users u ON u.id = d.driver_id
         WHERE d.departure_date < ? AND d.departure_date >= DATE_SUB(?, INTERVAL 30 DAY)
@@ -155,9 +155,10 @@ try {
             'type' => 'danger',
             'priority' => 'high',
             'icon' => 'fas fa-user-clock',
-            'message' => '乗務後点呼が登録されていない乗務日が' . count($missing_post_duty) . '件あります: ' . implode('、', $labels) . $more . '。点呼の実施を確認し、過去日の登録はシステム管理者へ依頼してください。',
-            'action' => 'post_duty_call.php',
-            'action_text' => '乗務後点呼を確認'
+            'message' => '乗務後点呼が登録されていない乗務日が' . count($missing_post_duty) . '件あります: ' . implode('、', $labels) . $more . '。点呼の実施を確認し、乗務後点呼の画面で点呼日を選んで登録してください（前日より前の分は管理者が登録します）。',
+            // いちばん新しい漏れの日・運転者の画面を直接開く（ADR-0012）
+            'action' => 'post_duty_call.php?driver_id=' . (int)$missing_post_duty[0]['driver_id'] . '&date=' . $missing_post_duty[0]['departure_date'],
+            'action_text' => date('n/j', strtotime($missing_post_duty[0]['departure_date'])) . ' の乗務後点呼を開く'
         ];
     }
 

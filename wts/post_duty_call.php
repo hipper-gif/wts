@@ -9,11 +9,37 @@ function canEditPostDutyCall($record, $user_role) {
 }
 
 $today = date('Y-m-d');
+$yesterday = date('Y-m-d', strtotime('-1 day'));
 $current_time = date('H:i');
 
 $success_message = '';
 $error_message = '';
 $is_edit_mode = false;
+$form_old = null; // 保存が通らなかった時に、入れた値を残して出し直す
+
+// 保存・削除のあとは画面を出し直してから知らせる（再読込で同じ保存がもう1回走らないように）
+if (!empty($_SESSION['post_duty_flash'])) {
+    $success_message = $_SESSION['post_duty_flash'];
+    unset($_SESSION['post_duty_flash']);
+}
+
+/** 点呼日として使える日付にそろえる（形が違う・未来の日付は今日にする） */
+function normalizePostDutyDate($value, $today) {
+    $value = trim((string)$value);
+    $d = DateTime::createFromFormat('Y-m-d', $value);
+    if (!$d || $d->format('Y-m-d') !== $value || $value > $today) {
+        return $today;
+    }
+    return $value;
+}
+
+/**
+ * その日の乗務後点呼を新しく登録できるか（ADR-0012）。
+ * 今日と前日は誰でも（日付をまたいだ・翌朝に気づいた）。それより前は管理者だけ。
+ */
+function canRegisterPostDutyDate($call_date, $user_role, $yesterday) {
+    return $call_date >= $yesterday || $user_role === 'Admin';
+}
 
 // ドライバーと点呼者の取得
 try {
@@ -38,100 +64,82 @@ try {
     $is_current_user_driver = false;
 }
 
-// 今日の点呼記録があるかチェック
-$existing_call = null;
+// どの運転者の・どの日の点呼か（送信された時は送信された値、開いただけの時はURLの値）
+$is_post = ($_SERVER['REQUEST_METHOD'] === 'POST');
 $selected_driver_id = null;
-
-if ($_GET['driver_id'] ?? null) {
-    $selected_driver_id = $_GET['driver_id'];
+if ($is_post && !empty($_POST['driver_id'])) {
+    $selected_driver_id = (int)$_POST['driver_id'];
+} elseif (!empty($_GET['driver_id'])) {
+    $selected_driver_id = (int)$_GET['driver_id'];
 } elseif ($is_current_user_driver) {
     // ログインユーザーが運転者の場合はデフォルト選択
-    $selected_driver_id = $user_id;
+    $selected_driver_id = (int)$user_id;
 }
+$call_date = normalizePostDutyDate($is_post ? ($_POST['call_date'] ?? $today) : ($_GET['date'] ?? $today), $today);
 
-if ($selected_driver_id) {
-    $stmt = $pdo->prepare("SELECT * FROM post_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
-    $stmt->execute([$selected_driver_id, $today]);
-    $existing_call = $stmt->fetch();
-    $is_edit_mode = (bool)$existing_call;
-}
-
-// 対応する乗務前点呼の取得
-$pre_duty_call = null;
-if ($selected_driver_id) {
-    $stmt = $pdo->prepare("SELECT * FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
-    $stmt->execute([$selected_driver_id, $today]);
-    $pre_duty_call = $stmt->fetch();
-}
+$self_url = function ($driver_id, $date) use ($today) {
+    $q = [];
+    if ($driver_id) $q['driver_id'] = (int)$driver_id;
+    if ($date && $date !== $today) $q['date'] = $date;
+    return 'post_duty_call.php' . ($q ? '?' . http_build_query($q) : '');
+};
 
 // 修正・削除処理
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+if ($is_post && isset($_POST['action'])) {
     validateCsrfToken();
     if ($_POST['action'] === 'delete') {
         try {
-            $delete_driver_id = $_POST['driver_id'];
-            $delete_call_date = $_POST['call_date'];
+            $delete_driver_id = (int)$_POST['driver_id'];
+            $delete_call_date = $call_date;
             $delete_reason = $_POST['delete_reason'] ?? '';
 
             // 削除対象レコード取得
             $stmt = $pdo->prepare("SELECT * FROM post_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
             $stmt->execute([$delete_driver_id, $delete_call_date]);
-            $delete_record = $stmt->fetch();
+            $delete_record = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            if ($delete_record) {
-                $edit_check = canEditPostDutyCall($delete_record, $user_role);
-
-                // 一般ユーザーは当日のみ削除可
-                if ($user_role !== 'Admin' && $delete_call_date < $today) {
-                    throw new Exception('過去日の記録は管理者のみ削除できます。');
-                }
-
-                if (!$edit_check['can_edit']) {
-                    throw new Exception($edit_check['lock_reason']);
-                }
-
-                $pdo->beginTransaction();
-                $stmt = $pdo->prepare("DELETE FROM post_duty_calls WHERE driver_id = ? AND call_date = ?");
-                $stmt->execute([$delete_driver_id, $delete_call_date]);
-                logAudit($pdo, $delete_record['id'], 'delete', $user_id, 'post_duty_call', [], $delete_reason);
-                $pdo->commit();
-
-                $success_message = '乗務後点呼記録を削除しました。';
-                $existing_call = null;
-                $is_edit_mode = false;
+            if (!$delete_record) {
+                throw new InvalidArgumentException('この乗務後点呼記録は見つかりません。すでに削除されている可能性があります。');
             }
+            // 一般ユーザーは当日のみ削除可
+            if ($user_role !== 'Admin' && $delete_call_date < $today) {
+                throw new InvalidArgumentException('過去日の記録は管理者のみ削除できます。');
+            }
+            $edit_check = canEditPostDutyCall($delete_record, $user_role);
+            if (!$edit_check['can_edit']) {
+                throw new InvalidArgumentException($edit_check['lock_reason']);
+            }
+
+            $pdo->beginTransaction();
+            archiveRowsBeforeDelete($pdo, 'post_duty_calls', 'id = ?', [$delete_record['id']], '乗務後点呼の削除', $user_id);
+            $stmt = $pdo->prepare("DELETE FROM post_duty_calls WHERE id = ?");
+            $stmt->execute([$delete_record['id']]);
+            logAudit($pdo, $delete_record['id'], 'delete', $user_id, 'post_duty_call', [], $delete_reason);
+            $pdo->commit();
+
+            $_SESSION['post_duty_flash'] = '乗務後点呼記録を削除しました。';
+            header('Location: ' . $self_url($delete_driver_id, $delete_call_date));
+            exit;
+        } catch (InvalidArgumentException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            $error_message = $e->getMessage();
         } catch (Exception $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            $error_message = '削除中にエラーが発生しました: ' . $e->getMessage();
+            $error_message = '削除できませんでした。記録は変わっていません。もう一度試しても同じ場合は、システム担当に連絡してください。';
             error_log("Post duty call delete error: " . $e->getMessage());
         }
     }
 }
 
 // フォーム送信処理（登録・更新）
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
+if ($is_post && !isset($_POST['action'])) {
     validateCsrfToken();
-    $driver_id = $_POST['driver_id'];
-    $call_time = $_POST['call_time'];
-
-    // 今日の出庫記録から車両IDを取得（出庫記録がない場合はNULL）
-    // その日最後の出庫（車両を乗り換えた日は最後に乗った車両）
-    $stmt = $pdo->prepare("SELECT vehicle_id FROM departure_records WHERE driver_id = ? AND departure_date = ? ORDER BY departure_time DESC, id DESC LIMIT 1");
-    $stmt->execute([$driver_id, $today]);
-    $departure_record = $stmt->fetch();
-
-    // 出庫記録がなくても点呼は実施可能
-    $vehicle_id = $departure_record ? $departure_record['vehicle_id'] : null;
-
-    // 点呼者名の処理
-    $caller_name = $_POST['caller_name'];
-    if ($caller_name === 'その他') {
-        $caller_name = $_POST['other_caller'];
-    }
-
-    $alcohol_check_value = $_POST['alcohol_check_value'];
+    $driver_id = (int)($_POST['driver_id'] ?? 0);
+    $call_time = trim($_POST['call_time'] ?? '');
 
     // 12項目確認事項のチェック（仕様書準拠）
     $check_items = [
@@ -150,32 +158,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     ];
 
     try {
-        // 対応する乗務前点呼の確認
-        $stmt = $pdo->prepare("SELECT id FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
-        $stmt->execute([$driver_id, $today]);
-        $pre_duty_record = $stmt->fetch();
-
-        if (!$pre_duty_record) {
-            throw new Exception('対応する乗務前点呼記録が見つかりません。先に乗務前点呼を実施してください。');
+        if (!in_array($driver_id, array_map('intval', array_column($drivers, 'id')), true)) {
+            throw new InvalidArgumentException('運転者を選択してください。');
+        }
+        if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $call_time)) {
+            throw new InvalidArgumentException('点呼時刻を入力してください。');
         }
 
-        $pre_duty_call_id = $pre_duty_record['id'];
+        // 点呼者名の処理
+        $caller_name = trim($_POST['caller_name'] ?? '');
+        if ($caller_name === 'その他') {
+            $caller_name = trim($_POST['other_caller'] ?? '');
+        }
+        if ($caller_name === '') {
+            throw new InvalidArgumentException('点呼者を選択してください。');
+        }
+
+        $alcohol_check_value = trim((string)($_POST['alcohol_check_value'] ?? ''));
+        if ($alcohol_check_value === '' || !is_numeric($alcohol_check_value) || (float)$alcohol_check_value < 0) {
+            throw new InvalidArgumentException('アルコール測定値を入力してください。');
+        }
+
+        // その日の出庫記録から車両IDを取得（出庫記録がなくても点呼は実施可能）
+        // その日最後の出庫（車両を乗り換えた日は最後に乗った車両）
+        $stmt = $pdo->prepare("SELECT vehicle_id FROM departure_records WHERE driver_id = ? AND departure_date = ? ORDER BY departure_time DESC, id DESC LIMIT 1");
+        $stmt->execute([$driver_id, $call_date]);
+        $departure_record = $stmt->fetch();
+        $vehicle_id = $departure_record ? $departure_record['vehicle_id'] : null;
+
+        // 対応する乗務前点呼の確認
+        $stmt = $pdo->prepare("SELECT id FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
+        $stmt->execute([$driver_id, $call_date]);
+        $pre_duty_record = $stmt->fetch();
 
         // 既存レコードの確認
         $stmt = $pdo->prepare("SELECT * FROM post_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
-        $stmt->execute([$driver_id, $today]);
+        $stmt->execute([$driver_id, $call_date]);
         $existing = $stmt->fetch();
+
+        // 今日の分は、乗務前点呼を先に登録してもらう（画面を開いた時点で知らせている）。
+        // 過去日の乗務前点呼は画面から登録できないので、乗務後点呼だけでも登録できるようにする（ADR-0012）
+        if (!$pre_duty_record && !$existing && $call_date === $today) {
+            throw new InvalidArgumentException('今日の乗務前点呼がまだ登録されていません。先に乗務前点呼を登録してください。');
+        }
+        $pre_duty_call_id = $pre_duty_record ? $pre_duty_record['id'] : null;
 
         if ($existing) {
             // ロック判定
             $edit_check = canEditPostDutyCall($existing, $user_role);
             if (!$edit_check['can_edit']) {
-                throw new Exception($edit_check['lock_reason']);
+                throw new InvalidArgumentException($edit_check['lock_reason']);
             }
+            $edit_reason = null;
             if ($edit_check['needs_reason']) {
                 $edit_reason = trim($_POST['edit_reason'] ?? '');
                 if (empty($edit_reason)) {
-                    throw new Exception('過去日の記録を修正するには修正理由が必要です。');
+                    throw new InvalidArgumentException('過去日の記録を修正するには修正理由が必要です。');
                 }
             }
 
@@ -190,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             }
 
             $sql .= " remarks = ?, is_completed = TRUE, updated_at = NOW()
-                    WHERE driver_id = ? AND call_date = ?";
+                    WHERE id = ?";
 
             $stmt = $pdo->prepare($sql);
             $params = [$call_time, $caller_name, $alcohol_check_value, $call_time, $pre_duty_call_id];
@@ -200,14 +238,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             }
 
             $params[] = $_POST['remarks'] ?? '';
-            $params[] = $driver_id;
-            $params[] = $existing['call_date'];
+            $params[] = $existing['id'];
 
             $stmt->execute($params);
-            logAudit($pdo, $existing['id'], 'edit', $user_id, 'post_duty_call', [], $edit_reason ?? null);
+            logAudit($pdo, $existing['id'], 'edit', $user_id, 'post_duty_call', [], $edit_reason);
             $pdo->commit();
-            $success_message = '乗務後点呼記録を更新しました。';
+            $_SESSION['post_duty_flash'] = '乗務後点呼記録を更新しました。';
         } else {
+            if (!canRegisterPostDutyDate($call_date, $user_role, $yesterday)) {
+                throw new InvalidArgumentException('前日より前の乗務後点呼は、管理者が登録してください。');
+            }
+
+            // 過去日の分を後から登録した時は、備考に事後登録と分かる印を付ける（ADR-0002）
+            $remarks = trim($_POST['remarks'] ?? '');
+            if ($call_date < $today) {
+                $remarks = trim('【' . $today . ' 事後登録】' . $remarks);
+            }
+
             // 新規挿入
             $pdo->beginTransaction();
             $sql = "INSERT INTO post_duty_calls (
@@ -224,34 +271,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $sql .= " ?, TRUE)";
 
             $stmt = $pdo->prepare($sql);
-            $params = [$driver_id, $vehicle_id, $today, $call_time, $caller_name, $alcohol_check_value, $call_time, $pre_duty_call_id];
+            $params = [$driver_id, $vehicle_id, $call_date, $call_time, $caller_name, $alcohol_check_value, $call_time, $pre_duty_call_id];
 
             foreach ($check_items as $item) {
                 $params[] = isset($_POST[$item]) ? 1 : 0;
             }
 
-            $params[] = $_POST['remarks'] ?? '';
+            $params[] = $remarks;
 
             $stmt->execute($params);
             $new_id = $pdo->lastInsertId();
             logAudit($pdo, $new_id, 'create', $user_id, 'post_duty_call');
             $pdo->commit();
-            $success_message = '乗務後点呼記録を登録しました。';
+            $_SESSION['post_duty_flash'] = ($call_date === $today)
+                ? '乗務後点呼記録を登録しました。'
+                : date('n/j', strtotime($call_date)) . ' の乗務後点呼記録を登録しました。';
         }
 
-        // 記録を再取得
-        $stmt = $pdo->prepare("SELECT * FROM post_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
-        $stmt->execute([$driver_id, $today]);
-        $existing_call = $stmt->fetch();
-        $is_edit_mode = true;
+        header('Location: ' . $self_url($driver_id, $call_date));
+        exit;
 
+    } catch (InvalidArgumentException $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $error_message = $e->getMessage() . '（入力した内容は残しています）';
+        $form_old = $_POST;
     } catch (Exception $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
-        $error_message = '記録の保存中にエラーが発生しました: ' . $e->getMessage();
+        $error_message = '保存できませんでした。入力した内容は残しています。もう一度保存しても同じ場合は、システム担当に連絡してください。';
+        $form_old = $_POST;
         error_log("Post duty call error: " . $e->getMessage());
     }
+}
+
+// その運転者・その日の点呼記録と、対応する乗務前点呼
+$existing_call = null;
+$pre_duty_call = null;
+$missed_yesterday = false; // 昨日乗務したのに乗務後点呼が無い（今日の画面で1回だけ知らせる）
+if ($selected_driver_id) {
+    $stmt = $pdo->prepare("SELECT * FROM post_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
+    $stmt->execute([$selected_driver_id, $call_date]);
+    $existing_call = $stmt->fetch();
+    $is_edit_mode = (bool)$existing_call;
+
+    $stmt = $pdo->prepare("SELECT * FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
+    $stmt->execute([$selected_driver_id, $call_date]);
+    $pre_duty_call = $stmt->fetch();
+
+    if ($call_date === $today) {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) FROM departure_records d
+            WHERE d.driver_id = ? AND d.departure_date = ? AND COALESCE(d.is_sample_data, 0) = 0
+              AND NOT EXISTS (SELECT 1 FROM post_duty_calls p WHERE p.driver_id = d.driver_id AND p.call_date = d.departure_date)");
+        $stmt->execute([$selected_driver_id, $yesterday]);
+        $missed_yesterday = (int)$stmt->fetchColumn() > 0;
+    }
+}
+
+// いまの画面で新しく登録できるか（できない時は、入力の前に理由を出す）
+$can_register_date = canRegisterPostDutyDate($call_date, $user_role, $yesterday);
+$needs_pre_duty_first = ($selected_driver_id && !$existing_call && !$pre_duty_call && $call_date === $today);
+$date_label = date('n/j', strtotime($call_date)) . ($call_date === $yesterday ? '（昨日）' : '');
+
+// 入力欄に出す値: 保存が通らなかった時は入れた値、記録があれば記録の値、どちらも無ければ既定値
+$fv = function ($key, $default = '') use (&$form_old, &$existing_call) {
+    if ($form_old !== null) return $form_old[$key] ?? '';
+    if ($existing_call) return $existing_call[$key] ?? '';
+    return $default;
+};
+$fchecked = function ($key) use (&$form_old, &$existing_call) {
+    if ($form_old !== null) return isset($form_old[$key]);
+    return $existing_call && !empty($existing_call[$key]);
+};
+// 点呼者: 一覧に無い名前は「その他」＋手入力
+$caller_names = array_column($callers, 'name');
+if ($form_old !== null) {
+    $caller_selected = $form_old['caller_name'] ?? '';
+    $caller_other = $form_old['other_caller'] ?? '';
+} elseif ($existing_call && $existing_call['caller_name'] != '') {
+    $in_list = in_array($existing_call['caller_name'], $caller_names);
+    $caller_selected = $in_list ? $existing_call['caller_name'] : 'その他';
+    $caller_other = $in_list ? '' : $existing_call['caller_name'];
+} else {
+    $caller_selected = '';
+    $caller_other = '';
 }
 
 // ロック状態判定
@@ -302,7 +408,7 @@ echo $page_data['page_header'];
             <i class="fas fa-check-circle me-2 fa-lg"></i><?= htmlspecialchars($success_message) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
-        <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?= addslashes($success_message) ?>', 'success'); });</script>
+        <script>document.addEventListener('DOMContentLoaded', function() { showToast(<?= json_encode($success_message, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>, 'success'); });</script>
         <?php endif; ?>
 
         <?php if ($error_message): ?>
@@ -319,6 +425,44 @@ echo $page_data['page_header'];
             <?php else: ?>
                 <span class="badge wts-ref">ロック済み（変更不可）</span>
             <?php endif; ?>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($call_date !== $today): ?>
+        <!-- 今日以外の日の点呼を開いている時は、いつの分かを先に出す -->
+        <div class="alert alert-warning border-0 shadow-sm mb-3 d-flex flex-wrap align-items-center gap-2">
+            <div class="flex-grow-1">
+                <i class="fas fa-calendar-day me-2"></i><strong><?= htmlspecialchars($date_label) ?> の乗務後点呼</strong>を開いています。
+            </div>
+            <a href="<?= htmlspecialchars($self_url($selected_driver_id, $today)) ?>" class="btn btn-outline-secondary">今日の分に戻る</a>
+        </div>
+        <?php elseif ($missed_yesterday && !$existing_call): ?>
+        <div class="alert alert-warning border-0 shadow-sm mb-3 d-flex flex-wrap align-items-center gap-2">
+            <div class="flex-grow-1">
+                <i class="fas fa-exclamation-triangle me-2"></i>昨日（<?= date('n/j', strtotime($yesterday)) ?>）の乗務後点呼がまだ登録されていません。
+            </div>
+            <a href="<?= htmlspecialchars($self_url($selected_driver_id, $yesterday)) ?>" class="btn wts-btn-blue">昨日の分を入力する</a>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($needs_pre_duty_first): ?>
+        <!-- 入力する前に知らせる（全部入れてから弾かない） -->
+        <div class="alert alert-danger border-0 shadow-sm mb-4" id="preDutyFirstNotice">
+            <h6 class="mb-2"><i class="fas fa-exclamation-circle me-2"></i>今日の乗務前点呼がまだ登録されていません</h6>
+            <p class="mb-3">乗務後点呼は、乗務前点呼を登録してから入力できます。先に乗務前点呼を登録してください。</p>
+            <a href="pre_duty_call.php?driver_id=<?= (int)$selected_driver_id ?>" class="btn btn-lg wts-btn-blue">
+                <i class="fas fa-clipboard-check me-2"></i>乗務前点呼を入力する
+            </a>
+        </div>
+        <?php elseif ($selected_driver_id && !$existing_call && !$pre_duty_call && $can_register_date): ?>
+        <div class="alert alert-warning border-0 shadow-sm mb-4">
+            <i class="fas fa-info-circle me-2"></i><?= htmlspecialchars($date_label) ?> の乗務前点呼の記録がありません。乗務後点呼だけを登録します。
+        </div>
+        <?php endif; ?>
+
+        <?php if ($selected_driver_id && !$existing_call && !$can_register_date): ?>
+        <div class="alert alert-danger border-0 shadow-sm mb-4">
+            <i class="fas fa-lock me-2"></i>前日より前の乗務後点呼は、管理者が登録します。管理者に依頼してください。
         </div>
         <?php endif; ?>
 
@@ -348,14 +492,14 @@ echo $page_data['page_header'];
         <form method="POST" id="postDutyForm" onsubmit="return validateForm(this)">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
             <!-- 基本情報セクション -->
-            <?= renderSectionHeader('info', '基本情報', '運転者・点呼者・時刻') ?>
+            <?= renderSectionHeader('info', '基本情報', '運転者・点呼日・点呼者・時刻') ?>
 
             <div class="card shadow-sm mb-4">
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label for="post_driver_id" class="form-label fw-bold">運転者 <span class="text-danger fw-bold small">（必須）</span></label>
-                            <select class="form-select" id="post_driver_id" name="driver_id" <?= $is_edit_mode ? 'readonly' : '' ?> required>
+                            <select class="form-select" id="post_driver_id" name="driver_id" onchange="reloadForSelection()" required>
                                 <option value="">選択してください</option>
                                 <?php foreach ($drivers as $driver): ?>
                                 <option value="<?= $driver['id'] ?>"
@@ -365,28 +509,36 @@ echo $page_data['page_header'];
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
+                            <label for="post_call_date" class="form-label fw-bold">点呼日 <span class="text-danger fw-bold small">（必須）</span></label>
+                            <input type="date" class="form-control" id="post_call_date" name="call_date"
+                                   value="<?= htmlspecialchars($call_date) ?>" max="<?= $today ?>"
+                                   <?= $user_role === 'Admin' ? '' : 'min="' . $yesterday . '"' ?>
+                                   onchange="reloadForSelection()" required>
+                            <?php if (!$is_edit_mode): ?><div class="form-text">日付をまたいだ時は前日を選びます。</div><?php endif; ?>
+                        </div>
+                        <div class="col-md-3 mb-3">
                             <label for="post_call_time" class="form-label fw-bold">点呼時刻 <span class="text-danger fw-bold small">（必須）</span></label>
                             <input type="time" class="form-control" id="post_call_time" name="call_time"
-                                   value="<?= $existing_call ? $existing_call['call_time'] : $current_time ?>"
+                                   value="<?= htmlspecialchars(substr((string)$fv('call_time', $current_time), 0, 5)) ?>"
                                    <?= $is_edit_mode ? 'readonly' : '' ?> required>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label for="post_caller_name" class="form-label fw-bold">点呼者 <span class="text-danger fw-bold small">（必須）</span></label>
                             <select class="form-select" id="post_caller_name" name="caller_name" <?= $is_edit_mode ? 'disabled' : '' ?> required>
                                 <option value="">選択してください</option>
                                 <?php foreach ($callers as $caller): ?>
                                 <option value="<?= htmlspecialchars($caller['name']) ?>"
-                                    <?= ($existing_call && $existing_call['caller_name'] == $caller['name']) ? 'selected' : '' ?>>
+                                    <?= ($caller_selected === $caller['name']) ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($caller['name']) ?>
                                 </option>
                                 <?php endforeach; ?>
-                                <option value="その他" <?= ($existing_call && !in_array($existing_call['caller_name'], array_column($callers, 'name')) && $existing_call['caller_name'] != '') ? 'selected' : '' ?>>その他</option>
+                                <option value="その他" <?= ($caller_selected === 'その他') ? 'selected' : '' ?>>その他</option>
                             </select>
                             <input type="text" class="form-control mt-2" id="other_caller" name="other_caller"
                                    placeholder="その他の場合は名前を入力" style="display: none;"
                                    <?= $is_edit_mode ? 'readonly' : '' ?>
-                                   value="<?= ($existing_call && !in_array($existing_call['caller_name'], array_column($callers, 'name')) && $existing_call['caller_name'] != '') ? htmlspecialchars($existing_call['caller_name']) : '' ?>">
+                                   value="<?= htmlspecialchars($caller_other) ?>">
                         </div>
                     </div>
                 </div>
@@ -438,10 +590,10 @@ echo $page_data['page_header'];
                     <div class="row g-3">
                         <?php $count = 1; foreach ($check_items_required as $key => $label): ?>
                         <div class="col-md-6 col-lg-4">
-                            <div class="form-check p-3 border rounded <?= $is_edit_mode ? '' : 'check-item-clickable' ?> <?= ($existing_call && $existing_call[$key]) ? 'bg-success bg-opacity-10 border-success' : '' ?>"
+                            <div class="form-check p-3 border rounded <?= $is_edit_mode ? '' : 'check-item-clickable' ?> <?= $fchecked($key) ? 'bg-success bg-opacity-10 border-success' : '' ?>"
                                  <?= $is_edit_mode ? '' : 'onclick="toggleCheck(\'' . $key . '\')"' ?>>
                                 <input class="form-check-input" type="checkbox" name="<?= $key ?>" id="<?= $key ?>"
-                                       <?= ($existing_call && $existing_call[$key]) ? 'checked' : '' ?>
+                                       <?= $fchecked($key) ? 'checked' : '' ?>
                                        <?= $is_edit_mode ? 'disabled' : '' ?>>
                                 <label class="form-check-label d-block" for="<?= $key ?>">
                                     <span class="fw-bold text-primary"><?= $count ?>.</span>
@@ -462,10 +614,10 @@ echo $page_data['page_header'];
                         <div class="row g-3">
                             <?php foreach ($check_items_optional as $key => $label): ?>
                             <div class="col-md-6 col-lg-4">
-                                <div class="form-check p-3 border rounded <?= $is_edit_mode ? '' : 'check-item-clickable' ?> <?= ($existing_call && $existing_call[$key]) ? 'bg-success bg-opacity-10 border-success' : '' ?>"
+                                <div class="form-check p-3 border rounded <?= $is_edit_mode ? '' : 'check-item-clickable' ?> <?= $fchecked($key) ? 'bg-success bg-opacity-10 border-success' : '' ?>"
                                      <?= $is_edit_mode ? '' : 'onclick="toggleCheck(\'' . $key . '\')"' ?>>
                                     <input class="form-check-input" type="checkbox" name="<?= $key ?>" id="<?= $key ?>"
-                                           <?= ($existing_call && $existing_call[$key]) ? 'checked' : '' ?>
+                                           <?= $fchecked($key) ? 'checked' : '' ?>
                                            <?= $is_edit_mode ? 'disabled' : '' ?>>
                                     <label class="form-check-label d-block" for="<?= $key ?>">
                                         <span class="fw-bold text-secondary"><?= $count ?>.</span>
@@ -493,7 +645,7 @@ echo $page_data['page_header'];
                         <div class="col-auto">
                             <input type="number" class="form-control" name="alcohol_check_value" id="alcohol_check_value"
                                    step="0.001" min="0" max="1" style="width: 120px;" inputmode="decimal"
-                                   value="<?= $existing_call ? $existing_call['alcohol_check_value'] : '0.000' ?>"
+                                   value="<?= htmlspecialchars((string)$fv('alcohol_check_value', '0.000')) ?>"
                                    placeholder="0.000"
                                    <?= $is_edit_mode ? 'readonly' : '' ?> required>
                         </div>
@@ -514,7 +666,7 @@ echo $page_data['page_header'];
                 <div class="card-body">
                     <textarea class="form-control" name="remarks" rows="4"
                               placeholder="特記事項、報告事項、業務中の出来事などがあれば記入してください"
-                              <?= $is_edit_mode ? 'readonly' : '' ?>><?= $existing_call ? htmlspecialchars($existing_call['remarks']) : '' ?></textarea>
+                              <?= $is_edit_mode ? 'readonly' : '' ?>><?= htmlspecialchars((string)$fv('remarks')) ?></textarea>
                 </div>
             </div>
 
@@ -545,9 +697,17 @@ echo $page_data['page_header'];
                         <i class="fas fa-trash me-2"></i>削除
                     </button>
                     <?php endif; ?>
+                <?php elseif ($needs_pre_duty_first): ?>
+                    <a href="pre_duty_call.php?driver_id=<?= (int)$selected_driver_id ?>" class="btn btn-lg wts-btn-blue">
+                        <i class="fas fa-clipboard-check me-2"></i>先に乗務前点呼を入力する
+                    </a>
+                <?php elseif (!$can_register_date): ?>
+                    <div class="text-muted">
+                        <i class="fas fa-lock me-2"></i>前日より前の乗務後点呼は、管理者が登録します
+                    </div>
                 <?php else: ?>
                     <button type="submit" class="btn btn-success btn-lg" data-loading-text="保存中...">
-                        <i class="fas fa-save me-2"></i>登録する
+                        <i class="fas fa-save me-2"></i><?= $call_date === $today ? '登録する' : htmlspecialchars(date('n/j', strtotime($call_date))) . ' の分を登録する' ?>
                     </button>
                 <?php endif; ?>
             </div>
@@ -625,6 +785,18 @@ function showToast(message, type) {
     }, 8000);
 }
 
+// 運転者か点呼日を替えたら、その人・その日の画面に読み直す
+// （上の乗務前点呼の情報や、登録済みかどうかが前の人のまま残らないように）
+function reloadForSelection() {
+    var driverId = document.getElementById('post_driver_id').value;
+    var callDate = document.getElementById('post_call_date').value;
+    if (!driverId || !callDate) return;
+    formDirty = false;
+    var url = 'post_duty_call.php?driver_id=' + encodeURIComponent(driverId);
+    if (callDate !== <?= json_encode($today) ?>) url += '&date=' + encodeURIComponent(callDate);
+    window.location.href = url;
+}
+
 // 点呼者選択の表示切替
 function toggleCallerInput() {
     const callerSelect = document.querySelector('select[name="caller_name"]');
@@ -636,7 +808,6 @@ function toggleCallerInput() {
     } else {
         otherInput.style.display = 'none';
         otherInput.required = false;
-        otherInput.value = '';
     }
 }
 
@@ -704,6 +875,12 @@ function enableEditMode() {
     fields.forEach(function(field) {
         field.removeAttribute('readonly');
         field.removeAttribute('disabled');
+    });
+    // 点呼日は修正で変えない（日付を変えると別の記録になる）。変えたい時は削除して登録し直す
+    document.getElementById('post_call_date').setAttribute('readonly', 'readonly');
+    // 運転者も修正では変えない（選んである人以外を選べなくする。別の人の記録を上書きしないように）
+    Array.prototype.forEach.call(document.getElementById('post_driver_id').options, function(option) {
+        if (!option.selected) option.disabled = true;
     });
 
     // チェックボックスのクリック領域を有効化
