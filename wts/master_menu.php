@@ -491,6 +491,66 @@ $page_data = renderCompletePage(
                 <?php endif; ?>
             </div>
 
+            <!-- 事故管理（開ける人にだけ出す。以前はどのメニューにも入口が無かった） -->
+            <?php if ($is_admin): ?>
+            <div class="col-lg-4 col-md-6 mb-3">
+                <a href="accident_management.php" class="master-card">
+                    <div class="position-relative">
+                        <i class="fas fa-car-crash master-icon" style="color:#dc3545;"></i>
+                        <h6 class="fw-bold">事故管理</h6>
+                        <p class="card-description">
+                            事故・ヒヤリハットの記録<br>事故報告書の印刷
+                        </p>
+                    </div>
+                </a>
+            </div>
+            <?php endif; ?>
+
+            <!-- 苦情記録（開ける人にだけ出す。以前はどのメニューにも入口が無かった） -->
+            <?php if ($is_admin || !empty($_SESSION['is_manager'])): ?>
+            <div class="col-lg-4 col-md-6 mb-3">
+                <a href="complaint_records.php" class="master-card">
+                    <div class="position-relative">
+                        <i class="fas fa-comment-dots master-icon" style="color:#fd7e14;"></i>
+                        <h6 class="fw-bold">苦情記録</h6>
+                        <p class="card-description">
+                            苦情の受付・対応の記録<br>対応状況の管理
+                        </p>
+                    </div>
+                </a>
+            </div>
+            <?php endif; ?>
+
+            <!-- 指導監督記録（開ける人にだけ出す。以前はどのメニューにも入口が無かった） -->
+            <?php if ($is_admin || !empty($_SESSION['is_manager'])): ?>
+            <div class="col-lg-4 col-md-6 mb-3">
+                <a href="supervision_records.php" class="master-card">
+                    <div class="position-relative">
+                        <i class="fas fa-chalkboard-teacher master-icon" style="color:#0d6efd;"></i>
+                        <h6 class="fw-bold">指導監督記録</h6>
+                        <p class="card-description">
+                            乗務員への指導・教育の記録<br>指導監督記録簿
+                        </p>
+                    </div>
+                </a>
+            </div>
+            <?php endif; ?>
+
+            <!-- 監査対応帳票（開ける人にだけ出す。以前はどのメニューにも入口が無かった） -->
+            <?php if ($is_admin || !empty($_SESSION['is_manager'])): ?>
+            <div class="col-lg-4 col-md-6 mb-3">
+                <a href="document_generator.php" class="master-card">
+                    <div class="position-relative">
+                        <i class="fas fa-file-signature master-icon" style="color:#6f42c1;"></i>
+                        <h6 class="fw-bold">監査対応帳票</h6>
+                        <p class="card-description">
+                            日報・点呼記録簿・点検記録簿などの<br>帳票をまとめて出力
+                        </p>
+                    </div>
+                </a>
+            </div>
+            <?php endif; ?>
+
             <!-- 院内介助ログ -->
             <div class="col-lg-4 col-md-6 mb-3">
                 <a href="hospital_assistance_logs.php" class="master-card">
