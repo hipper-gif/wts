@@ -600,4 +600,5 @@ $page_data = renderCompletePage(
     </script>
 
     </main>
+<?= renderRestoreInputScript($error_message, ['add' => '#addForm', 'update' => '#editForm']) ?>
 <?php echo $page_data['html_footer']; ?>

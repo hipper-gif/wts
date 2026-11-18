@@ -1501,4 +1501,5 @@ function debugModal() {
 }
 </script>
 
+<?= renderRestoreInputScript($error_message, ['add' => '#userForm', 'edit' => '#userForm']) ?>
 <?= $page_data['html_footer'] ?>

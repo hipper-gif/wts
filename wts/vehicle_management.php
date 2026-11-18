@@ -879,4 +879,5 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<?= renderRestoreInputScript($error_message, ['add' => '#vehicleForm', 'edit' => '#vehicleForm']) ?>
 <?php echo $page_data['html_footer']; ?>

@@ -180,6 +180,76 @@ function logAudit($pdo, $record_id, $action, $user_id, $type = 'record', $change
 }
 
 /**
+ * 保存が通らなかった時に、入れた値をフォームへ戻す script を返す（各画面はフッターの手前で1行呼ぶだけ。決まりはここ1か所）。
+ * 弾かれると画面が白紙で出し直され、入れた内容を全部打ち直すことになっていた（2026-11-18 全画面点検・類型①）。
+ *
+ * - 保存が通った時・開いただけの時は何も返さない。
+ * - どのフォームに戻すかは、送られた action の値で選ぶ（$forms = ['add' => '#addForm', ...]。action を送らない画面は '' をキーにする）。
+ * - パスワードとトークンは戻さない。
+ * - フォームが窓（モーダル）の中にある時は、その窓を開き直す。
+ *
+ * @param string $error_message 画面に出すエラー文（空なら何もしない）
+ * @param array $forms action の値 => フォームのセレクタ
+ * @param string $after_js 戻した後に走らせる JS（引数 data, form。画面固有の見た目の同期用）
+ */
+function renderRestoreInputScript($error_message, array $forms, $after_js = '') {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || (string)$error_message === '') {
+        return '';
+    }
+    $action = (string)($_POST['action'] ?? '');
+    if (!isset($forms[$action])) {
+        return '';
+    }
+    $data = [];
+    foreach ($_POST as $key => $value) {
+        if (!is_scalar($value)) continue;
+        if ($key === 'csrf_token' || stripos($key, 'password') !== false) continue;
+        $data[$key] = (string)$value;
+    }
+    $flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE;
+    $json = json_encode($data, $flags);
+    $selector = json_encode($forms[$action], $flags);
+    $after = $after_js !== '' ? $after_js : 'null';
+    return <<<HTML
+<script>
+// 保存が通らなかったので、入れた値をフォームへ戻す（functions.php の renderRestoreInputScript）
+(function () {
+    var data = {$json};
+    var after = {$after};
+    function run() {
+        var form = document.querySelector({$selector});
+        if (!form) return;
+        var fields = form.querySelectorAll('input[name], select[name], textarea[name]');
+        Array.prototype.forEach.call(fields, function (el) {
+            var name = el.name;
+            if (name === 'csrf_token' || el.type === 'password' || el.type === 'file') return;
+            var has = Object.prototype.hasOwnProperty.call(data, name);
+            if (el.type === 'checkbox') {
+                el.checked = has;
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            } else if (el.type === 'radio') {
+                el.checked = has && el.value === data[name];
+                if (el.checked) el.dispatchEvent(new Event('change', { bubbles: true }));
+            } else if (has) {
+                el.value = data[name];
+                if (el.type === 'hidden') el.disabled = false;
+            }
+        });
+        var modal = form.closest('.modal');
+        if (modal && window.bootstrap && bootstrap.Modal) {
+            bootstrap.Modal.getOrCreateInstance(modal).show();
+        }
+        if (typeof after === 'function') after(data, form);
+    }
+    // 画面自身の初期化（欄の初期値の設定）が終わってから戻す
+    if (document.readyState === 'complete') { setTimeout(run, 0); }
+    else { window.addEventListener('load', function () { setTimeout(run, 0); }); }
+})();
+</script>
+HTML;
+}
+
+/**
  * 点呼（乗務前・乗務後）で、付けないと登録できない確認項目。画面の「（必須）」表示と保存時の検査の両方がこれを使う。
  * @param string $kind 'pre' または 'post'
  * @return array [項目のキー => 画面での呼び名]

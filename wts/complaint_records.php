@@ -725,4 +725,5 @@ $page_data = renderCompletePage(
     </script>
     </main>
 
+<?= renderRestoreInputScript($error, ['add' => '#complaintForm', 'update' => '#complaintForm']) ?>
 <?php echo $page_data['html_footer']; ?>

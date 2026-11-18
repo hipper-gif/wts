@@ -1069,4 +1069,5 @@ echo $page_data['page_header'];
 </script>
 <script src="<?= htmlspecialchars(wtsAssetUrl('js/ride_records.js')) ?>" defer></script>
 
+<?= renderRestoreInputScript($error_message, ['add' => '#rideForm', 'edit' => '#rideForm']) ?>
 <?php echo $page_data['html_footer']; ?>

@@ -829,4 +829,5 @@ window.addEventListener('beforeunload', function(e) {
 });
 </script>
 
+<?= $is_edit_mode ? '' : renderRestoreInputScript($error_message, ['' => '#pre-duty-form'], 'function (data, form) { if (typeof toggleCallerInput === "function") toggleCallerInput(); Array.prototype.forEach.call(form.querySelectorAll("input[type=checkbox]"), function (cb) { var c = cb.closest(".form-check"); if (c) c.classList.toggle("border-success", cb.checked); }); }') ?>
 <?= $page_data['html_footer'] ?>

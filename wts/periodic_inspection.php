@@ -820,8 +820,7 @@ document.addEventListener('DOMContentLoaded', function() {
             showToast('点検結果が1つも選ばれていません。各項目の「良好・要注意・不良」を選んでください。', 'warning');
             return;
         }
-        if (missing.length > 0 && !confirm('結果を選んでいない項目が ' + missing.length + ' 件あります。このまま登録しますか？
-（「キャンセル」で、選んでいない最初の項目へ移ります）')) {
+        if (missing.length > 0 && !confirm('結果を選んでいない項目が ' + missing.length + ' 件あります。このまま登録しますか？（「キャンセル」で、選んでいない最初の項目へ移ります）')) {
             e.preventDefault();
             missing[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
@@ -860,4 +859,5 @@ document.querySelectorAll('.result-btn').forEach(function(btn) {
 </script>
 
 </main>
+<?= renderRestoreInputScript($error_message, ['' => '#inspectionForm'], 'function (data) { if (typeof setResult !== "function") return; Object.keys(data).forEach(function (k) { if (["良好", "要注意", "不良"].indexOf(data[k]) !== -1 && document.getElementById(k)) setResult(k, data[k]); }); }') ?>
 <?php echo $page_data['html_footer'] ?? ''; ?>

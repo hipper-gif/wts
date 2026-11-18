@@ -154,6 +154,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $error_message = 'エラー: 点検結果に不正な値が含まれています。';
         }
 
+        // 必須項目は「可」か「否」を選んでいないと登録できない（画面の検査だけだと、画面のJSが動かない時に素通りしていた）
+        $required_inspection_items = [
+            'foot_brake_result' => 'フットブレーキの踏み代・効き',
+            'parking_brake_result' => 'パーキングブレーキの引き代',
+            'brake_fluid_result' => 'ブレーキ液量',
+            'lights_result' => '灯火類の点灯・点滅',
+            'lens_result' => 'レンズの損傷・汚れ',
+            'tire_pressure_result' => 'タイヤの空気圧',
+            'tire_damage_result' => 'タイヤの亀裂・損傷'
+        ];
+        $missing_required = [];
+        foreach ($required_inspection_items as $item => $label) {
+            if (!in_array($_POST[$item] ?? '', ['可', '否'], true)) {
+                $missing_required[] = '「' . $label . '」';
+            }
+        }
+        if (empty($error_message) && !empty($missing_required)) {
+            $error_message = '必須の点検項目が選ばれていません: ' . implode('、', $missing_required) . '。「可」か「否」を選んでください。（入力した内容は残しています）';
+        }
+
         if (empty($error_message)) {
         try {
             // 既存レコードの確認
@@ -1114,3 +1134,4 @@ $page_config = getPageConfiguration('daily_inspection');
         };
     </script>
     <script src="js/daily_inspection.js?v=<?= filemtime(__DIR__ . '/js/daily_inspection.js') ?>" defer></script>
+    <?= $is_edit_mode ? '' : renderRestoreInputScript($error_message, ['' => '#inspectionForm']) ?>
