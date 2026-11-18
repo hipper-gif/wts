@@ -417,14 +417,14 @@ echo $page_data['page_header'];
                             <label for="modalFuelCost" class="form-label unified-label">
                                 <i class="fas fa-gas-pump me-1"></i>燃料代(円)
                             </label>
-                            <input type="number" class="form-control unified-input" id="modalFuelCost" name="fuel_cost" min="0" step="10" value="0">
+                            <input type="number" class="form-control unified-input" id="modalFuelCost" name="fuel_cost" min="0" step="1" value="0">
                         </div>
 
                         <div class="col-md-6 mb-3">
                             <label for="modalHighwayCost" class="form-label unified-label">
                                 <i class="fas fa-road me-1"></i>高速代(円)
                             </label>
-                            <input type="number" class="form-control unified-input" id="modalHighwayCost" name="highway_cost" min="0" step="10" value="0">
+                            <input type="number" class="form-control unified-input" id="modalHighwayCost" name="highway_cost" min="0" step="1" value="0">
                         </div>
                     </div>
 
@@ -433,14 +433,14 @@ echo $page_data['page_header'];
                             <label for="modalTollCost" class="form-label unified-label">
                                 <i class="fas fa-ticket-alt me-1"></i>通行料(円)
                             </label>
-                            <input type="number" class="form-control unified-input" id="modalTollCost" name="toll_cost" min="0" step="10" value="0">
+                            <input type="number" class="form-control unified-input" id="modalTollCost" name="toll_cost" min="0" step="1" value="0">
                         </div>
 
                         <div class="col-md-6 mb-3">
                             <label for="modalOtherCost" class="form-label unified-label">
                                 <i class="fas fa-coins me-1"></i>その他費用(円)
                             </label>
-                            <input type="number" class="form-control unified-input" id="modalOtherCost" name="other_cost" min="0" step="10" value="0">
+                            <input type="number" class="form-control unified-input" id="modalOtherCost" name="other_cost" min="0" step="1" value="0">
                         </div>
                     </div>
 
@@ -469,6 +469,9 @@ echo $page_data['page_header'];
                     <?php endif; ?>
                 </div>
 
+                <div class="px-4">
+                    <div class="alert alert-danger mb-3" id="editModalError" role="alert" style="display: none;"></div>
+                </div>
                 <div class="modal-footer unified-modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="fas fa-times me-1"></i>キャンセル
@@ -671,15 +674,24 @@ echo $page_data['page_header'];
 const hasEditColumns = <?php echo $has_edit_columns ? 'true' : 'false'; ?>;
 let currentDepartureMileage = 0;
 
+// 修正窓の中に、保存できなかった理由を出す（窓の後ろに出すと見えず、何も起きないように見える）
+function showEditError(message) {
+    var box = document.getElementById('editModalError');
+    box.textContent = message;
+    box.style.display = message ? 'block' : 'none';
+    if (message) box.scrollIntoView({ block: 'nearest' });
+}
+
 // 編集モーダル表示
 async function editRecord(arrivalId) {
+    showEditError('');
     try {
         // 記録取得
         const response = await fetch(`api/get_arrival_record.php?id=${arrivalId}`);
         const data = await response.json();
 
         if (!data.success) {
-            showAlert('danger', 'エラー', data.error);
+            showAlert('danger', 'エラー', data.message || 'この記録を開けませんでした。');
             return;
         }
 
@@ -751,8 +763,16 @@ function calculateDistance() {
 document.getElementById('editForm').addEventListener('submit', function(e) {
     e.preventDefault();
     var self = this;
+    showEditError('');
 
-    showConfirm('入庫記録を修正しますか？\n※修正履歴が記録されます', async function() {
+    // 送る前に止める（入庫メーターが出庫メーターより小さいとサーバーで必ず弾かれる）
+    var enteredMileage = parseInt(document.getElementById('modalArrivalMileage').value, 10);
+    if (!isNaN(currentDepartureMileage) && enteredMileage < currentDepartureMileage) {
+        showEditError('入庫メーターが出庫メーター（' + currentDepartureMileage.toLocaleString() + 'km）より小さくなっています。入庫メーターを確かめてください。');
+        return;
+    }
+
+    showConfirm('入庫記録を修正しますか？\n※修正前の値と修正理由が記録されます', async function() {
         const formData = new FormData(self);
 
         try {
@@ -763,7 +783,14 @@ document.getElementById('editForm').addEventListener('submit', function(e) {
                 body: formData
             });
 
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                // ログインの時間切れだと、ログイン画面が返ってきて読めない
+                showEditError('保存できませんでした。ログインの時間切れの可能性があります。入力はこの画面に残っています。別のタブでログインし直してから、もう一度「修正を保存」を押してください。');
+                return;
+            }
 
             if (data.success) {
                 // モーダルを閉じる
@@ -779,11 +806,11 @@ document.getElementById('editForm').addEventListener('submit', function(e) {
                     location.reload();
                 }, 1500);
             } else {
-                showAlert('danger', 'エラー', data.error);
+                showEditError((data.message || '保存できませんでした。') + '（入力はこの画面に残っています）');
             }
         } catch (error) {
             console.error('Error:', error);
-            showAlert('danger', 'エラー', '修正の保存に失敗しました');
+            showEditError('保存できませんでした。通信が切れている可能性があります。入力はこの画面に残っています。電波の良い所でもう一度「修正を保存」を押してください。');
         }
     });
 });

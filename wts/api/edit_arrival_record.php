@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once dirname(__DIR__) . '/functions.php';
 
 // Content-Type設定
 header('Content-Type: application/json');
@@ -76,7 +77,10 @@ try {
     
     // 1. 出庫メーター取得（走行距離計算・バリデーション用）
     $stmt = $pdo->prepare("
-        SELECT d.departure_mileage, a.vehicle_id, a.driver_id
+        SELECT d.departure_mileage, a.vehicle_id, a.driver_id,
+               a.arrival_date AS old_arrival_date, a.arrival_time AS old_arrival_time, a.arrival_mileage AS old_arrival_mileage,
+               a.fuel_cost AS old_fuel_cost, a.highway_cost AS old_highway_cost, a.toll_cost AS old_toll_cost,
+               a.other_cost AS old_other_cost, a.remarks AS old_remarks
         FROM arrival_records a
         JOIN departure_records d ON a.departure_record_id = d.id
         WHERE a.id = ?
@@ -146,6 +150,26 @@ try {
         exit(json_encode(['success' => false, 'message' => '車両メーターの更新に失敗しました']));
     }
     
+    // 修正前の値を監査ログに残す（入庫記録の行には最後の修正理由しか残らないため。変わった項目だけ）
+    $audit_changes = [];
+    $new_values = [
+        'arrival_date' => $arrival_date, 'arrival_time' => $arrival_time, 'arrival_mileage' => $arrival_mileage,
+        'fuel_cost' => $fuel_cost, 'highway_cost' => $highway_cost, 'toll_cost' => $toll_cost,
+        'other_cost' => $other_cost, 'remarks' => $remarks,
+    ];
+    foreach ($new_values as $field => $new_value) {
+        $old_value = $data['old_' . $field];
+        $same = ($field === 'arrival_time')
+            ? substr((string)$old_value, 0, 5) === substr((string)$new_value, 0, 5)
+            : (string)$old_value === (string)$new_value;
+        if (!$same) {
+            $audit_changes[] = ['field' => $field, 'old' => $old_value, 'new' => $new_value];
+        }
+    }
+    if ($audit_changes) {
+        logAudit($pdo, $arrival_id, 'edit', $user_id, 'arrival', $audit_changes, $edit_reason);
+    }
+
     // コミット
     $pdo->commit();
     
