@@ -176,9 +176,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 $pa = $pending_post[$unfinished['id']] ?? null;
                 if (!is_array($pa)) {
                     // 画面を開いたあとに状況が変わった（連打・別端末で出庫済み）＝欄がまだ出ていない
+                    // 今日出庫してまだ戻っていない車（出庫中）と、前日以前の入庫漏れとで、知らせを分ける
                     throw new InvalidArgumentException(
-                        'この車両は ' . $label . ' の入庫がまだ登録されていません。'
-                        . '下の「前回の入庫」に入庫時刻を入れると、出庫と一緒に登録できます。'
+                        $unfinished['departure_date'] === date('Y-m-d')
+                            ? 'この車両は出庫中です（' . $label . '）。すでに出庫が登録されています。'
+                              . '同じ車両でもう一度出庫する時は、下に先ほどの入庫を入れると、出庫と一緒に登録できます。'
+                            : 'この車両は ' . $label . ' の入庫がまだ登録されていません。'
+                              . '下の「前回の入庫」に入庫時刻を入れると、出庫と一緒に登録できます。'
                     );
                 }
                 if (!empty($pa['skip'])) {
@@ -482,10 +486,25 @@ echo $page_data['page_header'];
 
                                 <!-- 前回の入庫（漏れている車両を選んだときだけ出る。出庫と一緒に登録する） -->
                                 <?php foreach ($pending_by_vehicle as $pending_vehicle_id => $pending_rows): ?>
-                                <div class="pending-arrival" data-vehicle-id="<?= (int)$pending_vehicle_id ?>" style="display: none;">
+                                <?php
+                                    // 今日出庫してまだ戻っていないだけの車は「出庫中」＝普通の状態。入庫漏れ（前日以前）とは分けて出す
+                                    $pending_all_out_today = true;
+                                    foreach ($pending_rows as $pr) {
+                                        if ($pr['departure_date'] !== $today) { $pending_all_out_today = false; break; }
+                                    }
+                                ?>
+                                <div class="pending-arrival <?= $pending_all_out_today ? 'is-out-today' : '' ?>" data-vehicle-id="<?= (int)$pending_vehicle_id ?>" style="display: none;">
+                                    <?php if ($pending_all_out_today): ?>
+                                    <div class="pending-arrival-title">
+                                        <i class="fas fa-road me-1"></i>この車両は出庫中です。戻ったら入庫画面で入庫を登録します。
+                                        <a href="arrival.php" class="btn btn-sm btn-outline-primary ms-2">入庫画面へ</a>
+                                    </div>
+                                    <div class="mb-3">同じ車両でもう一度出庫する時だけ、先ほどの入庫を下に入れてください（出庫と一緒に登録されます）。</div>
+                                    <?php else: ?>
                                     <div class="pending-arrival-title">
                                         <i class="fas fa-exclamation-triangle me-1"></i>前回の入庫がまだ登録されていません。ここで出庫と一緒に登録できます。
                                     </div>
+                                    <?php endif; ?>
                                     <?php $pending_last_index = count($pending_rows) - 1; ?>
                                     <?php foreach ($pending_rows as $pending_index => $p): ?>
                                     <?php
@@ -495,7 +514,7 @@ echo $page_data['page_header'];
                                     ?>
                                     <div class="pending-arrival-item">
                                         <div class="mb-2">
-                                            <strong><?= htmlspecialchars(unfinishedDepartureLabel($p)) ?></strong>
+                                            <strong><?= htmlspecialchars(($p['departure_date'] === $today ? '今日 ' . substr($p['departure_time'], 0, 5) . ' 出庫・' . $p['driver_name'] : unfinishedDepartureLabel($p))) ?></strong>
                                             <span class="text-muted ms-2">出庫メーター <?= number_format($p['departure_mileage']) ?>km</span>
                                         </div>
                                         <div class="row">
@@ -803,6 +822,12 @@ echo $page_data['page_header'];
 .pending-arrival-title {
     font-weight: 600;
     margin-bottom: 12px;
+}
+
+/* 出庫中（今日出てまだ戻っていないだけ）は警告の色にしない */
+.pending-arrival.is-out-today {
+    background: #e3f2fd;
+    border-color: #90caf9;
 }
 
 .pending-arrival-item + .pending-arrival-item {

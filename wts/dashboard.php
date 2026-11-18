@@ -644,9 +644,9 @@ echo $page_data['html_head'];
                             <small class="text-muted">乗車</small>
                         </div>
                         <div class="col-3">
-                            <?php $not_arrived = $today_departures - $today_arrivals; ?>
-                            <div class="h4 text-<?= $not_arrived > 0 ? 'danger' : 'success' ?> mb-0"><?= $not_arrived ?></div>
-                            <small class="text-muted">未入庫</small>
+                            <?php $not_arrived = max(0, $today_departures - $today_arrivals); // 今日出てまだ戻っていない数＝出庫中（普通の状態なので赤くしない） ?>
+                            <div class="h4 text-primary mb-0"><?= $not_arrived ?></div>
+                            <small class="text-muted">出庫中</small>
                         </div>
                         <div class="col-3">
                             <div class="h4 text-info mb-0"><?= $today_passengers ?></div>
