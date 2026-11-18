@@ -417,6 +417,7 @@ echo $page_data['page_header'];
                                     </tbody>
                                 </table>
                                 <div class="hint-box"><strong>ポイント:</strong> 車両を選択すると、前回の入庫メーター値が表示されます。</div>
+                                <div class="hint-box"><strong>前回の入庫を忘れていたとき:</strong> その車両を選ぶと「前回の入庫」の欄が出ます。入庫時刻を入れると、出庫と一緒に登録できます。入庫時刻が分からないときは「あとで登録する」を選ぶと、出庫だけ登録できます。</div>
                             </div>
                         </div>
                     </div>
@@ -474,6 +475,7 @@ echo $page_data['page_header'];
                                     <li>経費がある場合は燃料代・高速代などを入力</li>
                                     <li>休憩した場合は休憩場所・時間を入力</li>
                                     <li><strong>「登録する」</strong>をタップ</li>
+                                    <li>乗務後点呼がまだのときは、保存の知らせの中に<strong>「乗務後点呼へ進む」</strong>が出ます</li>
                                 </ol>
                                 <div class="hint-box"><strong>ポイント:</strong> 走行距離が500kmを超える場合は確認メッセージが表示されます。</div>
                             </div>

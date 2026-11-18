@@ -78,101 +78,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $warning_message = "⚠️ この運転者の出庫記録が見つかりません。出庫処理を先に完了してください。";
         }
 
-        // 出庫記録を取得して走行距離を計算（入庫日時が出庫日時より前でないことも検証）
-        $departure_mileage = 0;
-        if ($departure_record_id) {
-            $stmt = $pdo->prepare("SELECT driver_id, vehicle_id, departure_date, departure_time, departure_mileage FROM departure_records WHERE id = ?");
-            $stmt->execute([$departure_record_id]);
-            $departure_record = $stmt->fetch(PDO::FETCH_OBJ);
-            if (!$departure_record) {
-                // 古い画面からの送信（別端末で入庫済み・出庫が削除済み）＝外部キー違反を一般エラーにしない（Issue #79）
-                throw new InvalidArgumentException('選んだ出庫記録が見つかりません（別の端末で入庫済みか、出庫記録が削除されています）。画面を開き直して、未入庫の出庫を選び直してください。');
-            }
-            if ($departure_record) {
-                $departure_mileage = $departure_record->departure_mileage;
-                // 入庫の運転者・車両は出庫記録に従う（画面の選択違いで車両の記録が分かれるのを防ぐ）
-                $driver_id = (int)$departure_record->driver_id;
-                $vehicle_id = (int)$departure_record->vehicle_id;
-                // 過去の出庫を後日入庫する際に、入庫日が「今日」のまま登録されて日付が逆転する事故を防ぐ
-                $departure_at = strtotime($departure_record->departure_date . ' ' . $departure_record->departure_time);
-                $arrival_at = strtotime($arrival_date . ' ' . $arrival_time);
-                if ($departure_at && $arrival_at && $arrival_at < $departure_at) {
-                    throw new InvalidArgumentException(
-                        '入庫日時（' . $arrival_date . ' ' . substr($arrival_time, 0, 5) . '）が出庫日時（'
-                        . $departure_record->departure_date . ' ' . substr($departure_record->departure_time, 0, 5)
-                        . '）より前になっています。実際に入庫した日付と時刻を入力してください。'
-                    );
-                }
-            }
-        }
-
-        $total_distance = $arrival_mileage - $departure_mileage;
-
-        // 走行距離の妥当性チェック
-        if ($total_distance < 0) {
-            throw new InvalidArgumentException('入庫メーターが出庫メーターより小さくなっています。確認してください。');
-        }
-
-        // トランザクション開始
+        // 検証と保存は共通の registerArrivalRecord（functions.php）。出庫画面からの「前回の入庫を一緒に登録」と同じ決まりを通す
         $pdo->beginTransaction();
-
         try {
-            // 入庫記録保存（既存コードのカラム名を使用）
-            $stmt = $pdo->prepare("
-                INSERT INTO arrival_records
-                (departure_record_id, driver_id, vehicle_id, arrival_date, arrival_time, arrival_mileage,
-                 total_distance, fuel_cost, highway_cost, other_cost, break_location, break_start_time,
-                 break_end_time, remarks, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-            ");
-
-            $stmt->execute([
-                $departure_record_id,
-                $driver_id,
-                $vehicle_id,
-                $arrival_date,
-                $arrival_time,
-                $arrival_mileage,
-                $total_distance,
-                $fuel_cost,
-                $highway_cost,
-                $other_cost,
-                $break_location ?: null,
-                $break_start_time ?: null,
-                $break_end_time ?: null,
-                $remarks ?: null
-            ]);
-
-            $new_id = $pdo->lastInsertId();
-
-            // 車両の走行距離を更新（楽観的ロック：メーターが逆行しないことを保証）
-            $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ? AND current_mileage <= ?");
-            $stmt->execute([$arrival_mileage, $vehicle_id, $arrival_mileage]);
-
-            // 監査ログ記録
-            logAudit($pdo, $new_id, 'create', $user_id, 'arrival');
-
+            $saved = registerArrivalRecord($pdo, [
+                'departure_record_id' => $departure_record_id,
+                'driver_id' => $driver_id,
+                'vehicle_id' => $vehicle_id,
+                'arrival_date' => $arrival_date,
+                'arrival_time' => $arrival_time,
+                'arrival_mileage' => $arrival_mileage,
+                'fuel_cost' => $fuel_cost,
+                'highway_cost' => $highway_cost,
+                'other_cost' => $other_cost,
+                'break_location' => $break_location,
+                'break_start_time' => $break_start_time,
+                'break_end_time' => $break_end_time,
+                'remarks' => $remarks,
+            ], $user_id);
             $pdo->commit();
         } catch (Exception $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) $pdo->rollBack();
             throw $e;
         }
 
-        $success_message = "入庫記録を保存しました。";
-        $saved_driver_id = $driver_id;
-
-        // 当日の入庫で乗務後点呼がまだなら、そのまま点呼へ進める（入庫漏れの日は点呼も漏れていた）
-        if ($arrival_date === date('Y-m-d')) {
-            $pd_stmt = $pdo->prepare("SELECT COUNT(*) FROM post_duty_calls WHERE driver_id = ? AND call_date = ?");
-            $pd_stmt->execute([$driver_id, $arrival_date]);
-            if ((int)$pd_stmt->fetchColumn() === 0) {
-                header("Location: post_duty_call.php?from=arrival&driver_id=" . (int)$driver_id);
-                exit;
-            }
-        }
-
-        // リダイレクトしてフォーム再送信を防ぐ
-        header("Location: arrival.php?success=1&driver_id=" . $driver_id);
+        // 保存後は入庫画面にとどまる（勝手に乗務後点呼へ移らない）。点呼がまだなら、保存の知らせの中に進むボタンを出す
+        header("Location: arrival.php?success=1&driver_id=" . (int)$saved['driver_id']);
         exit;
         
     } catch (InvalidArgumentException $e) {
@@ -185,9 +116,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // 成功メッセージの表示
+$post_duty_pending_driver_id = null;
 if (isset($_GET['success'])) {
     $success_message = "入庫記録を保存しました。";
-    $saved_driver_id = $_GET['driver_id'] ?? null;
+    $saved_driver_id = filter_var($_GET['driver_id'] ?? null, FILTER_VALIDATE_INT) ?: null;
+
+    // 今日入庫した運転者の乗務後点呼がまだなら、進むボタンを出す（入庫漏れの日は点呼も漏れていた）
+    if ($saved_driver_id) {
+        $pd_stmt = $pdo->prepare("
+            SELECT EXISTS(SELECT 1 FROM arrival_records WHERE driver_id = ? AND arrival_date = ?) AS arrived_today,
+                   EXISTS(SELECT 1 FROM post_duty_calls WHERE driver_id = ? AND call_date = ?) AS called_today
+        ");
+        $today_ymd = date('Y-m-d');
+        $pd_stmt->execute([$saved_driver_id, $today_ymd, $saved_driver_id, $today_ymd]);
+        $pd = $pd_stmt->fetch(PDO::FETCH_ASSOC);
+        if ($pd && $pd['arrived_today'] && !$pd['called_today']) {
+            $post_duty_pending_driver_id = $saved_driver_id;
+        }
+    }
 }
 
 // 統一ヘッダー用のページ設定
@@ -241,6 +187,14 @@ echo $page_data['page_header'];
         <div class="alert alert-success alert-dismissible fade show text-center py-3" style="font-size: 1.1rem; font-weight: 600; border-radius: 12px; box-shadow: 0 4px 15px rgba(25,135,84,0.3);">
             <i class="fas fa-check-circle me-2 fa-lg"></i><?= htmlspecialchars($success_message) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <?php if ($post_duty_pending_driver_id): ?>
+            <div class="mt-3">
+                <div class="mb-2" style="font-weight: 500;">乗務後点呼がまだです。</div>
+                <a href="post_duty_call.php?driver_id=<?= (int)$post_duty_pending_driver_id ?>" class="btn btn-lg wts-btn-blue">
+                    乗務後点呼へ進む<i class="fas fa-arrow-right ms-2"></i>
+                </a>
+            </div>
+            <?php endif; ?>
         </div>
         <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?= addslashes($success_message) ?>', 'success'); });</script>
         <?php endif; ?>

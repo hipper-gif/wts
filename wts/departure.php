@@ -8,6 +8,39 @@ function canEditDeparture($record, $user_role) {
     return canEditByDate($record, 'departure_date', $user_role);
 }
 
+/**
+ * 入庫がまだ登録されていない出庫（＝前回の入庫漏れ）を返す。保存時の判定と画面の表示が同じ条件を使う。
+ * @param string $until_date この日までの出庫を対象にする
+ * @param int|null $vehicle_id 指定すればその車両だけ
+ * @param bool $for_update 保存時は行ロックする
+ */
+function getUnfinishedDepartures($pdo, $until_date, $vehicle_id = null, $for_update = false) {
+    $sql = "
+        SELECT dr.id, dr.vehicle_id, dr.departure_date, dr.departure_time, dr.departure_mileage, u.name AS driver_name
+        FROM departure_records dr
+        JOIN users u ON u.id = dr.driver_id
+        LEFT JOIN arrival_records ar ON dr.id = ar.departure_record_id
+        WHERE dr.departure_date <= ?
+          AND ar.id IS NULL AND COALESCE(dr.is_sample_data, 0) = 0";
+    $params = [$until_date];
+    if ($vehicle_id !== null) {
+        $sql .= " AND dr.vehicle_id = ?";
+        $params[] = $vehicle_id;
+    }
+    $sql .= " ORDER BY dr.departure_date, dr.departure_time, dr.id";
+    if ($for_update) {
+        $sql .= " FOR UPDATE";
+    }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** 入庫漏れの出庫を画面に出すときの呼び名（例: 11/17 08:30 出庫・松本） */
+function unfinishedDepartureLabel($row) {
+    return date('n/j', strtotime($row['departure_date'])) . ' ' . substr($row['departure_time'], 0, 5) . ' 出庫・' . $row['driver_name'];
+}
+
 // $pdo, $user_id, $user_name, $user_role は session_check.php で設定済み
 $today = date('Y-m-d');
 $current_time = date('H:i');
@@ -122,31 +155,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $pdo->beginTransaction();
 
             // 複数出庫対応：入庫済みの場合は再出庫を許可（FOR UPDATEで競合防止）
-            // 前日以前の入庫漏れも対象にする（入庫漏れのまま次の出庫をすると、入庫メーターが後から分からなくなる）
-            $duplicate_check_sql = "
-                SELECT dr.id, dr.departure_date, u.name AS driver_name, ar.id as arrival_id
-                FROM departure_records dr
-                JOIN users u ON u.id = dr.driver_id
-                LEFT JOIN arrival_records ar ON dr.id = ar.departure_record_id
-                WHERE dr.vehicle_id = ? AND dr.departure_date <= ?
-                  AND ar.id IS NULL AND COALESCE(dr.is_sample_data, 0) = 0
-                ORDER BY dr.departure_date
-                FOR UPDATE
-            ";
-            $duplicate_stmt = $pdo->prepare($duplicate_check_sql);
-            $duplicate_stmt->execute([$vehicle_id, $departure_date]);
-            $unfinished = $duplicate_stmt->fetch(PDO::FETCH_ASSOC);
+            // 前回の入庫が漏れている車両は、この画面の「前回の入庫」欄で一緒に登録する（別画面へ行かせない）。
+            // 入庫時刻が分からないとき（前の運転者の漏れ等）は「あとで登録する」を選べば出庫だけ通す。
+            // その場合も入庫メーターは失われない＝今回の出庫メーターが、前回の入庫時点の実測値になる。
+            $unfinished_rows = getUnfinishedDepartures($pdo, $departure_date, (int)$vehicle_id, true);
+            $pending_post = (isset($_POST['pending_arrival']) && is_array($_POST['pending_arrival'])) ? $_POST['pending_arrival'] : [];
+            $new_departure_at = strtotime($departure_date . ' ' . $departure_time);
+            $registered_arrivals = [];
 
-            if ($unfinished) {
-                $pdo->rollBack();
-                if ($unfinished['departure_date'] === $departure_date) {
-                    throw new InvalidArgumentException('この車両は本日まだ入庫されていません。先に入庫処理を完了してください。');
+            foreach ($unfinished_rows as $unfinished) {
+                $label = unfinishedDepartureLabel($unfinished);
+                $pa = $pending_post[$unfinished['id']] ?? null;
+                if (!is_array($pa)) {
+                    // 画面を開いたあとに状況が変わった（連打・別端末で出庫済み）＝欄がまだ出ていない
+                    throw new InvalidArgumentException(
+                        'この車両は ' . $label . ' の入庫がまだ登録されていません。'
+                        . '下の「前回の入庫」に入庫時刻を入れると、出庫と一緒に登録できます。'
+                    );
                 }
-                throw new InvalidArgumentException(
-                    'この車両は ' . date('n/j', strtotime($unfinished['departure_date'])) . '（' . $unfinished['driver_name']
-                    . '）の入庫が登録されていません。先に入庫画面の「未入庫車両一覧」から入庫を登録してください。'
-                    . '入庫メーターは今朝の日常点検のメーター値を入れてください。'
-                );
+                if (!empty($pa['skip'])) {
+                    continue;
+                }
+                $pa_date = trim((string)($pa['date'] ?? ''));
+                $pa_time = trim((string)($pa['time'] ?? ''));
+                $pa_mileage = (int)($pa['mileage'] ?? 0);
+                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $pa_date)) {
+                    $pa_date = $unfinished['departure_date'];
+                }
+                if ($pa_time === '' || $pa_mileage <= 0) {
+                    throw new InvalidArgumentException(
+                        '前回の入庫（' . $label . '）の入庫時刻とメーターを入れてください。'
+                        . '入庫時刻が分からないときは「入庫時刻が分からないので、あとで登録する」を選んでください。'
+                    );
+                }
+                $pa_at = strtotime($pa_date . ' ' . $pa_time);
+                if ($pa_at && $new_departure_at && $pa_at > $new_departure_at) {
+                    throw new InvalidArgumentException(
+                        '前回の入庫（' . $label . '）の入庫日時が、今回の出庫日時より後になっています。実際に入庫した日付と時刻を入れてください。'
+                    );
+                }
+                if ($pa_mileage > $departure_mileage) {
+                    throw new InvalidArgumentException(
+                        '前回の入庫メーター（' . number_format($pa_mileage) . 'km）が、今回の出庫メーター（' . number_format($departure_mileage) . 'km）より大きくなっています。確認してください。'
+                    );
+                }
+                // 後日の登録は事後登録と分かる形で残す（ADR-0002 D13）
+                $pa_remarks = ($pa_date < date('Y-m-d') ? '【' . date('Y-m-d') . ' 事後登録】' : '')
+                    . '次の出庫の登録時に出庫画面から入力（入庫時刻・入庫メーターは登録者の申告）';
+                registerArrivalRecord($pdo, [
+                    'departure_record_id' => $unfinished['id'],
+                    'arrival_date' => $pa_date,
+                    'arrival_time' => $pa_time,
+                    'arrival_mileage' => $pa_mileage,
+                    'remarks' => $pa_remarks,
+                ], $user_id);
+                $registered_arrivals[] = $label;
             }
 
             // 日常点検した車両と違う車両で出庫しようとしていないか（車両の選び間違い防止）
@@ -159,7 +222,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $insp_stmt->execute([$vehicle_id, $departure_date, $driver_id, $departure_date]);
             $insp = $insp_stmt->fetch(PDO::FETCH_ASSOC);
             if (!$insp['this_inspected'] && $insp['inspected_vehicle']) {
-                $pdo->rollBack();
                 throw new InvalidArgumentException(
                     '本日の日常点検は ' . $insp['inspected_vehicle'] . ' で登録されています。'
                     . '出庫する車両が合っているか確認してください（別の車両で出る場合は、その車両の日常点検を先に登録してください）。'
@@ -195,7 +257,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             logAudit($pdo, $new_id, 'create', $user_id, 'departure');
             $pdo->commit();
 
-            $success_message = '出庫処理が完了しました。';
+            $success_message = $registered_arrivals
+                ? '前回の入庫（' . implode('、', $registered_arrivals) . '）と、出庫を登録しました。'
+                : '出庫処理が完了しました。';
         }
 
     } catch (InvalidArgumentException $e) {
@@ -226,6 +290,20 @@ foreach ($vehicles as &$vehicle) {
     }
 }
 unset($vehicle);
+
+// 前回の入庫が漏れている出庫を車両ごとにまとめる（その車両を選ぶと「前回の入庫」欄が出る）
+$pending_by_vehicle = [];
+if (!$edit_mode) {
+    foreach (getUnfinishedDepartures($pdo, $today) as $row) {
+        $pending_by_vehicle[$row['vehicle_id']][] = $row;
+    }
+}
+
+// 保存が通らなかったときは、入れた値を残して出し直す（打ち直させない）
+$old = ($error_message && !$edit_mode && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action']) && empty($_POST['edit_id'])) ? $_POST : [];
+$old_pending = (isset($old['pending_arrival']) && is_array($old['pending_arrival'])) ? $old['pending_arrival'] : [];
+$selected_driver_id = $old['driver_id'] ?? $user_id;
+$selected_vehicle_id = $old['vehicle_id'] ?? $default_vehicle_id;
 
 // 本日の出庫記録一覧取得（入庫状態も含む）
 $today_departures_sql = "
@@ -353,7 +431,7 @@ echo $page_data['page_header'];
                                                     <?php if ($edit_mode): ?>
                                                         <?= ($driver['id'] == $edit_record['driver_id']) ? 'selected' : '' ?>
                                                     <?php else: ?>
-                                                        <?= ($driver['id'] == $user_id) ? 'selected' : '' ?>
+                                                        <?= ($driver['id'] == $selected_driver_id) ? 'selected' : '' ?>
                                                     <?php endif; ?>>
                                                     <?= htmlspecialchars($driver['name']) ?>
                                                 </option>
@@ -369,7 +447,7 @@ echo $page_data['page_header'];
                                             <i class="fas fa-car me-1"></i>車両 <span class="text-danger fw-bold small">（必須）</span>
                                         </label>
                                         <select class="form-select" id="vehicle_id" name="vehicle_id" required
-                                                <?= $edit_mode ? 'disabled' : '' ?> onchange="getVehicleInfo()">
+                                                <?= $edit_mode ? 'disabled' : '' ?> onchange="getVehicleInfo(); syncPendingArrival();">
                                             <option value="">車両を選択</option>
                                             <?php foreach ($vehicles as $vehicle): ?>
                                                 <option value="<?= $vehicle['id'] ?>"
@@ -377,7 +455,7 @@ echo $page_data['page_header'];
                                                     <?php if ($edit_mode): ?>
                                                         <?= ($vehicle['id'] == $edit_record['vehicle_id']) ? 'selected' : '' ?>
                                                     <?php else: ?>
-                                                        <?= ($vehicle['id'] == $default_vehicle_id) ? 'selected' : '' ?>
+                                                        <?= ($vehicle['id'] == $selected_vehicle_id) ? 'selected' : '' ?>
                                                     <?php endif; ?>>
                                                     <?= htmlspecialchars($vehicle['vehicle_number'] . ' - ' . $vehicle['vehicle_name']) ?>
                                                 </option>
@@ -393,6 +471,61 @@ echo $page_data['page_header'];
                                 <div id="vehicleInfo" class="vehicle-info" style="display: none;">
                                     <div id="vehicleDetails"></div>
                                 </div>
+
+                                <!-- 前回の入庫（漏れている車両を選んだときだけ出る。出庫と一緒に登録する） -->
+                                <?php foreach ($pending_by_vehicle as $pending_vehicle_id => $pending_rows): ?>
+                                <div class="pending-arrival" data-vehicle-id="<?= (int)$pending_vehicle_id ?>" style="display: none;">
+                                    <div class="pending-arrival-title">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>前回の入庫がまだ登録されていません。ここで出庫と一緒に登録できます。
+                                    </div>
+                                    <?php $pending_last_index = count($pending_rows) - 1; ?>
+                                    <?php foreach ($pending_rows as $pending_index => $p): ?>
+                                    <?php
+                                        $p_old = (isset($old_pending[$p['id']]) && is_array($old_pending[$p['id']])) ? $old_pending[$p['id']] : [];
+                                        $p_name = 'pending_arrival[' . (int)$p['id'] . ']';
+                                        $p_key = 'pa' . (int)$p['id'];
+                                    ?>
+                                    <div class="pending-arrival-item">
+                                        <div class="mb-2">
+                                            <strong><?= htmlspecialchars(unfinishedDepartureLabel($p)) ?></strong>
+                                            <span class="text-muted ms-2">出庫メーター <?= number_format($p['departure_mileage']) ?>km</span>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-4 mb-2">
+                                                <label for="<?= $p_key ?>_date" class="form-label">入庫日</label>
+                                                <input type="date" class="form-control pa-field" id="<?= $p_key ?>_date" name="<?= $p_name ?>[date]"
+                                                       value="<?= htmlspecialchars($p_old['date'] ?? $p['departure_date']) ?>"
+                                                       min="<?= htmlspecialchars($p['departure_date']) ?>" max="<?= $today ?>" disabled>
+                                            </div>
+                                            <div class="col-md-4 mb-2">
+                                                <label for="<?= $p_key ?>_time" class="form-label">入庫時刻 <span class="text-danger fw-bold small">（必須）</span></label>
+                                                <input type="time" class="form-control pa-field pa-required" id="<?= $p_key ?>_time" name="<?= $p_name ?>[time]"
+                                                       value="<?= htmlspecialchars($p_old['time'] ?? '') ?>" disabled>
+                                            </div>
+                                            <div class="col-md-4 mb-2">
+                                                <label for="<?= $p_key ?>_mileage" class="form-label">入庫メーター <span class="text-danger fw-bold small">（必須）</span></label>
+                                                <div class="input-group">
+                                                    <input type="number" class="form-control pa-field pa-required pa-mileage" id="<?= $p_key ?>_mileage" name="<?= $p_name ?>[mileage]"
+                                                           min="<?= (int)$p['departure_mileage'] ?>" step="1" inputmode="numeric"
+                                                           value="<?= htmlspecialchars($p_old['mileage'] ?? '') ?>"
+                                                           <?= $pending_index === $pending_last_index ? 'data-mirror="1"' : '' ?>
+                                                           <?= !empty($p_old['mileage']) ? 'data-touched="1"' : '' ?> disabled>
+                                                    <span class="input-group-text">km</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <?php if ($pending_index === $pending_last_index): ?>
+                                        <div class="form-text mb-2">入庫メーターには、下の出庫メーターと同じ値が入ります。入庫のあとにこの車を動かしていたら直してください。</div>
+                                        <?php endif; ?>
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input pa-skip" id="<?= $p_key ?>_skip" name="<?= $p_name ?>[skip]" value="1"
+                                                   <?= !empty($p_old['skip']) ? 'checked' : '' ?> onchange="syncPendingArrival()" disabled>
+                                            <label class="form-check-label" for="<?= $p_key ?>_skip">入庫時刻が分からないので、あとで登録する（出庫だけ登録）</label>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <?php endforeach; ?>
                         </div>
                     </div>
 
@@ -415,7 +548,7 @@ echo $page_data['page_header'];
                                             <i class="fas fa-clock me-1"></i>出庫時刻 <span class="text-danger fw-bold small">（必須）</span>
                                         </label>
                                         <input type="time" class="form-control" id="departure_time" name="departure_time"
-                                               value="<?= $edit_mode ? substr($edit_record['departure_time'], 0, 5) : $current_time ?>" required>
+                                               value="<?= $edit_mode ? substr($edit_record['departure_time'], 0, 5) : htmlspecialchars($old['departure_time'] ?? $current_time) ?>" required>
                                     </div>
                                 </div>
 
@@ -429,7 +562,7 @@ echo $page_data['page_header'];
                                             <div class="weather-option">
                                                 <input type="radio" class="btn-check" name="weather"
                                                        id="weather_<?= $weather ?>" value="<?= $weather ?>" required
-                                                       <?= ($edit_mode && $edit_record['weather'] == $weather) ? 'checked' : '' ?>>
+                                                       <?= (($edit_mode && $edit_record['weather'] == $weather) || (($old['weather'] ?? '') === $weather)) ? 'checked' : '' ?>>
                                                 <label class="btn btn-outline-primary" for="weather_<?= $weather ?>">
                                                     <?= $weather ?>
                                                 </label>
@@ -446,7 +579,7 @@ echo $page_data['page_header'];
                                         <input type="number" class="form-control" id="departure_mileage"
                                                name="departure_mileage" required min="0" step="1" inputmode="numeric"
                                                placeholder="例：145230"
-                                               value="<?= $edit_mode ? $edit_record['departure_mileage'] : '' ?>">
+                                               value="<?= $edit_mode ? $edit_record['departure_mileage'] : htmlspecialchars($old['departure_mileage'] ?? '') ?>">
                                         <span class="input-group-text">km</span>
                                         <button type="button" class="btn btn-outline-secondary" onclick="setCurrentMileage()" id="autoSetBtn">
                                             <i class="fas fa-sync-alt me-1"></i>前回値
@@ -486,8 +619,8 @@ echo $page_data['page_header'];
                             </button>
                             <?php endif; ?>
                         <?php else: ?>
-                            <button type="submit" class="btn btn-success btn-lg" data-loading-text="保存中...">
-                                <i class="fas fa-save me-2"></i>登録する
+                            <button type="submit" class="btn btn-success btn-lg" id="departureSubmitBtn" data-loading-text="保存中...">
+                                <i class="fas fa-save me-2"></i><span id="departureSubmitLabel">登録する</span>
                             </button>
                         <?php endif; ?>
                     </div>
@@ -593,7 +726,7 @@ echo $page_data['page_header'];
                             <i class="fas fa-info-circle me-1"></i>複数出庫について
                         </h6>
                         <small class="text-muted">
-                            入庫済みの車両は、同日中に再度出庫できます。出庫中の車両は先に入庫処理を完了してください。
+                            入庫済みの車両は、同日中に再度出庫できます。前回の入庫がまだの車両は、この画面で入庫と出庫を一緒に登録できます。
                         </small>
                     </div>
                 </div>
@@ -649,6 +782,30 @@ echo $page_data['page_header'];
     border-radius: 12px;
     margin-top: 15px;
     border: 1px solid #bbdefb;
+}
+
+.pending-arrival {
+    background: #fff8e1;
+    border: 1px solid var(--wts-amber);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 8px;
+}
+
+.pending-arrival-title {
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.pending-arrival-item + .pending-arrival-item {
+    border-top: 1px solid #ffe082;
+    margin-top: 12px;
+    padding-top: 12px;
+}
+
+.pending-arrival .form-check-input {
+    width: 1.25em;
+    height: 1.25em;
 }
 
 .departure-record {
@@ -751,6 +908,42 @@ function setCurrentMileage() {
     var m = opt.getAttribute('data-mileage');
     var mileageInput = document.getElementById('departure_mileage');
     if (m && mileageInput) mileageInput.value = m;
+    mirrorPendingMileage();
+}
+
+// 選んだ車両に入庫漏れがあれば「前回の入庫」欄を出す。出ていない欄は送信しない（disabled）
+function syncPendingArrival() {
+    var select = document.querySelector('select[name="vehicle_id"]');
+    var vehicleId = select ? select.value : '';
+    var registering = false;
+    document.querySelectorAll('.pending-arrival').forEach(function(box) {
+        var on = box.getAttribute('data-vehicle-id') === vehicleId;
+        box.style.display = on ? 'block' : 'none';
+        box.querySelectorAll('.pending-arrival-item').forEach(function(item) {
+            var skip = item.querySelector('.pa-skip');
+            skip.disabled = !on;
+            var skipped = skip.checked;
+            item.querySelectorAll('.pa-field').forEach(function(field) {
+                field.disabled = !on || skipped;
+                field.required = on && !skipped && field.classList.contains('pa-required');
+                if (field.disabled) field.classList.remove('is-invalid');
+            });
+            if (on && !skipped) registering = true;
+        });
+    });
+    mirrorPendingMileage();
+    // ボタンの文字で、押すと何が登録されるかが分かるようにする
+    var label = document.getElementById('departureSubmitLabel');
+    if (label) label.textContent = registering ? '入庫と出庫を登録する' : '登録する';
+}
+
+// 前回の入庫メーターは、出庫メーターと同じ値を入れておく（自分で直したら触らない）
+function mirrorPendingMileage() {
+    var mileageInput = document.getElementById('departure_mileage');
+    if (!mileageInput) return;
+    document.querySelectorAll('.pending-arrival .pa-mileage[data-mirror="1"]').forEach(function(field) {
+        if (!field.disabled && field.getAttribute('data-touched') !== '1') field.value = mileageInput.value;
+    });
 }
 
 function updateMileage() {
@@ -830,11 +1023,19 @@ function showNotification(message, type) {
 var formDirty = false;
 document.addEventListener('DOMContentLoaded', function() {
     updateMileage();
+    syncPendingArrival();
+    var departureMileageInput = document.getElementById('departure_mileage');
+    if (departureMileageInput) departureMileageInput.addEventListener('input', mirrorPendingMileage);
+    document.querySelectorAll('.pending-arrival .pa-mileage').forEach(function(field) {
+        field.addEventListener('input', function() { this.setAttribute('data-touched', '1'); });
+    });
     var form = document.getElementById('departureForm');
     if (form) {
         form.addEventListener('input', function() { formDirty = true; });
         form.addEventListener('change', function() { formDirty = true; });
-        form.addEventListener('submit', function() {
+        form.addEventListener('submit', function(e) {
+            // 入力チェックで止まったときは、ボタンを「保存中」のまま固めない
+            if (e.defaultPrevented) return;
             formDirty = false;
             var btn = this.querySelector('button[type="submit"]');
             if (btn) {

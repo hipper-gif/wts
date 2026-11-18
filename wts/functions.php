@@ -180,6 +180,99 @@ function logAudit($pdo, $record_id, $action, $user_id, $type = 'record', $change
 }
 
 /**
+ * 入庫記録を1件登録する（入庫画面と、出庫画面の「前回の入庫を一緒に登録」の両方が呼ぶ。決まりはここ1か所）
+ * 呼ぶ側がトランザクションを張ること。入力の誤りは InvalidArgumentException（文言はそのまま画面に出す）。
+ * @param PDO $pdo
+ * @param array $in departure_record_id, driver_id, vehicle_id, arrival_date, arrival_time, arrival_mileage,
+ *                  fuel_cost, highway_cost, other_cost, break_location, break_start_time, break_end_time, remarks
+ * @param int $user_id 操作ユーザーID（監査ログ用）
+ * @return array ['id', 'driver_id', 'vehicle_id', 'total_distance']
+ */
+function registerArrivalRecord($pdo, array $in, $user_id) {
+    $departure_record_id = !empty($in['departure_record_id']) ? (int)$in['departure_record_id'] : null;
+    $driver_id = (int)($in['driver_id'] ?? 0);
+    $vehicle_id = (int)($in['vehicle_id'] ?? 0);
+    $arrival_date = (string)($in['arrival_date'] ?? '');
+    $arrival_time = (string)($in['arrival_time'] ?? '');
+    $arrival_mileage = (int)($in['arrival_mileage'] ?? 0);
+
+    $departure_mileage = 0;
+    if ($departure_record_id) {
+        // 行ロックして、同じ出庫への二重入庫（連打・別端末）を防ぐ
+        $stmt = $pdo->prepare("SELECT driver_id, vehicle_id, departure_date, departure_time, departure_mileage FROM departure_records WHERE id = ? FOR UPDATE");
+        $stmt->execute([$departure_record_id]);
+        $dep = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$dep) {
+            // 古い画面からの送信（出庫が削除済み）＝外部キー違反を一般エラーにしない（Issue #79）
+            throw new InvalidArgumentException('選んだ出庫記録が見つかりません（別の端末で入庫済みか、出庫記録が削除されています）。画面を開き直して、未入庫の出庫を選び直してください。');
+        }
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE departure_record_id = ?");
+        $stmt->execute([$departure_record_id]);
+        if ((int)$stmt->fetchColumn() > 0) {
+            throw new InvalidArgumentException('この出庫はすでに入庫が登録されています。画面を開き直して確認してください。');
+        }
+        $departure_mileage = (int)$dep['departure_mileage'];
+        // 入庫の運転者・車両は出庫記録に従う（画面の選択違いで車両の記録が分かれるのを防ぐ）
+        $driver_id = (int)$dep['driver_id'];
+        $vehicle_id = (int)$dep['vehicle_id'];
+        // 過去の出庫を後日入庫する際に、入庫日が「今日」のまま登録されて日付が逆転する事故を防ぐ
+        $departure_at = strtotime($dep['departure_date'] . ' ' . $dep['departure_time']);
+        $arrival_at = strtotime($arrival_date . ' ' . $arrival_time);
+        if ($departure_at && $arrival_at && $arrival_at < $departure_at) {
+            throw new InvalidArgumentException(
+                '入庫日時（' . $arrival_date . ' ' . substr($arrival_time, 0, 5) . '）が出庫日時（'
+                . $dep['departure_date'] . ' ' . substr($dep['departure_time'], 0, 5)
+                . '）より前になっています。実際に入庫した日付と時刻を入力してください。'
+            );
+        }
+    }
+
+    if (!$driver_id || !$vehicle_id || !$arrival_date || !$arrival_time || !$arrival_mileage) {
+        throw new InvalidArgumentException('必須項目が入力されていません。');
+    }
+
+    $total_distance = $arrival_mileage - $departure_mileage;
+    if ($total_distance < 0) {
+        throw new InvalidArgumentException(
+            '入庫メーター（' . number_format($arrival_mileage) . 'km）が出庫メーター（' . number_format($departure_mileage) . 'km）より小さくなっています。確認してください。'
+        );
+    }
+
+    $stmt = $pdo->prepare("
+        INSERT INTO arrival_records
+        (departure_record_id, driver_id, vehicle_id, arrival_date, arrival_time, arrival_mileage,
+         total_distance, fuel_cost, highway_cost, other_cost, break_location, break_start_time,
+         break_end_time, remarks, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+    ");
+    $stmt->execute([
+        $departure_record_id,
+        $driver_id,
+        $vehicle_id,
+        $arrival_date,
+        $arrival_time,
+        $arrival_mileage,
+        $total_distance,
+        (int)($in['fuel_cost'] ?? 0),
+        (int)($in['highway_cost'] ?? 0),
+        (int)($in['other_cost'] ?? 0),
+        ($in['break_location'] ?? '') ?: null,
+        ($in['break_start_time'] ?? '') ?: null,
+        ($in['break_end_time'] ?? '') ?: null,
+        ($in['remarks'] ?? '') ?: null,
+    ]);
+    $new_id = (int)$pdo->lastInsertId();
+
+    // 車両の走行距離を更新（楽観的ロック：メーターが逆行しないことを保証）
+    $stmt = $pdo->prepare("UPDATE vehicles SET current_mileage = ? WHERE id = ? AND current_mileage <= ?");
+    $stmt->execute([$arrival_mileage, $vehicle_id, $arrival_mileage]);
+
+    logAudit($pdo, $new_id, 'create', $user_id, 'arrival');
+
+    return ['id' => $new_id, 'driver_id' => $driver_id, 'vehicle_id' => $vehicle_id, 'total_distance' => $total_distance];
+}
+
+/**
  * 日付ベースの編集可否判定（共通）
  * @param array $record レコードデータ
  * @param string $date_column 日付カラム名

@@ -12,9 +12,6 @@ $today = date('Y-m-d');
 $current_time = date('H:i');
 
 $success_message = '';
-if (($_GET['from'] ?? '') === 'arrival' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
-    $success_message = '入庫記録を保存しました。続けて乗務後点呼を登録してください。';
-}
 $error_message = '';
 $is_edit_mode = false;
 
