@@ -44,6 +44,7 @@ SCP_CMD="scp -P ${SSH_PORT} -i ${SSH_KEY} -o StrictHostKeyChecking=no"
 # ---- オプション解析 ----
 DRY_RUN=false
 TARGET_TENANT=""
+SKIP_JS_CHECK=false
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -54,6 +55,11 @@ while [ $# -gt 0 ]; do
         --tenant)
             TARGET_TENANT="$2"
             shift 2
+            ;;
+        --skip-js-check)
+            # 画面の中の JS の構文検査を飛ばす（node が無い端末から急ぎで出す時だけ）
+            SKIP_JS_CHECK=true
+            shift
             ;;
         *)
             echo "不明なオプション: $1" >&2
@@ -127,6 +133,29 @@ if [ "${DRY_RUN}" = true ]; then
 fi
 
 log "=========================================="
+
+# ---- Step 0: 画面の中の JS の構文検査（通らなければ配置しない） ----
+# 背景: PHP の構文検査（CI）は画面の中の JS を見ない。2026-11-18、確認文の中に改行が入ったまま本番に出し、
+#       定期点検の画面のボタンが効かなくなった。配置の前に、いまのコードを検証用の置き場で描画して JS を確かめる。
+# 手順: いまのコードを ~/stage_cc/wts へ送る → サーバーが主要な画面を描画 → 手元の node で構文を確かめる
+if [ "${SKIP_JS_CHECK}" = true ]; then
+    log "Step 0: JS の構文検査を飛ばします（--skip-js-check）"
+else
+    log "Step 0: 画面の中の JS の構文検査"
+    command -v node >/dev/null 2>&1 || { echo "node が見つかりません。JS の構文検査ができないので配置を止めます（飛ばすなら --skip-js-check）。" >&2; exit 1; }
+    CHECK_DIR="$(mktemp -d)"
+    (cd "${LOCAL_CODE_DIR}" && tar czf "${CHECK_DIR}/stage.tar.gz" --exclude='.env' --exclude='uploads' --exclude='sql/applied' --exclude='.git' .)
+    ${SCP_CMD} "${CHECK_DIR}/stage.tar.gz" "${SSH_USER}@${SSH_HOST}:stage_cc/stage_check.tar.gz" >/dev/null
+    ${SSH_CMD} "cd ~/stage_cc/wts && tar xzf ../stage_check.tar.gz && rm -f ../stage_check.tar.gz"
+    ${SSH_CMD} 'bash -s' < "${SCRIPT_DIR}/render_pages_for_check.sh" >/dev/null
+    ${SCP_CMD} "${SSH_USER}@${SSH_HOST}:stage_cc/jschk.tgz" "${CHECK_DIR}/jschk.tgz" >/dev/null
+    (cd "${CHECK_DIR}" && tar xzf jschk.tgz)
+    if ! node "${SCRIPT_DIR}/check_inline_js.js" "${CHECK_DIR}/jschk"; then
+        echo "画面の中の JS に構文エラーがあります。配置を止めました（描画した画面: ${CHECK_DIR}/jschk）。" >&2
+        exit 1
+    fi
+    log "JS の構文検査 OK"
+fi
 
 # ---- Step 1: ローカルコードをアーカイブ ----
 log "Step 1: ローカルコードのアーカイブ作成"
