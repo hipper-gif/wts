@@ -13,119 +13,204 @@ if ($user_role !== 'Admin') {
 }
 
 // 検索・フィルター条件
-$search_year = $_GET['year'] ?? date('Y');
+$search_year = (int)($_GET['year'] ?? date('Y'));
 $search_type = $_GET['type'] ?? '';
 $search_status = $_GET['status'] ?? '';
+
+// 選択肢（画面と保存時の検査で同じものを使う）
+$ACCIDENT_TYPES = ['交通事故', '重大事故', 'ヒヤリハット', 'その他'];
+$ACCIDENT_STATUSES = ['発生', '調査中', '処理完了'];
+$WEATHER_OPTIONS = ['晴', '曇', '雨', '雪', '霧'];
+
+/**
+ * 事故記録の入力を検査して、保存する値にそろえる。だめな時は理由を InvalidArgumentException で返す。
+ */
+function normalizeAccidentInput($pdo, array $in, array $types, array $weathers) {
+    $date = trim($in['accident_date'] ?? '');
+    $d = DateTime::createFromFormat('Y-m-d', $date);
+    if (!$d || $d->format('Y-m-d') !== $date) {
+        throw new InvalidArgumentException('事故発生日を入力してください。');
+    }
+    if ($date > date('Y-m-d')) {
+        throw new InvalidArgumentException('事故発生日が未来の日付になっています。');
+    }
+    $time = trim($in['accident_time'] ?? '');
+    if ($time !== '' && !preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $time)) {
+        throw new InvalidArgumentException('発生時刻の形式が正しくありません。');
+    }
+    $vehicle_id = (int)($in['vehicle_id'] ?? 0);
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM vehicles WHERE id = ?");
+    $stmt->execute([$vehicle_id]);
+    if (!$stmt->fetchColumn()) {
+        throw new InvalidArgumentException('車両を選択してください。');
+    }
+    $driver_id = (int)($in['driver_id'] ?? 0);
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE id = ?");
+    $stmt->execute([$driver_id]);
+    if (!$stmt->fetchColumn()) {
+        throw new InvalidArgumentException('運転者を選択してください。');
+    }
+    $type = $in['accident_type'] ?? '';
+    if (!in_array($type, $types, true)) {
+        throw new InvalidArgumentException('事故種別を選択してください。');
+    }
+    $weather = $in['weather'] ?? '';
+    if ($weather !== '' && !in_array($weather, $weathers, true)) {
+        throw new InvalidArgumentException('天候の選択が正しくありません。');
+    }
+    $description = trim($in['description'] ?? '');
+    if ($description === '') {
+        throw new InvalidArgumentException('事故状況を入力してください。');
+    }
+    foreach (['deaths' => '死者数', 'injuries' => '負傷者数', 'damage_amount' => '損害額'] as $key => $label) {
+        $v = trim((string)($in[$key] ?? '0'));
+        if ($v !== '' && !preg_match('/^\d{1,9}$/', $v)) {
+            throw new InvalidArgumentException($label . 'は0以上の数字で入力してください。');
+        }
+    }
+    return [
+        'accident_date' => $date,
+        'accident_time' => $time !== '' ? $time : null,
+        'vehicle_id' => $vehicle_id,
+        'driver_id' => $driver_id,
+        'accident_type' => $type,
+        'location' => trim($in['location'] ?? ''),
+        'weather' => $weather !== '' ? $weather : null,
+        'description' => $description,
+        'cause_analysis' => trim($in['cause_analysis'] ?? ''),
+        'deaths' => (int)($in['deaths'] ?? 0),
+        'injuries' => (int)($in['injuries'] ?? 0),
+        'property_damage' => isset($in['property_damage']) ? 1 : 0,
+        'damage_amount' => (int)($in['damage_amount'] ?? 0),
+        'police_report' => isset($in['police_report']) ? 1 : 0,
+        'police_report_number' => trim($in['police_report_number'] ?? '') ?: null,
+        'insurance_claim' => isset($in['insurance_claim']) ? 1 : 0,
+        'insurance_number' => trim($in['insurance_number'] ?? '') ?: null,
+        'prevention_measures' => trim($in['prevention_measures'] ?? ''),
+    ];
+}
 
 // POST処理
 $message = '';
 $error = '';
+$old_add = null;   // 登録が通らなかった時に、入れた値を残して出し直す
+$old_edit = null;  // 更新が通らなかった時も同じ
+
+// 保存後は一覧へ移してから知らせる（再読込で同じ記録がもう1件入らないように）
+if (!empty($_SESSION['accident_flash'])) {
+    $message = $_SESSION['accident_flash'];
+    unset($_SESSION['accident_flash']);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validateCsrfToken();
+    $action = $_POST['action'] ?? '';
     try {
-        if (isset($_POST['action'])) {
-            switch ($_POST['action']) {
-                case 'add_accident':
-                    $stmt = $pdo->prepare("
-                        INSERT INTO accidents (
-                            accident_date, accident_time, vehicle_id, driver_id, accident_type,
-                            location, weather, description, cause_analysis,
-                            deaths, injuries, property_damage, damage_amount,
-                            police_report, police_report_number,
-                            insurance_claim, insurance_number,
-                            prevention_measures, created_by
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ");
-                    
-                    $stmt->execute([
-                        $_POST['accident_date'],
-                        $_POST['accident_time'] ?: null,
-                        $_POST['vehicle_id'],
-                        $_POST['driver_id'],
-                        $_POST['accident_type'],
-                        $_POST['location'],
-                        $_POST['weather'],
-                        $_POST['description'],
-                        $_POST['cause_analysis'],
-                        (int)$_POST['deaths'],
-                        (int)$_POST['injuries'],
-                        isset($_POST['property_damage']) ? 1 : 0,
-                        (int)$_POST['damage_amount'],
-                        isset($_POST['police_report']) ? 1 : 0,
-                        $_POST['police_report_number'] ?: null,
-                        isset($_POST['insurance_claim']) ? 1 : 0,
-                        $_POST['insurance_number'] ?: null,
-                        $_POST['prevention_measures'],
-                        $_SESSION['user_id']
-                    ]);
-                    
-                    $message = "事故記録を登録しました。";
-                    break;
-                    
-                case 'update_accident':
-                    $stmt = $pdo->prepare("
-                        UPDATE accidents SET
-                            accident_date = ?, accident_time = ?, vehicle_id = ?, driver_id = ?,
-                            accident_type = ?, location = ?, weather = ?, description = ?,
-                            cause_analysis = ?, deaths = ?, injuries = ?, property_damage = ?,
-                            damage_amount = ?, police_report = ?, police_report_number = ?,
-                            insurance_claim = ?, insurance_number = ?, prevention_measures = ?,
-                            status = ?, updated_at = NOW()
-                        WHERE id = ?
-                    ");
-                    
-                    $stmt->execute([
-                        $_POST['accident_date'],
-                        $_POST['accident_time'] ?: null,
-                        $_POST['vehicle_id'],
-                        $_POST['driver_id'],
-                        $_POST['accident_type'],
-                        $_POST['location'],
-                        $_POST['weather'],
-                        $_POST['description'],
-                        $_POST['cause_analysis'],
-                        (int)$_POST['deaths'],
-                        (int)$_POST['injuries'],
-                        isset($_POST['property_damage']) ? 1 : 0,
-                        (int)$_POST['damage_amount'],
-                        isset($_POST['police_report']) ? 1 : 0,
-                        $_POST['police_report_number'] ?: null,
-                        isset($_POST['insurance_claim']) ? 1 : 0,
-                        $_POST['insurance_number'] ?: null,
-                        $_POST['prevention_measures'],
-                        $_POST['status'],
-                        $_POST['accident_id']
-                    ]);
-                    
-                    $message = "事故記録を更新しました。";
-                    break;
-                    
-                case 'delete_accident':
-                    if (!$is_admin) {
-                        throw new Exception('削除権限がありません。');
-                    }
-                    $stmt = $pdo->prepare("DELETE FROM accidents WHERE id = ?");
-                    $stmt->execute([$_POST['accident_id']]);
+        $redirect_year = $search_year;
+        switch ($action) {
+            case 'add_accident':
+                $a = normalizeAccidentInput($pdo, $_POST, $ACCIDENT_TYPES, $WEATHER_OPTIONS);
+                $stmt = $pdo->prepare("
+                    INSERT INTO accidents (
+                        accident_date, accident_time, vehicle_id, driver_id, accident_type,
+                        location, weather, description, cause_analysis,
+                        deaths, injuries, property_damage, damage_amount,
+                        police_report, police_report_number,
+                        insurance_claim, insurance_number,
+                        prevention_measures, created_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([
+                    $a['accident_date'], $a['accident_time'], $a['vehicle_id'], $a['driver_id'], $a['accident_type'],
+                    $a['location'], $a['weather'], $a['description'], $a['cause_analysis'],
+                    $a['deaths'], $a['injuries'], $a['property_damage'], $a['damage_amount'],
+                    $a['police_report'], $a['police_report_number'],
+                    $a['insurance_claim'], $a['insurance_number'],
+                    $a['prevention_measures'], $user_id
+                ]);
+                logAudit($pdo, (int)$pdo->lastInsertId(), 'create', $user_id, 'accident');
+                $_SESSION['accident_flash'] = '事故記録を登録しました。';
+                $redirect_year = (int)substr($a['accident_date'], 0, 4);
+                break;
 
-                    $message = "事故記録を削除しました。";
-                    break;
-            }
+            case 'update_accident':
+                $accident_id = (int)($_POST['accident_id'] ?? 0);
+                $a = normalizeAccidentInput($pdo, $_POST, $ACCIDENT_TYPES, $WEATHER_OPTIONS);
+                $status = $_POST['status'] ?? '';
+                if (!in_array($status, $ACCIDENT_STATUSES, true)) {
+                    throw new InvalidArgumentException('処理状況を選択してください。');
+                }
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM accidents WHERE id = ?");
+                $stmt->execute([$accident_id]);
+                if (!$stmt->fetchColumn()) {
+                    throw new InvalidArgumentException('この事故記録は見つかりません。すでに削除されている可能性があります。');
+                }
+                $stmt = $pdo->prepare("
+                    UPDATE accidents SET
+                        accident_date = ?, accident_time = ?, vehicle_id = ?, driver_id = ?,
+                        accident_type = ?, location = ?, weather = ?, description = ?,
+                        cause_analysis = ?, deaths = ?, injuries = ?, property_damage = ?,
+                        damage_amount = ?, police_report = ?, police_report_number = ?,
+                        insurance_claim = ?, insurance_number = ?, prevention_measures = ?,
+                        status = ?, updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([
+                    $a['accident_date'], $a['accident_time'], $a['vehicle_id'], $a['driver_id'],
+                    $a['accident_type'], $a['location'], $a['weather'], $a['description'],
+                    $a['cause_analysis'], $a['deaths'], $a['injuries'], $a['property_damage'],
+                    $a['damage_amount'], $a['police_report'], $a['police_report_number'],
+                    $a['insurance_claim'], $a['insurance_number'], $a['prevention_measures'],
+                    $status, $accident_id
+                ]);
+                logAudit($pdo, $accident_id, 'edit', $user_id, 'accident');
+                $_SESSION['accident_flash'] = '事故記録を更新しました。';
+                $redirect_year = (int)substr($a['accident_date'], 0, 4);
+                break;
+
+            case 'delete_accident':
+                $accident_id = (int)($_POST['accident_id'] ?? 0);
+                $stmt = $pdo->prepare("DELETE FROM accidents WHERE id = ?");
+                $stmt->execute([$accident_id]);
+                if ($stmt->rowCount() > 0) {
+                    logAudit($pdo, $accident_id, 'delete', $user_id, 'accident');
+                    $_SESSION['accident_flash'] = '事故記録を削除しました。';
+                } else {
+                    $_SESSION['accident_flash'] = 'この事故記録はすでに削除されています。';
+                }
+                break;
+
+            default:
+                throw new InvalidArgumentException('操作を受け付けられませんでした。もう一度やり直してください。');
         }
+        header('Location: accident_management.php?year=' . $redirect_year);
+        exit;
+    } catch (InvalidArgumentException $e) {
+        $error = $e->getMessage() . '（入力した内容は残しています）';
     } catch (Exception $e) {
         error_log("Accident management error: " . $e->getMessage());
-        $error = "エラーが発生しました。管理者にお問い合わせください。";
+        $error = '保存できませんでした。入力した内容は残しています。もう一度保存しても同じ場合は、システム担当に連絡してください。';
+    }
+    // ここに来るのは保存が通らなかった時だけ
+    if ($action === 'add_accident') {
+        $old_add = $_POST;
+    } elseif ($action === 'update_accident') {
+        $old_edit = $_POST;
+        foreach (['property_damage', 'police_report', 'insurance_claim'] as $k) {
+            $old_edit[$k] = isset($_POST[$k]) ? 1 : 0;
+        }
+        unset($old_edit['csrf_token'], $old_edit['action']);
     }
 }
 
-// 車両・運転者情報取得
+// 車両・運転者情報取得（使っていない車両・無効の運転者は新規登録の選択肢に出さない。過去の記録の編集には出す）
 function getVehicles($pdo) {
-    $stmt = $pdo->query("SELECT id, vehicle_number FROM vehicles ORDER BY vehicle_number");
+    $stmt = $pdo->query("SELECT id, vehicle_number, is_active FROM vehicles ORDER BY vehicle_number");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 function getDrivers($pdo) {
-    $stmt = $pdo->query("SELECT id, name FROM users WHERE role = '運転者' ORDER BY name");
+    $stmt = $pdo->query("SELECT id, name, is_active FROM users WHERE is_driver = 1 ORDER BY name");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -273,7 +358,7 @@ echo $page_data['page_header'];
                 <i class="fas fa-check-circle me-2"></i><?= htmlspecialchars($message) ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
-            <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?= addslashes($message) ?>', 'success'); });</script>
+            <script>document.addEventListener('DOMContentLoaded', function() { showToast(<?= json_encode($message, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>, 'success'); });</script>
         <?php endif; ?>
 
         <?php if ($error): ?>
@@ -281,7 +366,7 @@ echo $page_data['page_header'];
                 <i class="fas fa-exclamation-triangle me-2"></i><?= htmlspecialchars($error) ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
-            <script>document.addEventListener('DOMContentLoaded', function() { showToast('<?= addslashes($error) ?>', 'danger'); });</script>
+            <script>document.addEventListener('DOMContentLoaded', function() { showToast(<?= json_encode($error, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>, 'danger'); });</script>
         <?php endif; ?>
 
         <!-- 検索・フィルター -->
@@ -297,13 +382,16 @@ echo $page_data['page_header'];
                     
                     <form method="GET" class="row g-3">
                         <div class="col-md-3">
-                            <label class="form-label">年度</label>
+                            <label class="form-label">発生年</label>
                             <select name="year" class="form-select">
-                                <?php for ($year = date('Y'); $year >= date('Y') - 5; $year--): ?>
+                                <?php
+                                $year_options = range((int)date('Y'), (int)date('Y') - 5);
+                                if (!in_array($search_year, $year_options, true)) { $year_options[] = $search_year; rsort($year_options); }
+                                foreach ($year_options as $year): ?>
                                     <option value="<?= $year ?>" <?= $year == $search_year ? 'selected' : '' ?>>
                                         <?= $year ?>年
                                     </option>
-                                <?php endfor; ?>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col-md-3">
@@ -312,6 +400,7 @@ echo $page_data['page_header'];
                                 <option value="">全て</option>
                                 <option value="交通事故" <?= $search_type === '交通事故' ? 'selected' : '' ?>>交通事故</option>
                                 <option value="重大事故" <?= $search_type === '重大事故' ? 'selected' : '' ?>>重大事故</option>
+                                <option value="ヒヤリハット" <?= $search_type === 'ヒヤリハット' ? 'selected' : '' ?>>ヒヤリハット</option>
                                 <option value="その他" <?= $search_type === 'その他' ? 'selected' : '' ?>>その他</option>
                             </select>
                         </div>
@@ -473,7 +562,7 @@ echo $page_data['page_header'];
                                                             case '処理完了': echo 'green'; break;
                                                         }
                                                         ?>">
-                                                        <?= $accident['status'] ?>
+                                                        <?= htmlspecialchars($accident['status'] ?? '') ?>
                                                     </span>
                                                 </td>
                                                 <td onclick="event.stopPropagation()">
@@ -484,11 +573,13 @@ echo $page_data['page_header'];
                                                             <i class="fas fa-print"></i>
                                                         </button>
                                                         <button class="btn btn-outline-primary btn-sm"
-                                                                onclick="editAccident(<?= $accident['id'] ?>)">
+                                                                onclick="editAccident(<?= $accident['id'] ?>)"
+                                                                title="編集" aria-label="編集">
                                                             <i class="fas fa-edit"></i>
                                                         </button>
                                                         <button class="btn btn-outline-danger btn-sm"
-                                                                onclick="deleteAccident(<?= $accident['id'] ?>)">
+                                                                onclick="deleteAccident(<?= $accident['id'] ?>)"
+                                                                title="削除" aria-label="削除">
                                                             <i class="fas fa-trash"></i>
                                                         </button>
                                                     </div>
@@ -560,6 +651,7 @@ echo $page_data['page_header'];
                                     <select name="vehicle_id" class="form-select" required>
                                         <option value="">選択してください</option>
                                         <?php foreach ($vehicles as $vehicle): ?>
+                                            <?php if (!$vehicle['is_active']) continue; ?>
                                             <option value="<?= $vehicle['id'] ?>">
                                                 <?= htmlspecialchars($vehicle['vehicle_number']) ?>
                                             </option>
@@ -573,6 +665,7 @@ echo $page_data['page_header'];
                                     <select name="driver_id" class="form-select" required>
                                         <option value="">選択してください</option>
                                         <?php foreach ($drivers as $driver): ?>
+                                            <?php if (!$driver['is_active']) continue; ?>
                                             <option value="<?= $driver['id'] ?>">
                                                 <?= htmlspecialchars($driver['name']) ?>
                                             </option>
@@ -587,6 +680,7 @@ echo $page_data['page_header'];
                                         <option value="">選択してください</option>
                                         <option value="交通事故">交通事故</option>
                                         <option value="重大事故">重大事故</option>
+                                        <option value="ヒヤリハット">ヒヤリハット</option>
                                         <option value="その他">その他</option>
                                     </select>
                                 </div>
@@ -762,9 +856,19 @@ echo $page_data['page_header'];
 
     <script>
         // 事故データ（PHPから取得）
-        const accidents = <?= json_encode($accidents) ?>;
-        const vehicles = <?= json_encode($vehicles) ?>;
-        const drivers = <?= json_encode($drivers) ?>;
+        const accidents = <?= json_encode($accidents, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>;
+        const vehicles = <?= json_encode($vehicles, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>;
+        const drivers = <?= json_encode($drivers, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>;
+        const csrfToken = <?= json_encode($_SESSION['csrf_token'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>;
+        // 保存が通らなかった時に、入れた値を残して出し直すための控え
+        const oldAdd = <?= json_encode($old_add, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>;
+        const oldEdit = <?= json_encode($old_edit, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>;
+
+        // 画面に埋める文字は必ずこれを通す（" や < を含む記録で欄が途中で切れないように）
+        function esc(v) {
+            if (v === null || v === undefined) return '';
+            return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
         
         // 事故詳細表示
         function viewAccident(accidentId) {
@@ -776,37 +880,37 @@ echo $page_data['page_header'];
                     <div class="col-md-6">
                         <h6><i class="fas fa-info-circle me-2"></i>基本情報</h6>
                         <table class="table table-sm">
-                            <tr><td>発生日時</td><td>${accident.accident_date}${accident.accident_time ? ' ' + accident.accident_time : ''}</td></tr>
-                            <tr><td>事故種別</td><td><span class="wts-badge gray">${accident.accident_type}</span></td></tr>
-                            <tr><td>車両</td><td>${accident.vehicle_number}</td></tr>
-                            <tr><td>運転者</td><td>${accident.driver_name}</td></tr>
-                            <tr><td>場所</td><td>${accident.location || '-'}</td></tr>
-                            <tr><td>天候</td><td>${accident.weather || '-'}</td></tr>
+                            <tr><td>発生日時</td><td>${esc(accident.accident_date)}${accident.accident_time ? ' ' + esc(String(accident.accident_time).slice(0, 5)) : ''}</td></tr>
+                            <tr><td>事故種別</td><td><span class="wts-badge gray">${esc(accident.accident_type)}</span></td></tr>
+                            <tr><td>車両</td><td>${esc(accident.vehicle_number)}</td></tr>
+                            <tr><td>運転者</td><td>${esc(accident.driver_name)}</td></tr>
+                            <tr><td>場所</td><td>${esc(accident.location || '-')}</td></tr>
+                            <tr><td>天候</td><td>${esc(accident.weather || '-')}</td></tr>
                         </table>
                     </div>
                     <div class="col-md-6">
                         <h6><i class="fas fa-chart-bar me-2"></i>被害状況</h6>
                         <table class="table table-sm">
-                            <tr><td>死者数</td><td class="text-danger">${accident.deaths}名</td></tr>
-                            <tr><td>負傷者数</td><td class="text-warning">${accident.injuries}名</td></tr>
-                            <tr><td>物損事故</td><td>${accident.property_damage ? 'あり' : 'なし'}</td></tr>
-                            <tr><td>損害額</td><td>¥${parseInt(accident.damage_amount).toLocaleString()}</td></tr>
-                            <tr><td>警察届出</td><td>${accident.police_report ? '済み' : '未'}</td></tr>
-                            <tr><td>保険請求</td><td>${accident.insurance_claim ? '済み' : '未'}</td></tr>
+                            <tr><td>死者数</td><td class="text-danger">${esc(accident.deaths)}名</td></tr>
+                            <tr><td>負傷者数</td><td class="text-warning">${esc(accident.injuries)}名</td></tr>
+                            <tr><td>物損事故</td><td>${Number(accident.property_damage) ? 'あり' : 'なし'}</td></tr>
+                            <tr><td>損害額</td><td>¥${(parseInt(accident.damage_amount) || 0).toLocaleString()}</td></tr>
+                            <tr><td>警察届出</td><td>${Number(accident.police_report) ? '済み' : '未'}</td></tr>
+                            <tr><td>保険請求</td><td>${Number(accident.insurance_claim) ? '済み' : '未'}</td></tr>
                         </table>
                     </div>
                 </div>
                 <div class="row">
                     <div class="col-12">
                         <h6><i class="fas fa-file-alt me-2"></i>事故状況</h6>
-                        <p class="border p-3 bg-light">${accident.description || '-'}</p>
+                        <p class="border p-3 bg-light">${esc(accident.description || '-')}</p>
                     </div>
                 </div>
                 ${accident.cause_analysis ? `
                 <div class="row">
                     <div class="col-12">
                         <h6><i class="fas fa-search me-2"></i>原因分析</h6>
-                        <p class="border p-3 bg-light">${accident.cause_analysis}</p>
+                        <p class="border p-3 bg-light">${esc(accident.cause_analysis)}</p>
                     </div>
                 </div>
                 ` : ''}
@@ -814,16 +918,16 @@ echo $page_data['page_header'];
                 <div class="row">
                     <div class="col-12">
                         <h6><i class="fas fa-shield-alt me-2"></i>再発防止策</h6>
-                        <p class="border p-3 bg-light">${accident.prevention_measures}</p>
+                        <p class="border p-3 bg-light">${esc(accident.prevention_measures)}</p>
                     </div>
                 </div>
                 ` : ''}
                 <div class="row">
                     <div class="col-12">
                         <small class="text-muted">
-                            登録者: ${accident.created_by_name} | 
-                            登録日: ${accident.created_at} | 
-                            最終更新: ${accident.updated_at}
+                            登録者: ${esc(accident.created_by_name || '-')} | 
+                            登録日: ${esc(accident.created_at)} | 
+                            最終更新: ${esc(accident.updated_at)}
                         </small>
                     </div>
                 </div>
@@ -838,29 +942,35 @@ echo $page_data['page_header'];
             const accident = accidents.find(a => a.id == accidentId);
             if (!accident) return;
             
-            const vehicleOptions = vehicles.map(v => 
-                `<option value="${v.id}" ${v.id == accident.vehicle_id ? 'selected' : ''}>${v.vehicle_number}</option>`
+            // 選択肢は使用中のものと、この記録に入っているもの。記録の運転者が一覧に居なくても消さない
+            const vehicleList = vehicles.filter(v => Number(v.is_active) || v.id == accident.vehicle_id);
+            const vehicleOptions = vehicleList.map(v =>
+                `<option value="${esc(v.id)}" ${v.id == accident.vehicle_id ? 'selected' : ''}>${esc(v.vehicle_number)}</option>`
             ).join('');
-            
-            const driverOptions = drivers.map(d => 
-                `<option value="${d.id}" ${d.id == accident.driver_id ? 'selected' : ''}>${d.name}</option>`
+
+            const driverList = drivers.filter(d => Number(d.is_active) || d.id == accident.driver_id);
+            if (!driverList.some(d => d.id == accident.driver_id)) {
+                driverList.unshift({ id: accident.driver_id, name: accident.driver_name || '（不明）' });
+            }
+            const driverOptions = driverList.map(d =>
+                `<option value="${esc(d.id)}" ${d.id == accident.driver_id ? 'selected' : ''}>${esc(d.name)}</option>`
             ).join('');
             
             const editForm = `
                 <input type="hidden" name="action" value="update_accident">
-                <input type="hidden" name="accident_id" value="${accident.id}">
+                <input type="hidden" name="accident_id" value="${esc(accident.id)}">
                 
                 <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label">事故発生日 *</label>
-                            <input type="date" class="form-control" name="accident_date" required value="${accident.accident_date}">
+                            <input type="date" class="form-control" name="accident_date" required value="${esc(accident.accident_date)}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label">発生時刻</label>
-                            <input type="time" class="form-control" name="accident_time" value="${accident.accident_time || ''}">
+                            <input type="time" class="form-control" name="accident_time" value="${esc(accident.accident_time || '')}">
                         </div>
                     </div>
                 </div>
@@ -899,7 +1009,7 @@ echo $page_data['page_header'];
                     <div class="col-md-8">
                         <div class="mb-3">
                             <label class="form-label">発生場所</label>
-                            <input type="text" class="form-control" name="location" value="${accident.location || ''}">
+                            <input type="text" class="form-control" name="location" value="${esc(accident.location || '')}">
                         </div>
                     </div>
                     <div class="col-md-4">
@@ -919,31 +1029,31 @@ echo $page_data['page_header'];
                 
                 <div class="mb-3">
                     <label class="form-label">事故状況 *</label>
-                    <textarea class="form-control" name="description" rows="3" required>${accident.description || ''}</textarea>
+                    <textarea class="form-control" name="description" rows="3" required>${esc(accident.description || '')}</textarea>
                 </div>
                 
                 <div class="mb-3">
                     <label class="form-label">原因分析</label>
-                    <textarea class="form-control" name="cause_analysis" rows="2">${accident.cause_analysis || ''}</textarea>
+                    <textarea class="form-control" name="cause_analysis" rows="2">${esc(accident.cause_analysis || '')}</textarea>
                 </div>
                 
                 <div class="row">
                     <div class="col-md-3">
                         <div class="mb-3">
                             <label class="form-label">死者数</label>
-                            <input type="number" class="form-control" name="deaths" value="${accident.deaths}" min="0">
+                            <input type="number" class="form-control" name="deaths" value="${esc(accident.deaths)}" min="0">
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="mb-3">
                             <label class="form-label">負傷者数</label>
-                            <input type="number" class="form-control" name="injuries" value="${accident.injuries}" min="0">
+                            <input type="number" class="form-control" name="injuries" value="${esc(accident.injuries)}" min="0">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label">損害額（円）</label>
-                            <input type="number" class="form-control" name="damage_amount" value="${accident.damage_amount}" min="0">
+                            <input type="number" class="form-control" name="damage_amount" value="${esc(accident.damage_amount)}" min="0">
                         </div>
                     </div>
                 </div>
@@ -952,7 +1062,7 @@ echo $page_data['page_header'];
                     <div class="col-md-4">
                         <div class="mb-3">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="property_damage" ${accident.property_damage ? 'checked' : ''}>
+                                <input class="form-check-input" type="checkbox" name="property_damage" ${Number(accident.property_damage) ? 'checked' : ''}>
                                 <label class="form-check-label">物損事故</label>
                             </div>
                         </div>
@@ -960,7 +1070,7 @@ echo $page_data['page_header'];
                     <div class="col-md-4">
                         <div class="mb-3">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="police_report" ${accident.police_report ? 'checked' : ''}>
+                                <input class="form-check-input" type="checkbox" name="police_report" ${Number(accident.police_report) ? 'checked' : ''}>
                                 <label class="form-check-label">警察届出済み</label>
                             </div>
                         </div>
@@ -968,7 +1078,7 @@ echo $page_data['page_header'];
                     <div class="col-md-4">
                         <div class="mb-3">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="insurance_claim" ${accident.insurance_claim ? 'checked' : ''}>
+                                <input class="form-check-input" type="checkbox" name="insurance_claim" ${Number(accident.insurance_claim) ? 'checked' : ''}>
                                 <label class="form-check-label">保険請求済み</label>
                             </div>
                         </div>
@@ -979,13 +1089,13 @@ echo $page_data['page_header'];
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label">警察受理番号</label>
-                            <input type="text" class="form-control" name="police_report_number" value="${accident.police_report_number || ''}">
+                            <input type="text" class="form-control" name="police_report_number" value="${esc(accident.police_report_number || '')}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label class="form-label">保険事故番号</label>
-                            <input type="text" class="form-control" name="insurance_number" value="${accident.insurance_number || ''}">
+                            <input type="text" class="form-control" name="insurance_number" value="${esc(accident.insurance_number || '')}">
                         </div>
                     </div>
                 </div>
@@ -1001,7 +1111,7 @@ echo $page_data['page_header'];
                 
                 <div class="mb-3">
                     <label class="form-label">再発防止策</label>
-                    <textarea class="form-control" name="prevention_measures" rows="3">${accident.prevention_measures || ''}</textarea>
+                    <textarea class="form-control" name="prevention_measures" rows="3">${esc(accident.prevention_measures || '')}</textarea>
                 </div>
             `;
             
@@ -1015,8 +1125,9 @@ echo $page_data['page_header'];
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.innerHTML = `
+                    <input type="hidden" name="csrf_token" value="${esc(csrfToken)}">
                     <input type="hidden" name="action" value="delete_accident">
-                    <input type="hidden" name="accident_id" value="${accidentId}">
+                    <input type="hidden" name="accident_id" value="${esc(accidentId)}">
                 `;
                 document.body.appendChild(form);
                 form.submit();
@@ -1049,6 +1160,26 @@ echo $page_data['page_header'];
                 type: 'warning',
                 confirmText: '登録する'
             });
+        });
+
+        // 保存が通らなかった時は、入れた値を残したまま同じ窓を開き直す
+        document.addEventListener('DOMContentLoaded', function() {
+            if (oldAdd) {
+                const form = document.getElementById('addAccidentForm');
+                Object.keys(oldAdd).forEach(function(name) {
+                    if (name === 'csrf_token' || name === 'action') return;
+                    const field = form.elements[name];
+                    if (!field) return;
+                    if (field.type === 'checkbox') { field.checked = true; } else { field.value = oldAdd[name]; }
+                });
+                new bootstrap.Modal(document.getElementById('addAccidentModal')).show();
+            } else if (oldEdit) {
+                const target = accidents.find(a => a.id == oldEdit.accident_id);
+                if (target) {
+                    Object.assign(target, oldEdit, { id: target.id });
+                    editAccident(target.id);
+                }
+            }
         });
     </script>
 

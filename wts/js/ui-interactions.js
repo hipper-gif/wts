@@ -287,6 +287,9 @@
             const form = e.target;
             // Ajaxフォームはスキップ（data-ajax属性で判定）
             if (form.dataset.ajax) return;
+            // 画面側が送信を止めた時（確認窓を出す・入力の不備）は、ボタンを「保存中」にしない。
+            // 止めたのにボタンだけ押せなくなり、確認窓でキャンセルすると固まって見えていた
+            if (e.defaultPrevented) return;
 
             const btn = form.querySelector('button[type="submit"][data-loading-text], button[type="submit"].btn-submit-guard');
             if (!btn) return;
