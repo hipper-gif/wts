@@ -1116,7 +1116,7 @@
         if (alcohol && String(alcohol.value).trim() === '') {
             if (alcohol.scrollIntoView) alcohol.scrollIntoView({ behavior: 'smooth', block: 'center' });
             alcohol.classList.add('is-invalid');
-            showToast('アルコール測定値を入力してください。測定して 0 だった時は「0.000設定」を押します。', 'warning');
+            showToast('アルコール測定値を入力してください。', 'warning');
             return false;
         }
         return true;

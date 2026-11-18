@@ -478,8 +478,8 @@ echo $page_data['page_header'];
                                     <div class="input-group">
                                         <input type="number" class="form-control" id="pre_alcohol_check_value" name="alcohol_check_value"
                                             step="0.001" min="0" max="1" inputmode="decimal"
-                                            value="<?= $existing_call ? htmlspecialchars((string)$existing_call['alcohol_check_value']) : htmlspecialchars((string)($_POST['alcohol_check_value'] ?? '')) ?>"
-                                            placeholder="測定値"
+                                            value="<?= $existing_call ? htmlspecialchars((string)$existing_call['alcohol_check_value']) : htmlspecialchars((string)($_POST['alcohol_check_value'] ?? '0.000')) ?>"
+                                            placeholder="0.000"
                                             <?= $is_edit_mode ? 'readonly' : '' ?> required>
                                         <span class="input-group-text">mg/L</span>
                                         <?php if (!$is_edit_mode): ?>

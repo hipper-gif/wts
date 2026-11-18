@@ -639,15 +639,15 @@ echo $page_data['page_header'];
                         <div class="col-auto">
                             <input type="number" class="form-control" name="alcohol_check_value" id="alcohol_check_value"
                                    step="0.001" min="0" max="1" style="width: 120px;" inputmode="decimal"
-                                   value="<?= htmlspecialchars((string)$fv('alcohol_check_value', '')) ?>"
-                                   placeholder="測定値"
+                                   value="<?= htmlspecialchars((string)$fv('alcohol_check_value', '0.000')) ?>"
+                                   placeholder="0.000"
                                    <?= $is_edit_mode ? 'readonly' : '' ?> required>
                         </div>
                         <div class="col-auto">
                             <span class="text-muted">mg/L</span>
                         </div>
                         <div class="col">
-                            <small class="text-muted">測定した値を入れます。0 だった時は右上の「0.000設定」を押します</small>
+                            <small class="text-muted">最初から 0.000 が入っています。0 でなかった時は、測定した値に直してください</small>
                         </div>
                     </div>
                 </div>

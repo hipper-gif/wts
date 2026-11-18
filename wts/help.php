@@ -383,7 +383,7 @@ echo $page_data['page_header'];
                                 <ol>
                                     <li><strong>運転者</strong>（自分）と<strong>点呼執行者</strong>（立会人）を選択</li>
                                     <li>16項目のチェックボックスを確認してチェック</li>
-                                    <li><strong>アルコール値</strong>を入力（測定した値。0 だった時は「0.000設定」を押す）</li>
+                                    <li><strong>アルコール値</strong>を入力（最初から 0.000。違う時は測定した値に直す）</li>
                                     <li><strong>「登録する」</strong>をタップ</li>
                                 </ol>
 
@@ -525,7 +525,7 @@ echo $page_data['page_header'];
                                 <ol>
                                     <li><strong>運転者</strong>（自分）と<strong>点呼執行者</strong>（立会人）を選択</li>
                                     <li>12項目のチェックボックスを確認してチェック</li>
-                                    <li><strong>アルコール値</strong>を入力（測定した値。0 だった時は「0.000設定」を押す）</li>
+                                    <li><strong>アルコール値</strong>を入力（最初から 0.000。違う時は測定した値に直す）</li>
                                     <li><strong>「登録する」</strong>をタップ</li>
                                 </ol>
 

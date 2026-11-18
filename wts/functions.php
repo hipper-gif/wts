@@ -271,14 +271,14 @@ function getRequiredDutyCallChecks($kind) {
 }
 
 /**
- * 点呼の保存前の検査（ADR-0013）。アルコール測定値は空では登録できない（既定値を入れない＝測って入れる）。
+ * 点呼の保存前の検査（ADR-0013・0014）。アルコール測定値は空では登録できない（画面の既定は 0.000＝ADR-0014）。
  * 必須の確認項目は、付いていなければ登録できない。だめな時は理由を InvalidArgumentException で返す。
  * @return string 保存する測定値
  */
 function validateDutyCallInput($kind, array $in) {
     $alcohol = trim((string)($in['alcohol_check_value'] ?? ''));
     if ($alcohol === '' || !is_numeric($alcohol) || (float)$alcohol < 0) {
-        throw new InvalidArgumentException('アルコール測定値を入力してください。測定して 0 だった時は「0.000設定」を押します。');
+        throw new InvalidArgumentException('アルコール測定値を入力してください。');
     }
     $missing = [];
     foreach (getRequiredDutyCallChecks($kind) as $key => $label) {
