@@ -180,7 +180,9 @@ function createReturnTrip(record) {
 }
 
 // 削除確認
-function deleteRecord(recordId, rideDate) {
+function deleteRecord(recordId, rideDate, label) {
+    // どの記録を消すのかを確認の文に出す（小さいボタンの押し間違いに気づけるように）
+    var target = label ? '「' + label + '」' : 'この乗車記録';
     var isPastDate = (rideDate < todayDate);
     var deleteReason = '';
 
@@ -192,14 +194,14 @@ function deleteRecord(recordId, rideDate) {
 
     // Admin + 過去日: 理由入力を求める
     if (userRole === 'Admin' && isPastDate) {
-        deleteReason = prompt('削除理由を入力してください（監査ログに記録されます）：');
+        deleteReason = prompt(target + ' を削除します。\n削除理由を入力してください（監査ログに記録されます）：');
         if (deleteReason === null) return; // キャンセル
         if (deleteReason.trim() === '') {
             showToast('削除理由を入力してください。', 'warning');
             return;
         }
     } else {
-        if (!confirm('この乗車記録を削除しますか？')) return;
+        if (!confirm(target + ' を削除しますか？')) return;
     }
 
     // CSRFトークンをフォームの既存hidden inputから取得

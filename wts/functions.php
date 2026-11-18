@@ -180,6 +180,35 @@ function logAudit($pdo, $record_id, $action, $user_id, $type = 'record', $change
 }
 
 /**
+ * 画面から記録を消す前に、消す行を控えの表（deleted_records_archive・sql/028）へ写す。
+ * 物理削除する画面はすべて、DELETE の直前にこれを呼ぶ（決まりはここ1か所）。
+ * 写せなかった時は例外を投げる＝控えの無い削除はしない。呼ぶ側のトランザクションの中で呼ぶと、削除が失敗した時に控えも残らない。
+ * 戻し方: row_json を元の表へ INSERT し直す（画面は無い。システム担当が行う）。
+ *
+ * @param string $table 元の表（呼ぶ側が固定の文字列で渡す。利用者の入力を入れない）
+ * @param string $where 対象行の条件（プレースホルダつき）
+ * @param array $params 条件の値
+ * @param string $reason 消した操作（例: 乗車記録の削除）
+ * @param string|null $batch_id 1回の操作で複数の表を消す時に同じ番号を渡す
+ * @return int 控えた行数
+ */
+function archiveRowsBeforeDelete($pdo, $table, $where, array $params, $reason, $user_id, $batch_id = null) {
+    if (!preg_match('/^[a-z_]+$/', $table)) {
+        throw new InvalidArgumentException('控えの対象の表が正しくありません。');
+    }
+    $batch_id = $batch_id ?: (date('YmdHis') . '-' . bin2hex(random_bytes(4)));
+    $stmt = $pdo->prepare("SELECT * FROM `{$table}` WHERE {$where}");
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $ins = $pdo->prepare("INSERT INTO deleted_records_archive (batch_id, table_name, record_id, row_json, reason, deleted_by)
+                          VALUES (?, ?, ?, ?, ?, ?)");
+    foreach ($rows as $row) {
+        $ins->execute([$batch_id, $table, (int)($row['id'] ?? 0), json_encode($row, JSON_UNESCAPED_UNICODE), $reason, $user_id]);
+    }
+    return count($rows);
+}
+
+/**
  * 入庫記録を1件登録する（入庫画面と、出庫画面の「前回の入庫を一緒に登録」の両方が呼ぶ。決まりはここ1か所）
  * 呼ぶ側がトランザクションを張ること。入力の誤りは InvalidArgumentException（文言はそのまま画面に出す）。
  * @param PDO $pdo

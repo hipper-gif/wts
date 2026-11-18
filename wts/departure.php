@@ -95,8 +95,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $edit_check = canEditDeparture($del_target, $user_role);
             if (!$edit_check['can_edit']) {
                 $error_message = $edit_check['lock_reason'];
+            } elseif ((function() use ($pdo, $del_target) {
+                $chk = $pdo->prepare("SELECT COUNT(*) FROM arrival_records WHERE departure_record_id = ?");
+                $chk->execute([$del_target['id']]);
+                return (int)$chk->fetchColumn() > 0;
+            })()) {
+                // 入庫がある出庫は消せない（DBの決まり）。理由の分からないエラーにせず、ここで知らせる
+                $error_message = 'この出庫には入庫記録があるため削除できません。内容の誤りは「修正」で直してください。';
             } else {
                 $pdo->beginTransaction();
+                archiveRowsBeforeDelete($pdo, 'departure_records', 'id = ?', [$del_target['id']], '出庫記録の削除', $user_id);
                 $stmt = $pdo->prepare("DELETE FROM departure_records WHERE id = ?");
                 $stmt->execute([$_POST['record_id']]);
                 logAudit($pdo, $del_target['id'], 'delete', $user_id, 'departure', [], $_POST['delete_reason'] ?? '削除');

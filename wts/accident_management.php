@@ -170,6 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             case 'delete_accident':
                 $accident_id = (int)($_POST['accident_id'] ?? 0);
+                archiveRowsBeforeDelete($pdo, 'accidents', 'id = ?', [$accident_id], '事故記録の削除', $user_id);
                 $stmt = $pdo->prepare("DELETE FROM accidents WHERE id = ?");
                 $stmt->execute([$accident_id]);
                 if ($stmt->rowCount() > 0) {

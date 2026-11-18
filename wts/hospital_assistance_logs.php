@@ -73,8 +73,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$is_admin) {
                     throw new Exception('削除権限がありません。');
                 }
+                archiveRowsBeforeDelete($pdo, 'hospital_assistance_logs', 'id = ?', [(int)$_POST['record_id']], '院内介助記録の削除', $user_id);
                 $stmt = $pdo->prepare("DELETE FROM hospital_assistance_logs WHERE id = ?");
                 $stmt->execute([(int)$_POST['record_id']]);
+                logAudit($pdo, (int)$_POST['record_id'], 'delete', $user_id, 'hospital_assistance');
                 $success_message = '院内介助記録を削除しました。';
                 break;
         }

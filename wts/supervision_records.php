@@ -88,8 +88,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$is_admin) {
                     throw new Exception('削除権限がありません。');
                 }
+                archiveRowsBeforeDelete($pdo, 'supervision_records', 'id = ?', [(int)$_POST['record_id']], '指導監督記録の削除', $user_id);
                 $stmt = $pdo->prepare("DELETE FROM supervision_records WHERE id = ?");
                 $stmt->execute([(int)$_POST['record_id']]);
+                logAudit($pdo, (int)$_POST['record_id'], 'delete', $user_id, 'supervision');
                 $success_message = '指導監督記録を削除しました。';
                 break;
         }

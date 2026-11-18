@@ -285,6 +285,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $pdo->beginTransaction();
             try {
+                // 消す前に控える（経由地は乗車記録と一緒に消えるので先に）
+                $archive_batch = date('YmdHis') . '-' . bin2hex(random_bytes(4));
+                archiveRowsBeforeDelete($pdo, 'ride_waypoints', 'ride_record_id = ?', [$record_id], '乗車記録の削除', $user_id, $archive_batch);
+                archiveRowsBeforeDelete($pdo, 'ride_records', 'id = ?', [$record_id], '乗車記録の削除', $user_id, $archive_batch);
                 $delete_sql = "DELETE FROM ride_records WHERE id = ?";
                 $delete_stmt = $pdo->prepare($delete_sql);
                 $delete_stmt->execute([$record_id]);
@@ -638,7 +642,7 @@ echo $page_data['page_header'];
                                                 <?php endif; ?>
                                                 <?php if ($ride_edit_check['can_edit'] || (!$ride_edit_check['can_edit'] && $user_role === 'Admin')): ?>
                                                     <button type="button" class="btn btn-danger btn-sm"
-                                                            onclick="deleteRecord(<?php echo $ride['id']; ?>, <?php echo htmlspecialchars(json_encode($ride['ride_date'])); ?>)"
+                                                            onclick="deleteRecord(<?php echo $ride['id']; ?>, <?php echo htmlspecialchars(json_encode($ride['ride_date'])); ?>, <?php echo htmlspecialchars(json_encode(substr((string)($ride['ride_time'] ?? ''), 0, 5) . ' ' . ($ride['pickup_location'] ?? '') . ' → ' . ($ride['dropoff_location'] ?? ''), JSON_UNESCAPED_UNICODE)); ?>)"
                                                             title="削除">
                                                         <i class="fas fa-trash"></i>
                                                     </button>

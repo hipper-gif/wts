@@ -115,6 +115,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email = trim($_POST['email'] ?? '');
             $is_active = isset($_POST['is_active']) ? 1 : 0;
 
+            // 自分自身を無効にする・管理者から外すのは不可（管理者が1人も居なくなり、誰も設定を直せなくなるのを防ぐ。
+            // 操作している本人が必ず管理者として残るので、最後の管理者が消えることもない）
+            if ((int)$edit_user_id === (int)$user_id && (!$is_active || $permission_level !== 'Admin')) {
+                throw new Exception('自分自身を無効にしたり、管理者から外したりすることはできません。ほかの管理者に変更してもらってください。');
+            }
+
             // 職務フラグの処理（6つ）
             $is_driver = isset($_POST['is_driver']) ? 1 : 0;
             $is_caller = isset($_POST['is_caller']) ? 1 : 0;

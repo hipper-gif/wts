@@ -142,31 +142,19 @@ function dmSetSampleFlag($pdo, $op, $start, $end) {
     return $changed;
 }
 
-/** 消す行を控えの表へ写す */
-function dmArchiveRows($pdo, $batch_id, $table, array $rows, $user_id) {
-    $stmt = $pdo->prepare("INSERT INTO deleted_records_archive (batch_id, table_name, record_id, row_json, reason, deleted_by)
-                           VALUES (?, ?, ?, ?, 'サンプルデータ削除', ?)");
-    foreach ($rows as $row) {
-        $stmt->execute([$batch_id, $table, (int)$row['id'], json_encode($row, JSON_UNESCAPED_UNICODE), $user_id]);
-    }
-}
-
 /** サンプル扱いの記録を、控えへ写してから消す。消した件数（表ごと）を返す。呼ぶ側がトランザクションを張る */
 function dmDeleteSampleData($pdo, $batch_id, $user_id) {
     $deleted = [];
     foreach (SAMPLE_DELETE_ORDER as $table) {
         if (!dmTableExists($pdo, $table)) continue;
-        $rows = $pdo->query("SELECT * FROM `{$table}` WHERE is_sample_data = TRUE FOR UPDATE")->fetchAll(PDO::FETCH_ASSOC);
-        if (!$rows) { $deleted[$table] = 0; continue; }
-        dmArchiveRows($pdo, $batch_id, $table, $rows, $user_id);
         // 親と一緒に消える子の行（経由地・点検項目）も控える
         if (isset(SAMPLE_CHILD_TABLES[$table])) {
             [$child, $fk] = SAMPLE_CHILD_TABLES[$table];
             if (dmTableExists($pdo, $child)) {
-                $children = $pdo->query("SELECT c.* FROM `{$child}` c JOIN `{$table}` p ON p.id = c.`{$fk}` WHERE p.is_sample_data = TRUE")->fetchAll(PDO::FETCH_ASSOC);
-                dmArchiveRows($pdo, $batch_id, $child, $children, $user_id);
+                archiveRowsBeforeDelete($pdo, $child, "`{$fk}` IN (SELECT id FROM `{$table}` WHERE is_sample_data = TRUE)", [], 'サンプルデータ削除', $user_id, $batch_id);
             }
         }
+        archiveRowsBeforeDelete($pdo, $table, 'is_sample_data = TRUE', [], 'サンプルデータ削除', $user_id, $batch_id);
         $deleted[$table] = $pdo->exec("DELETE FROM `{$table}` WHERE is_sample_data = TRUE");
     }
     return $deleted;

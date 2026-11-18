@@ -118,6 +118,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('車両が見つかりません。');
             }
 
+            // 走行距離の欄に触っていない時は、いまの値を残す。
+            // 編集窓は開いた時点の走行距離を持っているので、開いている間に入庫で進んだメーターを古い値で上書きしない
+            if (isset($_POST['original_mileage']) && intval($_POST['original_mileage']) === $current_mileage) {
+                $current_mileage = intval($existing['current_mileage']);
+            }
+
             // 変更差分を検出
             $changes = [];
             $field_map = [
@@ -579,6 +585,7 @@ main .text-warning { color: var(--wts-amber-dark) !important; }
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
                 <input type="hidden" name="action" id="modalAction" value="add">
                 <input type="hidden" name="vehicle_id" id="modalVehicleId">
+                <input type="hidden" name="original_mileage" id="modalOriginalMileage" disabled>
 
                 <div class="modal-body">
                     <div class="row">
@@ -780,6 +787,7 @@ function showAddModal() {
 
     document.getElementById('vehicleForm').reset();
     document.getElementById('modalCurrentMileage').value = '0';
+    document.getElementById('modalOriginalMileage').disabled = true; // 追加の時は送らない
     document.getElementById('modalCapacity').value = '4';
 
     // 3か月後の日付を自動設定
@@ -802,6 +810,9 @@ function editVehicle(vehicle) {
     document.getElementById('modalVehicleType').value = vehicle.vehicle_type || 'welfare';
     document.getElementById('modalCapacity').value = vehicle.capacity || 4;
     document.getElementById('modalCurrentMileage').value = vehicle.current_mileage || 0;
+    // 開いた時点の走行距離を控える（触っていなければサーバー側でいまの値を残す）
+    document.getElementById('modalOriginalMileage').value = vehicle.current_mileage || 0;
+    document.getElementById('modalOriginalMileage').disabled = false;
     document.getElementById('modalNextInspectionDate').value = vehicle.next_inspection_date || '';
     document.getElementById('modalShakenExpiryDate').value = vehicle.shaken_expiry_date || '';
     document.getElementById('modalStatus').value = vehicle.status || 'active';

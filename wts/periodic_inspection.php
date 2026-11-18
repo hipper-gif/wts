@@ -123,11 +123,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$final_result, $inspection_id]);
         
         // 車両の次回点検日を更新
-        $stmt = $pdo->prepare("UPDATE vehicles SET next_inspection_date = ?, current_mileage = ? WHERE id = ?");
+        // 現在メーターは大きい方を残す（過去日の点検を後から登録しても、その後の運行で進んだメーターを巻き戻さない）
+        $stmt = $pdo->prepare("UPDATE vehicles SET next_inspection_date = ?, current_mileage = GREATEST(COALESCE(current_mileage, 0), ?) WHERE id = ?");
         $stmt->execute([$next_inspection_date, $mileage, $vehicle_id]);
         
         $pdo->commit();
-        logAudit($pdo, $inspection_id, '点検記録登録', $user_id, 'periodic_inspection');
+        logAudit($pdo, $inspection_id, 'create', $user_id, 'periodic_inspection'); // 操作種別は create/edit/delete のみ（それ以外は記録されない）
         $success_message = '定期点検記録を登録しました。' .
                           '総合結果: ' . $final_result . ' / ' .
                           '次回点検日: ' . $next_inspection_date;

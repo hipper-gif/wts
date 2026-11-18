@@ -100,8 +100,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!$is_admin) {
                         throw new Exception('削除権限がありません。');
                     }
+                    archiveRowsBeforeDelete($pdo, 'complaint_records', 'id = ?', [(int)$_POST['complaint_id']], '苦情記録の削除', $user_id);
                     $stmt = $pdo->prepare("DELETE FROM complaint_records WHERE id = ?");
                     $stmt->execute([$_POST['complaint_id']]);
+                    logAudit($pdo, (int)$_POST['complaint_id'], 'delete', $user_id, 'complaint');
                     $message = "苦情記録を削除しました。";
                     break;
             }
