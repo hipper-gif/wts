@@ -22,7 +22,7 @@ $filter_month = $_GET['month'] ?? date('Y-m');
 $filter_staff = $_GET['staff_id'] ?? '';
 
 // POST処理
-$success_message = '';
+$success_message = takeFlashMessage(); // 保存後に出し直した時の知らせ
 $error_message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -85,6 +85,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error_message = 'エラーが発生しました。管理者にお問い合わせください。';
     }
 }
+
+// 保存が通った後は画面を出し直す（再読込で同じ記録がもう1件入らないように。決まりは functions.php）
+redirectAfterSuccessfulPost($success_message, $error_message);
 
 // スタッフ一覧取得
 $staff_stmt = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 AND login_id NOT LIKE 'sysop%' ORDER BY name");

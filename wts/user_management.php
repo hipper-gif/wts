@@ -26,7 +26,7 @@ if ($user_role !== 'Admin') {
     exit;
 }
 
-$success_message = '';
+$success_message = takeFlashMessage(); // 保存後に出し直した時の知らせ
 $error_message = '';
 
 // --- 監査ログ関数 ---
@@ -257,6 +257,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error_message = $e->getMessage();
     }
 }
+
+// 保存が通った後は画面を出し直す（再読込で同じ記録がもう1件入らないように。決まりは functions.php）
+redirectAfterSuccessfulPost($success_message, $error_message);
 
 // ユーザー一覧取得（最適化済みテーブル構造対応）
 try {

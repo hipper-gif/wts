@@ -26,7 +26,7 @@ $filter_status = $_GET['status'] ?? '';
 $filter_type = $_GET['type'] ?? '';
 
 // POST処理
-$message = '';
+$message = takeFlashMessage(); // 保存後に出し直した時の知らせ
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -113,6 +113,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "エラーが発生しました: " . $e->getMessage();
     }
 }
+
+// 保存が通った後は画面を出し直す（再読込で同じ記録がもう1件入らないように。決まりは functions.php）
+redirectAfterSuccessfulPost($message, $error);
 
 // マスターデータ取得
 $drivers = [];

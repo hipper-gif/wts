@@ -29,7 +29,7 @@ $filter_type = $_GET['type'] ?? '';
 $filter_driver = $_GET['driver_id'] ?? '';
 
 // POST処理
-$success_message = '';
+$success_message = takeFlashMessage(); // 保存後に出し直した時の知らせ
 $error_message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -100,6 +100,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error_message = 'エラーが発生しました。管理者にお問い合わせください。';
     }
 }
+
+// 保存が通った後は画面を出し直す（再読込で同じ記録がもう1件入らないように。決まりは functions.php）
+redirectAfterSuccessfulPost($success_message, $error_message);
 
 // 乗務員一覧取得（指導対象）
 $drivers_stmt = $pdo->query("SELECT id, name FROM users WHERE is_driver = 1 AND is_active = 1 ORDER BY name");

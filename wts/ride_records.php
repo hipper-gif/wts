@@ -23,7 +23,7 @@ $user_is_driver = ($user_info['is_driver'] == 1);
 $today = date('Y-m-d');
 $current_time = date('H:i');
 
-$success_message = '';
+$success_message = takeFlashMessage(); // 保存後に出し直した時の知らせ
 $error_message = '';
 
 // デフォルト運転者・車両の取得
@@ -308,6 +308,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error_message = $e->getMessage();
     }
 }
+
+// 保存が通った後は画面を出し直す（再読込で同じ記録がもう1件入らないように。決まりは functions.php）
+redirectAfterSuccessfulPost($success_message, $error_message);
 
 // 運転者一覧取得（職務フラグのみ使用）
 $drivers = getActiveDrivers($pdo);

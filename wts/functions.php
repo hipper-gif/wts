@@ -180,6 +180,32 @@ function logAudit($pdo, $record_id, $action, $user_id, $type = 'record', $change
 }
 
 /**
+ * 保存が通った後に、同じ画面を出し直す（再読込や「戻る→進む」で同じ保存がもう1回走らないように）。
+ * 知らせは、出し直した画面で1回だけ出す（takeFlashMessage）。保存が通らなかった時は何もしない＝入力を残して出し直す側の処理へ進む。
+ * 各画面の保存処理のすぐ後で呼ぶ。決まりはここ1か所。
+ */
+function redirectAfterSuccessfulPost($success_message, $error_message = '') {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || (string)$success_message === '' || (string)$error_message !== '') {
+        return;
+    }
+    if (headers_sent()) {
+        return; // すでに画面を出し始めている時は、そのまま出す
+    }
+    $script = basename($_SERVER['SCRIPT_NAME'] ?? '');
+    $_SESSION['flash_messages'][$script] = (string)$success_message;
+    header('Location: ' . ($_SERVER['REQUEST_URI'] ?? $script), true, 303);
+    exit;
+}
+
+/** 出し直した画面で、保存の知らせを1回だけ取り出す（無ければ空文字） */
+function takeFlashMessage() {
+    $script = basename($_SERVER['SCRIPT_NAME'] ?? '');
+    $message = $_SESSION['flash_messages'][$script] ?? '';
+    unset($_SESSION['flash_messages'][$script]);
+    return $message;
+}
+
+/**
  * 現金カウントの金種（額面）と、基準おつりの枚数。決まりはここ1か所。
  * 現金カウントの画面と保存API（合計の計算）の両方がこれを使う。
  */

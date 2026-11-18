@@ -5,7 +5,7 @@ require_once 'includes/session_check.php';
 require_once 'functions.php';
 
 $today = date('Y-m-d');
-$success_message = '';
+$success_message = takeFlashMessage(); // 保存後に出し直した時の知らせ
 $error_message = '';
 
 // 車両とユーザーの取得
@@ -139,6 +139,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         error_log("Periodic inspection error: " . $e->getMessage());
     }
 }
+
+// 保存が通った後は画面を出し直す（再読込で同じ記録がもう1件入らないように。決まりは functions.php）
+redirectAfterSuccessfulPost($success_message, $error_message);
 
 // ページ設定
 $page_config = getPageConfiguration('periodic_inspection');

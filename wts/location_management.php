@@ -19,7 +19,7 @@ $pdo = getDBConnection();
 require_once 'includes/unified-header.php';
 $page_config = getPageConfiguration('location_management');
 
-$success_message = '';
+$success_message = takeFlashMessage(); // 保存後に出し直した時の知らせ
 $error_message = '';
 
 // ホワイトリスト定義
@@ -163,6 +163,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error_message = $e->getMessage();
     }
 }
+
+// 保存が通った後は画面を出し直す（再読込で同じ記録がもう1件入らないように。決まりは functions.php）
+redirectAfterSuccessfulPost($success_message, $error_message);
 
 // フィルター・検索条件
 $filter_type = $_GET['type'] ?? '';
