@@ -180,6 +180,42 @@ function logAudit($pdo, $record_id, $action, $user_id, $type = 'record', $change
 }
 
 /**
+ * 現金カウントの金種（額面）と、基準おつりの枚数。決まりはここ1か所。
+ * 現金カウントの画面と保存API（合計の計算）の両方がこれを使う。
+ */
+function getCashBaseChange() {
+    return [
+        'bill_10000' => ['count' => 0, 'value' => 10000, 'name' => '1万円札'],
+        'bill_5000' => ['count' => 1, 'value' => 5000, 'name' => '5千円札'],
+        'bill_1000' => ['count' => 10, 'value' => 1000, 'name' => '千円札'],
+        'coin_500'  => ['count' => 3, 'value' => 500, 'name' => '500円玉'],
+        'coin_100'  => ['count' => 11, 'value' => 100, 'name' => '100円玉'],
+        'coin_50'   => ['count' => 5, 'value' => 50, 'name' => '50円玉'],
+        'coin_10'   => ['count' => 15, 'value' => 10, 'name' => '10円玉'],
+        'coin_5'    => ['count' => 0, 'value' => 5, 'name' => '5円玉'],
+        'coin_1'    => ['count' => 0, 'value' => 1, 'name' => '1円玉']
+    ];
+}
+
+/** 基準おつりの合計（円）。金種の表から計算する */
+function getCashBaseTotal() {
+    $total = 0;
+    foreach (getCashBaseChange() as $d) {
+        $total += $d['count'] * $d['value'];
+    }
+    return $total;
+}
+
+/** 数えた枚数から合計金額（円）を出す。マイナスの枚数は0として数える */
+function calcCashCountTotal(array $counts) {
+    $total = 0;
+    foreach (getCashBaseChange() as $key => $d) {
+        $total += max(0, (int)($counts[$key] ?? 0)) * $d['value'];
+    }
+    return $total;
+}
+
+/**
  * 画面から記録を消す前に、消す行を控えの表（deleted_records_archive・sql/028）へ写す。
  * 物理削除する画面はすべて、DELETE の直前にこれを呼ぶ（決まりはここ1か所）。
  * 写せなかった時は例外を投げる＝控えの無い削除はしない。呼ぶ側のトランザクションの中で呼ぶと、削除が失敗した時に控えも残らない。

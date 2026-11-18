@@ -130,19 +130,9 @@ $today_stmt = $pdo->prepare("
 $today_stmt->execute([$period_start, $target_date, $target_id]);
 $today_sales = $today_stmt->fetch(PDO::FETCH_OBJ);
 
-// 基準おつり構成（固定）
-$base_change = [
-    'bill_10000' => ['count' => 0, 'value' => 10000, 'name' => '1万円札'],
-    'bill_5000' => ['count' => 1, 'value' => 5000, 'name' => '5千円札'],
-    'bill_1000' => ['count' => 10, 'value' => 1000, 'name' => '千円札'],
-    'coin_500'  => ['count' => 3, 'value' => 500, 'name' => '500円玉'],
-    'coin_100'  => ['count' => 11, 'value' => 100, 'name' => '100円玉'],
-    'coin_50'   => ['count' => 5, 'value' => 50, 'name' => '50円玉'],
-    'coin_10'   => ['count' => 15, 'value' => 10, 'name' => '10円玉'],
-    'coin_5'    => ['count' => 0, 'value' => 5, 'name' => '5円玉'],
-    'coin_1'    => ['count' => 0, 'value' => 1, 'name' => '1円玉']
-];
-$base_total = 18000;
+// 基準おつり構成（決まりは functions.php の getCashBaseChange 1か所）
+$base_change = getCashBaseChange();
+$base_total = getCashBaseTotal();
 
 // 過去の履歴取得（対象の運転者のデータのみ、最新10件）
 $history_stmt = $pdo->prepare("
@@ -391,7 +381,7 @@ echo $page_data['html_head'];
             <div class="date-field">
                 <label for="driver_id" class="date-label"><i class="fas fa-user"></i> 運転者</label>
                 <select id="driver_id" name="driver_id" class="form-select date-input"
-                        onchange="this.form.submit()">
+                        onchange="switchTarget(this)">
                     <?php if (!$target_driver): ?>
                     <option value="" selected>選択してください</option>
                     <?php endif; ?>
@@ -409,14 +399,14 @@ echo $page_data['html_head'];
                        value="<?php echo htmlspecialchars($period_start); ?>"
                        min="<?php echo $min_from; ?>" max="<?php echo htmlspecialchars($target_date); ?>"
                        <?php echo $is_period ? '' : 'disabled'; ?>
-                       onchange="this.form.submit()">
+                       onchange="switchTarget(this)">
             </div>
             <div class="date-field">
                 <label for="date" class="date-label"><i class="fas fa-calendar-day"></i> <?php echo $is_period ? '最終日' : '対象日'; ?></label>
                 <input type="date" id="date" name="date" class="form-control date-input"
                        value="<?php echo htmlspecialchars($target_date); ?>"
                        max="<?php echo $today; ?>"
-                       onchange="this.form.submit()">
+                       onchange="switchTarget(this)">
                 <?php if (!$is_today): ?>
                 <a href="driver_cash_count.php<?php echo $driver_query ? '?' . $driver_query : ''; ?>" class="date-today-link">本日に戻す</a>
                 <?php endif; ?>
@@ -520,7 +510,7 @@ echo $page_data['html_head'];
                        class="count-input"
                        value="<?php echo $existing_count ? $existing_count->$type : $info['count']; ?>"
                        min="0" inputmode="numeric" enterkeyhint="next"
-                       oninput="recalc()">
+                       oninput="countDirty = true; recalc()">
                 <button class="count-btn plus" onclick="adjustCount('<?php echo $type; ?>', 1)">
                     <i class="fas fa-plus"></i>
                 </button>
@@ -677,6 +667,8 @@ echo $page_data['html_head'];
         var d = new Date(targetDate + 'T00:00:00');
         d.setDate(d.getDate() - 1);
         var prev = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+        if (countDirty && !confirm(UNSAVED_MESSAGE)) return;
+        countDirty = false;
         input.disabled = false;
         input.value = prev;
         field.style.display = '';
@@ -684,10 +676,33 @@ echo $page_data['html_head'];
         input.form.submit();
     }
 
+    // 数えた枚数をまだ保存していないか（運転者・日付を替える前に確かめるため）
+    var countDirty = false;
+    var UNSAVED_MESSAGE = '数えた枚数はまだ保存していません。切り替えると、数えた枚数は消えます。切り替えますか？';
+
+    // 運転者・開始日・対象日を替える。まだ保存していない枚数があれば、消える前に確かめる
+    function switchTarget(field) {
+        if (countDirty && !confirm(UNSAVED_MESSAGE)) {
+            // やめた時は、欄を元の値に戻す
+            if (field.tagName === 'SELECT') {
+                for (var i = 0; i < field.options.length; i++) {
+                    field.options[i].selected = field.options[i].defaultSelected;
+                }
+            } else {
+                field.value = field.defaultValue;
+            }
+            return;
+        }
+        countDirty = false;
+        field.form.submit();
+    }
+
     function adjustCount(type, change) {
         var input = document.getElementById(type);
-        var newValue = Math.max(0, parseInt(input.value) + change);
+        // 欄が空の時は0枚から数える
+        var newValue = Math.max(0, (parseInt(input.value, 10) || 0) + change);
         input.value = newValue;
+        countDirty = true;
         recalc();
     }
 
@@ -769,6 +784,17 @@ echo $page_data['html_head'];
         recalc();
     }
 
+    // 期間が重なっている時は、数える前から保存ボタンを押せなくして理由を出す（全部数えてから弾かない）
+    function lockSaveForOverlap() {
+        if (overlapCount <= 0) return;
+        var b = document.getElementById('saveBtn');
+        var bar = document.getElementById('barSaveBtn');
+        b.disabled = true;
+        b.innerHTML = '<i class="fas fa-ban"></i> 期間が重なっているため保存できません（上で期間を選び直してください）';
+        if (bar) { bar.disabled = true; bar.innerHTML = '<i class="fas fa-ban"></i> 期間が重複'; }
+    }
+    document.addEventListener('DOMContentLoaded', lockSaveForOverlap);
+
     function saveCashCount() {
         if (overlapCount > 0) {
             showToast('期間が既存の記録と重なっています。期間を選び直してください', 'danger');
@@ -807,10 +833,14 @@ echo $page_data['html_head'];
         .then(function(r) { return r.text(); })
         .then(function(text) {
             try { return JSON.parse(text); }
-            catch(e) { throw new Error('レスポンスエラー: ' + text.substring(0, 100)); }
+            catch(e) {
+                // ログインの時間切れだと、ログイン画面が返ってきて読めない
+                throw new Error('ログインの時間切れの可能性があります。数えた枚数はこの画面に残っています。別のタブでログインし直してから、もう一度保存を押してください');
+            }
         })
         .then(function(result) {
             if (result.success) {
+                countDirty = false;
                 showToast((isSelf ? '' : driverName + 'さんの') + '現金カウントを保存しました', 'success');
                 // トーストが見えるよう1.4秒遅延してリロード
                 setTimeout(function() { window.location.reload(); }, 1400);
@@ -820,7 +850,7 @@ echo $page_data['html_head'];
         })
         .catch(function(error) {
             console.error('Error:', error);
-            showToast('保存中にエラーが発生しました: ' + error.message, 'danger');
+            showToast('保存できませんでした。' + (error.message && error.message.indexOf('ログイン') === 0 ? error.message : '通信が切れている可能性があります。数えた枚数はこの画面に残っています。電波の良い所でもう一度保存を押してください'), 'danger');
         })
         .finally(function() {
             btn.disabled = false;

@@ -9,6 +9,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 // データベース設定ファイル読み込み
 require_once dirname(__DIR__) . '/config/database.php';
+require_once dirname(__DIR__) . '/functions.php';
 require_once dirname(__DIR__) . '/includes/session_check.php';
 
 // ログインチェック
@@ -115,7 +116,8 @@ try {
     $coin_10 = max(0, (int)($data['coin_10'] ?? 0));
     $coin_5 = max(0, (int)($data['coin_5'] ?? 0));
     $coin_1 = max(0, (int)($data['coin_1'] ?? 0));
-    $total_amount = max(0, (int)($data['total_amount'] ?? 0));
+    // 合計は画面から送られた値を使わず、枚数から計算する（額面の表は functions.php の1か所）
+    $total_amount = calcCashCountTotal($data);
     $memo = $data['memo'] ?? '';
 
     // トランザクション開始
