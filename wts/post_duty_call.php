@@ -174,10 +174,8 @@ if ($is_post && !isset($_POST['action'])) {
             throw new InvalidArgumentException('点呼者を選択してください。');
         }
 
-        $alcohol_check_value = trim((string)($_POST['alcohol_check_value'] ?? ''));
-        if ($alcohol_check_value === '' || !is_numeric($alcohol_check_value) || (float)$alcohol_check_value < 0) {
-            throw new InvalidArgumentException('アルコール測定値を入力してください。');
-        }
+        // アルコール測定値と必須の確認項目（決まりは functions.php の1か所・ADR-0013）
+        $alcohol_check_value = validateDutyCallInput('post', $_POST);
 
         // その日の出庫記録から車両IDを取得（出庫記録がなくても点呼は実施可能）
         // その日最後の出庫（車両を乗り換えた日は最後に乗った車両）
@@ -489,7 +487,7 @@ echo $page_data['page_header'];
 
 
 
-        <form method="POST" id="postDutyForm" onsubmit="return validateForm(this)">
+        <form method="POST" id="postDutyForm" onsubmit="return validateForm(this)" data-required-checks="<?= htmlspecialchars(json_encode(array_keys(getRequiredDutyCallChecks('post')))) ?>">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
             <!-- 基本情報セクション -->
             <?= renderSectionHeader('info', '基本情報', '運転者・点呼日・点呼者・時刻') ?>
@@ -567,12 +565,7 @@ echo $page_data['page_header'];
             <div class="card shadow-sm mb-4">
                 <div class="card-body">
                     <?php
-                    $check_items_required = [
-                        'health_condition_check' => '健康状態に異常はないか',
-                        'alcohol_drug_check' => '酒気・薬物の影響はないか',
-                        'accident_violation_check' => '事故・違反の発生はないか',
-                        'vehicle_condition_check' => '車両に異常・損傷はないか',
-                    ];
+                    $check_items_required = getRequiredDutyCallChecks('post'); // 付けないと登録できない4項目
                     $check_items_optional = [
                         'duty_record_check' => '乗務記録の記載は完了しているか',
                         'fatigue_check' => '疲労・睡眠不足はないか',
@@ -598,6 +591,7 @@ echo $page_data['page_header'];
                                 <label class="form-check-label d-block" for="<?= $key ?>">
                                     <span class="fw-bold text-primary"><?= $count ?>.</span>
                                     <?= htmlspecialchars($label) ?>
+                                    <span class="text-danger fw-bold small">（必須）</span>
                                 </label>
                             </div>
                         </div>
@@ -645,15 +639,15 @@ echo $page_data['page_header'];
                         <div class="col-auto">
                             <input type="number" class="form-control" name="alcohol_check_value" id="alcohol_check_value"
                                    step="0.001" min="0" max="1" style="width: 120px;" inputmode="decimal"
-                                   value="<?= htmlspecialchars((string)$fv('alcohol_check_value', '0.000')) ?>"
-                                   placeholder="0.000"
+                                   value="<?= htmlspecialchars((string)$fv('alcohol_check_value', '')) ?>"
+                                   placeholder="測定値"
                                    <?= $is_edit_mode ? 'readonly' : '' ?> required>
                         </div>
                         <div class="col-auto">
                             <span class="text-muted">mg/L</span>
                         </div>
                         <div class="col">
-                            <small class="text-muted">通常は 0.000 mg/L です</small>
+                            <small class="text-muted">測定した値を入れます。0 だった時は右上の「0.000設定」を押します</small>
                         </div>
                     </div>
                 </div>
@@ -831,7 +825,10 @@ function uncheckAll() {
 
 // アルコール濃度を0.000に設定
 function setAlcoholZero() {
-    document.getElementById('alcohol_check_value').value = '0.000';
+    var field = document.getElementById('alcohol_check_value');
+    field.value = '0.000';
+    field.classList.remove('is-invalid');
+    formDirty = true;
 }
 
 // チェック項目のクリック処理
@@ -839,8 +836,15 @@ function toggleCheck(itemId) {
     const checkbox = document.getElementById(itemId);
     if (checkbox.disabled) return;
 
-    checkbox.checked = !checkbox.checked;
-    updateCheckItemStyle(checkbox);
+    wtsToggleCheckFromContainer(checkbox, window.event);
+    // 四角・ラベルを直接押した時も、枠の色を合わせる
+    setTimeout(function() {
+        var c = checkbox.closest('.form-check');
+        if (!c) return;
+        c.classList.remove('border-danger');
+        if (checkbox.checked) { c.classList.add('bg-success', 'bg-opacity-10', 'border-success'); }
+        else { c.classList.remove('bg-success', 'bg-opacity-10', 'border-success'); }
+    }, 0);
 }
 
 // チェック項目のスタイル更新
@@ -955,6 +959,12 @@ document.getElementById('postDutyForm').addEventListener('submit', function(e) {
     if (callerSelect.value === 'その他' && !otherInput.value.trim()) {
         e.preventDefault();
         showToast('点呼者名を入力してください。', 'warning');
+        return;
+    }
+
+    // 必須の確認項目とアルコール測定値（送る前に止める）
+    if (!wtsCheckDutyCallForm(this)) {
+        e.preventDefault();
         return;
     }
 

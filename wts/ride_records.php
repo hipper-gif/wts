@@ -1067,6 +1067,6 @@ echo $page_data['page_header'];
     const userRole = '<?php echo $user_role; ?>';
     const todayDate = '<?php echo $today; ?>';
 </script>
-<script src="js/ride_records.js" defer></script>
+<script src="<?= htmlspecialchars(wtsAssetUrl('js/ride_records.js')) ?>" defer></script>
 
 <?php echo $page_data['html_footer']; ?>

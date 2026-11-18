@@ -88,6 +88,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $bad_count = 0;
         $caution_count = 0;
+
+        // 結果が1つも選ばれていない点検は登録しない（何も押さずに「合格」の記録ができていた）
+        $all_item_keys = array_merge(...array_values($categories));
+        $entered_count = 0;
+        foreach ($all_item_keys as $item_key) {
+            if (($_POST[$item_key] ?? '') !== '') $entered_count++;
+        }
+        if ($entered_count === 0) {
+            throw new InvalidArgumentException('点検結果が1つも選ばれていません。各項目の「良好・要注意・不良」を選んでから登録してください。');
+        }
+        $missing_count = count($all_item_keys) - $entered_count;
         
         // カテゴリーごとに項目を保存
         foreach ($categories as $category => $items) {
@@ -131,11 +142,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logAudit($pdo, $inspection_id, 'create', $user_id, 'periodic_inspection'); // 操作種別は create/edit/delete のみ（それ以外は記録されない）
         $success_message = '定期点検記録を登録しました。' .
                           '総合結果: ' . $final_result . ' / ' .
-                          '次回点検日: ' . $next_inspection_date;
+                          '次回点検日: ' . $next_inspection_date .
+                          ($missing_count > 0 ? ' / 結果を選んでいない項目: ' . $missing_count . '件' : '');
         
+    } catch (InvalidArgumentException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        $error_message = $e->getMessage();
     } catch (Exception $e) {
-        $pdo->rollBack();
-        $error_message = '記録の保存中にエラーが発生しました: ' . $e->getMessage();
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        $error_message = '保存できませんでした。もう一度試しても同じ場合は、システム担当に連絡してください。';
         error_log("Periodic inspection error: " . $e->getMessage());
     }
 }
@@ -789,6 +804,26 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!vehicleId || !inspectorId || !mileage) {
             e.preventDefault();
             showToast('必須項目（車両、点検者、走行距離）を入力してください。', 'warning');
+            return;
+        }
+
+        // 結果を選んでいない項目を、送る前に知らせる
+        var itemFields = document.querySelectorAll('.result-buttons');
+        var missing = [];
+        itemFields.forEach(function(group) {
+            var field = document.getElementById(group.getAttribute('data-item'));
+            if (field && field.value === '') missing.push(group);
+        });
+        if (missing.length === itemFields.length) {
+            e.preventDefault();
+            missing[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            showToast('点検結果が1つも選ばれていません。各項目の「良好・要注意・不良」を選んでください。', 'warning');
+            return;
+        }
+        if (missing.length > 0 && !confirm('結果を選んでいない項目が ' + missing.length + ' 件あります。このまま登録しますか？
+（「キャンセル」で、選んでいない最初の項目へ移ります）')) {
+            e.preventDefault();
+            missing[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
         }
         

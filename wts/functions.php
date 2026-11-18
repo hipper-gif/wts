@@ -180,6 +180,47 @@ function logAudit($pdo, $record_id, $action, $user_id, $type = 'record', $change
 }
 
 /**
+ * 点呼（乗務前・乗務後）で、付けないと登録できない確認項目。画面の「（必須）」表示と保存時の検査の両方がこれを使う。
+ * @param string $kind 'pre' または 'post'
+ * @return array [項目のキー => 画面での呼び名]
+ */
+function getRequiredDutyCallChecks($kind) {
+    if ($kind === 'pre') {
+        return [
+            'health_check' => '健康状態',
+            'pre_inspection_check' => '運行前点検',
+            'license_check' => '免許証',
+        ];
+    }
+    return [
+        'health_condition_check' => '健康状態に異常はないか',
+        'alcohol_drug_check' => '酒気・薬物の影響はないか',
+        'accident_violation_check' => '事故・違反の発生はないか',
+        'vehicle_condition_check' => '車両に異常・損傷はないか',
+    ];
+}
+
+/**
+ * 点呼の保存前の検査（ADR-0013）。アルコール測定値は空では登録できない（既定値を入れない＝測って入れる）。
+ * 必須の確認項目は、付いていなければ登録できない。だめな時は理由を InvalidArgumentException で返す。
+ * @return string 保存する測定値
+ */
+function validateDutyCallInput($kind, array $in) {
+    $alcohol = trim((string)($in['alcohol_check_value'] ?? ''));
+    if ($alcohol === '' || !is_numeric($alcohol) || (float)$alcohol < 0) {
+        throw new InvalidArgumentException('アルコール測定値を入力してください。測定して 0 だった時は「0.000設定」を押します。');
+    }
+    $missing = [];
+    foreach (getRequiredDutyCallChecks($kind) as $key => $label) {
+        if (!isset($in[$key])) $missing[] = '「' . $label . '」';
+    }
+    if ($missing) {
+        throw new InvalidArgumentException('必須の確認項目にチェックが付いていません: ' . implode('、', $missing) . '。確認してからチェックを付けてください。');
+    }
+    return $alcohol;
+}
+
+/**
  * 保存が通った後に、同じ画面を出し直す（再読込や「戻る→進む」で同じ保存がもう1回走らないように）。
  * 知らせは、出し直した画面で1回だけ出す（takeFlashMessage）。保存が通らなかった時は何もしない＝入力を残して出し直す側の処理へ進む。
  * 各画面の保存処理のすぐ後で呼ぶ。決まりはここ1か所。

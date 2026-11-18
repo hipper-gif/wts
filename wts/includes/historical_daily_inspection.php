@@ -432,7 +432,7 @@ $historical_data = $_SESSION['historical_data'] ?? null;
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="js/ui-interactions.js"></script>
+    <script src="js/ui-interactions.js?v=<?= filemtime(dirname(__DIR__) . '/js/ui-interactions.js') ?>"></script>
     <script>
         // 全項目を指定値に設定
         function setAllItems(value) {

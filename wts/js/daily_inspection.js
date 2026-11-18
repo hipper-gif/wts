@@ -198,7 +198,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const isEditMode = !!document.querySelector('input[name="inspector_id"][type="hidden"]');
     if (!isEditMode) {
         // 下書きが存在する場合、バナーを表示
-        const draft = localStorage.getItem('inspection_draft');
+        let draft = localStorage.getItem('inspection_draft');
+        // 別の日の下書きは使わない（昨日の途中の点検結果を今日の点検に戻すと、昨日付の記録ができて今日は未実施のままになる）
+        if (draft) {
+            try {
+                const draftDate = JSON.parse(draft).inspection_date;
+                const formDate = (document.querySelector('input[name="inspection_date"]') || {}).value;
+                if (draftDate && formDate && draftDate !== formDate) {
+                    localStorage.removeItem('inspection_draft');
+                    draft = null;
+                }
+            } catch (e) {
+                localStorage.removeItem('inspection_draft');
+                draft = null;
+            }
+        }
         if (draft) {
             const draftBanner = document.getElementById('draftBanner');
             if (draftBanner) {
@@ -323,13 +337,8 @@ function enableEditMode() {
     const vehicleId = document.querySelector('input[name="vehicle_id"]').value;
     const inspectionDate = document.querySelector('input[name="inspection_date"]').value;
 
-    // 点検日フィールドを復元
-    const dateInput = document.querySelector('input[name="inspection_date_display"]');
-    if (dateInput) {
-        dateInput.name = 'inspection_date';
-        dateInput.type = 'date';
-        dateInput.removeAttribute('readonly');
-    }
+    // 点検日は修正で変えない（日付を変えて保存すると、元の日の記録が残ったまま別の日に複製ができていた）。
+    // 日付を間違えた記録は、削除して登録し直す
 
     // ロック済みレコードの場合：修正理由セクションを表示
     if (lockStatus.needsReason) {
@@ -529,10 +538,7 @@ function restoreDraft() {
     }
 
     // 入力要素
-    if (draft.inspection_date) {
-        const inspectionDate = form.querySelector('input[name="inspection_date"]');
-        if (inspectionDate) inspectionDate.value = draft.inspection_date;
-    }
+    // 点検日は下書きから戻さない（開いている画面の日付のまま。別の日の下書きは画面を開いた時点で捨てている）
 
     if (draft.inspection_time) {
         const inspectionTime = form.querySelector('input[name="inspection_time"]');

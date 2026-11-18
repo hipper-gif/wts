@@ -1092,6 +1092,48 @@
         return valid;
     };
 
+    /**
+     * 点呼（乗務前・乗務後）の、送る前の検査。サーバー側の validateDutyCallInput と同じ決まり。
+     * 足りない時は、その場所まで動かして知らせ、false を返す。
+     */
+    window.wtsCheckDutyCallForm = function(form) {
+        var requiredIds = [];
+        try { requiredIds = JSON.parse(form.getAttribute('data-required-checks') || '[]'); } catch (e) {}
+        for (var i = 0; i < requiredIds.length; i++) {
+            var box = document.getElementById(requiredIds[i]);
+            if (box && !box.checked) {
+                var holder = box.closest('.form-check') || box;
+                if (holder.scrollIntoView) holder.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                holder.classList.add('border-danger');
+                var label = holder.querySelector('label');
+                showToast('必須の確認項目にチェックが付いていません: ' + (label ? label.textContent.replace(/\s+/g, ' ').replace('（必須）', '').trim() : ''), 'warning');
+                return false;
+            }
+        }
+        var alcohol = form.querySelector('input[name="alcohol_check_value"]');
+        if (alcohol && String(alcohol.value).trim() === '') {
+            if (alcohol.scrollIntoView) alcohol.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            alcohol.classList.add('is-invalid');
+            showToast('アルコール測定値を入力してください。測定して 0 だった時は「0.000設定」を押します。', 'warning');
+            return false;
+        }
+        return true;
+    };
+
+    /**
+     * チェック項目の枠を押した時の切り替え。四角そのもの・ラベルを押した時はブラウザが切り替えるので、
+     * ここでは切り替えない（両方で切り替えると元に戻ってしまい、チェックが付かなかった）。
+     * @return {boolean} ここで切り替えたら true
+     */
+    window.wtsToggleCheckFromContainer = function(checkbox, ev) {
+        var target = ev && ev.target;
+        if (target && (target === checkbox || (target.closest && target.closest('label')))) {
+            return false;
+        }
+        checkbox.checked = !checkbox.checked;
+        return true;
+    };
+
     // 入力時にエラー表示をクリア
     document.addEventListener('input', function(e) {
         if (e.target.classList.contains('is-invalid')) {

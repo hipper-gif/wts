@@ -23,7 +23,7 @@ header('Service-Worker-Allowed: ' . $basePath . '/');
 // 福祉輸送管理システム (WTS) - Service Worker
 // Version 1.0.0
 
-const CACHE_VERSION = 'wts-v1.2.1';
+const CACHE_VERSION = 'wts-v1.2.2'; // 2026-11-18: JS・CSS の URL に更新時刻を付けた。古い保存分を捨てる
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_DYNAMIC = `${CACHE_VERSION}-dynamic`;
 const CACHE_API = `${CACHE_VERSION}-api`;

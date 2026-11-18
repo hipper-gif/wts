@@ -158,7 +158,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $caller_name = $_POST['other_caller'];
         }
 
-        $alcohol_check_value = $_POST['alcohol_check_value'];
+        // アルコール測定値と必須の確認項目（決まりは functions.php の1か所・ADR-0013）
+        $alcohol_check_value = null;
+        try {
+            $alcohol_check_value = validateDutyCallInput('pre', $_POST);
+        } catch (InvalidArgumentException $e) {
+            $error_message = $e->getMessage();
+        }
 
         // 16項目確認事項のチェック
         $check_items = [
@@ -168,6 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             'crew_id_check', 'operation_record_check', 'receipt_check', 'stop_sign_check'
         ];
 
+        if (empty($error_message)) {
         try {
             // 既存レコードの確認
             $stmt = $pdo->prepare("SELECT id FROM pre_duty_calls WHERE driver_id = ? AND call_date = ? LIMIT 1");
@@ -245,6 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $error_message = '記録の保存中にエラーが発生しました。';
             error_log("Pre duty call error: " . $e->getMessage());
         }
+        } // 必須項目の検査を通った時だけ保存
     }
     } // empty($error_message)
 }
@@ -391,11 +399,8 @@ echo $page_data['page_header'];
                     <div class="card mb-4">
                         <div class="card-body">
                             <?php
-                            $check_items_required = [
-                                'health_check' => ['健康状態', true],
-                                'pre_inspection_check' => ['運行前点検', true],
-                                'license_check' => ['免許証', true],
-                            ];
+                            // 付けないと登録できない3項目（決まりは functions.php）
+                            $check_items_required = array_map(function ($label) { return [$label, true]; }, getRequiredDutyCallChecks('pre'));
                             $check_items_optional = [
                                 'clothing_check' => ['服装', false],
                                 'footwear_check' => ['履物', false],
@@ -473,8 +478,8 @@ echo $page_data['page_header'];
                                     <div class="input-group">
                                         <input type="number" class="form-control" id="pre_alcohol_check_value" name="alcohol_check_value"
                                             step="0.001" min="0" max="1" inputmode="decimal"
-                                            value="<?= $existing_call ? $existing_call['alcohol_check_value'] : '0.000' ?>"
-                                            placeholder="0.000"
+                                            value="<?= $existing_call ? htmlspecialchars((string)$existing_call['alcohol_check_value']) : htmlspecialchars((string)($_POST['alcohol_check_value'] ?? '')) ?>"
+                                            placeholder="測定値"
                                             <?= $is_edit_mode ? 'readonly' : '' ?> required>
                                         <span class="input-group-text">mg/L</span>
                                         <?php if (!$is_edit_mode): ?>
@@ -678,13 +683,16 @@ document.getElementById('caller_name').addEventListener('change', function() {
 // チェック項目の個別切り替え
 function toggleCheck(itemId) {
     const checkbox = document.getElementById(itemId);
-    const container = checkbox.closest('.form-check');
-    checkbox.checked = !checkbox.checked;
-    if (checkbox.checked) {
-        container.classList.add('bg-success', 'bg-opacity-10', 'border-success');
-    } else {
-        container.classList.remove('bg-success', 'bg-opacity-10', 'border-success');
-    }
+    if (checkbox.disabled) return;
+    wtsToggleCheckFromContainer(checkbox, window.event);
+    // 四角・ラベルを直接押した時も、枠の色を合わせる
+    setTimeout(function() {
+        var c = checkbox.closest('.form-check');
+        if (!c) return;
+        c.classList.remove('border-danger');
+        if (checkbox.checked) { c.classList.add('bg-success', 'bg-opacity-10', 'border-success'); }
+        else { c.classList.remove('bg-success', 'bg-opacity-10', 'border-success'); }
+    }, 0);
 }
 
 // 全てチェック
@@ -707,7 +715,10 @@ function uncheckAll() {
 
 // アルコール値0.000設定
 function setAlcoholZero() {
-    document.querySelector('input[name="alcohol_check_value"]').value = '0.000';
+    var field = document.querySelector('input[name="alcohol_check_value"]');
+    field.value = '0.000';
+    field.classList.remove('is-invalid');
+    formDirty = true;
 }
 
 // 編集モード有効化
@@ -797,7 +808,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (form) {
         form.addEventListener('input', function() { formDirty = true; });
         form.addEventListener('change', function() { formDirty = true; });
-        form.addEventListener('submit', function() {
+        form.setAttribute('data-required-checks', <?= json_encode(json_encode(array_keys(getRequiredDutyCallChecks('pre')))) ?>);
+        form.addEventListener('submit', function(e) {
+            // 削除などの別の操作の時は検査しない。登録・更新の時だけ、必須の確認項目とアルコール測定値を送る前に確かめる
+            if (!form.querySelector('input[name="action"]') && !wtsCheckDutyCallForm(form)) {
+                e.preventDefault();
+                return;
+            }
             formDirty = false;
             var btn = this.querySelector('button[type="submit"]');
             if (btn) {

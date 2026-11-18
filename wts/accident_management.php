@@ -853,7 +853,7 @@ echo $page_data['page_header'];
         </div>
     </div>
 
-    <script src="js/ui-interactions.js"></script>
+    <script src="<?= htmlspecialchars(wtsAssetUrl('js/ui-interactions.js')) ?>"></script>
 
     <script>
         // 事故データ（PHPから取得）

@@ -618,7 +618,7 @@ $csrf = htmlspecialchars($_SESSION['csrf_token'] ?? '');
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="js/ui-interactions.js"></script>
+    <script src="js/ui-interactions.js?v=<?= filemtime(__DIR__ . '/js/ui-interactions.js') ?>"></script>
     <script>
         // 確かめる枠が出た時は、そこが見える位置へ（押した結果が画面の外に出ないように）
         var confirmCard = document.getElementById('confirmCard');

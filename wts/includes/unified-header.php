@@ -396,7 +396,7 @@ function renderCompleteHTMLHead($page_title, $options = []) {
     // 追加CSS
     foreach ($additional_css as $css) {
         $html .= '
-    <link rel="stylesheet" href="' . htmlspecialchars($css) . '">';
+    <link rel="stylesheet" href="' . htmlspecialchars(wtsAssetUrl($css)) . '">';
     }
     
     $html .= '
@@ -854,6 +854,19 @@ function renderWorkflowStepper($current_step, $completed, $prev = null, $next = 
 }
 
 /**
+ * 自前の JS・CSS の URL に、ファイルの更新時刻を付ける。
+ * 付けないと、端末に残った古いファイル（1週間のキャッシュ＋オフライン用の保存）が使われ続け、直した内容が届かない。
+ * 外部の URL と、すでに ? が付いているものはそのまま返す。
+ */
+function wtsAssetUrl($path) {
+    if (preg_match('#^(https?:)?//#', $path) || strpos($path, '?') !== false) {
+        return $path;
+    }
+    $file = dirname(__DIR__) . '/' . ltrim($path, '/');
+    return is_file($file) ? $path . '?v=' . filemtime($file) : $path;
+}
+
+/**
  * 📋 完全HTMLフッター生成（PWA対応）
  */
 function renderCompleteHTMLFooter($additional_js = []) {
@@ -863,7 +876,7 @@ function renderCompleteHTMLFooter($additional_js = []) {
 
     // 追加JavaScript
     foreach ($additional_js as $js) {
-        $js_safe = htmlspecialchars($js, ENT_QUOTES, 'UTF-8');
+        $js_safe = htmlspecialchars(wtsAssetUrl($js), ENT_QUOTES, 'UTF-8');
         $html .= '
     <script src="' . $js_safe . '" defer></script>';
     }
