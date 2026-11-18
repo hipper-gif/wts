@@ -359,7 +359,7 @@ echo $page_data['page_header'];
                                 <option value="">選択してください</option>
                                 <?php foreach ($drivers as $driver): ?>
                                 <option value="<?= $driver['id'] ?>"
-                                    <?= ($driver['id'] == $user_id || ($existing_call && $existing_call['driver_id'] == $driver['id'])) ? 'selected' : '' ?>>
+                                    <?= ($driver['id'] == ($existing_call ? $existing_call['driver_id'] : $selected_driver_id)) ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($driver['name']) ?>
                                 </option>
                                 <?php endforeach; ?>
