@@ -135,6 +135,34 @@ try {
         ];
     }
 
+    // Critical: 点呼でアルコールが出た（直近7日・乗務前と乗務後）。登録は止めないので、運行管理者にここで知らせる（ADR-0015）
+    try {
+        $alc_rows = [];
+        foreach (['pre_duty_calls' => '乗務前', 'post_duty_calls' => '乗務後'] as $tbl => $label) {
+            $stmt = $pdo->prepare("
+                SELECT c.call_date, c.call_time, c.alcohol_check_value, u.name AS driver_name
+                FROM {$tbl} c JOIN users u ON u.id = c.driver_id
+                WHERE c.call_date BETWEEN DATE_SUB(?, INTERVAL 6 DAY) AND ? AND " . wtsSqlAlcoholDetected('c.alcohol_check_value') . "
+                ORDER BY c.call_date DESC, c.call_time DESC
+            ");
+            $stmt->execute([$today, $today]);
+            foreach ($stmt->fetchAll() as $row) {
+                $row['label'] = $label;
+                $alc_rows[] = $row;
+            }
+        }
+        foreach ($alc_rows as $row) {
+            $alerts[] = [
+                'type' => 'danger', 'priority' => 'critical',
+                'icon' => 'fas fa-wine-bottle', 'title' => '点呼でアルコール検出',
+                'message' => date('n/j', strtotime($row['call_date'])) . ' ' . substr((string)$row['call_time'], 0, 5) . ' の' . $row['label'] . '点呼で、運転者「' . $row['driver_name'] . '」から ' . sprintf('%.3f', (float)$row['alcohol_check_value']) . ' mg/L が出ています。乗務させていないか、測り直したかを確かめてください。',
+                'action' => $row['label'] === '乗務前' ? 'pre_duty_call.php' : 'post_duty_call.php'
+            ];
+        }
+    } catch (Exception $e) {
+        // 点呼の表が無いテナントはスキップ
+    }
+
     // 車検の満了（sql/023 shaken_expiry_date）: 超過=critical / 30日以内=high / 60日以内=normal
     try {
         $stmt = $pdo->query("
@@ -475,6 +503,7 @@ echo $page_data['html_head'];
                     <a href="<?= htmlspecialchars($alert['action']) ?>" class="btn btn-sm btn-outline-primary"><?php
                         $action_labels = [
                             'pre_duty_call.php' => '乗務前点呼を実施',
+                            'post_duty_call.php' => '乗務後点呼へ',
                             'arrival.php' => '入庫処理へ',
                             'departure.php' => '出庫処理へ',
                             'daily_inspection.php' => '日常点検へ',

@@ -413,6 +413,8 @@ echo $page_data['page_header'];
             <?= renderAlert('danger', 'エラー', $error_message) ?>
         <?php endif; ?>
 
+        <?= $existing_call ? renderAlcoholDetectedAlert($existing_call['alcohol_check_value'], 'post') : '' ?>
+
         <!-- ロック状態バッジ -->
         <?php if ($existing_call): ?>
         <div class="mb-3">
@@ -829,6 +831,7 @@ function setAlcoholZero() {
     field.value = '0.000';
     field.classList.remove('is-invalid');
     formDirty = true;
+    field.dispatchEvent(new Event('input'));
 }
 
 // チェック項目のクリック処理
@@ -999,6 +1002,7 @@ window.addEventListener('beforeunload', function(e) {
 </script>
 
 <?php
+echo renderAlcoholLiveWarningScript('alcohol_check_value');
 // フッター出力
 echo $page_data['html_footer'];
 ?>

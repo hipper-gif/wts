@@ -309,6 +309,8 @@ echo $page_data['page_header'];
             <?= renderAlert('danger', 'エラー', $error_message) ?>
         <?php endif; ?>
 
+        <?= $existing_call ? renderAlcoholDetectedAlert($existing_call['alcohol_check_value'], 'pre') : '' ?>
+
         <?php if ($is_edit_mode && $existing_call): ?>
         <div class="mb-3">
             <?php if (!$is_locked): ?>
@@ -719,6 +721,7 @@ function setAlcoholZero() {
     field.value = '0.000';
     field.classList.remove('is-invalid');
     formDirty = true;
+    field.dispatchEvent(new Event('input'));
 }
 
 // 編集モード有効化
@@ -830,4 +833,5 @@ window.addEventListener('beforeunload', function(e) {
 </script>
 
 <?= $is_edit_mode ? '' : renderRestoreInputScript($error_message, ['' => '#pre-duty-form'], 'function (data, form) { if (typeof toggleCallerInput === "function") toggleCallerInput(); Array.prototype.forEach.call(form.querySelectorAll("input[type=checkbox]"), function (cb) { var c = cb.closest(".form-check"); if (c) c.classList.toggle("border-success", cb.checked); }); }') ?>
+<?= renderAlcoholLiveWarningScript('pre_alcohol_check_value') ?>
 <?= $page_data['html_footer'] ?>

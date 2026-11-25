@@ -291,6 +291,77 @@ function validateDutyCallInput($kind, array $in) {
 }
 
 /**
+ * アルコールが出たとみなす境目（ADR-0015）。これより大きい値は「出た」。
+ * 0.15mg/L（道路交通法の酒気帯び運転の基準）ではなく 0 にしている＝事業用の点呼では少しでも出たら乗務させない、を安全側に取る。
+ * 登録は止めない（測った値を記録に残すことが先）。画面で赤く知らせ、ダッシュボードで運行管理者に知らせる。
+ */
+const WTS_ALCOHOL_ALERT_ABOVE = 0.0;
+
+/** 測定値からアルコールが出たかの判定。決まりはここ1か所（画面・ダッシュボードはこれを呼ぶ） */
+function isAlcoholDetected($value) {
+    return $value !== null && $value !== '' && is_numeric($value) && (float)$value > WTS_ALCOHOL_ALERT_ABOVE;
+}
+
+/** SQL で同じ判定をする断片（ダッシュボードの一覧用）。isAlcoholDetected と同じ境目を使う */
+function wtsSqlAlcoholDetected($column) {
+    return "({$column} IS NOT NULL AND {$column} > " . sprintf('%.3F', WTS_ALCOHOL_ALERT_ABOVE) . ")";
+}
+
+/**
+ * 記録の測定値でアルコールが出ていたら、画面の上に出す赤い知らせ。出ていなければ空。
+ * @param string $kind 'pre'（乗務前）/'post'（乗務後）
+ */
+function renderAlcoholDetectedAlert($value, $kind) {
+    if (!isAlcoholDetected($value)) return '';
+    $v = htmlspecialchars(sprintf('%.3f', (float)$value), ENT_QUOTES, 'UTF-8');
+    $next = $kind === 'pre'
+        ? 'この運転者を乗務させないでください。すぐに運行管理者へ連絡し、時間を置いて測り直してください。'
+        : '運行管理者へすぐに連絡してください。乗務中に飲酒した可能性があります。';
+    return '<div class="alert alert-danger border-danger border-3 fw-bold" role="alert">'
+         . '<i class="fas fa-exclamation-triangle me-2 fa-lg"></i>'
+         . 'アルコールが検出されています（' . $v . ' mg/L）。' . $next
+         . '<div class="small fw-normal mt-1">記録はこの値で残っています。測り直した時は、もう1回この画面で記録してください（前の値は変更の記録に残ります）。</div>'
+         . '</div>';
+}
+
+/**
+ * 測定値の入力欄の下に、0 より大きい値を入れた時だけ赤い注意を出す（保存の前に気づけるように）。
+ * 境目は WTS_ALCOHOL_ALERT_ABOVE を渡す＝JS に数を書き写さない。
+ */
+function renderAlcoholLiveWarningScript($input_id) {
+    $flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP;
+    $id = json_encode((string)$input_id, $flags);
+    $above = json_encode(WTS_ALCOHOL_ALERT_ABOVE);
+    return <<<HTML
+<script>
+// アルコール測定値の注意（functions.php の renderAlcoholLiveWarningScript・ADR-0015）
+(function () {
+    function run() {
+        var field = document.getElementById({$id});
+        if (!field) return;
+        var note = document.createElement('div');
+        note.className = 'text-danger fw-bold small mt-1';
+        note.style.display = 'none';
+        note.textContent = 'アルコールが出ています。保存すると運行管理者に知らせが出ます。乗務させないでください。';
+        var host = field.closest('.input-group') || field;
+        host.parentNode.insertBefore(note, host.nextSibling);
+        function update() {
+            var v = parseFloat(field.value);
+            var hit = !isNaN(v) && v > {$above};
+            note.style.display = hit ? '' : 'none';
+            field.classList.toggle('border-danger', hit);
+        }
+        field.addEventListener('input', update);
+        field.addEventListener('change', update);
+        update();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
+})();
+</script>
+HTML;
+}
+
+/**
  * 保存が通った後に、同じ画面を出し直す（再読込や「戻る→進む」で同じ保存がもう1回走らないように）。
  * 知らせは、出し直した画面で1回だけ出す（takeFlashMessage）。保存が通らなかった時は何もしない＝入力を残して出し直す側の処理へ進む。
  * 各画面の保存処理のすぐ後で呼ぶ。決まりはここ1か所。
