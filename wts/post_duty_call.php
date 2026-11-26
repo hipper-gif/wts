@@ -23,24 +23,6 @@ if (!empty($_SESSION['post_duty_flash'])) {
     unset($_SESSION['post_duty_flash']);
 }
 
-/** 点呼日として使える日付にそろえる（形が違う・未来の日付は今日にする） */
-function normalizePostDutyDate($value, $today) {
-    $value = trim((string)$value);
-    $d = DateTime::createFromFormat('Y-m-d', $value);
-    if (!$d || $d->format('Y-m-d') !== $value || $value > $today) {
-        return $today;
-    }
-    return $value;
-}
-
-/**
- * その日の乗務後点呼を新しく登録できるか（ADR-0012）。
- * 今日と前日は誰でも（日付をまたいだ・翌朝に気づいた）。それより前は管理者だけ。
- */
-function canRegisterPostDutyDate($call_date, $user_role, $yesterday) {
-    return $call_date >= $yesterday || $user_role === 'Admin';
-}
-
 // ドライバーと点呼者の取得
 try {
     // 運転者取得（is_driverフラグのみ）
@@ -75,7 +57,7 @@ if ($is_post && !empty($_POST['driver_id'])) {
     // ログインユーザーが運転者の場合はデフォルト選択
     $selected_driver_id = (int)$user_id;
 }
-$call_date = normalizePostDutyDate($is_post ? ($_POST['call_date'] ?? $today) : ($_GET['date'] ?? $today), $today);
+$call_date = normalizeDutyCallDate($is_post ? ($_POST['call_date'] ?? $today) : ($_GET['date'] ?? $today), $today);
 
 $self_url = function ($driver_id, $date) use ($today) {
     $q = [];
@@ -243,7 +225,7 @@ if ($is_post && !isset($_POST['action'])) {
             $pdo->commit();
             $_SESSION['post_duty_flash'] = '乗務後点呼記録を更新しました。';
         } else {
-            if (!canRegisterPostDutyDate($call_date, $user_role, $yesterday)) {
+            if (!canRegisterDutyCallDate($call_date, $user_role, $yesterday)) {
                 throw new InvalidArgumentException('前日より前の乗務後点呼は、管理者が登録してください。');
             }
 
@@ -330,7 +312,7 @@ if ($selected_driver_id) {
 }
 
 // いまの画面で新しく登録できるか（できない時は、入力の前に理由を出す）
-$can_register_date = canRegisterPostDutyDate($call_date, $user_role, $yesterday);
+$can_register_date = canRegisterDutyCallDate($call_date, $user_role, $yesterday);
 $needs_pre_duty_first = ($selected_driver_id && !$existing_call && !$pre_duty_call && $call_date === $today);
 $date_label = date('n/j', strtotime($call_date)) . ($call_date === $yesterday ? '（昨日）' : '');
 
@@ -1001,6 +983,9 @@ window.addEventListener('beforeunload', function(e) {
 });
 </script>
 
+<?php if ($form_old !== null && $existing_call): ?>
+<script>document.addEventListener('DOMContentLoaded', function () { enableEditMode(); }); // 修正の保存が通らなかった時は、修正の続きの形で出す</script>
+<?php endif; ?>
 <?php
 echo renderAlcoholLiveWarningScript('alcohol_check_value');
 // フッター出力

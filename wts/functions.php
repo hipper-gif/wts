@@ -271,6 +271,26 @@ function getRequiredDutyCallChecks($kind) {
 }
 
 /**
+ * 点呼日として使える日付にそろえる（乗務前・乗務後で共通・ADR-0012/0016）。形が違う・未来の日付は今日にする。
+ */
+function normalizeDutyCallDate($value, $today) {
+    $value = trim((string)$value);
+    $d = DateTime::createFromFormat('Y-m-d', $value);
+    if (!$d || $d->format('Y-m-d') !== $value || $value > $today) {
+        return $today;
+    }
+    return $value;
+}
+
+/**
+ * その日の点呼（乗務前・乗務後）を新しく登録できるか（ADR-0012/0016）。
+ * 今日と前日は誰でも（日付をまたいだ・翌朝に気づいた）。それより前は管理者だけ。
+ */
+function canRegisterDutyCallDate($call_date, $user_role, $yesterday) {
+    return $call_date >= $yesterday || $user_role === 'Admin';
+}
+
+/**
  * 点呼の保存前の検査（ADR-0013・0014）。アルコール測定値は空では登録できない（画面の既定は 0.000＝ADR-0014）。
  * 必須の確認項目は、付いていなければ登録できない。だめな時は理由を InvalidArgumentException で返す。
  * @return string 保存する測定値

@@ -131,7 +131,7 @@ try {
             'type' => 'danger', 'priority' => 'critical',
             'icon' => 'fas fa-exclamation-triangle', 'title' => '乗務前点呼未実施',
             'message' => "運転者「{$driver['driver_name']}」が乗務前点呼を行わずに乗車記録（{$driver['ride_count']}件）を登録しています。",
-            'action' => 'pre_duty_call.php'
+            'action' => 'pre_duty_call.php?driver_id=' . (int)$driver['driver_id']
         ];
     }
 
