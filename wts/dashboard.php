@@ -702,9 +702,11 @@ class DashboardManager {
 
     setupNotifications() {
         <?php if (!empty($alerts) && in_array('critical', array_column($alerts, 'priority'))): ?>
+        // iPhone の Safari（ホーム画面に追加していない時）には Notification が無い。無ければ何もしない（無いと画面の処理がここで止まっていた）
+        if (!('Notification' in window)) return;
         if (Notification.permission === "granted") {
             new Notification("重要な業務漏れがあります", {
-                body: "<?= isset($alerts[0]) ? htmlspecialchars($alerts[0]['message']) : '' ?>",
+                body: <?= json_encode(isset($alerts[0]) ? $alerts[0]['message'] : '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>,
                 icon: "/favicon.ico"
             });
         } else if (Notification.permission !== "denied") {
