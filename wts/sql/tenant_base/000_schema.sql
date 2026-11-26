@@ -805,7 +805,7 @@ CREATE TABLE `periodic_inspection_items` (
   `inspection_id` int(11) NOT NULL,
   `category` enum('steering','braking','running','suspension','power_transmission','electrical','engine') NOT NULL,
   `item_name` varchar(100) NOT NULL,
-  `result` enum('良好','要注意','不良') NOT NULL,
+  `result` enum('良好','要注意','不良','該当なし') NOT NULL,
   `note` varchar(500) DEFAULT '' COMMENT '備考・詳細',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
