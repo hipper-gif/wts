@@ -225,7 +225,7 @@ if ($is_post && !isset($_POST['action'])) {
             $pdo->commit();
             $_SESSION['post_duty_flash'] = '乗務後点呼記録を更新しました。';
         } else {
-            if (!canRegisterDutyCallDate($call_date, $user_role, $yesterday)) {
+            if (!canRegisterDailyRecordDate($call_date, $user_role, $yesterday)) {
                 throw new InvalidArgumentException('前日より前の乗務後点呼は、管理者が登録してください。');
             }
 
@@ -312,7 +312,7 @@ if ($selected_driver_id) {
 }
 
 // いまの画面で新しく登録できるか（できない時は、入力の前に理由を出す）
-$can_register_date = canRegisterDutyCallDate($call_date, $user_role, $yesterday);
+$can_register_date = canRegisterDailyRecordDate($call_date, $user_role, $yesterday);
 $needs_pre_duty_first = ($selected_driver_id && !$existing_call && !$pre_duty_call && $call_date === $today);
 $date_label = date('n/j', strtotime($call_date)) . ($call_date === $yesterday ? '（昨日）' : '');
 

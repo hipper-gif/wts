@@ -283,10 +283,10 @@ function normalizeDutyCallDate($value, $today) {
 }
 
 /**
- * その日の点呼（乗務前・乗務後）を新しく登録できるか（ADR-0012/0016）。
- * 今日と前日は誰でも（日付をまたいだ・翌朝に気づいた）。それより前は管理者だけ。
+ * その日の日々の法定記録（乗務前・乗務後点呼・日常点検）を新しく登録できるか（ADR-0012/0016/0017）。
+ * 今日と前日は誰でも（日付をまたいだ・翌朝に気づいた）。それより前は管理者だけ。未来の日付は別に弾く。
  */
-function canRegisterDutyCallDate($call_date, $user_role, $yesterday) {
+function canRegisterDailyRecordDate($call_date, $user_role, $yesterday) {
     return $call_date >= $yesterday || $user_role === 'Admin';
 }
 

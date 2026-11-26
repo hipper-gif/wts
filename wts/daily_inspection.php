@@ -29,8 +29,10 @@ if ($mode === 'historical') {
 
 // $pdo, $user_id, $user_name, $user_role は session_check.php で設定済み
 $today = date('Y-m-d');
+$yesterday = date('Y-m-d', strtotime('-1 day'));
 
 $success_message = '';
+$duplicate_url = ''; // 同じ車両・同じ日の記録がもうある時、その記録を開くリンク（上書きしない・A-6）
 $error_message = '';
 $is_edit_mode = false;
 
@@ -119,22 +121,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     $inspection_date = $_POST['inspection_date'] ?? $today;
     $mileage = $_POST['mileage'];
     $inspection_time = $_POST['inspection_time'] ?? date('H:i');
-    
+    // 新規か修正か（修正は記録を開いて「修正」を押した時だけ。素の画面からの登録で既存の記録を上書きしない・A-6）
+    $form_mode = ($_POST['form_mode'] ?? 'new') === 'edit' ? 'edit' : 'new';
+
     // 点検者の確認（統一された権限チェック）
     $stmt = $pdo->prepare("SELECT is_driver FROM users WHERE id = ? AND is_active = TRUE");
     $stmt->execute([$inspector_id]);
     $inspector = $stmt->fetch();
-    
+
+    $date_obj = DateTime::createFromFormat('Y-m-d', (string)$inspection_date);
     if (!$inspector || $inspector['is_driver'] != 1) {
         $error_message = 'エラー: 点検者は運転手のみ選択できます。';
+    } elseif (!$date_obj || $date_obj->format('Y-m-d') !== $inspection_date) {
+        $error_message = '点検日を正しく入れてください。（入力した内容は残しています）';
+    } elseif ($form_mode === 'new' && $inspection_date > $today) {
+        $error_message = '未来の日付の点検は登録できません。点検した日を選んでください。（入力した内容は残しています）';
+    } elseif ($form_mode === 'new' && !canRegisterDailyRecordDate($inspection_date, $user_role, $yesterday)) {
+        $error_message = '前日より前の日常点検は、管理者が登録します。管理者に依頼してください。（入力した内容は残しています）';
     } else {
         // 点検項目の結果
         $inspection_items = [
             // 運転室内
-            'foot_brake_result', 'parking_brake_result', 'engine_start_result', 
+            'foot_brake_result', 'parking_brake_result', 'engine_start_result',
             'engine_performance_result', 'wiper_result', 'washer_spray_result',
             // エンジンルーム内
-            'brake_fluid_result', 'coolant_result', 'engine_oil_result', 
+            'brake_fluid_result', 'coolant_result', 'engine_oil_result',
             'battery_fluid_result', 'washer_fluid_result', 'fan_belt_result',
             // 灯火類とタイヤ
             'lights_result', 'lens_result', 'tire_pressure_result',
@@ -177,11 +188,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         if (empty($error_message)) {
         try {
             // 既存レコードの確認
-            $stmt = $pdo->prepare("SELECT id FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
+            $stmt = $pdo->prepare("SELECT id, inspection_time FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
             $stmt->execute([$inspector_id, $vehicle_id, $inspection_date]);
             $existing = $stmt->fetch();
-            
-            if ($existing) {
+
+            if ($existing && $form_mode === 'new') {
+                // 素の画面から同じ車両・同じ日をもう1回登録した＝黙って上書きしない（A-6）。直す時は記録を開いて「修正」から
+                $duplicate_url = 'daily_inspection.php?' . http_build_query(['inspector_id' => (int)$inspector_id, 'vehicle_id' => (int)$vehicle_id, 'date' => $inspection_date]);
+                $error_message = 'この車両の ' . date('n/j', strtotime($inspection_date)) . ' の日常点検は、' . substr((string)$existing['inspection_time'], 0, 5) . ' にもう登録されています。上書きはしていません。直す時は、下の「登録済みの記録を開く」から開いて「修正」を押してください。（入力した内容は残しています）';
+            } elseif (!$existing && $form_mode === 'edit') {
+                $error_message = '修正しようとした記録が見つかりません。削除された可能性があります。画面を開き直してください。';
+            } elseif ($existing) {
                 // 既存レコードの全データを取得（変更差分比較用）
                 $stmt = $pdo->prepare("SELECT * FROM daily_inspections WHERE id = ?");
                 $stmt->execute([$existing['id']]);
@@ -300,7 +317,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 $pdo->commit();
                 $success_message = '日常点検記録を登録しました。';
             }
-            
+
             // 記録を再取得（成功時のみ）
             if ($success_message) {
                 $stmt = $pdo->prepare("SELECT * FROM daily_inspections WHERE driver_id = ? AND vehicle_id = ? AND inspection_date = ?");
@@ -415,7 +432,7 @@ $page_config = getPageConfiguration('daily_inspection');
         null,
         ['url' => 'pre_duty_call.php', 'label' => '乗務前点呼']
     )) ?>
-    
+
     <main class="main-content" id="main-content" tabindex="-1">
     <div class="container mt-4">
         <div id="printHeader">
@@ -499,14 +516,20 @@ $page_config = getPageConfiguration('daily_inspection');
 
         <?php if ($error_message): ?>
             <?= renderAlert('danger', 'エラー', $error_message) ?>
+            <?php if ($duplicate_url): ?>
+            <div class="mb-3"><a href="<?= htmlspecialchars($duplicate_url) ?>" class="btn wts-btn-blue"><i class="fas fa-folder-open me-1"></i>登録済みの記録を開く</a></div>
+            <?php endif; ?>
         <?php endif; ?>
-        
+
         <form method="POST" id="inspectionForm">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
             <?php if ($is_edit_mode): ?>
+                <input type="hidden" name="form_mode" value="edit">
                 <input type="hidden" name="inspector_id" value="<?= htmlspecialchars($existing_inspection['driver_id']) ?>">
                 <input type="hidden" name="vehicle_id" value="<?= htmlspecialchars($existing_inspection['vehicle_id']) ?>">
                 <input type="hidden" name="inspection_date" value="<?= htmlspecialchars($existing_inspection['inspection_date']) ?>">
+            <?php else: ?>
+                <input type="hidden" name="form_mode" value="new">
             <?php endif; ?>
 
             <!-- 進捗バー + クイック操作（1行） -->
@@ -519,15 +542,16 @@ $page_config = getPageConfiguration('daily_inspection');
                 </div>
                 <small class="fw-bold text-nowrap" id="progressText">0/7</small>
             </div>
-            
+
             <div class="card mb-4">
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">点検日 <span class="text-danger fw-bold small">（必須）</span></label>
                             <input type="<?= $is_edit_mode ? 'text' : 'date' ?>" class="form-control" name="<?= $is_edit_mode ? 'inspection_date_display' : 'inspection_date' ?>"
-                                   value="<?= $existing_inspection ? $existing_inspection['inspection_date'] : $target_date ?>"
-                                   <?= $is_edit_mode ? 'readonly' : 'required' ?>>
+                                   value="<?= $existing_inspection ? $existing_inspection['inspection_date'] : htmlspecialchars(normalizeDutyCallDate($target_date, $today)) ?>"
+                                   <?= $is_edit_mode ? 'readonly' : 'required max="' . $today . '"' . ($user_role === 'Admin' ? '' : ' min="' . $yesterday . '"') ?>>
+                            <?php if (!$is_edit_mode): ?><div class="form-text">未来の日付は選べません。前日より前は管理者が登録します。</div><?php endif; ?>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">点検時間</label>
@@ -588,6 +612,10 @@ $page_config = getPageConfiguration('daily_inspection');
                                     </option>
                                     <?php endforeach; ?>
                                 </select>
+                                <div class="alert alert-warning py-2 px-3 mt-2 mb-0 d-none" id="duplicateNotice">
+                                    <i class="fas fa-exclamation-triangle me-1"></i><span id="duplicateText"></span>
+                                    <a href="#" id="duplicateLink" class="btn btn-sm wts-btn-blue ms-2">登録済みの記録を開く</a>
+                                </div>
                             <?php endif; ?>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -631,7 +659,7 @@ $page_config = getPageConfiguration('daily_inspection');
                         'washer_spray_result' => ['label' => 'ウインドウォッシャー液の噴射状態', 'required' => false]
                     ];
                     ?>
-                    
+
                     <?php foreach ($cabin_items as $key => $item): ?>
                     <div class="inspection-item border rounded p-3 mb-3" data-item="<?= $key ?>">
                         <div class="row align-items-center">
@@ -669,7 +697,7 @@ $page_config = getPageConfiguration('daily_inspection');
                     <?php endforeach; ?>
                 </div>
             </div>
-            
+
             <!-- エンジンルーム内点検 -->
             <?= renderSectionHeader('cog', 'エンジンルーム内点検', '必須項目含む6項目') ?>
             <div class="card mb-4">
@@ -684,7 +712,7 @@ $page_config = getPageConfiguration('daily_inspection');
                         'fan_belt_result' => ['label' => 'ファンベルトの張り・損傷', 'required' => false]
                     ];
                     ?>
-                    
+
                     <?php foreach ($engine_items as $key => $item): ?>
                     <div class="inspection-item border rounded p-3 mb-3" data-item="<?= $key ?>">
                         <div class="row align-items-center">
@@ -722,7 +750,7 @@ $page_config = getPageConfiguration('daily_inspection');
                     <?php endforeach; ?>
                 </div>
             </div>
-            
+
             <!-- 灯火類とタイヤ点検 -->
             <?= renderSectionHeader('lightbulb', '灯火類とタイヤ点検', '必須項目含む5項目') ?>
             <div class="card mb-4">
@@ -736,7 +764,7 @@ $page_config = getPageConfiguration('daily_inspection');
                         'tire_tread_result' => ['label' => 'タイヤ溝の深さ', 'required' => false]
                     ];
                     ?>
-                    
+
                     <?php foreach ($lights_tire_items as $key => $item): ?>
                     <div class="inspection-item border rounded p-3 mb-3" data-item="<?= $key ?>">
                         <div class="row align-items-center">
@@ -774,7 +802,7 @@ $page_config = getPageConfiguration('daily_inspection');
                     <?php endforeach; ?>
                 </div>
             </div>
-            
+
             <!-- 不良個所・備考 -->
             <?= renderSectionHeader('exclamation-triangle', '不良個所及び処置・備考', '詳細記録') ?>
             <div class="card mb-4">
@@ -793,7 +821,7 @@ $page_config = getPageConfiguration('daily_inspection');
                     </div>
                 </div>
             </div>
-            
+
             <div class="print-defect-section">
                 <table style="width:100%; border-collapse:collapse; font-size:10pt; margin-top:8px;">
                     <tr>
@@ -872,7 +900,7 @@ $page_config = getPageConfiguration('daily_inspection');
             <input type="hidden" name="edit_reason" id="deleteReason" value="">
         </form>
         <?php endif; ?>
-        
+
         <!-- 変更履歴 -->
         <?php if ($is_edit_mode && !empty($audit_logs)): ?>
         <div class="card mb-3" id="auditHistorySection">
@@ -1133,5 +1161,62 @@ $page_config = getPageConfiguration('daily_inspection');
             lockReason: <?= json_encode($lock_reason ?? '') ?>
         };
     </script>
+    <?php if (!$is_edit_mode):
+        // 今日・前日の登録済み（同じ点検者・車両・日の組を、押す前に知らせるため）
+        $done_list = [];
+        try {
+            $stmt = $pdo->prepare("SELECT driver_id, vehicle_id, inspection_date, inspection_time FROM daily_inspections WHERE inspection_date BETWEEN ? AND ?");
+            $stmt->execute([$yesterday, $today]);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $done_list[] = ['d' => (int)$r['driver_id'], 'v' => (int)$r['vehicle_id'], 'date' => $r['inspection_date'], 'time' => substr((string)$r['inspection_time'], 0, 5)];
+            }
+        } catch (Exception $e) {
+            $done_list = [];
+        }
+    ?>
+    <script>
+    // 同じ点検者・車両・日の記録がもうあれば、選んだ時点で知らせ、登録は止める（黙って上書きしない・A-6・ADR-0017）
+    (function () {
+        var done = <?= json_encode($done_list) ?>;
+        var form = document.getElementById('inspectionForm');
+        if (!form) return;
+        function field(n) { return form.querySelector('[name="' + n + '"]'); }
+        function findDone() {
+            var d = parseInt((field('inspector_id') || {}).value || '0', 10);
+            var v = parseInt((field('vehicle_id') || {}).value || '0', 10);
+            var date = (field('inspection_date') || {}).value || '';
+            for (var i = 0; i < done.length; i++) {
+                if (done[i].d === d && done[i].v === v && done[i].date === date) return done[i];
+            }
+            return null;
+        }
+        function refresh() {
+            var hit = findDone();
+            var box = document.getElementById('duplicateNotice');
+            if (!box) return hit;
+            if (hit) {
+                var p = hit.date.split('-');
+                document.getElementById('duplicateText').textContent = 'この車両の ' + parseInt(p[1], 10) + '/' + parseInt(p[2], 10) + ' の点検は ' + hit.time + ' にもう登録されています。';
+                document.getElementById('duplicateLink').href = 'daily_inspection.php?inspector_id=' + hit.d + '&vehicle_id=' + hit.v + '&date=' + hit.date;
+                box.classList.remove('d-none');
+            } else {
+                box.classList.add('d-none');
+            }
+            return hit;
+        }
+        form.addEventListener('change', refresh);
+        form.addEventListener('input', refresh);
+        window.wtsRefreshDuplicateNotice = refresh; // 下書きの復元のあとにも呼ぶ
+        form.addEventListener('submit', function (e) {
+            if (refresh()) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                showToast('この車両のこの日の点検はもう登録されています。直す時は「登録済みの記録を開く」から開いてください。', 'warning');
+            }
+        });
+        document.addEventListener('DOMContentLoaded', refresh);
+    })();
+    </script>
+    <?php endif; ?>
     <script src="js/daily_inspection.js?v=<?= filemtime(__DIR__ . '/js/daily_inspection.js') ?>" defer></script>
     <?= $is_edit_mode ? '' : renderRestoreInputScript($error_message, ['' => '#inspectionForm']) ?>

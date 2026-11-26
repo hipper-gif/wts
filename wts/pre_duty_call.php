@@ -182,7 +182,7 @@ if ($is_post && !isset($_POST['action'])) {
             $pdo->commit();
             $_SESSION['pre_duty_flash'] = '乗務前点呼記録を更新しました。';
         } else {
-            if (!canRegisterDutyCallDate($call_date, $user_role, $yesterday)) {
+            if (!canRegisterDailyRecordDate($call_date, $user_role, $yesterday)) {
                 throw new InvalidArgumentException('前日より前の乗務前点呼は、管理者が登録してください。');
             }
 
@@ -282,7 +282,7 @@ if ($selected_driver_id) {
 }
 
 // いまの画面で新しく登録できるか（できない時は、入力の前に理由を出す）
-$can_register_date = canRegisterDutyCallDate($call_date, $user_role, $yesterday);
+$can_register_date = canRegisterDailyRecordDate($call_date, $user_role, $yesterday);
 $date_label = date('n/j', strtotime($call_date)) . ($call_date === $yesterday ? '（昨日）' : '');
 
 // 入力欄に出す値: 保存が通らなかった時は入れた値、記録があれば記録の値、どちらも無ければ既定値

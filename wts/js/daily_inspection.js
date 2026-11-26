@@ -536,6 +536,8 @@ function restoreDraft() {
             if (typeof updateMileage === 'function') updateMileage();
         }
     }
+    // 戻した車両がもう点検済みなら、その場で知らせる（ADR-0017）
+    if (typeof window.wtsRefreshDuplicateNotice === 'function') window.wtsRefreshDuplicateNotice();
 
     // 入力要素
     // 点検日は下書きから戻さない（開いている画面の日付のまま。別の日の下書きは画面を開いた時点で捨てている）
